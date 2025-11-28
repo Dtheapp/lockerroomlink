@@ -1,0 +1,5 @@
+{
+  "name": "GridironHub",
+  "description": "A production-grade Team OS for Junior League American Football, built with React and Firebase. Features include a playbook, chat, roster management, and a video library.",
+  "requestFramePermissions": []
+}
