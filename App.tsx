@@ -15,7 +15,8 @@ import Playbook from './components/Playbook';
 import Chat from './components/Chat';
 import VideoLibrary from './components/VideoLibrary';
 import Profile from './components/Profile';
-import Messenger from './components/Messenger'; 
+import Messenger from './components/Messenger';
+import Stats from './components/Stats';
 
 // Admin Pages
 import AdminDashboard from './components/admin/AdminDashboard';
@@ -60,6 +61,7 @@ const AppContent: React.FC = () => {
               <Route path="users" element={<ManageUsers />} />
               <Route path="teams" element={<ManageTeams />} />
               <Route path="reports" element={<UserReport />} />
+              <Route path="stats" element={<Stats />} />
             </Route>
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </>
@@ -71,9 +73,10 @@ const AppContent: React.FC = () => {
               <Route path="roster" element={<Roster />} />
               <Route path="playbook" element={<Playbook />} />
               <Route path="chat" element={<Chat />} />
-              <Route path="messenger" element={<Messenger />} /> {/* <--- ROUTE ADDED */}
+              <Route path="messenger" element={<Messenger />} />
               <Route path="videos" element={<VideoLibrary />} />
               <Route path="profile" element={<Profile />} />
+              <Route path="stats" element={<Stats />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </>

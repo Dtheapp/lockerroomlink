@@ -1,9 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
-// FIXED: Added 'Send' to the imports
-import { Home, Users, ClipboardList, MessageCircle, Video, LogOut, User, Send, Menu, X, ChevronLeft, Sun, Moon } from 'lucide-react';
+import { Home, Users, ClipboardList, MessageCircle, Video, LogOut, User, Send, Menu, X, ChevronLeft, Sun, Moon, BarChart3 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -11,40 +10,9 @@ const Layout: React.FC = () => {
   const navigate = useNavigate();
   const { teamData, userData } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
-  const sidebarRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-      if (window.innerWidth >= 768) {
-        setSidebarOpen(true);
-      }
-    };
-
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
-        const target = event.target as HTMLElement;
-        if (!target.closest('[data-menu-toggle]')) {
-          if (isMobile && sidebarOpen) {
-            setSidebarOpen(false);
-          }
-        }
-      }
-    };
-
-    if (isMobile) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [isMobile, sidebarOpen]);
+  
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
 
   const handleSignOut = async () => {
     try {
@@ -55,71 +23,69 @@ const Layout: React.FC = () => {
     }
   };
 
-  // Define all possible items
   const allNavItems = [
     { name: 'Dashboard', path: '/dashboard', icon: Home },
     { name: 'Roster', path: '/roster', icon: Users },
     { name: 'Playbook', path: '/playbook', icon: ClipboardList },
     { name: 'Team Chat', path: '/chat', icon: MessageCircle },
-    { name: 'Messenger', path: '/messenger', icon: Send },     // <--- New Tab
+    { name: 'Messenger', path: '/messenger', icon: Send },
     { name: 'Film Room', path: '/videos', icon: Video },
+    { name: 'Stats', path: '/stats', icon: BarChart3 },
     { name: 'Profile', path: '/profile', icon: User }, 
   ];
 
-  // Filter: Remove 'Playbook' if user is a Parent
   const navItems = allNavItems.filter(item => {
-      if (item.name === 'Playbook' && userData?.role === 'Parent') {
-          return false;
-      }
+      if (item.name === 'Playbook' && userData?.role === 'Parent') return false;
       return true;
   });
 
-  const navLinkClasses = 'flex items-center p-3 my-1 rounded-lg transition-colors';
-  const activeClasses = 'bg-sky-500 text-white dark:bg-sky-600';
-  const inactiveClasses = 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-sky-600 dark:hover:text-sky-400';
+  const navLinkClasses = 'flex items-center p-3 my-1 rounded-lg transition-colors whitespace-nowrap overflow-hidden';
+  const activeClasses = 'bg-sky-500 text-white dark:bg-sky-600 shadow-md';
+  const inactiveClasses = 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-sky-600 dark:hover:text-sky-400';
 
   return (
-    <div className="flex h-screen bg-white dark:bg-slate-900 overflow-hidden">
-      {/* Mobile Overlay */}
-      {sidebarOpen && isMobile && (
-        <div
-          className="fixed inset-0 bg-black/50 z-30 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        ></div>
-      )}
-
-      {/* Sidebar */}
-      <aside
-        ref={sidebarRef}
-        className={`${
-          isMobile 
-            ? 'fixed z-40 w-64' 
-            : `transition-all duration-300 ease-in-out ${sidebarOpen ? 'w-64' : 'w-20'}`
-        } flex flex-col bg-slate-50 dark:bg-slate-900 p-4 h-full overflow-hidden ${
-          isMobile 
-            ? sidebarOpen ? 'translate-x-0' : '-translate-x-full' 
-            : ''
-        }`}
-      >
-        <div className="flex items-center justify-between mb-6">
-          {sidebarOpen ? (
-            <div className="text-2xl font-bold text-slate-900 dark:text-white min-w-0">
-              <div className="truncate">Gridiron<span className="text-sky-500">Hub</span></div>
-              <p className="text-sm font-normal text-slate-600 dark:text-slate-400 mt-1 truncate">{teamData?.name || 'Loading...'}</p>
-            </div>
-          ) : (
-            <div className="flex justify-center w-full">
-              <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-sky-500 to-sky-600 rounded-lg font-bold text-white text-lg">
-                GH
-              </div>
-            </div>
-          )}
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="md:hidden text-slate-600 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors flex-shrink-0 ml-2"
-          >
-            <X className="w-6 h-6" />
+    // FIX: Custom Hex [#151e32] acts as Slate-850 (Lighter than 900, Darker than 800)
+    <div className="flex h-screen bg-slate-50 dark:bg-[#151e32] overflow-hidden transition-colors duration-200">
+      
+      {/* MOBILE HEADER */}
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 z-40 shadow-sm">
+          <div className="text-xl font-bold text-slate-900 dark:text-white">
+            Gridiron<span className="text-sky-500">Hub</span>
+          </div>
+          <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600 dark:text-slate-300">
+              <Menu className="w-8 h-8" />
           </button>
+      </div>
+
+      {/* SIDEBAR (Kept at Slate-900 for slight contrast against 850 background) */}
+      <aside className={`
+          fixed inset-y-0 left-0 z-50 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 
+          transition-all duration-300 ease-in-out flex flex-col p-4 shadow-xl
+          md:relative md:translate-x-0 md:shadow-none
+          ${isSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'} 
+          ${isDesktopCollapsed ? 'md:w-20' : 'md:w-64'}
+      `}>
+        
+        <div className="flex items-center justify-between mb-6 h-10">
+            {!isDesktopCollapsed && (
+                <div className="min-w-0">
+                    <div className="text-2xl font-bold text-slate-900 dark:text-white truncate">
+                        Gridiron<span className="text-sky-500">Hub</span>
+                    </div>
+                    <p className="text-xs text-slate-500 truncate mt-1">{teamData?.name || 'Loading...'}</p>
+                </div>
+            )}
+            
+            <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-slate-500 hover:text-red-500">
+                <X className="w-6 h-6" />
+            </button>
+
+            <button 
+                onClick={() => setIsDesktopCollapsed(!isDesktopCollapsed)} 
+                className="hidden md:block text-slate-400 hover:text-sky-500 transition-transform"
+            >
+                <ChevronLeft className={`w-5 h-5 transition-transform duration-300 ${isDesktopCollapsed ? 'rotate-180' : ''}`} />
+            </button>
         </div>
 
         <nav className="flex-1 space-y-1">
@@ -127,78 +93,53 @@ const Layout: React.FC = () => {
             <NavLink
               key={item.name}
               to={item.path}
-              onClick={() => isMobile && setSidebarOpen(false)}
+              onClick={() => setIsSidebarOpen(false)} 
               className={({ isActive }) => `${navLinkClasses} ${isActive ? activeClasses : inactiveClasses}`}
-              title={!sidebarOpen ? item.name : ''}
+              title={isDesktopCollapsed ? item.name : ''}
             >
               <item.icon className="w-5 h-5 flex-shrink-0" />
-              <span className={`transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0 w-0'}`}>{item.name}</span>
+              <span className={`ml-3 transition-opacity duration-200 ${isDesktopCollapsed ? 'opacity-0 w-0 hidden md:block' : 'opacity-100'}`}>
+                  {item.name}
+              </span>
             </NavLink>
           ))}
         </nav>
+        
+        <div className="mt-auto pt-4 border-t border-slate-200 dark:border-slate-800 space-y-2">
+            <button 
+                onClick={toggleTheme} 
+                className={`${navLinkClasses} ${inactiveClasses} w-full`}
+                title={isDesktopCollapsed ? 'Toggle Theme' : ''}
+            >
+                {theme === 'dark' ? <Sun className="w-5 h-5"/> : <Moon className="w-5 h-5"/>}
+                <span className={`ml-3 ${isDesktopCollapsed ? 'hidden' : 'block'}`}>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+            </button>
 
-        <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mt-auto space-y-2">
-          <button
-            onClick={toggleTheme}
-            className={`${navLinkClasses} ${inactiveClasses} w-full justify-start`}
-            title={!sidebarOpen ? `Switch to ${theme === 'dark' ? 'light' : 'dark'} mode` : ''}
-          >
-            {theme === 'dark' ? (
-              <Sun className="w-5 h-5 flex-shrink-0" />
-            ) : (
-              <Moon className="w-5 h-5 flex-shrink-0" />
-            )}
-            <span className={`transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0 w-0'}`}>
-              {theme === 'dark' ? 'Light' : 'Dark'} Mode
-            </span>
-          </button>
-          <button
-            onClick={handleSignOut}
-            className={`${navLinkClasses} ${inactiveClasses} w-full justify-start`}
-            title={!sidebarOpen ? 'Sign Out' : ''}
-          >
-            <LogOut className="w-5 h-5 flex-shrink-0" />
-            <span className={`transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0 w-0'}`}>Sign Out</span>
-          </button>
+            <button 
+                onClick={handleSignOut} 
+                className={`${navLinkClasses} ${inactiveClasses} w-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20`}
+                title={isDesktopCollapsed ? 'Sign Out' : ''}
+            >
+                <LogOut className="w-5 h-5" />
+                <span className={`ml-3 ${isDesktopCollapsed ? 'hidden' : 'block'}`}>Sign Out</span>
+            </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile Header */}
-        <div className="md:hidden flex items-center justify-between bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-slate-600 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
-            data-menu-toggle
-          >
-            {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-          <h1 className="text-lg font-bold text-slate-900 dark:text-white">{teamData?.name || 'Team'}</h1>
-          <div className="w-6"></div>
-        </div>
+      {isSidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+      )}
 
-        {/* Desktop Header with Collapse Button */}
-        <div className="hidden md:flex items-center bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-slate-600 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all rounded-lg p-2"
-            title={sidebarOpen ? 'Collapse menu' : 'Expand menu'}
-          >
-            <ChevronLeft className={`w-5 h-5 transition-transform duration-300 ${!sidebarOpen ? 'rotate-180' : ''}`} />
-          </button>
-          <div className="ml-auto text-sm font-semibold text-slate-900 dark:text-white">
-            {userData?.name}
-          </div>
-        </div>
-
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto bg-slate-100 dark:bg-slate-850">
-          <div className="p-4 md:p-6 lg:p-8">
-            <Outlet />
-          </div>
+      {/* MAIN CONTENT AREA */}
+      <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-[#151e32] pt-16 md:pt-0 relative">
+        <div className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
+          <Outlet />
         </div>
       </main>
+
     </div>
   );
 };

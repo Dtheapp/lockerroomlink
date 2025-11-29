@@ -2,7 +2,7 @@ import { Timestamp } from 'firebase/firestore';
 
 export type UserRole = 'Coach' | 'Parent' | 'SuperAdmin';
 
-// --- NEW: Helper Interfaces ---
+// --- HELPER INTERFACES ---
 export interface EmergencyContact {
   name: string;
   phone: string;
@@ -14,11 +14,34 @@ export interface MedicalInfo {
   conditions: string;
   medications: string;
   bloodType: string;
-  insuranceProvider?: string;
-  insurancePolicy?: string;
 }
 
-// --- UPDATED: Main Interfaces ---
+// --- EVENTS (Dashboard Calendar) ---
+export interface CalendarEvent {
+    id: string;
+    title: string;
+    date: string;
+    time: string;
+    type: 'game' | 'practice' | 'event';
+    location?: string;
+}
+
+// --- EVENTS (Schedule Management) ---
+export interface TeamEvent {
+  id: string;
+  teamId?: string;
+  date: string;
+  time: string;
+  title: string;
+  type: 'Practice' | 'Game' | 'Other';
+  location: string;
+  description: string;
+  createdAt?: any;
+  createdBy?: string;
+  updatedAt?: any;
+}
+
+// --- MAIN INTERFACES ---
 
 export interface UserProfile {
   uid: string;
@@ -29,9 +52,9 @@ export interface UserProfile {
   username?: string;
   
   // Contact Details
-  phone?: string;          // Mobile (Mandatory)
-  secondaryPhone?: string; // Home/Work (Optional)
-  address?: string;        // Home Address
+  phone?: string;          
+  secondaryPhone?: string; 
+  address?: string;        
   
   // Emergency
   emergencyContact?: EmergencyContact;
@@ -43,12 +66,17 @@ export interface Team {
   id: string;
   name: string;
   coachId: string | null;
+  record?: {
+      wins: number;
+      losses: number;
+      ties: number;
+  };
 }
 
 export interface Player {
   id: string;
   name: string;
-  number: number; // Jersey Number
+  number: number;
   position: string;
   
   // Link to Parent
@@ -56,7 +84,7 @@ export interface Player {
   
   // Personal & Medical
   dob?: string;
-  medical?: MedicalInfo; // <--- The Critical Safety Data
+  medical?: MedicalInfo; 
 
   // Game Stats
   stats: {
@@ -65,6 +93,7 @@ export interface Player {
   };
 }
 
+// --- TEAM CHAT ---
 export interface Message {
   id: string;
   text: string;
@@ -83,6 +112,36 @@ export interface BulletinPost {
   timestamp: Timestamp;
 }
 
+// --- PLAYBOOK ENGINE ---
+export interface PlayElement {
+  id: string;
+  type: 'X' | 'O';
+  label: string; 
+  x: number; 
+  y: number; 
+  color: string;
+}
+
+export interface PlayRoute {
+  id: string;
+  startElementId: string;
+  points: { x: number; y: number }[];
+  color: string;
+  style: 'solid' | 'dashed' | 'dotted';
+  arrow: boolean;
+}
+
+export interface Play {
+  id: string;
+  name: string;
+  category: 'Offense' | 'Defense' | 'Special Teams';
+  elements: PlayElement[];
+  routes: PlayRoute[]; 
+  notes?: string;
+  thumbnailUrl?: string;
+  createdAt: any;
+}
+
 export interface Marker {
   id: string;
   x: number;
@@ -90,25 +149,19 @@ export interface Marker {
   type: 'X' | 'O';
 }
 
-export interface Play {
-  id: string;
-  name: string;
-  markers: Marker[];
-}
-
+// --- VIDEO ---
 export interface Video {
   id: string;
   title: string;
   url: string;
   youtubeId: string;
 }
-// ... (Keep existing interfaces)
 
-// --- NEW: Private Messaging ---
+// --- PRIVATE MESSAGING ---
 export interface PrivateChat {
   id: string;
-  participants: string[]; // Array of UIDs [uid1, uid2]
-  participantData: {      // Snapshot of names for display
+  participants: string[]; 
+  participantData: {      
     [uid: string]: {
       username: string;
       role: string;
@@ -116,7 +169,7 @@ export interface PrivateChat {
   };
   lastMessage: string;
   lastMessageTime: Timestamp;
-  updatedAt: any; // serverTimestamp
+  updatedAt: any; 
 }
 
 export interface PrivateMessage {
@@ -124,4 +177,24 @@ export interface PrivateMessage {
   text: string;
   senderId: string;
   timestamp: Timestamp;
+}
+
+// --- ADVANCED STATS (Future Proofing) ---
+export interface PlayerStats {
+  id: string;
+  playerId: string;
+  playerName: string;
+  playerNumber: number;
+  teamId: string;
+  gp: number;
+  tds: number;
+  yards: number;
+  rec: number;
+  tackles: number;
+  sacks: number;
+  int: number;
+  ff: number;
+  spts: number;
+  updatedAt: any;
+  updatedBy?: string;
 }
