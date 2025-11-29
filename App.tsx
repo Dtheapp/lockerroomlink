@@ -1,6 +1,7 @@
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 // Layouts
 import Layout from './layout/Layout';
@@ -20,12 +21,15 @@ import Messenger from './components/Messenger';
 import AdminDashboard from './components/admin/AdminDashboard';
 import ManageUsers from './components/admin/ManageUsers';
 import ManageTeams from './components/admin/ManageTeams';
+import UserReport from './components/admin/UserReport';
 
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ThemeProvider>
   );
 };
 
@@ -34,7 +38,7 @@ const AppContent: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-900">
+      <div className="flex items-center justify-center h-screen bg-slate-900 dark:bg-slate-100">
         <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-sky-500"></div>
       </div>
     );
@@ -55,6 +59,7 @@ const AppContent: React.FC = () => {
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="users" element={<ManageUsers />} />
               <Route path="teams" element={<ManageTeams />} />
+              <Route path="reports" element={<UserReport />} />
             </Route>
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </>

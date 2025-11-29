@@ -62,37 +62,37 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-white">Locker Room</h1>
+      <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Locker Room</h1>
       
       <div className="grid md:grid-cols-2 gap-6">
-        <div className="bg-slate-900 p-6 rounded-lg">
-          <h2 className="text-xl font-semibold text-sky-400 mb-2">Team Name</h2>
-          <p className="text-3xl text-white font-bold">{teamData?.name || 'Loading...'}</p>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-lg shadow-lg dark:shadow-xl">
+          <h2 className="text-xl font-semibold text-sky-500 dark:text-sky-400 mb-2">Team Name</h2>
+          <p className="text-3xl text-slate-900 dark:text-white font-bold">{teamData?.name || 'Loading...'}</p>
         </div>
-        <div className="bg-slate-900 p-6 rounded-lg">
-          <h2 className="text-xl font-semibold text-sky-400 mb-2">Team ID</h2>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-lg shadow-lg dark:shadow-xl">
+          <h2 className="text-xl font-semibold text-sky-500 dark:text-sky-400 mb-2">Team ID</h2>
           <div className="flex items-center space-x-4">
-            <p className="text-lg md:text-2xl text-white font-mono bg-slate-800 px-3 py-1 rounded truncate">{teamData?.id || 'Loading...'}</p>
-            <button onClick={copyTeamId} className="p-2 rounded-md bg-slate-700 hover:bg-slate-600 transition-colors">
-              {isCopied ? <Check className="w-5 h-5 text-green-400" /> : <Clipboard className="w-5 h-5 text-slate-300" />}
+            <p className="text-lg md:text-2xl text-slate-900 dark:text-white font-mono bg-slate-50 dark:bg-slate-800 px-3 py-1 rounded truncate border border-slate-200 dark:border-slate-700">{teamData?.id || 'Loading...'}</p>
+            <button onClick={copyTeamId} className="p-2 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shadow-md">
+              {isCopied ? <Check className="w-5 h-5 text-green-500 dark:text-green-400" /> : <Clipboard className="w-5 h-5 text-slate-600 dark:text-slate-400" />}
             </button>
           </div>
-          <p className="text-xs text-slate-400 mt-2">Share this ID with parents to have them join the team.</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">Share this ID with parents to have them join the team.</p>
         </div>
       </div>
       
       <div>
-        <h2 className="text-2xl font-bold text-white mb-4">Bulletin Board</h2>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">Bulletin Board</h2>
         {userData?.role === 'Coach' && (
-          <form onSubmit={handleAddPost} className="mb-6 bg-slate-900 p-4 rounded-lg flex items-center gap-4">
+          <form onSubmit={handleAddPost} className="mb-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-lg flex items-center gap-4 shadow-lg dark:shadow-xl">
             <input
               type="text"
               value={newPost}
               onChange={(e) => setNewPost(e.target.value)}
               placeholder="Post an announcement..."
-              className="flex-1 bg-slate-800 border border-slate-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-sky-500 focus:border-sky-500"
+              className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md shadow-sm py-2 px-3 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-sky-500 focus:border-sky-500"
             />
-            <button type="submit" className="p-2.5 rounded-md bg-sky-600 hover:bg-sky-700 transition-colors disabled:bg-slate-600" disabled={!newPost.trim()}>
+            <button type="submit" className="p-2.5 rounded-md bg-sky-500 hover:bg-sky-600 dark:bg-sky-600 dark:hover:bg-sky-700 transition-colors disabled:bg-slate-300 dark:disabled:bg-slate-700" disabled={!newPost.trim()}>
               <Plus className="w-5 h-5 text-white" />
             </button>
           </form>
@@ -100,18 +100,18 @@ const Dashboard: React.FC = () => {
 
         <div className="space-y-4">
           {loading ? (
-            <p className="text-slate-400">Loading posts...</p>
+            <p className="text-slate-600 dark:text-slate-400">Loading posts...</p>
           ) : posts.length > 0 ? (
             posts.map(post => (
-              <div key={post.id} className="bg-slate-900 p-4 rounded-lg">
-                <p className="text-slate-100">{post.text}</p>
-                <p className="text-xs text-slate-400 mt-2 text-right">
+              <div key={post.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-lg shadow-lg dark:shadow-xl">
+                <p className="text-slate-900 dark:text-slate-100">{post.text}</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 text-right">
                   - {post.author} on {formatDate(post.timestamp)}
                 </p>
               </div>
             ))
           ) : (
-            <p className="text-slate-400 text-center py-8">No announcements yet.</p>
+            <p className="text-slate-600 dark:text-slate-400 text-center py-8">No announcements yet.</p>
           )}
         </div>
       </div>

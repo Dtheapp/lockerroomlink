@@ -76,31 +76,31 @@ const Playbook: React.FC = () => {
 
   return (
     <div className="flex flex-col md:flex-row gap-6 h-[calc(100vh-8rem)] md:h-auto">
-      <div className="w-full md:w-1/4 bg-slate-900 p-4 rounded-lg flex flex-col">
-        <h2 className="text-xl font-bold mb-4">Controls</h2>
+      <div className="w-full md:w-1/4 bg-white dark:bg-slate-900 p-4 rounded-lg flex flex-col border border-slate-200 dark:border-slate-800 shadow-lg dark:shadow-xl">
+        <h2 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">Controls</h2>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-300">Play Name</label>
-            <input type="text" value={playName} onChange={(e) => setPlayName(e.target.value)} className="mt-1 w-full bg-slate-800 p-2 rounded border border-slate-700" />
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Play Name</label>
+            <input type="text" value={playName} onChange={(e) => setPlayName(e.target.value)} className="mt-1 w-full bg-slate-50 dark:bg-slate-950 p-2 rounded border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white" />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => setMarkerType('X')} className={`py-2 rounded ${markerType === 'X' ? 'bg-red-600' : 'bg-slate-700'}`}>Place X</button>
-            <button onClick={() => setMarkerType('O')} className={`py-2 rounded ${markerType === 'O' ? 'bg-blue-600' : 'bg-slate-700'}`}>Place O</button>
+            <button onClick={() => setMarkerType('X')} className={`py-2 rounded transition-colors ${markerType === 'X' ? 'bg-red-600 hover:bg-red-700' : 'bg-slate-300 dark:bg-slate-700 text-slate-900 dark:text-white hover:bg-slate-400 dark:hover:bg-slate-600'}`}>Place X</button>
+            <button onClick={() => setMarkerType('O')} className={`py-2 rounded transition-colors ${markerType === 'O' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300 dark:bg-slate-700 text-slate-900 dark:text-white hover:bg-slate-400 dark:hover:bg-slate-600'}`}>Place O</button>
           </div>
-          <button onClick={handleSavePlay} className="w-full flex items-center justify-center gap-2 bg-green-600 py-2 rounded hover:bg-green-700 transition-colors">
+          <button onClick={handleSavePlay} className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-2 rounded transition-colors">
             <Save className="w-4 h-4" /> Save
           </button>
-          <button onClick={clearBoard} className="w-full flex items-center justify-center gap-2 bg-slate-600 py-2 rounded hover:bg-slate-700 transition-colors">
+          <button onClick={clearBoard} className="w-full flex items-center justify-center gap-2 bg-slate-400 dark:bg-slate-600 hover:bg-slate-500 dark:hover:bg-slate-700 text-slate-900 dark:text-white py-2 rounded transition-colors">
             <RotateCcw className="w-4 h-4" /> Clear
           </button>
         </div>
-        <hr className="border-slate-700 my-4" />
-        <h2 className="text-xl font-bold mb-2">Saved Plays</h2>
+        <hr className="border-slate-200 dark:border-slate-700 my-4" />
+        <h2 className="text-xl font-bold mb-2 text-slate-900 dark:text-white">Saved Plays</h2>
         <div className="flex-1 overflow-y-auto pr-2">
             {savedPlays.map(play => (
-                <div key={play.id} className="flex justify-between items-center p-2 rounded hover:bg-slate-800">
-                    <button onClick={() => handleLoadPlay(play)} className="text-left flex-1">{play.name}</button>
-                    <button onClick={() => handleDeletePlay(play.id)} className="p-1 text-red-500 hover:text-red-400"><Trash2 className="w-4 h-4"/></button>
+                <div key={play.id} className="flex justify-between items-center p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <button onClick={() => handleLoadPlay(play)} className="text-left flex-1 text-slate-900 dark:text-white hover:text-slate-700 dark:hover:text-slate-200">{play.name}</button>
+                    <button onClick={() => handleDeletePlay(play.id)} className="p-1 text-red-600 dark:text-red-500 hover:text-red-700 dark:hover:text-red-400"><Trash2 className="w-4 h-4"/></button>
                 </div>
             ))}
         </div>

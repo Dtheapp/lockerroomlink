@@ -38,29 +38,29 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
+      <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Admin Dashboard</h1>
       
       {loading ? (
-        <p className="text-slate-400">Loading stats...</p>
+        <p className="text-slate-600 dark:text-slate-400">Loading stats...</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {statCards.map(card => (
-            <div key={card.title} className="bg-slate-900 p-6 rounded-lg flex items-center gap-6">
-              <div className={`p-4 bg-slate-800 rounded-lg ${card.color}`}>
+            <div key={card.title} className="bg-white dark:bg-slate-900 p-6 rounded-lg flex items-center gap-6 border border-slate-200 dark:border-slate-800 shadow-lg dark:shadow-xl">
+              <div className={`p-4 bg-slate-100 dark:bg-slate-800 rounded-lg ${card.color}`}>
                 <card.icon className="w-8 h-8" />
               </div>
               <div>
-                <p className="text-slate-400 text-sm">{card.title}</p>
-                <p className="text-3xl font-bold text-white">{card.value}</p>
+                <p className="text-slate-600 dark:text-slate-400 text-sm">{card.title}</p>
+                <p className="text-3xl font-bold text-slate-900 dark:text-white">{card.value}</p>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      <div className="bg-slate-900 p-6 rounded-lg">
-        <h2 className="text-xl font-semibold text-white mb-4">Quick Actions</h2>
-        <p className="text-slate-300">
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 shadow-lg dark:shadow-xl">
+        <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-4">Quick Actions</h2>
+        <p className="text-slate-700 dark:text-slate-300">
           Use the navigation on the left to manage users and teams. You can create new teams, assign coaches, and moderate content.
         </p>
       </div>

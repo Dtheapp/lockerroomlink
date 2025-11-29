@@ -109,9 +109,9 @@ const Roster: React.FC = () => {
   return (
     <div className="space-y-6 pb-20">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-white">Team Roster</h1>
+        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Team Roster</h1>
         {isStaff && (
-          <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 transition-colors">
+          <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 dark:bg-sky-600 dark:hover:bg-sky-700 text-white px-4 py-2 rounded-lg transition-colors">
             <Plus className="w-5 h-5" />
             Add Player
           </button>
@@ -119,7 +119,7 @@ const Roster: React.FC = () => {
       </div>
 
       {loading ? (
-        <p className="text-slate-400">Loading roster...</p>
+        <p className="text-slate-600 dark:text-slate-400">Loading roster...</p>
       ) : roster.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {roster.map(player => {
@@ -127,24 +127,24 @@ const Roster: React.FC = () => {
             const parent = getParentInfo(player.parentId);
 
             return (
-                <div key={player.id} className="bg-slate-900 rounded-lg p-4 flex flex-col relative overflow-hidden border border-slate-700 shadow-lg">
+                <div key={player.id} className="bg-white dark:bg-slate-900 rounded-lg p-4 flex flex-col relative overflow-hidden border border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-xl">
                 
                 {/* HEADER */}
                 <div className="flex justify-between items-start mb-4">
-                    <div className="bg-slate-800 rounded-full h-12 w-12 flex items-center justify-center text-xl font-bold text-white border border-slate-600">
+                    <div className="bg-slate-100 dark:bg-slate-800 rounded-full h-12 w-12 flex items-center justify-center text-xl font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-600">
                         {player.number}
                     </div>
                     <div className="flex gap-2">
                         {/* MEDICAL ALERT BUTTON - Visible to ALL (Safety) */}
                         {hasMedicalAlert && (
-                            <button onClick={() => setViewMedical(player)} className="text-red-500 hover:text-red-400 bg-red-900/20 p-1.5 rounded-full animate-pulse">
+                            <button onClick={() => setViewMedical(player)} className="text-red-600 dark:text-red-500 hover:text-red-700 dark:hover:text-red-400 bg-red-50 dark:bg-red-900/20 p-1.5 rounded-full animate-pulse transition-colors">
                                 <AlertCircle className="w-5 h-5" />
                             </button>
                         )}
                         
                         {/* CONTACT BUTTON - RESTRICTED TO STAFF */}
                         {parent && isStaff && (
-                            <button onClick={() => openContact(player.parentId)} className="text-sky-500 hover:text-sky-400 bg-sky-900/20 p-1.5 rounded-full">
+                            <button onClick={() => openContact(player.parentId)} className="text-sky-600 dark:text-sky-500 hover:text-sky-700 dark:hover:text-sky-400 bg-sky-50 dark:bg-sky-900/20 p-1.5 rounded-full transition-colors">
                                 <Phone className="w-5 h-5" />
                             </button>
                         )}
@@ -152,18 +152,18 @@ const Roster: React.FC = () => {
                 </div>
 
                 <div className="text-center mb-4">
-                    <h3 className="text-xl font-bold text-white truncate">{player.name}</h3>
-                    <p className="text-sky-400 font-medium">{player.position}</p>
-                    <p className="text-xs text-slate-500 mt-1">DOB: {player.dob || '--'}</p>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white truncate">{player.name}</h3>
+                    <p className="text-sky-600 dark:text-sky-400 font-medium">{player.position}</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-500 mt-1">DOB: {player.dob || '--'}</p>
                 </div>
 
                 {/* STATS */}
-                <div className="flex justify-center gap-4 mt-auto mb-4 bg-slate-950/50 p-2 rounded-lg">
-                    <div className="flex items-center gap-1 text-sm text-slate-300">
+                <div className="flex justify-center gap-4 mt-auto mb-4 bg-slate-50 dark:bg-slate-950/50 p-2 rounded-lg">
+                    <div className="flex items-center gap-1 text-sm text-slate-700 dark:text-slate-300">
                         <Sword className="w-4 h-4 text-red-500" /> 
                         <span className="font-bold">{player.stats.td}</span> TD
                     </div>
-                    <div className="flex items-center gap-1 text-sm text-slate-300">
+                    <div className="flex items-center gap-1 text-sm text-slate-700 dark:text-slate-300">
                         <Shield className="w-4 h-4 text-blue-500" /> 
                         <span className="font-bold">{player.stats.tkl}</span> TKL
                     </div>
@@ -171,21 +171,21 @@ const Roster: React.FC = () => {
 
                 {/* COACH ACTIONS */}
                 {isStaff && (
-                    <div className="flex justify-between items-center border-t border-slate-800 pt-3 mt-2">
+                    <div className="flex justify-between items-center border-t border-slate-200 dark:border-slate-800 pt-3 mt-2">
                         {!player.parentId ? (
                             <button 
                                 onClick={() => { setSelectedPlayerId(player.id); setIsLinkModalOpen(true); }}
-                                className="text-xs flex items-center gap-1 text-slate-400 hover:text-white"
+                                className="text-xs flex items-center gap-1 text-slate-600 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
                             >
                                 <Link className="w-3 h-3" /> Link Parent
                             </button>
                         ) : (
-                            <span className="text-xs text-emerald-500 flex items-center gap-1">
+                            <span className="text-xs text-emerald-600 dark:text-emerald-500 flex items-center gap-1">
                                 <User className="w-3 h-3"/> {parent?.name || 'Linked'}
                             </span>
                         )}
                         
-                        <button onClick={() => handleDeletePlayer(player.id)} className="text-xs text-red-500 hover:text-red-400 flex items-center gap-1">
+                        <button onClick={() => handleDeletePlayer(player.id)} className="text-xs text-red-600 dark:text-red-500 hover:text-red-700 dark:hover:text-red-400 flex items-center gap-1 transition-colors">
                             <Trash2 className="w-3 h-3" /> Remove
                         </button>
                     </div>
@@ -195,7 +195,7 @@ const Roster: React.FC = () => {
           })}
         </div>
       ) : (
-        <p className="text-slate-400 text-center py-8">No players on the roster yet.</p>
+        <p className="text-slate-600 dark:text-slate-400 text-center py-8">No players on the roster yet.</p>
       )}
 
       {/* --- MODALS --- */}
@@ -203,25 +203,25 @@ const Roster: React.FC = () => {
       {/* ADD PLAYER MODAL */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 p-6 rounded-lg w-full max-w-md border border-slate-700">
-            <h2 className="text-2xl font-bold mb-4 text-white">Add New Player</h2>
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-lg w-full max-w-md border border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-xl">
+            <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">Add New Player</h2>
             <form onSubmit={handleAddPlayer} className="space-y-4">
-              <input name="name" value={newPlayer.name} onChange={handleInputChange} placeholder="Name" className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white" required />
+              <input name="name" value={newPlayer.name} onChange={handleInputChange} placeholder="Name" className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400" required />
               <div className="grid grid-cols-2 gap-4">
-                <input name="number" type="number" value={newPlayer.number} onChange={handleInputChange} placeholder="Number" className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white" required />
-                <input name="position" value={newPlayer.position} onChange={handleInputChange} placeholder="Position" className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white" required />
+                <input name="number" type="number" value={newPlayer.number} onChange={handleInputChange} placeholder="Number" className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400" required />
+                <input name="position" value={newPlayer.position} onChange={handleInputChange} placeholder="Position" className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400" required />
               </div>
               <div>
-                  <label className="block text-xs text-slate-400 mb-1">Date of Birth</label>
-                  <input name="dob" type="date" value={newPlayer.dob} onChange={handleInputChange} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white" />
+                  <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Date of Birth</label>
+                  <input name="dob" type="date" value={newPlayer.dob} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white" />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <input name="td" type="number" value={newPlayer.td} onChange={handleInputChange} placeholder="Touchdowns" className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white" />
-                <input name="tkl" type="number" value={newPlayer.tkl} onChange={handleInputChange} placeholder="Tackles" className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white" />
+                <input name="td" type="number" value={newPlayer.td} onChange={handleInputChange} placeholder="Touchdowns" className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400" />
+                <input name="tkl" type="number" value={newPlayer.tkl} onChange={handleInputChange} placeholder="Tackles" className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400" />
               </div>
               <div className="flex justify-end gap-4 mt-6">
-                <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-white">Cancel</button>
-                <button type="submit" className="px-4 py-2 rounded bg-sky-600 hover:bg-sky-700 text-white">Add Player</button>
+                <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-900 dark:text-white transition-colors">Cancel</button>
+                <button type="submit" className="px-4 py-2 rounded bg-sky-500 hover:bg-sky-600 dark:bg-sky-600 dark:hover:bg-sky-700 text-white transition-colors">Add Player</button>
               </div>
             </form>
           </div>
@@ -231,10 +231,10 @@ const Roster: React.FC = () => {
       {/* LINK PARENT MODAL */}
       {isLinkModalOpen && (
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-            <div className="bg-slate-900 p-6 rounded-lg w-full max-w-sm border border-slate-700">
-                <h3 className="text-xl font-bold text-white mb-4">Link Parent</h3>
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-lg w-full max-w-sm border border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-xl">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Link Parent</h3>
                 <select 
-                    className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white mb-4"
+                    className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white mb-4"
                     onChange={(e) => setSelectedParentId(e.target.value)}
                     value={selectedParentId}
                 >
@@ -244,8 +244,8 @@ const Roster: React.FC = () => {
                     ))}
                 </select>
                 <div className="flex justify-end gap-3">
-                    <button onClick={() => setIsLinkModalOpen(false)} className="text-slate-400 hover:text-white">Cancel</button>
-                    <button onClick={handleLinkParent} className="bg-sky-600 text-white px-4 py-2 rounded">Link</button>
+                    <button onClick={() => setIsLinkModalOpen(false)} className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Cancel</button>
+                    <button onClick={handleLinkParent} className="bg-sky-500 hover:bg-sky-600 dark:bg-sky-600 dark:hover:bg-sky-700 text-white px-4 py-2 rounded transition-colors">Link</button>
                 </div>
             </div>
           </div>
@@ -254,29 +254,29 @@ const Roster: React.FC = () => {
       {/* MEDICAL VIEW MODAL */}
       {viewMedical && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-              <div className="bg-slate-900 p-6 rounded-xl w-full max-w-md border border-red-900/50 relative">
-                  <button onClick={() => setViewMedical(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white"><Plus className="rotate-45 w-6 h-6"/></button>
-                  <div className="flex items-center gap-3 mb-6 text-red-500">
+              <div className="bg-white dark:bg-slate-900 p-6 rounded-xl w-full max-w-md border border-red-200 dark:border-red-900/50 relative shadow-lg dark:shadow-xl">
+                  <button onClick={() => setViewMedical(null)} className="absolute top-4 right-4 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400"><Plus className="rotate-45 w-6 h-6"/></button>
+                  <div className="flex items-center gap-3 mb-6 text-red-600 dark:text-red-500">
                       <AlertCircle className="w-8 h-8" />
                       <h2 className="text-2xl font-bold">Medical Alert</h2>
                   </div>
                   
-                  <div className="space-y-4 text-white">
+                  <div className="space-y-4 text-slate-900 dark:text-white">
                       <div>
-                          <label className="text-xs text-red-400 uppercase font-bold">Allergies</label>
-                          <p className="bg-red-900/20 p-2 rounded border border-red-900/30">{viewMedical.medical?.allergies}</p>
+                          <label className="text-xs text-red-600 dark:text-red-400 uppercase font-bold">Allergies</label>
+                          <p className="bg-red-50 dark:bg-red-900/20 p-2 rounded border border-red-200 dark:border-red-900/30 text-slate-900 dark:text-white">{viewMedical.medical?.allergies}</p>
                       </div>
                       <div>
-                          <label className="text-xs text-red-400 uppercase font-bold">Conditions</label>
-                          <p className="bg-red-900/20 p-2 rounded border border-red-900/30">{viewMedical.medical?.conditions}</p>
+                          <label className="text-xs text-red-600 dark:text-red-400 uppercase font-bold">Conditions</label>
+                          <p className="bg-red-50 dark:bg-red-900/20 p-2 rounded border border-red-200 dark:border-red-900/30 text-slate-900 dark:text-white">{viewMedical.medical?.conditions}</p>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                           <div>
-                              <label className="text-xs text-slate-500 uppercase font-bold">Medications</label>
+                              <label className="text-xs text-slate-600 dark:text-slate-400 uppercase font-bold">Medications</label>
                               <p className="text-sm">{viewMedical.medical?.medications}</p>
                           </div>
                           <div>
-                              <label className="text-xs text-slate-500 uppercase font-bold">Blood Type</label>
+                              <label className="text-xs text-slate-600 dark:text-slate-400 uppercase font-bold">Blood Type</label>
                               <p className="text-sm">{viewMedical.medical?.bloodType || '--'}</p>
                           </div>
                       </div>
@@ -288,43 +288,43 @@ const Roster: React.FC = () => {
       {/* CONTACT VIEW MODAL */}
       {viewContact && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-              <div className="bg-slate-900 p-6 rounded-xl w-full max-w-md border border-sky-900/50 relative">
-                  <button onClick={() => setViewContact(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white"><Plus className="rotate-45 w-6 h-6"/></button>
-                  <div className="flex items-center gap-3 mb-6 text-sky-500">
+              <div className="bg-white dark:bg-slate-900 p-6 rounded-xl w-full max-w-md border border-sky-200 dark:border-sky-900/50 relative shadow-lg dark:shadow-xl">
+                  <button onClick={() => setViewContact(null)} className="absolute top-4 right-4 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400"><Plus className="rotate-45 w-6 h-6"/></button>
+                  <div className="flex items-center gap-3 mb-6 text-sky-600 dark:text-sky-500">
                       <Phone className="w-8 h-8" />
                       <h2 className="text-2xl font-bold">Parent Contact</h2>
                   </div>
                   
-                  <div className="space-y-4 text-white">
+                  <div className="space-y-4 text-slate-900 dark:text-white">
                       <div className="text-center mb-6">
                           <h3 className="text-xl font-bold">{viewContact.name}</h3>
-                          <p className="text-slate-400">{viewContact.email}</p>
+                          <p className="text-slate-600 dark:text-slate-400">{viewContact.email}</p>
                       </div>
                       
-                      <div className="bg-slate-800 p-4 rounded-lg flex items-center gap-4">
-                          <Phone className="text-sky-400"/>
+                      <div className="bg-sky-50 dark:bg-sky-900/20 p-4 rounded-lg flex items-center gap-4 border border-sky-200 dark:border-sky-900/30">
+                          <Phone className="text-sky-600 dark:text-sky-500"/>
                           <div>
-                              <label className="text-xs text-slate-500 uppercase">Mobile</label>
-                              <p className="text-lg font-mono">{viewContact.phone || 'No number'}</p>
+                              <label className="text-xs text-sky-700 dark:text-sky-400 uppercase">Mobile</label>
+                              <p className="text-lg font-mono text-slate-900 dark:text-white">{viewContact.phone || 'No number'}</p>
                           </div>
                       </div>
 
                       {viewContact.secondaryPhone && (
-                          <div className="bg-slate-800 p-4 rounded-lg flex items-center gap-4">
-                              <Phone className="text-slate-400"/>
+                          <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-lg flex items-center gap-4 border border-slate-200 dark:border-slate-700">
+                              <Phone className="text-slate-600 dark:text-slate-400"/>
                               <div>
-                                  <label className="text-xs text-slate-500 uppercase">Secondary</label>
-                                  <p className="text-lg font-mono">{viewContact.secondaryPhone}</p>
+                                  <label className="text-xs text-slate-600 dark:text-slate-400 uppercase">Secondary</label>
+                                  <p className="text-lg font-mono text-slate-900 dark:text-white">{viewContact.secondaryPhone}</p>
                               </div>
                           </div>
                       )}
 
                       {viewContact.emergencyContact?.name && (
-                          <div className="mt-4 border-t border-slate-700 pt-4">
-                              <label className="text-xs text-red-400 uppercase font-bold mb-2 block">Emergency Contact</label>
-                              <div className="bg-red-900/10 p-3 rounded border border-red-900/30">
-                                  <p className="font-bold text-red-200">{viewContact.emergencyContact.name} ({viewContact.emergencyContact.relation})</p>
-                                  <p className="font-mono text-red-300">{viewContact.emergencyContact.phone}</p>
+                          <div className="mt-4 border-t border-slate-200 dark:border-slate-700 pt-4">
+                              <label className="text-xs text-red-600 dark:text-red-400 uppercase font-bold mb-2 block">Emergency Contact</label>
+                              <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded border border-red-200 dark:border-red-900/30">
+                                  <p className="font-bold text-red-700 dark:text-red-200">{viewContact.emergencyContact.name} ({viewContact.emergencyContact.relation})</p>
+                                  <p className="font-mono text-red-600 dark:text-red-300">{viewContact.emergencyContact.phone}</p>
                               </div>
                           </div>
                       )}

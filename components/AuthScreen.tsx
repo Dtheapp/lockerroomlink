@@ -83,7 +83,7 @@ const AuthScreen: React.FC = () => {
                 uid: user.uid,
                 name: name,
                 email: email,
-                role: mode,
+                role: mode === 'Admin' ? 'SuperAdmin' : mode,
                 teamId: verifiedTeamId, // Parents get ID, Coach/Admin get null
                 username: mode !== 'Admin' ? cleanUsername : undefined
             };
@@ -92,6 +92,23 @@ const AuthScreen: React.FC = () => {
 
         } else {
             // --- LOGIN (Universal) ---
+            // IMPORTANT: Check role BEFORE we fully commit to login
+            const userQuerySnapshot = await getDocs(query(collection(db, 'users'), where('email', '==', email.toLowerCase())));
+            
+            if (!userQuerySnapshot.empty) {
+                const userDoc = userQuerySnapshot.docs[0];
+                const userData = userDoc.data();
+                
+                // Map 'Admin' tab selection to 'SuperAdmin' role for comparison
+                const expectedRole = mode === 'Admin' ? 'SuperAdmin' : mode;
+                
+                // Verify that the user's role matches the selected tab
+                if (userData.role !== expectedRole) {
+                    throw new Error(`This account is registered as a ${userData.role}. Please select the correct access tab.`);
+                }
+            }
+            
+            // Now that role is verified, authenticate
             await signInWithEmailAndPassword(auth, email, password);
         }
 
