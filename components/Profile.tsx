@@ -154,13 +154,13 @@ const Profile: React.FC = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-slate-900 dark:text-white">My Profile</h1>
         {!isEditing && (
-            <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 dark:bg-sky-600 dark:hover:bg-sky-700 text-white px-4 py-2 rounded-lg transition-colors border border-sky-400 dark:border-sky-500">
+            <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition-colors">
                 <Edit2 className="h-4 w-4" /> Edit
             </button>
         )}
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg dark:shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div className="bg-slate-50 dark:bg-zinc-950 rounded-xl shadow-lg dark:shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="bg-slate-50 dark:bg-slate-800/50 p-6 flex flex-col md:flex-row items-center gap-6 border-b border-slate-200 dark:border-slate-800">
             <div className="h-20 w-20 bg-gradient-to-br from-sky-600 to-blue-700 rounded-full flex items-center justify-center text-3xl font-bold text-white">
                 {name.charAt(0).toUpperCase()}
@@ -203,18 +203,42 @@ const Profile: React.FC = () => {
                                 {isEditing ? <input value={secondaryPhone} onChange={e => setSecondaryPhone(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-2 text-slate-900 dark:text-white" /> : <p className="text-slate-900 dark:text-white">{secondaryPhone || '--'}</p>}
                             </div>
                         </div>
-                        <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 rounded p-3 text-sm">
-                            <div className="text-red-600 dark:text-red-400 font-bold flex items-center gap-2 mb-2"><HeartPulse className="w-4 h-4"/> Emergency Contact</div>
-                            <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 rounded p-4">
+                            <div className="text-red-600 dark:text-red-400 font-bold flex items-center gap-2 mb-4"><HeartPulse className="w-5 h-5"/> Emergency Contact</div>
+                            <div className="space-y-3">
                                 {isEditing ? (
                                     <>
-                                        <input value={emergName} onChange={e => setEmergName(e.target.value)} placeholder="Name" className="bg-slate-50 dark:bg-slate-950 border border-red-200 dark:border-red-900/30 rounded p-1 text-slate-900 dark:text-white text-xs col-span-2" />
-                                        <input value={emergRelation} onChange={e => setEmergRelation(e.target.value)} placeholder="Relation" className="bg-slate-50 dark:bg-slate-950 border border-red-200 dark:border-red-900/30 rounded p-1 text-slate-900 dark:text-white text-xs" />
-                                        <input value={emergPhone} onChange={e => setEmergPhone(e.target.value)} placeholder="Phone" className="bg-slate-50 dark:bg-slate-950 border border-red-200 dark:border-red-900/30 rounded p-1 text-slate-900 dark:text-white text-xs" />
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Name</label>
+                                            <input value={emergName} onChange={e => setEmergName(e.target.value)} placeholder="Emergency contact name" className="w-full bg-slate-50 dark:bg-slate-950 border border-red-200 dark:border-red-900/30 rounded p-3 text-slate-900 dark:text-white" />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Relationship</label>
+                                                <input value={emergRelation} onChange={e => setEmergRelation(e.target.value)} placeholder="e.g., Spouse" className="w-full bg-slate-50 dark:bg-slate-950 border border-red-200 dark:border-red-900/30 rounded p-3 text-slate-900 dark:text-white" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Phone</label>
+                                                <input value={emergPhone} onChange={e => setEmergPhone(e.target.value)} placeholder="(555) 123-4567" className="w-full bg-slate-50 dark:bg-slate-950 border border-red-200 dark:border-red-900/30 rounded p-3 text-slate-900 dark:text-white" />
+                                            </div>
+                                        </div>
                                     </>
                                 ) : (
-                                    <div className="col-span-2 text-slate-700 dark:text-slate-300">
-                                        {emergName ? `${emergName} (${emergRelation}) - ${emergPhone}` : 'No contact set'}
+                                    <div className="space-y-2">
+                                        {emergName ? (
+                                            <>
+                                                <div>
+                                                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-400">Name & Relationship</p>
+                                                    <p className="text-slate-900 dark:text-white">{emergName} ({emergRelation})</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-400">Phone</p>
+                                                    <p className="text-slate-900 dark:text-white">{emergPhone}</p>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <p className="text-slate-500 italic">No contact set</p>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -224,7 +248,7 @@ const Profile: React.FC = () => {
                 {isEditing && (
                     <div className="flex justify-end gap-3 mt-6 border-t border-slate-200 dark:border-slate-800 pt-4">
                         <button type="button" onClick={() => {setIsEditing(false); /*reset logic*/}} className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"><X className="h-4 w-4" /> Cancel</button>
-                        <button type="submit" disabled={loading} className="bg-sky-500 hover:bg-sky-600 dark:bg-sky-600 dark:hover:bg-sky-700 text-white px-6 py-2 rounded-lg"><Save className="h-4 w-4" /> Save</button>
+                        <button type="submit" disabled={loading} className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg flex items-center gap-2"><Save className="h-4 w-4" /> Save</button>
                     </div>
                 )}
             </form>
@@ -236,7 +260,7 @@ const Profile: React.FC = () => {
           <div className="space-y-6">
               <div className="flex justify-between items-center">
                   <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2"><Shield className="text-sky-500"/> My Athletes</h2>
-                  <button onClick={() => setIsAddAthleteOpen(true)} className="bg-sky-500 hover:bg-sky-600 dark:bg-sky-600 dark:hover:bg-sky-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium">
+                  <button onClick={() => setIsAddAthleteOpen(true)} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium">
                       <Plus className="h-4 w-4" /> Add Child
                   </button>
               </div>
@@ -261,7 +285,7 @@ const Profile: React.FC = () => {
                             <div 
                                 key={player.id} 
                                 onClick={() => openMedical(player)} 
-                                className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 relative group cursor-pointer hover:border-sky-400 dark:hover:border-sky-500 hover:shadow-lg dark:hover:shadow-xl hover:shadow-sky-100 dark:hover:shadow-sky-900/20 transition-all"
+                                className="bg-slate-50 dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-slate-800 p-5 relative group cursor-pointer hover:border-sky-400 dark:hover:border-sky-500 hover:shadow-lg dark:hover:shadow-xl hover:shadow-sky-100 dark:hover:shadow-sky-900/20 transition-all"
                             >
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
@@ -328,7 +352,7 @@ const Profile: React.FC = () => {
       {/* MODAL: ADD ATHLETE */}
       {isAddAthleteOpen && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-              <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-lg dark:shadow-xl">
+              <div className="bg-slate-50 dark:bg-zinc-950 w-full max-w-md rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-lg dark:shadow-xl">
                   <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Add Athlete</h3>
                   <form onSubmit={handleAddAthlete} className="space-y-4">
                       <input value={newPlayerName} onChange={e => setNewPlayerName(e.target.value)} placeholder="Full Name" className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-2 text-slate-900 dark:text-white" required />
@@ -342,7 +366,7 @@ const Profile: React.FC = () => {
                       </div>
                       <div className="flex justify-end gap-3 mt-6">
                           <button type="button" onClick={() => setIsAddAthleteOpen(false)} className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Cancel</button>
-                          <button type="submit" className="bg-sky-500 hover:bg-sky-600 dark:bg-sky-600 dark:hover:bg-sky-700 text-white px-6 py-2 rounded-lg">Add to Roster</button>
+                          <button type="submit" className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg">Add to Roster</button>
                       </div>
                   </form>
               </div>
@@ -352,7 +376,7 @@ const Profile: React.FC = () => {
       {/* MODAL: MEDICAL INFO */}
       {isMedicalOpen && selectedAthlete && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-              <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-lg dark:shadow-xl max-h-[90vh] overflow-y-auto">
+              <div className="bg-slate-50 dark:bg-zinc-950 w-full max-w-lg rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-lg dark:shadow-xl max-h-[90vh] overflow-y-auto">
                   <div className="flex items-center gap-3 mb-6 border-b border-slate-200 dark:border-slate-800 pb-4">
                       <div className="bg-red-100 dark:bg-red-500/20 p-3 rounded-full text-red-600 dark:text-red-500"><Activity className="h-6 w-6" /></div>
                       <div>

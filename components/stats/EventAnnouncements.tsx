@@ -47,7 +47,7 @@ const EventAnnouncements: React.FC = () => {
       case 'Game':
         return 'bg-red-600 text-white';
       case 'Practice':
-        return 'bg-sky-600 text-white';
+        return 'bg-orange-600 text-white';
       default:
         return 'bg-slate-600 text-white';
     }

@@ -1,135 +1,114 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import type { Video } from '../types';
-import { Plus, Trash2 } from 'lucide-react';
-
-const getYoutubeId = (url: string): string | null => {
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-  const match = url.match(regExp);
-  return (match && match[2].length === 11) ? match[2] : null;
-};
+import { Plus, Trash2, Play, Video as VideoIcon, X } from 'lucide-react';
 
 const VideoLibrary: React.FC = () => {
   const { userData, teamData } = useAuth();
   const [videos, setVideos] = useState<Video[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newVideo, setNewVideo] = useState({ title: '', url: '' });
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!teamData?.id) return;
-    setLoading(true);
-    const videosCollection = collection(db, 'teams', teamData.id, 'videos');
-    const q = query(videosCollection, orderBy('title'));
-    
+    const q = query(collection(db, 'teams', teamData.id, 'videos'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const videosData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Video));
-      setVideos(videosData);
-      setLoading(false);
-    }, (err) => {
-      console.error("Error fetching videos:", err);
+      const videoData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Video));
+      setVideos(videoData);
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, [teamData?.id]);
 
+  const extractYoutubeId = (url: string) => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+
   const handleAddVideo = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!teamData?.id) return;
-    
-    const youtubeId = getYoutubeId(newVideo.url);
-    if (!youtubeId) {
-      setError('Invalid YouTube URL.');
-      return;
-    }
-    setError('');
+    if (!teamData?.id || !newVideo.title || !newVideo.url) return;
+    const youtubeId = extractYoutubeId(newVideo.url);
+    if (!youtubeId) { alert('Please enter a valid YouTube URL'); return; }
 
     try {
       await addDoc(collection(db, 'teams', teamData.id, 'videos'), {
-        title: newVideo.title,
-        url: newVideo.url,
-        youtubeId: youtubeId,
+        title: newVideo.title, url: newVideo.url, youtubeId, createdAt: serverTimestamp()
       });
-      setNewVideo({ title: '', url: '' });
-      setIsModalOpen(false);
-    } catch (error) {
-      console.error("Error adding video:", error);
-    }
-  };
-  
-  const handleDeleteVideo = async (videoId: string) => {
-    if (!teamData?.id || !window.confirm("Delete this video?")) return;
-    try {
-      await deleteDoc(doc(db, 'teams', teamData.id, 'videos', videoId));
-    } catch (error) {
-      console.error("Error deleting video:", error);
-    }
+      setNewVideo({ title: '', url: '' }); setIsModalOpen(false);
+    } catch (error) { console.error("Error adding video:", error); }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setNewVideo(prev => ({ ...prev, [name]: value }));
+  const handleDeleteVideo = async (id: string) => {
+    if (!teamData?.id || !window.confirm("Delete this video?")) return;
+    await deleteDoc(doc(db, 'teams', teamData.id, 'videos', id));
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Film Room</h1>
-        {userData?.role === 'Coach' && (
-          <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 dark:bg-sky-600 dark:hover:bg-sky-700 text-white px-4 py-2 rounded-lg transition-colors">
-            <Plus className="w-5 h-5" />
-            Add Video
+        <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">Film Room</h1>
+        {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
+          <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-500 transition-colors shadow-lg shadow-orange-900/20">
+            <Plus className="w-5 h-5" /> Add Video
           </button>
         )}
       </div>
 
-      {loading ? (
-        <p className="text-slate-600 dark:text-slate-400">Loading videos...</p>
-      ) : videos.length > 0 ? (
+      {loading ? <p className="text-zinc-500">Loading videos...</p> : videos.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {videos.map(video => (
-            <div key={video.id} className="bg-white dark:bg-slate-900 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 shadow-lg dark:shadow-xl">
-              <div className="aspect-w-16 aspect-h-9">
-                <iframe
-                  src={`https://www.youtube.com/embed/${video.youtubeId}`}
-                  title={video.title}
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  className="w-full h-full"
-                ></iframe>
+            <div key={video.id} className="bg-slate-50 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-lg hover:border-orange-500/30 transition-colors group">
+              <div className="relative aspect-video bg-black">
+                <img src={`https://img.youtube.com/vi/${video.youtubeId}/mqdefault.jpg`} alt={video.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"/>
+                <a href={video.url} target="_blank" rel="noopener noreferrer" className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/0 transition-colors">
+                  <div className="bg-orange-600/90 text-white p-3 rounded-full shadow-xl scale-100 group-hover:scale-110 transition-transform">
+                    <Play className="w-6 h-6 fill-current" />
+                  </div>
+                </a>
               </div>
-              <div className="p-4 flex justify-between items-center">
-                <h3 className="font-semibold text-slate-900 dark:text-white truncate">{video.title}</h3>
-                {userData?.role === 'Coach' && (
-                  <button onClick={() => handleDeleteVideo(video.id)} className="p-1.5 rounded-full text-red-600 dark:text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/10 transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+              <div className="p-4 flex justify-between items-start">
+                <div className="flex items-start gap-2">
+                    <VideoIcon className="w-4 h-4 text-zinc-500 mt-1" />
+                    <h3 className="font-bold text-zinc-900 dark:text-white line-clamp-2">{video.title}</h3>
+                </div>
+                {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
+                  <button onClick={() => handleDeleteVideo(video.id)} className="text-zinc-600 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
                 )}
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-slate-600 dark:text-slate-400 text-center py-8">No videos in the library yet.</p>
+        <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-900/30 rounded-xl border border-dashed border-zinc-300 dark:border-zinc-800">
+            <VideoIcon className="w-12 h-12 mx-auto text-zinc-600 mb-3 opacity-50" />
+            <p className="text-zinc-500">No videos in the library yet.</p>
+        </div>
       )}
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-lg w-full max-w-md border border-slate-200 dark:border-slate-800 shadow-lg dark:shadow-xl">
-            <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">Add New Video</h2>
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-50 dark:bg-zinc-950 w-full max-w-md rounded-xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Add New Video</h2>
+                <button onClick={() => setIsModalOpen(false)} className="text-zinc-500 hover:text-white"><X className="w-5 h-5"/></button>
+            </div>
             <form onSubmit={handleAddVideo} className="space-y-4">
-              {error && <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>}
-              <input name="title" value={newVideo.title} onChange={handleInputChange} placeholder="Video Title" className="w-full bg-slate-50 dark:bg-slate-950 p-2 rounded border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white" required />
-              <input name="url" value={newVideo.url} onChange={handleInputChange} placeholder="YouTube URL" className="w-full bg-slate-50 dark:bg-slate-950 p-2 rounded border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white" required />
-              <div className="flex justify-end gap-4 mt-6">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 rounded bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600 text-slate-900 dark:text-white transition-colors">Cancel</button>
-                <button type="submit" className="px-4 py-2 rounded bg-sky-500 hover:bg-sky-600 dark:bg-sky-600 dark:hover:bg-sky-700 text-white transition-colors">Add Video</button>
+              <div>
+                  <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Video Title</label>
+                  <input value={newVideo.title} onChange={e => setNewVideo({...newVideo, title: e.target.value})} className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded p-3 text-zinc-900 dark:text-white focus:border-orange-500 outline-none" placeholder="e.g. Game Highlights vs Tigers" required />
+              </div>
+              <div>
+                  <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">YouTube URL</label>
+                  <input value={newVideo.url} onChange={e => setNewVideo({...newVideo, url: e.target.value})} className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded p-3 text-zinc-900 dark:text-white focus:border-orange-500 outline-none" placeholder="https://youtube.com/watch?v=..." required />
+              </div>
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-zinc-200 dark:border-zinc-900">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white">Cancel</button>
+                <button type="submit" className="bg-orange-600 hover:bg-orange-500 text-white px-6 py-2 rounded-lg font-bold shadow-lg shadow-orange-900/20">Add Video</button>
               </div>
             </form>
           </div>

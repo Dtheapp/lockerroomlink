@@ -126,7 +126,7 @@ const EditableStatsBoard: React.FC = () => {
         </div>
         <button
           onClick={() => setShowAddForm(true)}
-          className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 dark:bg-sky-600 dark:hover:bg-sky-700 text-white px-4 py-2 rounded-lg transition-colors"
+          className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition-colors"
         >
           <Plus className="w-5 h-5" />
           Add Player Stats
@@ -135,7 +135,7 @@ const EditableStatsBoard: React.FC = () => {
 
       {/* Add Form */}
       {showAddForm && (
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-xl">
+        <div className="bg-slate-50 dark:bg-zinc-950 p-6 rounded-lg border border-slate-200 dark:border-zinc-800 shadow-lg dark:shadow-xl">
           <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Add New Player Stats</h3>
           
           {error && (
@@ -152,7 +152,7 @@ const EditableStatsBoard: React.FC = () => {
                 placeholder="Name"
                 value={newStat.playerName}
                 onChange={(e) => setNewStat({ ...newStat, playerName: e.target.value })}
-                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
+                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
               />
             </div>
             <div>
@@ -162,7 +162,7 @@ const EditableStatsBoard: React.FC = () => {
                 placeholder="0"
                 value={newStat.playerNumber}
                 onChange={(e) => setNewStat({ ...newStat, playerNumber: parseInt(e.target.value, 10) || 0 })}
-                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
+                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
               />
             </div>
             <div>
@@ -172,7 +172,7 @@ const EditableStatsBoard: React.FC = () => {
                 placeholder="0"
                 value={newStat.gp}
                 onChange={(e) => setNewStat({ ...newStat, gp: parseInt(e.target.value, 10) || 0 })}
-                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
+                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
               />
             </div>
             <div>
@@ -182,7 +182,7 @@ const EditableStatsBoard: React.FC = () => {
                 placeholder="0"
                 value={newStat.tds}
                 onChange={(e) => setNewStat({ ...newStat, tds: parseInt(e.target.value, 10) || 0 })}
-                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
+                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
               />
             </div>
             <div>
@@ -192,7 +192,7 @@ const EditableStatsBoard: React.FC = () => {
                 placeholder="0"
                 value={newStat.yards}
                 onChange={(e) => setNewStat({ ...newStat, yards: parseInt(e.target.value, 10) || 0 })}
-                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
+                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
               />
             </div>
             <div>
@@ -202,7 +202,7 @@ const EditableStatsBoard: React.FC = () => {
                 placeholder="0"
                 value={newStat.rec}
                 onChange={(e) => setNewStat({ ...newStat, rec: parseInt(e.target.value, 10) || 0 })}
-                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
+                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
               />
             </div>
             <div>
@@ -212,7 +212,7 @@ const EditableStatsBoard: React.FC = () => {
                 placeholder="0"
                 value={newStat.tackles}
                 onChange={(e) => setNewStat({ ...newStat, tackles: parseInt(e.target.value, 10) || 0 })}
-                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
+                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
               />
             </div>
             <div>
@@ -222,7 +222,7 @@ const EditableStatsBoard: React.FC = () => {
                 placeholder="0"
                 value={newStat.sacks}
                 onChange={(e) => setNewStat({ ...newStat, sacks: parseInt(e.target.value, 10) || 0 })}
-                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
+                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
               />
             </div>
             <div>
@@ -232,7 +232,7 @@ const EditableStatsBoard: React.FC = () => {
                 placeholder="0"
                 value={newStat.int}
                 onChange={(e) => setNewStat({ ...newStat, int: parseInt(e.target.value, 10) || 0 })}
-                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
+                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
               />
             </div>
             <div>
@@ -242,7 +242,7 @@ const EditableStatsBoard: React.FC = () => {
                 placeholder="0"
                 value={newStat.ff}
                 onChange={(e) => setNewStat({ ...newStat, ff: parseInt(e.target.value, 10) || 0 })}
-                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
+                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
               />
             </div>
             <div>
@@ -252,7 +252,7 @@ const EditableStatsBoard: React.FC = () => {
                 placeholder="0"
                 value={newStat.spts}
                 onChange={(e) => setNewStat({ ...newStat, spts: parseInt(e.target.value, 10) || 0 })}
-                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
+                className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm"
               />
             </div>
           </div>
@@ -279,7 +279,7 @@ const EditableStatsBoard: React.FC = () => {
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as keyof PlayerStats)}
-          className="bg-slate-100 dark:bg-slate-800 p-2 rounded text-sm text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700"
+          className="bg-slate-100 dark:bg-slate-800 p-2 rounded text-sm text-slate-900 dark:text-white border border-slate-200 dark:border-zinc-800"
         >
           <option value="tds">Sort by TDs</option>
           <option value="yards">Sort by Yards</option>
@@ -291,10 +291,10 @@ const EditableStatsBoard: React.FC = () => {
       </div>
 
       {/* Stats Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-xl overflow-hidden">
+      <div className="bg-slate-50 dark:bg-zinc-950 rounded-lg border border-slate-200 dark:border-zinc-800 shadow-lg dark:shadow-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+            <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-zinc-800">
               <tr>
                 <th className="px-4 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">#</th>
                 <th className="px-4 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">NAME</th>

@@ -39,8 +39,8 @@ const AppContent: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-900 dark:bg-slate-100">
-        <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-sky-500"></div>
+      <div className="flex items-center justify-center h-screen bg-white dark:bg-black">
+        <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-orange-500"></div>
       </div>
     );
   }

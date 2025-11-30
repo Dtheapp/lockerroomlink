@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
@@ -54,20 +53,30 @@ const Chat: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-slate-900 rounded-lg shadow-lg dark:shadow-xl border border-slate-200 dark:border-slate-800">
-      <div className="sticky top-0 z-10 p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-t-lg">
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white">The Huddle (Team Chat)</h1>
+    // CONTAINER: Dark Background (Zinc-950) with Border
+    <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950 rounded-lg shadow-lg dark:shadow-xl border border-slate-200 dark:border-zinc-800 overflow-hidden">
+      
+      {/* HEADER */}
+      <div className="sticky top-0 z-10 p-4 border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+        <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            The Huddle <span className="text-orange-500 text-sm font-mono uppercase tracking-wider">(Team Chat)</span>
+        </h1>
       </div>
       
-      <div className="flex-1 p-4 overflow-y-auto space-y-4">
+      {/* MESSAGES AREA */}
+      <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-50 dark:bg-black/20">
         {messages.map(msg => {
           const isMe = msg.sender.uid === user?.uid;
           return (
             <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-xs lg:max-w-md p-3 rounded-lg ${isMe ? 'bg-sky-500 dark:bg-sky-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-200'}`}>
-                {!isMe && <p className="text-xs font-bold text-slate-600 dark:text-sky-400 mb-1">{msg.sender.name}</p>}
-                <p className="text-sm">{msg.text}</p>
-                <p className={`text-xs mt-1 ${isMe ? 'text-sky-100 dark:text-sky-200' : 'text-slate-600 dark:text-slate-400'} text-right`}>
+              <div className={`max-w-xs lg:max-w-md p-3 rounded-2xl shadow-sm ${
+                  isMe 
+                  ? 'bg-orange-600 text-white rounded-br-none' // ME: Orange Neon
+                  : 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-zinc-700' // OTHERS: Dark Zinc
+              }`}>
+                {!isMe && <p className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-1">{msg.sender.name}</p>}
+                <p className="text-sm leading-relaxed">{msg.text}</p>
+                <p className={`text-[10px] mt-1 text-right ${isMe ? 'text-orange-200' : 'text-slate-400'}`}>
                   {formatDate(msg.timestamp)}
                 </p>
               </div>
@@ -77,16 +86,17 @@ const Chat: React.FC = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-        <form onSubmit={handleSendMessage} className="flex items-center gap-4">
+      {/* INPUT AREA */}
+      <div className="p-4 border-t border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+        <form onSubmit={handleSendMessage} className="flex items-center gap-3">
           <input
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Type your message..."
-            className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-sm py-2 px-4 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-sky-500 focus:border-sky-500"
+            className="flex-1 bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 rounded-full shadow-inner py-3 px-5 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
           />
-          <button type="submit" className="p-3 rounded-full bg-sky-500 hover:bg-sky-600 dark:bg-sky-600 dark:hover:bg-sky-700 transition-colors disabled:bg-slate-300 dark:disabled:bg-slate-700" disabled={!newMessage.trim()}>
+          <button type="submit" className="p-3 rounded-full bg-orange-600 hover:bg-orange-500 transition-colors shadow-lg shadow-orange-900/20 disabled:opacity-50 disabled:cursor-not-allowed" disabled={!newMessage.trim()}>
             <Send className="w-5 h-5 text-white" />
           </button>
         </form>

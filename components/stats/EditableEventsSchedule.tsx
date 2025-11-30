@@ -112,7 +112,7 @@ const EditableEventsSchedule: React.FC = () => {
       case 'Game':
         return 'bg-red-600 text-white';
       case 'Practice':
-        return 'bg-sky-600 text-white';
+        return 'bg-orange-600 text-white';
       default:
         return 'bg-slate-600 text-white';
     }
@@ -142,7 +142,7 @@ const EditableEventsSchedule: React.FC = () => {
             setEditingId(null);
             setShowForm(true);
           }}
-          className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 dark:bg-sky-600 dark:hover:bg-sky-700 text-white px-4 py-2 rounded-lg transition-colors"
+          className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition-colors"
         >
           <Plus className="w-5 h-5" />
           Add Event
