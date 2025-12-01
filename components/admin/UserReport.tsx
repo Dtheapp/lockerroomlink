@@ -108,7 +108,7 @@ const UserReport: React.FC = () => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `gridironhub-users-${filterRole}-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `sideline-sync-users-${filterRole}-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };

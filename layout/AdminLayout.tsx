@@ -91,13 +91,13 @@ const AdminLayout: React.FC = () => {
         <div className="flex items-center justify-between mb-6">
           {sidebarOpen ? (
             <div className="text-2xl font-bold text-slate-900 dark:text-white min-w-0">
-              <div className="truncate">Gridiron<span className="text-orange-500">Hub</span></div>
+              <div className="truncate"><span className="text-orange-500">SIDELINE</span> SYNC</div>
               <p className="text-sm font-normal text-red-500 dark:text-red-400 mt-1">Super Admin</p>
             </div>
           ) : (
             <div className="flex justify-center w-full">
               <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg font-bold text-white text-lg">
-                GH
+                SS
               </div>
             </div>
           )}

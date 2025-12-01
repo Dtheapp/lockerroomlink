@@ -209,7 +209,7 @@ const AuthScreen: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-black p-4">
       <div className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-lg shadow-xl p-8">
         <h1 className="text-3xl font-bold text-center text-white mb-2">
-          Gridiron<span className="text-orange-500">Hub</span>
+          <span className="text-orange-500">SIDELINE</span> SYNC
         </h1>
         <p className="text-center text-slate-400 mb-6">Your Team's Digital Locker Room</p>
         

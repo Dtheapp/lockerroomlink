@@ -101,10 +101,23 @@ const Playbook: React.FC = () => {
       const startX = type === 'O' ? 50 : 50; 
       const startY = type === 'O' ? 60 : 40; 
 
+      // Count existing players with the same base label (e.g., "LB", "QB", etc.)
+      // Extract base label from existing elements (remove numbers if present)
+      const baseLabel = label; // e.g., "LB", "QB", etc.
+      const existingCount = elements.filter(el => {
+          // Check if the element's label starts with the base label
+          // Handle both "LB" and "LB1", "LB2", etc.
+          const elBaseLabel = el.label.replace(/\d+$/, ''); // Remove trailing numbers
+          return elBaseLabel === baseLabel;
+      }).length;
+
+      // Create numbered label (e.g., "LB1", "LB2", "LB3", etc.)
+      const numberedLabel = `${baseLabel}${existingCount + 1}`;
+
       const newEl: PlayElement = {
           id: Date.now().toString(),
           type,
-          label,
+          label: numberedLabel,
           x: startX + (Math.random() * 5 - 2.5), 
           y: startY + (Math.random() * 5 - 2.5), 
           color: type === 'O' ? 'bg-blue-600' : 'bg-red-600'
@@ -318,8 +331,13 @@ const Playbook: React.FC = () => {
 
               <div>
                 <p className="text-xs font-bold text-blue-400 uppercase mb-2">Offense (O)</p>
-                <div className="grid grid-cols-5 gap-1">
-                  {['QB', 'RB', 'WR', 'TE', 'OL'].map(pos => (
+                <div className="grid grid-cols-4 gap-1">
+                  {['QB', 'RB', 'WR', 'TE'].map(pos => (
+                    <button key={pos} onClick={() => addElement('O', pos)} className="bg-blue-900/30 hover:bg-blue-800/50 text-blue-200 border border-blue-800/50 rounded text-xs py-1.5 font-mono transition-colors">{pos}</button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-1 mt-1">
+                  {['C', 'G', 'T'].map(pos => (
                     <button key={pos} onClick={() => addElement('O', pos)} className="bg-blue-900/30 hover:bg-blue-800/50 text-blue-200 border border-blue-800/50 rounded text-xs py-1.5 font-mono transition-colors">{pos}</button>
                   ))}
                 </div>
@@ -327,8 +345,13 @@ const Playbook: React.FC = () => {
 
               <div>
                 <p className="text-xs font-bold text-red-400 uppercase mb-2">Defense (X)</p>
-                <div className="grid grid-cols-4 gap-1">
-                  {['DL', 'LB', 'CB', 'S'].map(pos => (
+                <div className="grid grid-cols-3 gap-1">
+                  {['N', 'T', 'DE'].map(pos => (
+                    <button key={pos} onClick={() => addElement('X', pos)} className="bg-red-900/30 hover:bg-red-800/50 text-red-200 border border-red-800/50 rounded text-xs py-1.5 font-mono transition-colors">{pos}</button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-1 mt-1">
+                  {['LB', 'CB', 'S'].map(pos => (
                     <button key={pos} onClick={() => addElement('X', pos)} className="bg-red-900/30 hover:bg-red-800/50 text-red-200 border border-red-800/50 rounded text-xs py-1.5 font-mono transition-colors">{pos}</button>
                   ))}
                 </div>
@@ -490,8 +513,13 @@ const Playbook: React.FC = () => {
 
                       <div>
                           <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase mb-2">Offense (O)</p>
-                          <div className="grid grid-cols-5 gap-1">
-                              {['QB', 'RB', 'WR', 'TE', 'OL'].map(pos => (
+                          <div className="grid grid-cols-4 gap-1">
+                              {['QB', 'RB', 'WR', 'TE'].map(pos => (
+                                  <button key={pos} onClick={() => addElement('O', pos)} className="bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-800/50 text-blue-700 dark:text-blue-200 border border-blue-300 dark:border-blue-800/50 rounded text-xs py-1.5 font-mono transition-colors">{pos}</button>
+                              ))}
+                          </div>
+                          <div className="grid grid-cols-3 gap-1 mt-1">
+                              {['C', 'G', 'T'].map(pos => (
                                   <button key={pos} onClick={() => addElement('O', pos)} className="bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-800/50 text-blue-700 dark:text-blue-200 border border-blue-300 dark:border-blue-800/50 rounded text-xs py-1.5 font-mono transition-colors">{pos}</button>
                               ))}
                           </div>
@@ -499,8 +527,13 @@ const Playbook: React.FC = () => {
 
                       <div>
                           <p className="text-xs font-bold text-red-600 dark:text-red-400 uppercase mb-2">Defense (X)</p>
-                          <div className="grid grid-cols-4 gap-1">
-                              {['DL', 'LB', 'CB', 'S'].map(pos => (
+                          <div className="grid grid-cols-3 gap-1">
+                              {['N', 'T', 'DE'].map(pos => (
+                                  <button key={pos} onClick={() => addElement('X', pos)} className="bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-800/50 text-red-700 dark:text-red-200 border border-red-300 dark:border-red-800/50 rounded text-xs py-1.5 font-mono transition-colors">{pos}</button>
+                              ))}
+                          </div>
+                          <div className="grid grid-cols-3 gap-1 mt-1">
+                              {['LB', 'CB', 'S'].map(pos => (
                                   <button key={pos} onClick={() => addElement('X', pos)} className="bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-800/50 text-red-700 dark:text-red-200 border border-red-300 dark:border-red-800/50 rounded text-xs py-1.5 font-mono transition-colors">{pos}</button>
                               ))}
                           </div>

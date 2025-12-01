@@ -51,7 +51,7 @@ const Layout: React.FC = () => {
       {/* MOBILE HEADER */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-900 flex items-center justify-between px-4 z-40 shadow-sm">
           <div className="text-xl font-black tracking-tighter text-zinc-900 dark:text-white">
-            GRIDIRON<span className="text-orange-500">HUB</span>
+            <span className="text-orange-500">SIDELINE</span> SYNC
           </div>
           <button onClick={() => setIsSidebarOpen(true)} className="text-zinc-600 dark:text-zinc-300">
               <Menu className="w-8 h-8" />
@@ -71,7 +71,7 @@ const Layout: React.FC = () => {
             {!isDesktopCollapsed && (
                 <div className="min-w-0">
                     <div className="text-2xl font-black tracking-tighter text-zinc-900 dark:text-white truncate">
-                        GRIDIRON<span className="text-orange-500">HUB</span>
+                        <span className="text-orange-500">SIDELINE</span> SYNC
                     </div>
                     <p className="text-xs text-zinc-500 uppercase tracking-widest font-bold truncate mt-1">{teamData?.name || 'Loading...'}</p>
                 </div>
