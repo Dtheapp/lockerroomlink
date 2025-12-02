@@ -11,6 +11,9 @@ const VideoLibrary: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newVideo, setNewVideo] = useState({ title: '', url: '' });
   const [loading, setLoading] = useState(true);
+  
+  // NEW: Track which video is playing (YouTube ID)
+  const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!teamData?.id) return;
@@ -62,14 +65,14 @@ const VideoLibrary: React.FC = () => {
       {loading ? <p className="text-zinc-500">Loading videos...</p> : videos.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {videos.map(video => (
-            <div key={video.id} className="bg-slate-50 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-lg hover:border-orange-500/30 transition-colors group">
-              <div className="relative aspect-video bg-black">
+            <div key={video.id} className="bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-lg hover:border-orange-500/30 transition-colors group">
+              <div className="relative aspect-video bg-black cursor-pointer" onClick={() => setPlayingVideoId(video.youtubeId)}>
                 <img src={`https://img.youtube.com/vi/${video.youtubeId}/mqdefault.jpg`} alt={video.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"/>
-                <a href={video.url} target="_blank" rel="noopener noreferrer" className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/0 transition-colors">
+                <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/0 transition-colors">
                   <div className="bg-orange-600/90 text-white p-3 rounded-full shadow-xl scale-100 group-hover:scale-110 transition-transform">
                     <Play className="w-6 h-6 fill-current" />
                   </div>
-                </a>
+                </div>
               </div>
               <div className="p-4 flex justify-between items-start">
                 <div className="flex items-start gap-2">
@@ -90,9 +93,10 @@ const VideoLibrary: React.FC = () => {
         </div>
       )}
 
+      {/* ADD VIDEO MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-50 dark:bg-zinc-950 w-full max-w-md rounded-xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-2xl">
+          <div className="bg-white dark:bg-zinc-950 w-full max-w-md rounded-xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Add New Video</h2>
                 <button onClick={() => setIsModalOpen(false)} className="text-zinc-500 hover:text-white"><X className="w-5 h-5"/></button>
@@ -113,6 +117,31 @@ const VideoLibrary: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* CINEMA MODE PLAYER (FULLSCREEN OVERLAY) */}
+      {playingVideoId && (
+          <div className="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-0 md:p-10 animate-in fade-in duration-300">
+              <div className="w-full max-w-6xl w-full relative aspect-video bg-black shadow-2xl rounded-lg overflow-hidden">
+                  {/* Close Button */}
+                  <button 
+                      onClick={() => setPlayingVideoId(null)} 
+                      className="absolute top-4 right-4 z-10 bg-black/50 text-white hover:bg-orange-600 p-2 rounded-full transition-colors backdrop-blur-sm"
+                  >
+                      <X className="w-6 h-6" />
+                  </button>
+                  
+                  {/* YouTube Embed */}
+                  <iframe 
+                      src={`https://www.youtube.com/embed/${playingVideoId}?autoplay=1&rel=0&modestbranding=1`} 
+                      title="YouTube video player" 
+                      className="w-full h-full"
+                      frameBorder="0" 
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                      allowFullScreen
+                  ></iframe>
+              </div>
+          </div>
       )}
     </div>
   );

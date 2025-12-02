@@ -40,18 +40,16 @@ const Layout: React.FC = () => {
   });
 
   const navLinkClasses = 'flex items-center p-3 my-1 rounded-lg transition-all duration-200 whitespace-nowrap overflow-hidden';
-  
-  // NEON ORANGE ACTIVE STATE
   const activeClasses = 'bg-orange-600 text-white shadow-[0_0_15px_rgba(234,88,12,0.5)] border border-orange-500/50';
-  const inactiveClasses = 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-950 hover:text-orange-500 dark:hover:text-orange-400';
+  const inactiveClasses = 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-900 hover:text-orange-500 dark:hover:text-orange-400';
 
   return (
-    <div className="flex h-screen bg-white dark:bg-black overflow-hidden transition-colors duration-200 font-sans">
+    <div className="flex h-screen bg-zinc-50 dark:bg-black overflow-hidden transition-colors duration-200 font-sans">
       
       {/* MOBILE HEADER */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-900 flex items-center justify-between px-4 z-40 shadow-sm">
-          <div className="text-xl font-black tracking-tighter text-zinc-900 dark:text-white">
-            <span className="text-orange-500">SIDELINE</span> SYNC
+          <div className="text-xl font-black tracking-tighter">
+            <span className="text-orange-500">LOCKER</span><span className="text-zinc-900 dark:text-white">ROOM</span>
           </div>
           <button onClick={() => setIsSidebarOpen(true)} className="text-zinc-600 dark:text-zinc-300">
               <Menu className="w-8 h-8" />
@@ -70,10 +68,14 @@ const Layout: React.FC = () => {
         <div className="flex items-center justify-between mb-8 h-10">
             {!isDesktopCollapsed && (
                 <div className="min-w-0">
-                    <div className="text-2xl font-black tracking-tighter text-zinc-900 dark:text-white truncate">
-                        <span className="text-orange-500">SIDELINE</span> SYNC
+                    {/* FIX: Split Logo Color Logic */}
+                    <div className="text-xl font-black tracking-tighter truncate leading-none">
+                        <span className="text-orange-500">LOCKER</span>
+                        <span className="text-zinc-900 dark:text-white">ROOM</span>
                     </div>
-                    <p className="text-xs text-zinc-500 uppercase tracking-widest font-bold truncate mt-1">{teamData?.name || 'Loading...'}</p>
+                    <p className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold truncate mt-1">
+                        Digital Link
+                    </p>
                 </div>
             )}
             
@@ -134,7 +136,6 @@ const Layout: React.FC = () => {
           />
       )}
 
-      {/* MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col overflow-hidden bg-zinc-50 dark:bg-black pt-16 md:pt-0 relative">
         <div className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
           <Outlet />
