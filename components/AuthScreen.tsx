@@ -7,6 +7,9 @@ import { Mail, ArrowLeft, CheckCircle, Lock } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
 type AuthMode = 'Parent' | 'Coach' | 'Admin';
+const ADMIN_MODE: AuthMode = 'Admin';
+const COACH_MODE: AuthMode = 'Coach';
+const PARENT_MODE: AuthMode = 'Parent';
 
 const AuthScreen: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -78,14 +81,11 @@ const AuthScreen: React.FC = () => {
             if (!name) throw new Error('Full Name is required.');
             if (!username) throw new Error('Username is required.');
             
-            let cleanUsername = '';
-            if (mode !== 'Admin') {
-                cleanUsername = await validateUsername(username);
-            }
+            const cleanUsername = await validateUsername(username);
 
             // Parents no longer need teamId during signup - they'll add players with teamIds later
             let verifiedTeamId = null;
-            if (mode === 'Coach') {
+            if (mode === COACH_MODE) {
                 // Coaches can optionally provide a teamId during signup, or create one later
                 // This allows flexibility - we'll keep it optional for now
                 if (teamId) {
@@ -105,7 +105,7 @@ const AuthScreen: React.FC = () => {
                 email,
                 role: mode,
                 teamId: verifiedTeamId, // null for Parents, optional for Coaches
-                username: mode !== 'Admin' ? cleanUsername : undefined
+                username: cleanUsername
             };
             
             await setDoc(doc(db, 'users', user.uid), userProfile);
@@ -172,7 +172,7 @@ const AuthScreen: React.FC = () => {
   
   const getButtonText = () => {
       if (loading) return null;
-      if (mode === 'Parent') return isSignUp ? 'Join Team' : 'Sign In';
+      if (mode === PARENT_MODE) return isSignUp ? 'Join Team' : 'Sign In';
       return isSignUp ? 'Create Account' : 'Sign In';
   };
 
