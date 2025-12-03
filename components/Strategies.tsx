@@ -111,7 +111,7 @@ const Strategies: React.FC = () => {
           </div>
         </div>
         <p className="text-xs text-slate-500 dark:text-zinc-500 mt-1">
-          Discuss plays, strategies, and game plans with your coaching staff
+          Discuss plays and game plans with your coaching staff
         </p>
       </div>
       

@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { Home, Users, ClipboardList, MessageCircle, Video, LogOut, User, Send, Menu, X, ChevronLeft, Sun, Moon, BarChart3, Shield } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useUnreadMessages } from '../hooks/useUnreadMessages';
 import PlayerSelector from '../components/PlayerSelector';
 
 const Layout: React.FC = () => {
@@ -12,12 +13,23 @@ const Layout: React.FC = () => {
   const location = useLocation();
   const { teamData, userData } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { unread, markAsRead } = useUnreadMessages();
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
   
   // Ref for main content scrolling
   const mainContentRef = useRef<HTMLDivElement>(null);
+
+  // Mark chats as read when visiting those pages
+  useEffect(() => {
+    if (location.pathname === '/chat') {
+      markAsRead('teamChat');
+    } else if (location.pathname === '/strategies') {
+      markAsRead('strategy');
+    }
+    // Messenger handles its own read status per conversation
+  }, [location.pathname]);
 
   // Handle logo click - navigate to dashboard AND scroll to top
   const handleLogoClick = (e: React.MouseEvent) => {
@@ -50,9 +62,9 @@ const Layout: React.FC = () => {
     { name: 'Dashboard', path: '/dashboard', icon: Home },
     { name: 'Roster', path: '/roster', icon: Users },
     { name: 'Playbook', path: '/playbook', icon: ClipboardList },
-    { name: 'Team Chat', path: '/chat', icon: MessageCircle },
-    { name: 'Strategies', path: '/strategies', icon: Shield, coachOnly: true },
-    { name: 'Messenger', path: '/messenger', icon: Send },
+    { name: 'Team Chat', path: '/chat', icon: MessageCircle, unreadKey: 'teamChat' as const },
+    { name: 'Strategy', path: '/strategies', icon: Shield, coachOnly: true, unreadKey: 'strategy' as const },
+    { name: 'Messenger', path: '/messenger', icon: Send, unreadKey: 'messenger' as const },
     { name: 'Film Room', path: '/videos', icon: Video },
     { name: 'Stats', path: '/stats', icon: BarChart3 },
     { name: 'Profile', path: '/profile', icon: User }, 
@@ -130,20 +142,31 @@ const Layout: React.FC = () => {
         )}
 
         <nav className="flex-1 space-y-1">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.name}
-              to={item.path}
-              onClick={() => setIsSidebarOpen(false)} 
-              className={({ isActive }) => `${navLinkClasses} ${isActive ? activeClasses : inactiveClasses}`}
-              title={isDesktopCollapsed ? item.name : ''}
-            >
-              <item.icon className="w-5 h-5 flex-shrink-0" />
-              <span className={`ml-3 font-medium transition-opacity duration-200 ${isDesktopCollapsed ? 'opacity-0 w-0 hidden md:block' : 'opacity-100'}`}>
-                  {item.name}
-              </span>
-            </NavLink>
-          ))}
+          {navItems.map((item) => {
+            const hasUnread = item.unreadKey && unread[item.unreadKey];
+            return (
+              <NavLink
+                key={item.name}
+                to={item.path}
+                onClick={() => setIsSidebarOpen(false)} 
+                className={({ isActive }) => `${navLinkClasses} ${isActive ? activeClasses : inactiveClasses} relative`}
+                title={isDesktopCollapsed ? item.name : ''}
+              >
+                <div className="relative">
+                  <item.icon className="w-5 h-5 flex-shrink-0" />
+                  {hasUnread && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-zinc-950 animate-pulse" />
+                  )}
+                </div>
+                <span className={`ml-3 font-medium transition-opacity duration-200 ${isDesktopCollapsed ? 'opacity-0 w-0 hidden md:block' : 'opacity-100'}`}>
+                    {item.name}
+                </span>
+                {hasUnread && !isDesktopCollapsed && (
+                  <span className="ml-auto w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                )}
+              </NavLink>
+            );
+          })}
         </nav>
         
         <div className="mt-auto pt-4 border-t border-zinc-200 dark:border-zinc-900 space-y-2">
