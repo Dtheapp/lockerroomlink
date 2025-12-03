@@ -28,7 +28,9 @@ const Roster: React.FC = () => {
     td: '0', 
     tkl: '0', 
     dob: '', 
-    teamId: '' // NEW: Team selection for parents
+    teamId: '', // NEW: Team selection for parents
+    shirtSize: '', // For parents: uniform sizing
+    pantSize: '' // For parents: uniform sizing
   });
   const [selectedPlayerId, setSelectedPlayerId] = useState('');
   const [selectedParentId, setSelectedParentId] = useState('');
@@ -113,17 +115,33 @@ const Roster: React.FC = () => {
     }
     
     try {
-      await addDoc(collection(db, 'teams', targetTeamId, 'players'), {
-        name: newPlayer.name, 
-        number: parseInt(newPlayer.number, 10), 
-        position: newPlayer.position, 
+      const playerData: any = {
+        name: newPlayer.name,
         dob: newPlayer.dob,
         teamId: targetTeamId,
-        parentId: isParent ? userData?.uid : undefined, // Auto-link to parent
-        stats: { td: parseInt(newPlayer.td, 10), tkl: parseInt(newPlayer.tkl, 10) },
-        medical: { allergies: 'None', conditions: 'None', medications: 'None', bloodType: '' } 
-      });
-      setNewPlayer({ name: '', number: '', position: '', td: '0', tkl: '0', dob: '', teamId: '' });
+        parentId: isParent ? userData?.uid : undefined,
+        medical: { allergies: 'None', conditions: 'None', medications: 'None', bloodType: '' }
+      };
+
+      if (isParent) {
+        // Parents only provide uniform sizes
+        playerData.shirtSize = newPlayer.shirtSize || '';
+        playerData.pantSize = newPlayer.pantSize || '';
+        // Initialize stats and position as empty - coach will fill
+        playerData.stats = { td: 0, tkl: 0 };
+        playerData.number = 0; // Placeholder
+        playerData.position = 'TBD'; // To be determined by coach
+      } else {
+        // Coaches provide full details
+        playerData.number = parseInt(newPlayer.number, 10);
+        playerData.position = newPlayer.position;
+        playerData.stats = { td: parseInt(newPlayer.td, 10), tkl: parseInt(newPlayer.tkl, 10) };
+        playerData.shirtSize = newPlayer.shirtSize || '';
+        playerData.pantSize = newPlayer.pantSize || '';
+      }
+
+      await addDoc(collection(db, 'teams', targetTeamId, 'players'), playerData);
+      setNewPlayer({ name: '', number: '', position: '', td: '0', tkl: '0', dob: '', teamId: '', shirtSize: '', pantSize: '' });
       setIsAddModalOpen(false);
       
       // For parents, reload the AuthContext to pick up the new player
@@ -297,37 +315,121 @@ const Roster: React.FC = () => {
                   <p className="text-xs text-zinc-500 mt-1">Ask your coach for the Team ID if needed</p>
                 </div>
               )}
+              
               <div>
                 <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Full Name *</label>
                 <input name="name" value={newPlayer.name} onChange={handleInputChange} placeholder="John Smith" className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" required />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Jersey #</label>
-                  <input name="number" type="number" value={newPlayer.number} onChange={handleInputChange} placeholder="12" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Position</label>
-                  <input name="position" value={newPlayer.position} onChange={handleInputChange} placeholder="QB" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
-                </div>
-              </div>
+              
               <div>
-                <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Date of Birth</label>
-                <input name="dob" type="date" value={newPlayer.dob} onChange={handleInputChange} className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
+                <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Date of Birth *</label>
+                <input name="dob" type="date" value={newPlayer.dob} onChange={handleInputChange} className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" required />
               </div>
-              <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800">
-                <p className="text-xs font-bold text-zinc-600 dark:text-zinc-400 mb-3 uppercase tracking-wider">Season Stats (Optional)</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Touchdowns</label>
-                    <input name="td" type="number" value={newPlayer.td} onChange={handleInputChange} placeholder="0" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
+
+              {/* PARENT FORM: Uniform Sizes */}
+              {isParent && (
+                <>
+                  <div className="pt-2 border-t border-zinc-300 dark:border-zinc-800">
+                    <p className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-3 uppercase tracking-wider">Uniform Sizing</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Shirt Size</label>
+                        <select name="shirtSize" value={newPlayer.shirtSize} onChange={handleInputChange} className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white">
+                          <option value="">Select size...</option>
+                          <option value="Youth S">Youth S</option>
+                          <option value="Youth M">Youth M</option>
+                          <option value="Youth L">Youth L</option>
+                          <option value="Youth XL">Youth XL</option>
+                          <option value="Adult S">Adult S</option>
+                          <option value="Adult M">Adult M</option>
+                          <option value="Adult L">Adult L</option>
+                          <option value="Adult XL">Adult XL</option>
+                          <option value="Adult 2XL">Adult 2XL</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Pants Size</label>
+                        <select name="pantSize" value={newPlayer.pantSize} onChange={handleInputChange} className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white">
+                          <option value="">Select size...</option>
+                          <option value="Youth S">Youth S</option>
+                          <option value="Youth M">Youth M</option>
+                          <option value="Youth L">Youth L</option>
+                          <option value="Youth XL">Youth XL</option>
+                          <option value="Adult S">Adult S</option>
+                          <option value="Adult M">Adult M</option>
+                          <option value="Adult L">Adult L</option>
+                          <option value="Adult XL">Adult XL</option>
+                          <option value="Adult 2XL">Adult 2XL</option>
+                        </select>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Tackles</label>
-                    <input name="tkl" type="number" value={newPlayer.tkl} onChange={handleInputChange} placeholder="0" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
+                </>
+              )}
+
+              {/* COACH FORM: Jersey, Position, Stats */}
+              {isStaff && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Jersey # *</label>
+                      <input name="number" type="number" value={newPlayer.number} onChange={handleInputChange} placeholder="12" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" required />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Position *</label>
+                      <input name="position" value={newPlayer.position} onChange={handleInputChange} placeholder="QB" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" required />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Shirt Size</label>
+                      <select name="shirtSize" value={newPlayer.shirtSize} onChange={handleInputChange} className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white">
+                        <option value="">Select size...</option>
+                        <option value="Youth S">Youth S</option>
+                        <option value="Youth M">Youth M</option>
+                        <option value="Youth L">Youth L</option>
+                        <option value="Youth XL">Youth XL</option>
+                        <option value="Adult S">Adult S</option>
+                        <option value="Adult M">Adult M</option>
+                        <option value="Adult L">Adult L</option>
+                        <option value="Adult XL">Adult XL</option>
+                        <option value="Adult 2XL">Adult 2XL</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Pants Size</label>
+                      <select name="pantSize" value={newPlayer.pantSize} onChange={handleInputChange} className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white">
+                        <option value="">Select size...</option>
+                        <option value="Youth S">Youth S</option>
+                        <option value="Youth M">Youth M</option>
+                        <option value="Youth L">Youth L</option>
+                        <option value="Youth XL">Youth XL</option>
+                        <option value="Adult S">Adult S</option>
+                        <option value="Adult M">Adult M</option>
+                        <option value="Adult L">Adult L</option>
+                        <option value="Adult XL">Adult XL</option>
+                        <option value="Adult 2XL">Adult 2XL</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
+              {isStaff && (
+                <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800">
+                  <p className="text-xs font-bold text-zinc-600 dark:text-zinc-400 mb-3 uppercase tracking-wider">Season Stats (Optional)</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Touchdowns</label>
+                      <input name="td" type="number" value={newPlayer.td} onChange={handleInputChange} placeholder="0" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Tackles</label>
+                      <input name="tkl" type="number" value={newPlayer.tkl} onChange={handleInputChange} placeholder="0" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
               <div className="flex justify-end gap-4 mt-6">
                 <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 text-zinc-500 hover:text-zinc-900 dark:hover:text-white">Cancel</button>
                 <button type="submit" className="px-6 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-bold">Add Player</button>
