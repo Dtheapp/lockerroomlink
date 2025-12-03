@@ -36,7 +36,10 @@ const EditableStatsBoard: React.FC = () => {
   
   // --- DATA FETCHING ---
   useEffect(() => {
-    if (!teamData?.id) return;
+    if (!teamData?.id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
 
     const q = query(

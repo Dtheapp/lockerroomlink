@@ -10,7 +10,7 @@ import { BarChart3, Users, TrendingUp, ArrowUpDown, ChevronDown, ChevronUp } fro
 type SortField = keyof PlayerStats;
 
 const Stats: React.FC = () => {
-  const { userData } = useAuth();
+  const { userData, teamData, players } = useAuth();
   const [teams, setTeams] = useState<Team[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
   const [playerStats, setPlayerStats] = useState<PlayerStats[]>([]);
@@ -91,14 +91,36 @@ const Stats: React.FC = () => {
       {/* Parent View: Read-only Stats */}
       {userData?.role === 'Parent' && (
         <section>
-          <StatsBoard />
+          {!teamData && players.length === 0 ? (
+            <div className="bg-slate-50 dark:bg-zinc-950 rounded-xl p-12 text-center border border-slate-200 dark:border-zinc-800">
+              <BarChart3 className="w-16 h-16 text-slate-300 dark:text-zinc-700 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">No Team Stats Available</h3>
+              <p className="text-slate-600 dark:text-slate-400 mb-4">Add your first player to view team statistics</p>
+              <a 
+                href="#/roster" 
+                className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-bold transition-colors"
+              >
+                Go to Roster
+              </a>
+            </div>
+          ) : (
+            <StatsBoard />
+          )}
         </section>
       )}
 
       {/* Coach View: Editable Stats */}
       {userData?.role === 'Coach' && (
         <section>
-          <EditableStatsBoard />
+          {!teamData ? (
+            <div className="bg-slate-50 dark:bg-zinc-950 rounded-xl p-12 text-center border border-slate-200 dark:border-zinc-800">
+              <BarChart3 className="w-16 h-16 text-slate-300 dark:text-zinc-700 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">No Team Assigned</h3>
+              <p className="text-slate-600 dark:text-slate-400">Please contact an admin to assign you to a team</p>
+            </div>
+          ) : (
+            <EditableStatsBoard />
+          )}
         </section>
       )}
 

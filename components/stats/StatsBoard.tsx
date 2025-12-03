@@ -12,7 +12,10 @@ const StatsBoard: React.FC = () => {
   const [sortBy, setSortBy] = useState<keyof PlayerStats>('tds');
 
   useEffect(() => {
-    if (!teamData?.id) return;
+    if (!teamData?.id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
 
     // Fetch raw data; sorting is handled client-side
