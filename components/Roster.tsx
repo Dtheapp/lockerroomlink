@@ -20,6 +20,7 @@ const Roster: React.FC = () => {
   const [viewMedical, setViewMedical] = useState<Player | null>(null);
   const [viewContact, setViewContact] = useState<UserProfile | null>(null);
   const [isEditingContact, setIsEditingContact] = useState(false);
+  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   
   const [newPlayer, setNewPlayer] = useState({ 
     name: '', 
@@ -213,6 +214,26 @@ const Roster: React.FC = () => {
     }
   };
 
+  const handleUpdatePlayer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPlayer || !editingPlayer.teamId) return;
+    
+    try {
+      const playerRef = doc(db, 'teams', editingPlayer.teamId, 'players', editingPlayer.id);
+      await updateDoc(playerRef, {
+        name: editingPlayer.name,
+        dob: editingPlayer.dob,
+        shirtSize: editingPlayer.shirtSize || '',
+        pantSize: editingPlayer.pantSize || '',
+        medical: editingPlayer.medical || { allergies: 'None', conditions: 'None', medications: 'None', bloodType: '' }
+      });
+      setEditingPlayer(null);
+    } catch (error) {
+      console.error('Error updating player:', error);
+      alert('Failed to update player information.');
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20">
       <div className="flex justify-between items-center">
@@ -273,6 +294,40 @@ const Roster: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* Uniform Sizes - Visible to both Parents and Coaches */}
+                    {(player.shirtSize || player.pantSize) && (
+                      <div className="mb-3 bg-orange-50 dark:bg-orange-900/10 p-2 rounded border border-orange-200 dark:border-orange-900/30">
+                        <p className="text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider mb-1">Uniform</p>
+                        <div className="flex justify-around text-xs">
+                          {player.shirtSize && (
+                            <div>
+                              <span className="text-zinc-500 dark:text-zinc-500">Shirt:</span>
+                              <span className="ml-1 font-bold text-zinc-900 dark:text-white">{player.shirtSize}</span>
+                            </div>
+                          )}
+                          {player.pantSize && (
+                            <div>
+                              <span className="text-zinc-500 dark:text-zinc-500">Pants:</span>
+                              <span className="ml-1 font-bold text-zinc-900 dark:text-white">{player.pantSize}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Parent: Edit their own child */}
+                    {isParent && player.parentId === userData?.uid && (
+                      <div className="flex justify-center border-t border-zinc-200 dark:border-zinc-800 pt-3 mt-2">
+                        <button 
+                          onClick={() => setEditingPlayer(player)} 
+                          className="text-xs flex items-center gap-1 text-orange-600 hover:text-orange-500 dark:text-orange-400 dark:hover:text-orange-300 font-bold"
+                        >
+                          <Edit2 className="w-3 h-3" /> Edit Player Info
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Coach/Admin controls */}
                     {isStaff && (
                         <div className="flex justify-between items-center border-t border-zinc-200 dark:border-zinc-800 pt-3 mt-2">
                             {!player.parentId ? (
@@ -667,6 +722,167 @@ const Roster: React.FC = () => {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT PLAYER MODAL (For Parents) */}
+      {editingPlayer && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-50 dark:bg-zinc-950 p-6 rounded-xl w-full max-w-md border border-zinc-200 dark:border-zinc-800 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-4 text-zinc-900 dark:text-white flex items-center gap-2">
+              <Edit2 className="w-6 h-6 text-orange-500" /> Edit Player Info
+            </h2>
+            <form onSubmit={handleUpdatePlayer} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Full Name</label>
+                <input 
+                  type="text"
+                  value={editingPlayer.name}
+                  onChange={(e) => setEditingPlayer({...editingPlayer, name: e.target.value})}
+                  className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Date of Birth</label>
+                <input 
+                  type="date"
+                  value={editingPlayer.dob}
+                  onChange={(e) => setEditingPlayer({...editingPlayer, dob: e.target.value})}
+                  className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800">
+                <p className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-3 uppercase tracking-wider">Uniform Sizing</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Shirt Size</label>
+                    <select 
+                      value={editingPlayer.shirtSize || ''}
+                      onChange={(e) => setEditingPlayer({...editingPlayer, shirtSize: e.target.value})}
+                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                    >
+                      <option value="">Select size...</option>
+                      <option value="Youth S">Youth S</option>
+                      <option value="Youth M">Youth M</option>
+                      <option value="Youth L">Youth L</option>
+                      <option value="Youth XL">Youth XL</option>
+                      <option value="Adult S">Adult S</option>
+                      <option value="Adult M">Adult M</option>
+                      <option value="Adult L">Adult L</option>
+                      <option value="Adult XL">Adult XL</option>
+                      <option value="Adult 2XL">Adult 2XL</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Pants Size</label>
+                    <select 
+                      value={editingPlayer.pantSize || ''}
+                      onChange={(e) => setEditingPlayer({...editingPlayer, pantSize: e.target.value})}
+                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                    >
+                      <option value="">Select size...</option>
+                      <option value="Youth S">Youth S</option>
+                      <option value="Youth M">Youth M</option>
+                      <option value="Youth L">Youth L</option>
+                      <option value="Youth XL">Youth XL</option>
+                      <option value="Adult S">Adult S</option>
+                      <option value="Adult M">Adult M</option>
+                      <option value="Adult L">Adult L</option>
+                      <option value="Adult XL">Adult XL</option>
+                      <option value="Adult 2XL">Adult 2XL</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800">
+                <p className="text-xs font-bold text-red-600 dark:text-red-400 mb-3 uppercase tracking-wider flex items-center gap-1">
+                  <AlertCircle className="w-4 h-4" /> Medical Information
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Allergies</label>
+                    <input 
+                      type="text"
+                      value={editingPlayer.medical?.allergies || 'None'}
+                      onChange={(e) => setEditingPlayer({
+                        ...editingPlayer, 
+                        medical: {...(editingPlayer.medical || {allergies: '', conditions: '', medications: '', bloodType: ''}), allergies: e.target.value}
+                      })}
+                      placeholder="e.g., Peanuts, Penicillin"
+                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Medical Conditions</label>
+                    <input 
+                      type="text"
+                      value={editingPlayer.medical?.conditions || 'None'}
+                      onChange={(e) => setEditingPlayer({
+                        ...editingPlayer, 
+                        medical: {...(editingPlayer.medical || {allergies: '', conditions: '', medications: '', bloodType: ''}), conditions: e.target.value}
+                      })}
+                      placeholder="e.g., Asthma, Diabetes"
+                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Medications</label>
+                    <input 
+                      type="text"
+                      value={editingPlayer.medical?.medications || 'None'}
+                      onChange={(e) => setEditingPlayer({
+                        ...editingPlayer, 
+                        medical: {...(editingPlayer.medical || {allergies: '', conditions: '', medications: '', bloodType: ''}), medications: e.target.value}
+                      })}
+                      placeholder="e.g., Inhaler, EpiPen"
+                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Blood Type</label>
+                    <select 
+                      value={editingPlayer.medical?.bloodType || ''}
+                      onChange={(e) => setEditingPlayer({
+                        ...editingPlayer, 
+                        medical: {...(editingPlayer.medical || {allergies: '', conditions: '', medications: '', bloodType: ''}), bloodType: e.target.value}
+                      })}
+                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                    >
+                      <option value="">Unknown</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-4 mt-6">
+                <button 
+                  type="button" 
+                  onClick={() => setEditingPlayer(null)}
+                  className="px-4 text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  className="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
