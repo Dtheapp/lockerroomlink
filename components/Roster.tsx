@@ -22,6 +22,12 @@ const Roster: React.FC = () => {
   const [isEditingContact, setIsEditingContact] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   
+  // Loading states for async operations
+  const [addingPlayer, setAddingPlayer] = useState(false);
+  const [linkingParent, setLinkingParent] = useState(false);
+  const [savingContact, setSavingContact] = useState(false);
+  const [savingPlayer, setSavingPlayer] = useState(false);
+  
   const [newPlayer, setNewPlayer] = useState({ 
     name: '', 
     number: '', 
@@ -99,6 +105,7 @@ const Roster: React.FC = () => {
 
   const handleAddPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (addingPlayer) return;
     
     // Determine which team to add the player to
     let targetTeamId: string;
@@ -115,6 +122,7 @@ const Roster: React.FC = () => {
       targetTeamId = teamData.id;
     }
     
+    setAddingPlayer(true);
     try {
       const playerData: any = {
         name: newPlayer.name,
@@ -152,17 +160,25 @@ const Roster: React.FC = () => {
     } catch (error) { 
       console.error(error);
       alert('Failed to add player. Please try again.');
+    } finally {
+      setAddingPlayer(false);
     }
   };
   
   const handleLinkParent = async () => {
-      if (!teamData?.id || !selectedPlayerId || !selectedParentId) return;
+      if (!teamData?.id || !selectedPlayerId || !selectedParentId || linkingParent) return;
+      setLinkingParent(true);
       try {
           const playerRef = doc(db, 'teams', teamData.id, 'players', selectedPlayerId);
           await updateDoc(playerRef, { parentId: selectedParentId });
           setIsLinkModalOpen(false);
           setSelectedPlayerId(''); setSelectedParentId('');
-      } catch (error) { console.error(error); }
+      } catch (error) { 
+          console.error(error); 
+          alert('Failed to link parent. Please try again.');
+      } finally {
+          setLinkingParent(false);
+      }
   }
 
   const handleDeletePlayer = async (playerId: string) => {
@@ -194,7 +210,8 @@ const Roster: React.FC = () => {
   };
 
   const handleSaveContact = async () => {
-    if (!viewContact) return;
+    if (!viewContact || savingContact) return;
+    setSavingContact(true);
     try {
       await updateDoc(doc(db, 'users', viewContact.uid), {
         phone: editContactForm.phone,
@@ -211,13 +228,16 @@ const Roster: React.FC = () => {
     } catch (error) {
       console.error('Error updating contact:', error);
       alert('Failed to update contact information.');
+    } finally {
+      setSavingContact(false);
     }
   };
 
   const handleUpdatePlayer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingPlayer || !editingPlayer.teamId) return;
+    if (!editingPlayer || !editingPlayer.teamId || savingPlayer) return;
     
+    setSavingPlayer(true);
     try {
       const playerRef = doc(db, 'teams', editingPlayer.teamId, 'players', editingPlayer.id);
       const updateData: any = {
@@ -238,6 +258,8 @@ const Roster: React.FC = () => {
     } catch (error) {
       console.error('Error updating player:', error);
       alert('Failed to update player information.');
+    } finally {
+      setSavingPlayer(false);
     }
   };
 
@@ -501,8 +523,14 @@ const Roster: React.FC = () => {
                 </div>
               )}
               <div className="flex justify-end gap-4 mt-6">
-                <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 text-zinc-500 hover:text-zinc-900 dark:hover:text-white">Cancel</button>
-                <button type="submit" className="px-6 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-bold">Add Player</button>
+                <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 text-zinc-500 hover:text-zinc-900 dark:hover:text-white" disabled={addingPlayer}>Cancel</button>
+                <button type="submit" disabled={addingPlayer} className="px-6 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-bold disabled:opacity-50 flex items-center gap-2">
+                  {addingPlayer ? (
+                    <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Adding...</>
+                  ) : (
+                    'Add Player'
+                  )}
+                </button>
               </div>
             </form>
           </div>
@@ -522,8 +550,14 @@ const Roster: React.FC = () => {
                 ))}
               </select>
               <div className="flex justify-end gap-4 mt-6">
-                <button type="button" onClick={() => setIsLinkModalOpen(false)} className="px-4 text-zinc-500 hover:text-zinc-900 dark:hover:text-white">Cancel</button>
-                <button onClick={handleLinkParent} disabled={!selectedParentId} className="px-6 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-bold disabled:opacity-50">Link</button>
+                <button type="button" onClick={() => setIsLinkModalOpen(false)} className="px-4 text-zinc-500 hover:text-zinc-900 dark:hover:text-white" disabled={linkingParent}>Cancel</button>
+                <button onClick={handleLinkParent} disabled={!selectedParentId || linkingParent} className="px-6 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-bold disabled:opacity-50 flex items-center gap-2">
+                  {linkingParent ? (
+                    <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Linking...</>
+                  ) : (
+                    'Link'
+                  )}
+                </button>
               </div>
             </div>
           </div>
@@ -723,9 +757,14 @@ const Roster: React.FC = () => {
                   </button>
                   <button 
                     onClick={handleSaveContact}
-                    className="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold flex items-center gap-2"
+                    disabled={savingContact}
+                    className="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold flex items-center gap-2 disabled:opacity-50"
                   >
-                    <Plus className="w-4 h-4 rotate-45" /> Save
+                    {savingContact ? (
+                      <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saving...</>
+                    ) : (
+                      <><Plus className="w-4 h-4 rotate-45" /> Save</>
+                    )}
                   </button>
                 </>
               ) : (
@@ -851,14 +890,20 @@ const Roster: React.FC = () => {
                   type="button" 
                   onClick={() => setEditingPlayer(null)}
                   className="px-4 text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+                  disabled={savingPlayer}
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit"
-                  className="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold"
+                  disabled={savingPlayer}
+                  className="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold disabled:opacity-50 flex items-center gap-2"
                 >
-                  Save Changes
+                  {savingPlayer ? (
+                    <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saving...</>
+                  ) : (
+                    'Save Changes'
+                  )}
                 </button>
               </div>
             </form>

@@ -10,6 +10,7 @@ const Chat: React.FC = () => {
   const { user, userData, teamData } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -36,8 +37,9 @@ const Chat: React.FC = () => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !user || !userData || !teamData?.id) return;
+    if (!newMessage.trim() || !user || !userData || !teamData?.id || sending) return;
 
+    setSending(true);
     try {
       await addDoc(collection(db, 'teams', teamData.id, 'messages'), {
         text: newMessage,
@@ -50,6 +52,8 @@ const Chat: React.FC = () => {
       setNewMessage('');
     } catch (error) {
       console.error("Error sending message:", error);
+    } finally {
+      setSending(false);
     }
   };
   
@@ -102,8 +106,17 @@ const Chat: React.FC = () => {
             placeholder="Type your message..."
             className="flex-1 bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 rounded-full shadow-inner py-3 px-5 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
           />
-          <button type="submit" className="p-3 rounded-full bg-orange-600 hover:bg-orange-500 transition-colors shadow-lg shadow-orange-900/20 disabled:opacity-50 disabled:cursor-not-allowed" disabled={!newMessage.trim()}>
-            <Send className="w-5 h-5 text-white" />
+          <button 
+            type="submit" 
+            className="p-3 rounded-full bg-orange-600 hover:bg-orange-500 transition-colors shadow-lg shadow-orange-900/20 disabled:opacity-50 disabled:cursor-not-allowed" 
+            disabled={!newMessage.trim() || sending}
+            aria-label="Send message"
+          >
+            {sending ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Send className="w-5 h-5 text-white" />
+            )}
           </button>
         </form>
       </div>

@@ -16,6 +16,8 @@ const Messenger: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // 1. LOAD CHATS
@@ -61,19 +63,27 @@ const Messenger: React.FC = () => {
     loadUsers();
   }, [user?.uid, teamData?.id]);
 
-  // Live search as user types
+  // Debounce search query to prevent excessive filtering
   useEffect(() => {
-    if (!searchQuery.trim()) {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300); // 300ms debounce delay
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Live search using debounced query
+  useEffect(() => {
+    if (!debouncedSearchQuery.trim()) {
       setSearchResults([]);
       return;
     }
-    const term = searchQuery.toLowerCase();
+    const term = debouncedSearchQuery.toLowerCase();
     const filtered = allUsers.filter(u => 
       (u.name || '').toLowerCase().includes(term) || 
       (u.username || '').toLowerCase().includes(term)
     );
     setSearchResults(filtered);
-  }, [searchQuery, allUsers]);
+  }, [debouncedSearchQuery, allUsers]);
 
 
   const startChat = async (targetUser: UserProfile) => {
@@ -96,12 +106,14 @@ const Messenger: React.FC = () => {
 
   const sendMessage = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!newMessage.trim() || !activeChat || !user) return;
+      if (!newMessage.trim() || !activeChat || !user || sending) return;
       const text = newMessage; setNewMessage('');
+      setSending(true);
       try {
           await addDoc(collection(db, 'private_chats', activeChat.id, 'messages'), { text, senderId: user.uid, timestamp: serverTimestamp() });
           await updateDoc(doc(db, 'private_chats', activeChat.id), { lastMessage: text, updatedAt: serverTimestamp(), lastMessageTime: serverTimestamp() });
       } catch (error) { console.error(error); }
+      finally { setSending(false); }
   };
 
   const getOtherParticipant = (chat: PrivateChat) => {
@@ -209,7 +221,13 @@ const Messenger: React.FC = () => {
 
                 <form onSubmit={sendMessage} className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex gap-2">
                     <input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Type a message..." className="flex-1 bg-zinc-100 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-full px-4 py-2 text-zinc-900 dark:text-white focus:outline-none focus:border-orange-500 transition-colors"/>
-                    <button type="submit" disabled={!newMessage.trim()} className="bg-orange-600 hover:bg-orange-500 text-white p-2 rounded-full transition-colors disabled:opacity-50"><Send className="w-5 h-5" /></button>
+                    <button type="submit" disabled={!newMessage.trim() || sending} aria-label="Send message" className="bg-orange-600 hover:bg-orange-500 text-white p-2 rounded-full transition-colors disabled:opacity-50">
+                      {sending ? (
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Send className="w-5 h-5" />
+                      )}
+                    </button>
                 </form>
               </>
           ) : (

@@ -31,6 +31,7 @@ const Profile: React.FC = () => {
   const [medConditions, setMedConditions] = useState('');
   const [medMeds, setMedMeds] = useState('');
   const [medBlood, setMedBlood] = useState('');
+  const [savingMedical, setSavingMedical] = useState(false);
 
   // 1. Load Parent Data
   useEffect(() => {
@@ -92,8 +93,9 @@ const Profile: React.FC = () => {
 
   const handleSaveMedical = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!selectedAthlete || !selectedAthlete.teamId) return;
+      if (!selectedAthlete || !selectedAthlete.teamId || savingMedical) return;
 
+      setSavingMedical(true);
       try {
           const playerRef = doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id);
           const medicalData: MedicalInfo = {
@@ -108,6 +110,9 @@ const Profile: React.FC = () => {
           setSelectedAthlete(null);
       } catch (error) {
           console.error("Error saving medical:", error);
+          alert('Failed to save medical information.');
+      } finally {
+          setSavingMedical(false);
       }
   }
 
@@ -359,8 +364,14 @@ const Profile: React.FC = () => {
                       </div>
 
                       <div className="flex justify-end gap-3 mt-6">
-                          <button type="button" onClick={() => setIsMedicalOpen(false)} className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Close</button>
-                          <button type="submit" className="bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700 text-white px-6 py-2 rounded-lg shadow-lg dark:shadow-lg shadow-red-200 dark:shadow-red-900/20">Update Medical ID</button>
+                          <button type="button" onClick={() => setIsMedicalOpen(false)} className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white" disabled={savingMedical}>Close</button>
+                          <button type="submit" disabled={savingMedical} className="bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700 text-white px-6 py-2 rounded-lg shadow-lg dark:shadow-lg shadow-red-200 dark:shadow-red-900/20 disabled:opacity-50 flex items-center gap-2">
+                            {savingMedical ? (
+                              <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saving...</>
+                            ) : (
+                              'Update Medical ID'
+                            )}
+                          </button>
                       </div>
                   </form>
               </div>

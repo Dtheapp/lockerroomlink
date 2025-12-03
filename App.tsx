@@ -1,36 +1,48 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import ErrorBoundary from './components/ErrorBoundary';
 
-// Layouts
+// Layouts (loaded immediately as they're structural)
 import Layout from './layout/Layout';
 import AdminLayout from './layout/AdminLayout';
 
-// Pages
+// Auth Screen (loaded immediately as it's the entry point)
 import AuthScreen from './components/AuthScreen';
-import Dashboard from './components/Dashboard';
-import Roster from './components/Roster';
-import Playbook from './components/Playbook';
-import Chat from './components/Chat';
-import VideoLibrary from './components/VideoLibrary';
-import Profile from './components/Profile';
-import Messenger from './components/Messenger';
-import Stats from './components/Stats';
 
-// Admin Pages
-import AdminDashboard from './components/admin/AdminDashboard';
-import ManageUsers from './components/admin/ManageUsers';
-import ManageTeams from './components/admin/ManageTeams';
-import UserReport from './components/admin/UserReport';
+// Lazy-loaded pages for code splitting (reduces initial bundle size)
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const Roster = lazy(() => import('./components/Roster'));
+const Playbook = lazy(() => import('./components/Playbook'));
+const Chat = lazy(() => import('./components/Chat'));
+const VideoLibrary = lazy(() => import('./components/VideoLibrary'));
+const Profile = lazy(() => import('./components/Profile'));
+const Messenger = lazy(() => import('./components/Messenger'));
+const Stats = lazy(() => import('./components/Stats'));
+
+// Lazy-loaded Admin Pages
+const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard'));
+const ManageUsers = lazy(() => import('./components/admin/ManageUsers'));
+const ManageTeams = lazy(() => import('./components/admin/ManageTeams'));
+const UserReport = lazy(() => import('./components/admin/UserReport'));
+
+// Loading fallback for lazy-loaded components
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-64">
+    <div className="w-10 h-10 border-4 border-dashed rounded-full animate-spin border-orange-500"></div>
+  </div>
+);
 
 const App: React.FC = () => {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 };
 
@@ -47,41 +59,43 @@ const AppContent: React.FC = () => {
 
   return (
     <HashRouter>
-      <Routes>
-        {!user ? (
-          <>
-            <Route path="/auth" element={<AuthScreen />} />
-            <Route path="*" element={<Navigate to="/auth" replace />} />
-          </>
-        ) : userData?.role === 'SuperAdmin' ? (
-          <>
-            <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<Navigate to="/admin/dashboard" replace />} />
-              <Route path="dashboard" element={<AdminDashboard />} />
-              <Route path="users" element={<ManageUsers />} />
-              <Route path="teams" element={<ManageTeams />} />
-              <Route path="reports" element={<UserReport />} />
-              <Route path="stats" element={<Stats />} />
-            </Route>
-            <Route path="*" element={<Navigate to="/admin" replace />} />
-          </>
-        ) : (
-          <>
-            <Route path="/" element={<Layout />}>
-              <Route index element={<Navigate to="/dashboard" replace />} />
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="roster" element={<Roster />} />
-              <Route path="playbook" element={<Playbook />} />
-              <Route path="chat" element={<Chat />} />
-              <Route path="messenger" element={<Messenger />} />
-              <Route path="videos" element={<VideoLibrary />} />
-              <Route path="profile" element={<Profile />} />
-              <Route path="stats" element={<Stats />} />
-            </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </>
-        )}
-      </Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          {!user ? (
+            <>
+              <Route path="/auth" element={<AuthScreen />} />
+              <Route path="*" element={<Navigate to="/auth" replace />} />
+            </>
+          ) : userData?.role === 'SuperAdmin' ? (
+            <>
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<Navigate to="/admin/dashboard" replace />} />
+                <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="users" element={<ManageUsers />} />
+                <Route path="teams" element={<ManageTeams />} />
+                <Route path="reports" element={<UserReport />} />
+                <Route path="stats" element={<Stats />} />
+              </Route>
+              <Route path="*" element={<Navigate to="/admin" replace />} />
+            </>
+          ) : (
+            <>
+              <Route path="/" element={<Layout />}>
+                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="roster" element={<Roster />} />
+                <Route path="playbook" element={<Playbook />} />
+                <Route path="chat" element={<Chat />} />
+                <Route path="messenger" element={<Messenger />} />
+                <Route path="videos" element={<VideoLibrary />} />
+                <Route path="profile" element={<Profile />} />
+                <Route path="stats" element={<Stats />} />
+              </Route>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </>
+          )}
+        </Routes>
+      </Suspense>
     </HashRouter>
   );
 };

@@ -33,6 +33,10 @@ const Dashboard: React.FC = () => {
   // Modal state for viewing full details
   const [selectedEvent, setSelectedEvent] = useState<TeamEvent | null>(null);
   const [selectedPost, setSelectedPost] = useState<BulletinPost | null>(null);
+  
+  // Loading states for async operations
+  const [addingPost, setAddingPost] = useState(false);
+  const [addingEvent, setAddingEvent] = useState(false);
 
   // --- OPTIMIZED STATS CALCULATION (PERFORMANCE FIX) ---
   // Calculates leaders only when playerStats data changes, not on every render
@@ -96,13 +100,15 @@ const Dashboard: React.FC = () => {
 
   const handleAddPost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPost.trim() || !teamData?.id || !userData?.name) return;
+    if (!newPost.trim() || !teamData?.id || !userData?.name || addingPost) return;
+    setAddingPost(true);
     try {
       await addDoc(collection(db, 'teams', teamData.id, 'bulletin'), {
         text: newPost, author: userData.name, authorId: userData.uid, timestamp: serverTimestamp(),
       });
       setNewPost('');
     } catch (error) { console.error("Error adding post:", error); }
+    finally { setAddingPost(false); }
   };
 
   const handleEditPost = async (postId: string) => {
@@ -136,7 +142,8 @@ const Dashboard: React.FC = () => {
 
   const handleAddEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEvent.title?.trim() || !newEvent.date || !teamData?.id || !userData?.uid) return;
+    if (!newEvent.title?.trim() || !newEvent.date || !teamData?.id || !userData?.uid || addingEvent) return;
+    setAddingEvent(true);
     try {
       await addDoc(collection(db, 'teams', teamData.id, 'events'), {
         ...newEvent, createdAt: serverTimestamp(), createdBy: userData.uid, updatedAt: serverTimestamp(),
@@ -144,6 +151,7 @@ const Dashboard: React.FC = () => {
       setNewEvent({ title: '', date: '', time: '', location: '', description: '', type: 'Practice' });
       setShowNewEventForm(false);
     } catch (error) { console.error("Error adding event:", error); }
+    finally { setAddingEvent(false); }
   };
 
   const copyTeamId = () => {
@@ -416,8 +424,12 @@ const Dashboard: React.FC = () => {
               {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
                 <form onSubmit={handleAddPost} className="mb-6 flex items-center gap-4">
                   <input type="text" value={newPost} onChange={(e) => setNewPost(e.target.value)} placeholder="Post an announcement..." className="flex-1 bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-lg p-3 text-zinc-900 dark:text-white focus:border-orange-500 outline-none" />
-                  <button type="submit" className="bg-orange-600 hover:bg-orange-500 text-white p-3 rounded-lg transition-colors disabled:opacity-50" disabled={!newPost.trim()}>
-                    <Plus className="w-5 h-5" />
+                  <button type="submit" aria-label="Post announcement" className="bg-orange-600 hover:bg-orange-500 text-white p-3 rounded-lg transition-colors disabled:opacity-50" disabled={!newPost.trim() || addingPost}>
+                    {addingPost ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Plus className="w-5 h-5" />
+                    )}
                   </button>
                 </form>
               )}
@@ -504,8 +516,14 @@ const Dashboard: React.FC = () => {
                         <option>Practice</option><option>Game</option><option>Other</option>
                     </select>
                     <div className="flex gap-2">
-                        <button onClick={handleAddEvent} className="flex-1 bg-emerald-600 text-white py-2 rounded text-xs font-bold">Add</button>
-                        <button onClick={() => setShowNewEventForm(false)} className="flex-1 bg-zinc-700 text-white py-2 rounded text-xs">Cancel</button>
+                        <button onClick={handleAddEvent} disabled={addingEvent} aria-label="Add event" className="flex-1 bg-emerald-600 text-white py-2 rounded text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-1">
+                          {addingEvent ? (
+                            <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Adding...</>
+                          ) : (
+                            'Add'
+                          )}
+                        </button>
+                        <button onClick={() => setShowNewEventForm(false)} disabled={addingEvent} className="flex-1 bg-zinc-700 text-white py-2 rounded text-xs">Cancel</button>
                     </div>
                 </div>
             )}
