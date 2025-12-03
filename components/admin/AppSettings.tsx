@@ -78,6 +78,7 @@ const AppSettings: React.FC = () => {
 
     const loadConfig = async () => {
         setLoading(true);
+        setError('');
         try {
             const docRef = doc(db, 'appConfig', 'settings');
             const docSnap = await getDoc(docRef);
@@ -87,14 +88,29 @@ const AppSettings: React.FC = () => {
                 setConfig({ ...defaultConfig, ...data });
                 setOriginalConfig({ ...defaultConfig, ...data });
             } else {
-                // Initialize with defaults if no config exists
-                await setDoc(docRef, { ...defaultConfig, lastUpdatedAt: serverTimestamp() });
+                // Document doesn't exist - use defaults and try to create it
+                setConfig(defaultConfig);
+                setOriginalConfig(defaultConfig);
+                // Try to create the initial config doc
+                try {
+                    await setDoc(docRef, { ...defaultConfig, lastUpdatedAt: serverTimestamp() });
+                } catch (createErr) {
+                    // If we can't create, that's ok - we'll try again when saving
+                    console.log('Could not create initial config doc, will create on first save');
+                }
+            }
+        } catch (err: any) {
+            console.error('Error loading config:', err);
+            // If it's a permission error or doc doesn't exist, just use defaults
+            if (err?.code === 'permission-denied' || err?.code === 'not-found') {
+                setConfig(defaultConfig);
+                setOriginalConfig(defaultConfig);
+                // Don't show error - just use defaults
+            } else {
+                setError('Failed to load settings. Using defaults.');
                 setConfig(defaultConfig);
                 setOriginalConfig(defaultConfig);
             }
-        } catch (err) {
-            console.error('Error loading config:', err);
-            setError('Failed to load settings');
         } finally {
             setLoading(false);
         }
