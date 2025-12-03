@@ -220,12 +220,20 @@ const Roster: React.FC = () => {
     
     try {
       const playerRef = doc(db, 'teams', editingPlayer.teamId, 'players', editingPlayer.id);
-      await updateDoc(playerRef, {
+      const updateData: any = {
         name: editingPlayer.name,
         dob: editingPlayer.dob,
         shirtSize: editingPlayer.shirtSize || '',
         pantSize: editingPlayer.pantSize || ''
-      });
+      };
+      
+      // Coaches can also edit jersey number and position
+      if (isStaff) {
+        updateData.number = editingPlayer.number || 0;
+        updateData.position = editingPlayer.position || 'TBD';
+      }
+      
+      await updateDoc(playerRef, updateData);
       setEditingPlayer(null);
     } catch (error) {
       console.error('Error updating player:', error);
@@ -328,13 +336,21 @@ const Roster: React.FC = () => {
 
                     {/* Coach/Admin controls */}
                     {isStaff && (
-                        <div className="flex justify-between items-center border-t border-zinc-200 dark:border-zinc-800 pt-3 mt-2">
-                            {!player.parentId ? (
-                                <button onClick={() => { setSelectedPlayerId(player.id); setIsLinkModalOpen(true); }} className="text-xs flex items-center gap-1 text-zinc-400 hover:text-zinc-900 dark:hover:text-white"><Link className="w-3 h-3" /> Link Parent</button>
-                            ) : (
-                                <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><User className="w-3 h-3"/> {parent?.name || 'Linked'}</span>
-                            )}
-                            <button onClick={() => handleDeletePlayer(player.id)} className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 flex items-center gap-1"><Trash2 className="w-3 h-3" /> Remove</button>
+                        <div className="border-t border-zinc-200 dark:border-zinc-800 pt-3 mt-2 space-y-2">
+                            <div className="flex justify-between items-center">
+                                {!player.parentId ? (
+                                    <button onClick={() => { setSelectedPlayerId(player.id); setIsLinkModalOpen(true); }} className="text-xs flex items-center gap-1 text-zinc-400 hover:text-zinc-900 dark:hover:text-white"><Link className="w-3 h-3" /> Link Parent</button>
+                                ) : (
+                                    <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><User className="w-3 h-3"/> {parent?.name || 'Linked'}</span>
+                                )}
+                                <button onClick={() => handleDeletePlayer(player.id)} className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 flex items-center gap-1"><Trash2 className="w-3 h-3" /> Remove</button>
+                            </div>
+                            <button 
+                              onClick={() => setEditingPlayer(player)} 
+                              className="w-full text-xs flex items-center justify-center gap-1 text-orange-600 hover:text-orange-500 dark:text-orange-400 dark:hover:text-orange-300 font-bold"
+                            >
+                              <Edit2 className="w-3 h-3" /> Edit Player
+                            </button>
                         </div>
                     )}
                 </div>
@@ -725,7 +741,7 @@ const Roster: React.FC = () => {
         </div>
       )}
 
-      {/* EDIT PLAYER MODAL (For Parents) */}
+      {/* EDIT PLAYER MODAL (For Parents and Coaches) */}
       {editingPlayer && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-slate-50 dark:bg-zinc-950 p-6 rounded-xl w-full max-w-md border border-zinc-200 dark:border-zinc-800 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -753,6 +769,35 @@ const Roster: React.FC = () => {
                   className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
                 />
               </div>
+
+              {/* COACH-ONLY FIELDS: Jersey Number and Position */}
+              {isStaff && (
+                <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800">
+                  <p className="text-xs font-bold text-cyan-600 dark:text-cyan-400 mb-3 uppercase tracking-wider">Team Assignment</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Jersey #</label>
+                      <input 
+                        type="number"
+                        value={editingPlayer.number || ''}
+                        onChange={(e) => setEditingPlayer({...editingPlayer, number: parseInt(e.target.value) || 0})}
+                        placeholder="00"
+                        className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Position</label>
+                      <input 
+                        type="text"
+                        value={editingPlayer.position || ''}
+                        onChange={(e) => setEditingPlayer({...editingPlayer, position: e.target.value})}
+                        placeholder="QB, RB, WR..."
+                        className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800">
                 <p className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-3 uppercase tracking-wider">Uniform Sizing</p>
