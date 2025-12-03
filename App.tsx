@@ -33,6 +33,7 @@ const TeamReports = lazy(() => import('./components/admin/TeamReports'));
 const ContentModeration = lazy(() => import('./components/admin/ContentModeration'));
 const DataManagement = lazy(() => import('./components/admin/DataManagement'));
 const EmailCommunication = lazy(() => import('./components/admin/EmailCommunication'));
+const ActivityLog = lazy(() => import('./components/admin/ActivityLog'));
 
 // Loading fallback for lazy-loaded components
 const PageLoader = () => (
@@ -85,6 +86,7 @@ const AppContent: React.FC = () => {
                 <Route path="moderation" element={<ContentModeration />} />
                 <Route path="team-reports" element={<TeamReports />} />
                 <Route path="reports" element={<UserReport />} />
+                <Route path="activity" element={<ActivityLog />} />
                 <Route path="data" element={<DataManagement />} />
                 <Route path="stats" element={<Stats />} />
                 <Route path="settings" element={<AppSettings />} />
