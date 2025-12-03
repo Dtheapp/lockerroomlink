@@ -27,6 +27,7 @@ const ManageUsers = lazy(() => import('./components/admin/ManageUsers'));
 const ManageTeams = lazy(() => import('./components/admin/ManageTeams'));
 const UserReport = lazy(() => import('./components/admin/UserReport'));
 const Announcements = lazy(() => import('./components/admin/Announcements'));
+const AppSettings = lazy(() => import('./components/admin/AppSettings'));
 
 // Loading fallback for lazy-loaded components
 const PageLoader = () => (
@@ -77,6 +78,7 @@ const AppContent: React.FC = () => {
                 <Route path="announcements" element={<Announcements />} />
                 <Route path="reports" element={<UserReport />} />
                 <Route path="stats" element={<Stats />} />
+                <Route path="settings" element={<AppSettings />} />
               </Route>
               <Route path="*" element={<Navigate to="/admin" replace />} />
             </>

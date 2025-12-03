@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
-import { LayoutDashboard, Users, Shield, LogOut, FileText, Menu, X, ChevronLeft, Sun, Moon, BarChart3, Megaphone } from 'lucide-react';
+import { LayoutDashboard, Users, Shield, LogOut, FileText, Menu, X, ChevronLeft, Sun, Moon, BarChart3, Megaphone, Settings } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -13,6 +13,7 @@ const adminNavItems = [
   { name: 'Announcements', path: '/admin/announcements', icon: Megaphone },
   { name: 'Reports', path: '/admin/reports', icon: FileText },
   { name: 'Stats', path: '/admin/stats', icon: BarChart3 },
+  { name: 'Settings', path: '/admin/settings', icon: Settings },
 ];
 
 const AdminLayout: React.FC = () => {
