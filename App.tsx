@@ -16,6 +16,7 @@ const Dashboard = lazy(() => import('./components/Dashboard'));
 const Roster = lazy(() => import('./components/Roster'));
 const Playbook = lazy(() => import('./components/Playbook'));
 const Chat = lazy(() => import('./components/Chat'));
+const Strategies = lazy(() => import('./components/Strategies'));
 const VideoLibrary = lazy(() => import('./components/VideoLibrary'));
 const Profile = lazy(() => import('./components/Profile'));
 const Messenger = lazy(() => import('./components/Messenger'));
@@ -98,6 +99,7 @@ const AppContent: React.FC = () => {
                 <Route path="roster" element={<Roster />} />
                 <Route path="playbook" element={<Playbook />} />
                 <Route path="chat" element={<Chat />} />
+                <Route path="strategies" element={<Strategies />} />
                 <Route path="messenger" element={<Messenger />} />
                 <Route path="videos" element={<VideoLibrary />} />
                 <Route path="profile" element={<Profile />} />

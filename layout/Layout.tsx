@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
-import { Home, Users, ClipboardList, MessageCircle, Video, LogOut, User, Send, Menu, X, ChevronLeft, Sun, Moon, BarChart3 } from 'lucide-react';
+import { Home, Users, ClipboardList, MessageCircle, Video, LogOut, User, Send, Menu, X, ChevronLeft, Sun, Moon, BarChart3, Shield } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import PlayerSelector from '../components/PlayerSelector';
@@ -51,6 +51,7 @@ const Layout: React.FC = () => {
     { name: 'Roster', path: '/roster', icon: Users },
     { name: 'Playbook', path: '/playbook', icon: ClipboardList },
     { name: 'Team Chat', path: '/chat', icon: MessageCircle },
+    { name: 'Strategies', path: '/strategies', icon: Shield, coachOnly: true },
     { name: 'Messenger', path: '/messenger', icon: Send },
     { name: 'Film Room', path: '/videos', icon: Video },
     { name: 'Stats', path: '/stats', icon: BarChart3 },
@@ -59,6 +60,7 @@ const Layout: React.FC = () => {
 
   const navItems = allNavItems.filter(item => {
       if (item.name === 'Playbook' && userData?.role === 'Parent') return false;
+      if ((item as any).coachOnly && userData?.role !== 'Coach') return false;
       return true;
   });
 
