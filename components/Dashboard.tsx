@@ -6,7 +6,6 @@ import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle } from 'lucide-react';
 import type { BulletinPost, PlayerStats, TeamEvent } from '../types';
-import PlayerSelector from './PlayerSelector';
 
 const Dashboard: React.FC = () => {
   const { userData, teamData, players, selectedPlayer } = useAuth();
@@ -389,9 +388,6 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* PLAYER SELECTOR (For Parents with multiple children) */}
-      <PlayerSelector />
-      
       {/* HERO SECTION */}
         <div className="bg-gradient-to-br from-slate-200 to-slate-300 dark:from-zinc-800 dark:to-black rounded-2xl p-8 border border-slate-300 dark:border-zinc-700 relative overflow-hidden shadow-2xl">
           <div className="absolute top-0 right-0 p-8 opacity-5"><Trophy className="w-64 h-64 text-white" /></div>
