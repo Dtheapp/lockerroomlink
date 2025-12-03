@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import React, { useState, useRef } from 'react';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { Home, Users, ClipboardList, MessageCircle, Video, LogOut, User, Send, Menu, X, ChevronLeft, Sun, Moon, BarChart3 } from 'lucide-react';
@@ -9,11 +9,33 @@ import PlayerSelector from '../components/PlayerSelector';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { teamData, userData } = useAuth();
   const { theme, toggleTheme } = useTheme();
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
+  
+  // Ref for main content scrolling
+  const mainContentRef = useRef<HTMLDivElement>(null);
+
+  // Handle logo click - navigate to dashboard AND scroll to top
+  const handleLogoClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    
+    // Always scroll to top
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    
+    // Navigate to dashboard if not already there
+    if (location.pathname !== '/dashboard') {
+      navigate('/dashboard');
+    }
+    
+    // Close mobile sidebar if open
+    setIsSidebarOpen(false);
+  };
 
   const handleSignOut = async () => {
     try {
@@ -49,9 +71,9 @@ const Layout: React.FC = () => {
       
       {/* MOBILE HEADER */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-900 flex items-center justify-between px-4 z-40 shadow-sm">
-          <NavLink to="/dashboard" className="text-xl font-black tracking-tighter hover:opacity-80 transition-opacity">
+          <button onClick={handleLogoClick} className="text-xl font-black tracking-tighter hover:opacity-80 transition-opacity">
             <span className="text-orange-500">LOCKER</span><span className="text-zinc-900 dark:text-white">ROOM</span>
-          </NavLink>
+          </button>
           <button onClick={() => setIsSidebarOpen(true)} className="text-zinc-600 dark:text-zinc-300">
               <Menu className="w-8 h-8" />
           </button>
@@ -68,7 +90,7 @@ const Layout: React.FC = () => {
         
         <div className="flex items-center justify-between mb-8 h-10">
             {!isDesktopCollapsed && (
-                <NavLink to="/dashboard" className="min-w-0 hover:opacity-80 transition-opacity">
+                <button onClick={handleLogoClick} className="min-w-0 hover:opacity-80 transition-opacity text-left">
                     {/* FIX: Split Logo Color Logic */}
                     <div className="text-xl font-black tracking-tighter truncate leading-none">
                         <span className="text-orange-500">LOCKER</span>
@@ -77,13 +99,13 @@ const Layout: React.FC = () => {
                     <p className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold truncate mt-1">
                         Digital Link
                     </p>
-                </NavLink>
+                </button>
             )}
             {isDesktopCollapsed && (
-                <NavLink to="/dashboard" className="mx-auto hover:opacity-80 transition-opacity" title="Go to Dashboard">
+                <button onClick={handleLogoClick} className="mx-auto hover:opacity-80 transition-opacity" title="Go to Dashboard">
                     <span className="text-xl font-black text-orange-500">L</span>
                     <span className="text-xl font-black text-zinc-900 dark:text-white">R</span>
-                </NavLink>
+                </button>
             )}
             
             <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-zinc-500 hover:text-red-500">
@@ -151,7 +173,7 @@ const Layout: React.FC = () => {
       )}
 
       <main className="flex-1 flex flex-col overflow-hidden bg-zinc-50 dark:bg-black pt-16 md:pt-0 relative">
-        <div className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
+        <div ref={mainContentRef} className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
           <Outlet />
         </div>
       </main>
