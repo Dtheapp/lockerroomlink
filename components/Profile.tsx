@@ -23,15 +23,8 @@ const Profile: React.FC = () => {
 
   // ATHLETE STATES
   const [myAthletes, setMyAthletes] = useState<Player[]>([]);
-  const [isAddAthleteOpen, setIsAddAthleteOpen] = useState(false);
   const [selectedAthlete, setSelectedAthlete] = useState<Player | null>(null);
   const [isMedicalOpen, setIsMedicalOpen] = useState(false);
-
-  // New Athlete Form
-  const [newPlayerName, setNewPlayerName] = useState('');
-  const [newPlayerNumber, setNewPlayerNumber] = useState('');
-  const [newPlayerPos, setNewPlayerPos] = useState('');
-  const [newPlayerDob, setNewPlayerDob] = useState('');
 
   // Medical Form
   const [medAllergies, setMedAllergies] = useState('');
@@ -86,13 +79,7 @@ const Profile: React.FC = () => {
     }
   };
 
-  const handleAddAthlete = async (e: React.FormEvent) => {
-      e.preventDefault();
-      
-      // Parents should use the Roster page to add players (with team selection)
-      alert("Please use the Roster page to add your players. This allows you to select which team they're joining.");
-      setIsAddAthleteOpen(false);
-  };
+
 
   const openMedical = (player: Player) => {
       setSelectedAthlete(player);
@@ -246,15 +233,17 @@ const Profile: React.FC = () => {
           <div className="space-y-6">
               <div className="flex justify-between items-center">
                   <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2"><Shield className="text-sky-500"/> My Athletes</h2>
-                  <button onClick={() => setIsAddAthleteOpen(true)} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium">
-                      <Plus className="h-4 w-4" /> Add Child
-                  </button>
               </div>
 
               {myAthletes.length === 0 ? (
-                  <div className="bg-slate-50 dark:bg-slate-900 p-8 rounded-xl border border-slate-200 dark:border-slate-800 text-center text-slate-500 dark:text-slate-400">
-                      <p>You haven't added any athletes yet.</p>
-                      <p className="text-sm">Add your child to join the team roster.</p>
+                  <div className="bg-slate-50 dark:bg-slate-900 p-8 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
+                      <p className="text-slate-600 dark:text-slate-400 mb-3">You haven't added any athletes yet.</p>
+                      <a 
+                        href="#/roster" 
+                        className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                      >
+                        <Plus className="h-4 w-4" /> Add Your First Player
+                      </a>
                   </div>
               ) : (
                   <div className="grid md:grid-cols-2 gap-6">
@@ -332,30 +321,6 @@ const Profile: React.FC = () => {
                       })}
                   </div>
               )}
-          </div>
-      )}
-
-      {/* MODAL: ADD ATHLETE */}
-      {isAddAthleteOpen && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-              <div className="bg-slate-50 dark:bg-zinc-950 w-full max-w-md rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-lg dark:shadow-xl">
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Add Athlete</h3>
-                  <form onSubmit={handleAddAthlete} className="space-y-4">
-                      <input value={newPlayerName} onChange={e => setNewPlayerName(e.target.value)} placeholder="Full Name" className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-2 text-slate-900 dark:text-white" required />
-                      <div className="grid grid-cols-2 gap-4">
-                          <input type="number" value={newPlayerNumber} onChange={e => setNewPlayerNumber(e.target.value)} placeholder="Jersey #" className="bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-2 text-slate-900 dark:text-white" required />
-                          <input value={newPlayerPos} onChange={e => setNewPlayerPos(e.target.value)} placeholder="Position (e.g. QB)" className="bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-2 text-slate-900 dark:text-white" required />
-                      </div>
-                      <div>
-                          <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Date of Birth</label>
-                          <input type="date" value={newPlayerDob} onChange={e => setNewPlayerDob(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-2 text-slate-900 dark:text-white" required />
-                      </div>
-                      <div className="flex justify-end gap-3 mt-6">
-                          <button type="button" onClick={() => setIsAddAthleteOpen(false)} className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Cancel</button>
-                          <button type="submit" className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg">Add to Roster</button>
-                      </div>
-                  </form>
-              </div>
           </div>
       )}
 
