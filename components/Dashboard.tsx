@@ -265,62 +265,133 @@ const Dashboard: React.FC = () => {
       
       {/* EVENT DETAIL MODAL */}
       {selectedEvent && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedEvent(null)}>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setSelectedEvent(null); setEditingEventId(null); }}>
           <div 
             className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-zinc-200 dark:border-zinc-700 shadow-2xl animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className={`${getEventTypeColor(selectedEvent.type)} p-6 relative`}>
+            <div className={`${getEventTypeColor(editingEventId === selectedEvent.id ? (editingEvent.type || selectedEvent.type) : selectedEvent.type)} p-6 relative`}>
               <button 
-                onClick={() => setSelectedEvent(null)} 
+                onClick={() => { setSelectedEvent(null); setEditingEventId(null); }} 
                 className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/20 hover:bg-black/30 rounded-full p-1.5 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
-              <span className="text-xs font-bold uppercase tracking-wider text-white/80">{selectedEvent.type}</span>
-              <h2 className="text-2xl font-black text-white mt-1">{selectedEvent.title}</h2>
+              <span className="text-xs font-bold uppercase tracking-wider text-white/80">
+                {editingEventId === selectedEvent.id ? (editingEvent.type || selectedEvent.type) : selectedEvent.type}
+              </span>
+              {editingEventId === selectedEvent.id ? (
+                <input 
+                  value={editingEvent.title || ''} 
+                  onChange={e => setEditingEvent({...editingEvent, title: e.target.value})} 
+                  className="text-2xl font-black text-white mt-1 bg-transparent border-b-2 border-white/50 focus:border-white outline-none w-full"
+                  placeholder="Event Title"
+                />
+              ) : (
+                <h2 className="text-2xl font-black text-white mt-1">{selectedEvent.title}</h2>
+              )}
             </div>
             
             {/* Modal Body */}
             <div className="p-6 space-y-4">
-              {/* Date & Time */}
-              <div className="flex items-center gap-3 text-zinc-700 dark:text-zinc-300">
-                <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
-                  <Calendar className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-                </div>
-                <div>
-                  <p className="font-bold text-zinc-900 dark:text-white">
-                    {new Date(selectedEvent.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                  </p>
-                  {selectedEvent.time && (
-                    <p className="text-sm text-zinc-500">{selectedEvent.time}</p>
-                  )}
-                </div>
-              </div>
-              
-              {/* Location */}
-              {selectedEvent.location && (
-                <div className="flex items-center gap-3 text-zinc-700 dark:text-zinc-300">
-                  <div className="w-10 h-10 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg flex items-center justify-center">
-                    <MapPin className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+              {editingEventId === selectedEvent.id ? (
+                /* Edit Mode */
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-bold uppercase text-zinc-500 mb-1 block">Date</label>
+                      <input 
+                        type="date" 
+                        value={editingEvent.date || ''} 
+                        onChange={e => setEditingEvent({...editingEvent, date: e.target.value})} 
+                        className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold uppercase text-zinc-500 mb-1 block">Time</label>
+                      <input 
+                        type="time" 
+                        value={editingEvent.time || ''} 
+                        onChange={e => setEditingEvent({...editingEvent, time: e.target.value})} 
+                        className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg"
+                      />
+                    </div>
                   </div>
                   <div>
-                    <p className="font-bold text-zinc-900 dark:text-white">{selectedEvent.location}</p>
-                    <p className="text-sm text-zinc-500">Location</p>
+                    <label className="text-xs font-bold uppercase text-zinc-500 mb-1 block">Location</label>
+                    <input 
+                      value={editingEvent.location || ''} 
+                      onChange={e => setEditingEvent({...editingEvent, location: e.target.value})} 
+                      placeholder="Location" 
+                      className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-zinc-500 mb-1 block">Event Type</label>
+                    <select 
+                      value={editingEvent.type || 'Practice'} 
+                      onChange={e => setEditingEvent({...editingEvent, type: e.target.value as any})} 
+                      className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg"
+                    >
+                      <option value="Practice">Practice</option>
+                      <option value="Game">Game</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-zinc-500 mb-1 block">Notes</label>
+                    <textarea 
+                      value={editingEvent.description || ''} 
+                      onChange={e => setEditingEvent({...editingEvent, description: e.target.value})} 
+                      placeholder="Add notes or details..." 
+                      className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg" 
+                      rows={4}
+                    />
                   </div>
                 </div>
-              )}
-              
-              {/* Description/Notes */}
-              {selectedEvent.description && (
-                <div className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Info className="w-4 h-4 text-zinc-500" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Notes</span>
+              ) : (
+                /* View Mode */
+                <>
+                  {/* Date & Time */}
+                  <div className="flex items-center gap-3 text-zinc-700 dark:text-zinc-300">
+                    <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
+                      <Calendar className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-zinc-900 dark:text-white">
+                        {new Date(selectedEvent.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                      </p>
+                      {selectedEvent.time && (
+                        <p className="text-sm text-zinc-500">{selectedEvent.time}</p>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">{selectedEvent.description}</p>
-                </div>
+                  
+                  {/* Location */}
+                  {selectedEvent.location && (
+                    <div className="flex items-center gap-3 text-zinc-700 dark:text-zinc-300">
+                      <div className="w-10 h-10 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg flex items-center justify-center">
+                        <MapPin className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-zinc-900 dark:text-white">{selectedEvent.location}</p>
+                        <p className="text-sm text-zinc-500">Location</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Description/Notes */}
+                  {selectedEvent.description && (
+                    <div className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Info className="w-4 h-4 text-zinc-500" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Notes</span>
+                      </div>
+                      <p className="text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">{selectedEvent.description}</p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
             
@@ -328,34 +399,57 @@ const Dashboard: React.FC = () => {
             <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 rounded-b-2xl">
               <div className="flex gap-2">
                 {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
-                  <>
-                    <button 
-                      onClick={() => {
-                        setEditingEventId(selectedEvent.id);
-                        setEditingEvent(selectedEvent);
-                        setSelectedEvent(null);
-                      }}
-                      className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Edit2 className="w-4 h-4" /> Edit
-                    </button>
-                    <button 
-                      onClick={() => {
-                        handleDeleteEvent(selectedEvent.id);
-                        setSelectedEvent(null);
-                      }}
-                      className="py-3 px-4 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </>
+                  editingEventId === selectedEvent.id ? (
+                    /* Edit Mode Buttons */
+                    <>
+                      <button 
+                        onClick={async () => {
+                          await handleEditEvent(selectedEvent.id);
+                          setSelectedEvent({...selectedEvent, ...editingEvent});
+                        }}
+                        className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Check className="w-4 h-4" /> Save
+                      </button>
+                      <button 
+                        onClick={() => { setEditingEventId(null); setEditingEvent({}); }}
+                        className="flex-1 py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg font-bold transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    /* View Mode Buttons */
+                    <>
+                      <button 
+                        onClick={() => {
+                          setEditingEventId(selectedEvent.id);
+                          setEditingEvent(selectedEvent);
+                        }}
+                        className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Edit2 className="w-4 h-4" /> Edit
+                      </button>
+                      <button 
+                        onClick={() => {
+                          handleDeleteEvent(selectedEvent.id);
+                          setSelectedEvent(null);
+                        }}
+                        className="py-3 px-4 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  )
                 )}
-                <button 
-                  onClick={() => setSelectedEvent(null)}
-                  className={`${(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') ? 'flex-1' : 'w-full'} py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg font-bold transition-colors`}
-                >
-                  Close
-                </button>
+                {!(editingEventId === selectedEvent.id) && (
+                  <button 
+                    onClick={() => setSelectedEvent(null)}
+                    className={`${(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') ? 'flex-1' : 'w-full'} py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg font-bold transition-colors`}
+                  >
+                    Close
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -364,7 +458,7 @@ const Dashboard: React.FC = () => {
 
       {/* BULLETIN POST DETAIL MODAL */}
       {selectedPost && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedPost(null)}>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setSelectedPost(null); setEditingPostId(null); }}>
           <div 
             className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-zinc-200 dark:border-zinc-700 shadow-2xl animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
@@ -372,7 +466,7 @@ const Dashboard: React.FC = () => {
             {/* Modal Header */}
             <div className="bg-gradient-to-r from-zinc-800 to-zinc-900 p-6 relative">
               <button 
-                onClick={() => setSelectedPost(null)} 
+                onClick={() => { setSelectedPost(null); setEditingPostId(null); }} 
                 className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/20 hover:bg-black/30 rounded-full p-1.5 transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -390,7 +484,19 @@ const Dashboard: React.FC = () => {
             
             {/* Modal Body */}
             <div className="p-6">
-              <p className="text-zinc-700 dark:text-zinc-200 text-lg leading-relaxed whitespace-pre-wrap">{selectedPost.text}</p>
+              {editingPostId === selectedPost.id ? (
+                /* Edit Mode */
+                <textarea 
+                  value={editingPostText} 
+                  onChange={e => setEditingPostText(e.target.value)} 
+                  className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-4 rounded-lg text-lg leading-relaxed" 
+                  rows={6}
+                  placeholder="Write your announcement..."
+                />
+              ) : (
+                /* View Mode */
+                <p className="text-zinc-700 dark:text-zinc-200 text-lg leading-relaxed whitespace-pre-wrap">{selectedPost.text}</p>
+              )}
               
               <div className="mt-6 pt-4 border-t border-zinc-200 dark:border-zinc-800">
                 <p className="text-xs text-zinc-500 flex items-center gap-2">
@@ -404,34 +510,57 @@ const Dashboard: React.FC = () => {
             <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 rounded-b-2xl">
               <div className="flex gap-2">
                 {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
-                  <>
-                    <button 
-                      onClick={() => {
-                        setEditingPostId(selectedPost.id);
-                        setEditingPostText(selectedPost.text);
-                        setSelectedPost(null);
-                      }}
-                      className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Edit2 className="w-4 h-4" /> Edit
-                    </button>
-                    <button 
-                      onClick={() => {
-                        handleDeletePost(selectedPost.id);
-                        setSelectedPost(null);
-                      }}
-                      className="py-3 px-4 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </>
+                  editingPostId === selectedPost.id ? (
+                    /* Edit Mode Buttons */
+                    <>
+                      <button 
+                        onClick={async () => {
+                          await handleEditPost(selectedPost.id);
+                          setSelectedPost({...selectedPost, text: editingPostText});
+                        }}
+                        className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Check className="w-4 h-4" /> Save
+                      </button>
+                      <button 
+                        onClick={() => { setEditingPostId(null); setEditingPostText(''); }}
+                        className="flex-1 py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg font-bold transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    /* View Mode Buttons */
+                    <>
+                      <button 
+                        onClick={() => {
+                          setEditingPostId(selectedPost.id);
+                          setEditingPostText(selectedPost.text);
+                        }}
+                        className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Edit2 className="w-4 h-4" /> Edit
+                      </button>
+                      <button 
+                        onClick={() => {
+                          handleDeletePost(selectedPost.id);
+                          setSelectedPost(null);
+                        }}
+                        className="py-3 px-4 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  )
                 )}
-                <button 
-                  onClick={() => setSelectedPost(null)}
-                  className={`${(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') ? 'flex-1' : 'w-full'} py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg font-bold transition-colors`}
-                >
-                  Close
-                </button>
+                {!(editingPostId === selectedPost.id) && (
+                  <button 
+                    onClick={() => setSelectedPost(null)}
+                    className={`${(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') ? 'flex-1' : 'w-full'} py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg font-bold transition-colors`}
+                  >
+                    Close
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -530,34 +659,21 @@ const Dashboard: React.FC = () => {
                   <div 
                     key={post.id} 
                     className="bg-zinc-50 dark:bg-zinc-900/30 p-4 rounded-lg border border-zinc-200 dark:border-zinc-800/50 relative group hover:border-zinc-400 dark:hover:border-zinc-700 transition-colors cursor-pointer"
-                    onClick={() => editingPostId !== post.id && setSelectedPost(post)}
+                    onClick={() => setSelectedPost(post)}
                   >
-                    {editingPostId === post.id ? (
-                      <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
-                        <textarea value={editingPostText} onChange={(e) => setEditingPostText(e.target.value)} className="w-full bg-black border border-zinc-700 rounded p-2 text-white text-sm" rows={3}/>
-                        <div className="flex gap-2">
-                          <button onClick={() => handleEditPost(post.id)} className="px-3 py-1 bg-green-600 text-white rounded text-sm">Save</button>
-                          <button onClick={() => setEditingPostId(null)} className="px-3 py-1 bg-zinc-600 text-white rounded text-sm">Cancel</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <p className="text-zinc-800 dark:text-zinc-200 text-sm line-clamp-2">{post.text}</p>
-                        {post.text.length > 100 && (
-                          <p className="text-xs text-orange-500 mt-1">Tap to read more</p>
-                        )}
-                        <div className="flex items-center justify-between mt-3">
-                            <p className="text-xs text-zinc-500 uppercase font-bold tracking-wider">- {post.author} • {formatDate(post.timestamp)}</p>
-                            {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
-                              /* UX FIX: Always visible on mobile, hover only on desktop */
-                              <div className="flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                                <button onClick={() => { setEditingPostId(post.id); setEditingPostText(post.text); }} className="text-zinc-400 hover:text-cyan-400"><Edit2 className="w-3 h-3"/></button>
-                                <button onClick={() => handleDeletePost(post.id)} className="text-zinc-400 hover:text-red-400"><Trash2 className="w-3 h-3"/></button>
-                              </div>
-                            )}
-                        </div>
-                      </>
+                    <p className="text-zinc-800 dark:text-zinc-200 text-sm line-clamp-2">{post.text}</p>
+                    {post.text.length > 100 && (
+                      <p className="text-xs text-orange-500 mt-1">Tap to read more</p>
                     )}
+                    <div className="flex items-center justify-between mt-3">
+                        <p className="text-xs text-zinc-500 uppercase font-bold tracking-wider">- {post.author} • {formatDate(post.timestamp)}</p>
+                        {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
+                          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => { setSelectedPost(post); setEditingPostId(post.id); setEditingPostText(post.text); }} className="text-zinc-400 hover:text-cyan-400"><Edit2 className="w-3 h-3"/></button>
+                            <button onClick={() => handleDeletePost(post.id)} className="text-zinc-400 hover:text-red-400"><Trash2 className="w-3 h-3"/></button>
+                          </div>
+                        )}
+                    </div>
                   </div>
                 )) : <p className="text-zinc-500 italic text-sm">No announcements yet.</p>}
               </div>
@@ -625,61 +741,37 @@ const Dashboard: React.FC = () => {
                      <div 
                        key={event.id} 
                        className="relative bg-zinc-50 dark:bg-black p-4 rounded-lg border-l-4 border-l-orange-500 border-t border-t-zinc-200 dark:border-t-zinc-800 border-b border-b-zinc-200 dark:border-b-zinc-800 border-r border-r-zinc-200 dark:border-r-zinc-800 group cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-900/50 transition-colors"
-                       onClick={() => editingEventId !== event.id && setSelectedEvent(event)}
+                       onClick={() => setSelectedEvent(event)}
                      >
-                         {editingEventId === event.id ? (
-                             <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
-                                 <input value={editingEvent.title || ''} onChange={e => setEditingEvent({...editingEvent, title: e.target.value})} placeholder="Event Title" className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm p-2 rounded"/>
-                                 <div className="grid grid-cols-2 gap-2">
-                                     <input type="date" value={editingEvent.date || ''} onChange={e => setEditingEvent({...editingEvent, date: e.target.value})} className="bg-zinc-900 border border-zinc-700 text-white text-sm p-2 rounded"/>
-                                     <input type="time" value={editingEvent.time || ''} onChange={e => setEditingEvent({...editingEvent, time: e.target.value})} className="bg-zinc-900 border border-zinc-700 text-white text-sm p-2 rounded"/>
-                                 </div>
-                                 <input value={editingEvent.location || ''} onChange={e => setEditingEvent({...editingEvent, location: e.target.value})} placeholder="Location" className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm p-2 rounded"/>
-                                 <select value={editingEvent.type || 'Practice'} onChange={e => setEditingEvent({...editingEvent, type: e.target.value as any})} className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm p-2 rounded">
-                                     <option value="Practice">Practice</option>
-                                     <option value="Game">Game</option>
-                                     <option value="Other">Other</option>
-                                 </select>
-                                 <textarea value={editingEvent.description || ''} onChange={e => setEditingEvent({...editingEvent, description: e.target.value})} placeholder="Description (optional)" className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm p-2 rounded" rows={2}/>
-                                 <div className="flex gap-2">
-                                     <button onClick={() => handleEditEvent(event.id)} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded text-xs font-bold">Save</button>
-                                     <button onClick={() => setEditingEventId(null)} className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white py-2 rounded text-xs">Cancel</button>
-                                 </div>
-                             </div>
-                         ) : (
-                             <>
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <h4 className="text-zinc-900 dark:text-white font-bold text-sm">{event.title}</h4>
-                                        <p className="text-orange-600 dark:text-orange-500 text-[10px] uppercase font-black tracking-wider mt-1">{event.type}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-zinc-700 dark:text-zinc-300 font-mono text-xs">{new Date(event.date).toLocaleDateString()}</p>
-                                        <div className="flex items-center justify-end gap-1 text-[10px] text-zinc-500 dark:text-zinc-500 mt-1">
-                                            <Clock className="w-3 h-3" /> {event.time}
-                                        </div>
-                                    </div>
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <h4 className="text-zinc-900 dark:text-white font-bold text-sm">{event.title}</h4>
+                                <p className="text-orange-600 dark:text-orange-500 text-[10px] uppercase font-black tracking-wider mt-1">{event.type}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-zinc-700 dark:text-zinc-300 font-mono text-xs">{new Date(event.date).toLocaleDateString()}</p>
+                                <div className="flex items-center justify-end gap-1 text-[10px] text-zinc-500 dark:text-zinc-500 mt-1">
+                                    <Clock className="w-3 h-3" /> {event.time}
                                 </div>
-                                {event.location && (
-                                    <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-900 flex items-center gap-2 text-xs text-zinc-500">
-                                        <MapPin className="w-3 h-3" /> {event.location}
-                                    </div>
-                                )}
-                                {/* Tap to view indicator */}
-                                {event.description && (
-                                    <div className="mt-2 flex items-center gap-1 text-[10px] text-orange-500">
-                                        <Info className="w-3 h-3" /> Tap to view details
-                                    </div>
-                                )}
-                                {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
-                                    /* UX FIX: Always visible on mobile, hover only on desktop */
-                                    <div className="absolute bottom-2 right-2 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                                        <button onClick={() => { setEditingEventId(event.id); setEditingEvent(event); }} className="text-zinc-600 hover:text-cyan-500"><Edit2 className="w-3 h-3"/></button>
-                                        <button onClick={() => handleDeleteEvent(event.id)} className="text-zinc-600 hover:text-red-500"><Trash2 className="w-3 h-3"/></button>
-                                    </div>
-                                )}
-                             </>
-                         )}
+                            </div>
+                        </div>
+                        {event.location && (
+                            <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-900 flex items-center gap-2 text-xs text-zinc-500">
+                                <MapPin className="w-3 h-3" /> {event.location}
+                            </div>
+                        )}
+                        {/* Tap to view indicator */}
+                        {event.description && (
+                            <div className="mt-2 flex items-center gap-1 text-[10px] text-orange-500">
+                                <Info className="w-3 h-3" /> Tap to view details
+                            </div>
+                        )}
+                        {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
+                            <div className="absolute bottom-2 right-2 flex gap-2" onClick={(e) => e.stopPropagation()}>
+                                <button onClick={() => { setSelectedEvent(event); setEditingEventId(event.id); setEditingEvent(event); }} className="text-zinc-600 hover:text-cyan-500"><Edit2 className="w-3 h-3"/></button>
+                                <button onClick={() => handleDeleteEvent(event.id)} className="text-zinc-600 hover:text-red-500"><Trash2 className="w-3 h-3"/></button>
+                            </div>
+                        )}
                      </div>
                  )) : <p className="text-zinc-500 italic text-sm text-center py-4">No upcoming events.</p>}
             </div>
