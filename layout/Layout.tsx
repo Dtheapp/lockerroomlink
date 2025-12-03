@@ -5,6 +5,7 @@ import { auth } from '../services/firebase';
 import { Home, Users, ClipboardList, MessageCircle, Video, LogOut, User, Send, Menu, X, ChevronLeft, Sun, Moon, BarChart3 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import PlayerSelector from '../components/PlayerSelector';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
@@ -90,6 +91,13 @@ const Layout: React.FC = () => {
                 <ChevronLeft className={`w-5 h-5 transition-transform duration-300 ${isDesktopCollapsed ? 'rotate-180' : ''}`} />
             </button>
         </div>
+
+        {/* PLAYER SELECTOR (Compact version for sidebar) */}
+        {!isDesktopCollapsed && userData?.role === 'Parent' && (
+          <div className="mb-4">
+            <PlayerSelector />
+          </div>
+        )}
 
         <nav className="flex-1 space-y-1">
           {navItems.map((item) => (

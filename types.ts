@@ -47,7 +47,7 @@ export interface UserProfile {
   uid: string;
   name: string;
   role: UserRole;
-  teamId: string | null;
+  teamId: string | null; // For Coaches/Admins only - deprecated for Parents
   email?: string;
   username?: string;
   
@@ -60,6 +60,9 @@ export interface UserProfile {
   emergencyContact?: EmergencyContact;
   
   photoUrl?: string;
+  
+  // For Parents: Track currently selected player
+  selectedPlayerId?: string;
 }
 
 export interface Team {
@@ -73,11 +76,19 @@ export interface Team {
   };
 }
 
+// In types.ts
+
 export interface Player {
   id: string;
   name: string;
-  number: number;
-  position: string;
+  teamId: string; // REQUIRED: Team the player belongs to
+  // REMOVED NUMBER/POSITION FROM CORE PARENT INPUT FLOW:
+  number?: number; 
+  position?: string;
+  
+  // NEW: Uniform Sizes
+  shirtSize?: string; // e.g. "Youth Large", "Adult M"
+  pantSize?: string; // e.g. "Youth Small", "Adult L"
   
   // Link to Parent
   parentId?: string; 
@@ -92,6 +103,7 @@ export interface Player {
     tkl: number;
   };
 }
+// Keep all other interfaces intact.
 
 // --- TEAM CHAT ---
 export interface Message {

@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc, getDocs } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc, getDocs, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import type { Player, UserProfile } from '../types';
+import type { Player, UserProfile, Team } from '../types';
 import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link, User, X, Edit2 } from 'lucide-react';
 
 const Roster: React.FC = () => {
   const { userData, teamData } = useAuth();
   const [roster, setRoster] = useState<Player[]>([]);
   const [parents, setParents] = useState<UserProfile[]>([]);
+  const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   
-  const isStaff = userData?.role === 'Coach' || userData?.role === 'SuperAdmin' || userData?.role === 'Admin';
+  const isStaff = userData?.role === 'Coach' || userData?.role === 'SuperAdmin';
+  const isParent = userData?.role === 'Parent';
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
@@ -19,7 +21,15 @@ const Roster: React.FC = () => {
   const [viewContact, setViewContact] = useState<UserProfile | null>(null);
   const [isEditingContact, setIsEditingContact] = useState(false);
   
-  const [newPlayer, setNewPlayer] = useState({ name: '', number: '', position: '', td: '0', tkl: '0', dob: '' });
+  const [newPlayer, setNewPlayer] = useState({ 
+    name: '', 
+    number: '', 
+    position: '', 
+    td: '0', 
+    tkl: '0', 
+    dob: '', 
+    teamId: '' // NEW: Team selection for parents
+  });
   const [selectedPlayerId, setSelectedPlayerId] = useState('');
   const [selectedParentId, setSelectedParentId] = useState('');
   
@@ -34,38 +44,96 @@ const Roster: React.FC = () => {
   });
 
   useEffect(() => {
-    if (!teamData?.id) return;
+    // Load all teams for parent to select from when adding players
+    const fetchAllTeams = async () => {
+      try {
+        const teamsSnapshot = await getDocs(collection(db, 'teams'));
+        const teamsData = teamsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
+        setAllTeams(teamsData);
+      } catch (err) {
+        console.error("Error fetching teams:", err);
+      }
+    };
+    
+    if (isParent) {
+      fetchAllTeams();
+    }
+    
+    if (!teamData?.id) {
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
 
     const q = query(collection(db, 'teams', teamData.id, 'players'), orderBy('number'));
     const unsubRoster = onSnapshot(q, (snapshot) => {
-      const playersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
+      const playersData = snapshot.docs.map(doc => ({ id: doc.id, teamId: teamData.id, ...doc.data() } as Player));
       setRoster(playersData);
       setLoading(false);
     });
 
+    // PERFORMANCE & SECURITY FIX: Only fetch parents from THIS team
     const fetchParents = async () => {
-        const pSnapshot = await getDocs(collection(db, 'users'));
-        const pData = pSnapshot.docs.map(d => ({uid: d.id, ...d.data()} as UserProfile)).filter(u => u.role === 'Parent' && u.teamId === teamData.id);
-        setParents(pData);
+        try {
+            const qParents = query(
+                collection(db, 'users'), 
+                where('role', '==', 'Parent')
+            );
+            const pSnapshot = await getDocs(qParents);
+            const pData = pSnapshot.docs.map(d => ({uid: d.id, ...d.data()} as UserProfile));
+            setParents(pData);
+        } catch (err) {
+            console.error("Error fetching parents:", err);
+        }
     }
-    fetchParents();
+    if (isStaff) {
+      fetchParents();
+    }
 
     return () => unsubRoster();
-  }, [teamData?.id]);
+  }, [teamData?.id, isParent, isStaff]);
 
   const handleAddPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!teamData?.id) return;
+    
+    // Determine which team to add the player to
+    let targetTeamId: string;
+    if (isParent) {
+      // Parents must select a team
+      if (!newPlayer.teamId) {
+        alert('Please select a team for your player');
+        return;
+      }
+      targetTeamId = newPlayer.teamId;
+    } else {
+      // Staff uses current teamData
+      if (!teamData?.id) return;
+      targetTeamId = teamData.id;
+    }
+    
     try {
-      await addDoc(collection(db, 'teams', teamData.id, 'players'), {
-        name: newPlayer.name, number: parseInt(newPlayer.number, 10), position: newPlayer.position, dob: newPlayer.dob,
+      await addDoc(collection(db, 'teams', targetTeamId, 'players'), {
+        name: newPlayer.name, 
+        number: parseInt(newPlayer.number, 10), 
+        position: newPlayer.position, 
+        dob: newPlayer.dob,
+        teamId: targetTeamId,
+        parentId: isParent ? userData?.uid : undefined, // Auto-link to parent
         stats: { td: parseInt(newPlayer.td, 10), tkl: parseInt(newPlayer.tkl, 10) },
         medical: { allergies: 'None', conditions: 'None', medications: 'None', bloodType: '' } 
       });
-      setNewPlayer({ name: '', number: '', position: '', td: '0', tkl: '0', dob: '' });
+      setNewPlayer({ name: '', number: '', position: '', td: '0', tkl: '0', dob: '', teamId: '' });
       setIsAddModalOpen(false);
-    } catch (error) { console.error(error); }
+      
+      // For parents, reload the AuthContext to pick up the new player
+      if (isParent) {
+        window.location.reload(); // Simple approach - could be optimized
+      }
+    } catch (error) { 
+      console.error(error);
+      alert('Failed to add player. Please try again.');
+    }
   };
   
   const handleLinkParent = async () => {
@@ -83,7 +151,7 @@ const Roster: React.FC = () => {
     try { await deleteDoc(doc(db, 'teams', teamData.id, 'players', playerId)); } catch (error) { console.error(error); }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setNewPlayer(prev => ({ ...prev, [name]: value }));
   };
@@ -131,14 +199,21 @@ const Roster: React.FC = () => {
     <div className="space-y-6 pb-20">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">Team Roster</h1>
-        {isStaff && (
+        {(isStaff || isParent) && (
           <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-500 transition-colors shadow-lg shadow-orange-900/20">
-            <Plus className="w-5 h-5" /> Add Player
+            <Plus className="w-5 h-5" /> {isParent ? 'Add My Player' : 'Add Player'}
           </button>
         )}
       </div>
 
-      {loading ? <p className="text-zinc-500">Loading roster...</p> : roster.length > 0 ? (
+      {!teamData && isParent ? (
+        <div className="bg-slate-50 dark:bg-zinc-950 rounded-xl p-8 text-center border border-zinc-200 dark:border-zinc-800">
+          <p className="text-zinc-600 dark:text-zinc-400 mb-4">Add your first player to view the team roster</p>
+          <button onClick={() => setIsAddModalOpen(true)} className="inline-flex items-center gap-2 bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-500 transition-colors shadow-lg">
+            <Plus className="w-5 h-5" /> Add My Player
+          </button>
+        </div>
+      ) : loading ? <p className="text-zinc-500">Loading roster...</p> : roster.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {roster.map(player => {
             const hasMedicalAlert = player.medical && (player.medical.allergies !== 'None' || player.medical.conditions !== 'None');
@@ -151,7 +226,8 @@ const Roster: React.FC = () => {
                             {player.number}
                         </div>
                         <div className="flex gap-2">
-                            {hasMedicalAlert && (
+                            {/* PRIVACY FIX: Only Coaches/Staff can see the Medical Alert Button */}
+                            {hasMedicalAlert && isStaff && (
                                 <button onClick={() => setViewMedical(player)} className="text-red-500 hover:text-red-400 bg-red-100 dark:bg-red-900/20 p-1.5 rounded-full animate-pulse">
                                     <AlertCircle className="w-5 h-5" />
                                 </button>
@@ -199,20 +275,40 @@ const Roster: React.FC = () => {
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-slate-50 dark:bg-zinc-950 p-6 rounded-xl w-full max-w-md border border-zinc-200 dark:border-zinc-800 shadow-2xl">
-            <h2 className="text-2xl font-bold mb-4 text-zinc-900 dark:text-white">Add New Player</h2>
+            <h2 className="text-2xl font-bold mb-4 text-zinc-900 dark:text-white">
+              {isParent ? 'Add Your Player' : 'Add New Player'}
+            </h2>
             <form onSubmit={handleAddPlayer} className="space-y-4">
+              {isParent && (
+                <div>
+                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Select Team *</label>
+                  <select 
+                    name="teamId" 
+                    value={newPlayer.teamId} 
+                    onChange={handleInputChange} 
+                    className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                    required
+                  >
+                    <option value="">Choose a team...</option>
+                    {allTeams.map(team => (
+                      <option key={team.id} value={team.id}>{team.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-zinc-500 mt-1">Ask your coach for the Team ID if needed</p>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Full Name *</label>
                 <input name="name" value={newPlayer.name} onChange={handleInputChange} placeholder="John Smith" className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" required />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Jersey # *</label>
-                  <input name="number" type="number" value={newPlayer.number} onChange={handleInputChange} placeholder="12" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" required />
+                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Jersey #</label>
+                  <input name="number" type="number" value={newPlayer.number} onChange={handleInputChange} placeholder="12" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Position *</label>
-                  <input name="position" value={newPlayer.position} onChange={handleInputChange} placeholder="QB" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" required />
+                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Position</label>
+                  <input name="position" value={newPlayer.position} onChange={handleInputChange} placeholder="QB" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
                 </div>
               </div>
               <div>

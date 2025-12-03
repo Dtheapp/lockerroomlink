@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc, limitToLast } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { Search, Send, MessageSquare } from 'lucide-react';
 import type { PrivateChat, PrivateMessage, UserProfile } from '../types';
 
 const Messenger: React.FC = () => {
-  const { user, userData } = useAuth();
+  // ADDED: teamData to scope the search to teammates only
+  const { user, userData, teamData } = useAuth();
+  
   const [chats, setChats] = useState<PrivateChat[]>([]);
   const [activeChat, setActiveChat] = useState<PrivateChat | null>(null);
   const [messages, setMessages] = useState<PrivateMessage[]>([]);
@@ -16,6 +18,7 @@ const Messenger: React.FC = () => {
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // 1. LOAD CHATS
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'private_chats'), where('participants', 'array-contains', user.uid), orderBy('updatedAt', 'desc'));
@@ -25,9 +28,12 @@ const Messenger: React.FC = () => {
     return () => unsubscribe();
   }, [user]);
 
+  // 2. LOAD MESSAGES (Optimized with limitToLast)
   useEffect(() => {
       if (!activeChat) return;
-      const q = query(collection(db, 'private_chats', activeChat.id, 'messages'), orderBy('timestamp', 'asc'));
+      // FIX: Added limitToLast(50) to prevent loading thousands of old messages
+      const q = query(collection(db, 'private_chats', activeChat.id, 'messages'), orderBy('timestamp', 'asc'), limitToLast(50));
+      
       const unsubscribe = onSnapshot(q, (snapshot) => {
           setMessages(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as PrivateMessage)));
           setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -35,16 +41,25 @@ const Messenger: React.FC = () => {
       return () => unsubscribe();
   }, [activeChat]);
 
-  // Load all users on mount for instant search
+  // 3. LOAD USERS FOR SEARCH (Security Fix: Scope to Team)
   useEffect(() => {
     const loadUsers = async () => {
-      const q = query(collection(db, 'users'));
-      const snap = await getDocs(q);
-      const users = snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
-      setAllUsers(users.filter(u => u.uid !== user?.uid));
+      // SECURITY FIX: Only load users from the SAME TEAM.
+      // Prevents parents from seeing strangers from other teams and prevents downloading the whole DB.
+      if (!teamData?.id) return;
+
+      const q = query(collection(db, 'users'), where('teamId', '==', teamData.id));
+      
+      try {
+        const snap = await getDocs(q);
+        const users = snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
+        setAllUsers(users.filter(u => u.uid !== user?.uid));
+      } catch (error) {
+        console.error("Error loading teammates:", error);
+      }
     };
     loadUsers();
-  }, [user?.uid]);
+  }, [user?.uid, teamData?.id]);
 
   // Live search as user types
   useEffect(() => {
@@ -110,7 +125,7 @@ const Messenger: React.FC = () => {
                   <input 
                       value={searchQuery} 
                       onChange={e => setSearchQuery(e.target.value)} 
-                      placeholder="Search people..." 
+                      placeholder="Search teammates..." 
                       className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg pl-10 pr-3 py-2 text-zinc-900 dark:text-white text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none"
                   />
               </div>

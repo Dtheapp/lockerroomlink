@@ -2,16 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { doc, updateDoc, collection, addDoc, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
-// ADDED: Droplet, CheckCircle
-import { User, Phone, Mail, Edit2, Save, X, MapPin, HeartPulse, Plus, Shield, Activity, AlertCircle, Pill, Droplet, CheckCircle } from 'lucide-react';
+import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle } from 'lucide-react';
 import type { Player, MedicalInfo } from '../types';
 
 const Profile: React.FC = () => {
-  const { user, userData, teamData } = useAuth();
+  const { user, userData, players: contextPlayers } = useAuth();
   
   // PARENT PROFILE STATES
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<{type: 'success'|'error', text: string} | null>(null);
+
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [secondaryPhone, setSecondaryPhone] = useState('');
@@ -53,22 +54,12 @@ const Profile: React.FC = () => {
     }
   }, [userData]);
 
-  // 2. Load My Athletes (Real-time)
+  // 2. Load My Athletes from Context (already loaded in AuthContext for parents)
   useEffect(() => {
-      if (!userData?.teamId || !user) return;
-
-      const q = query(
-          collection(db, 'teams', userData.teamId, 'players'), 
-          where('parentId', '==', user.uid)
-      );
-
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-          const players = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Player));
-          setMyAthletes(players);
-      });
-
-      return () => unsubscribe();
-  }, [userData, user]);
+      if (userData?.role === 'Parent') {
+          setMyAthletes(contextPlayers);
+      }
+  }, [userData, contextPlayers]);
 
   // --- HANDLERS ---
 
@@ -76,6 +67,8 @@ const Profile: React.FC = () => {
     e.preventDefault();
     if (!user) return;
     setLoading(true);
+    setStatusMsg(null);
+
     try {
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
@@ -83,9 +76,11 @@ const Profile: React.FC = () => {
         emergencyContact: { name: emergName, phone: emergPhone, relation: emergRelation }
       });
       setIsEditing(false);
+      setStatusMsg({ type: 'success', text: 'Profile updated successfully.' });
+      setTimeout(() => setStatusMsg(null), 3000);
     } catch (error) {
       console.error('Error:', error);
-      alert('Failed to save profile.');
+      setStatusMsg({ type: 'error', text: 'Failed to save changes.' });
     } finally {
       setLoading(false);
     }
@@ -93,28 +88,10 @@ const Profile: React.FC = () => {
 
   const handleAddAthlete = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!userData?.teamId || !user) return;
       
-      try {
-          await addDoc(collection(db, 'teams', userData.teamId, 'players'), {
-              name: newPlayerName,
-              number: parseInt(newPlayerNumber) || 0,
-              position: newPlayerPos,
-              dob: newPlayerDob,
-              parentId: user.uid,
-              stats: { td: 0, tkl: 0 },
-              medical: {
-                  allergies: 'None',
-                  conditions: 'None',
-                  medications: 'None',
-                  bloodType: ''
-              }
-          });
-          setIsAddAthleteOpen(false);
-          setNewPlayerName(''); setNewPlayerNumber(''); setNewPlayerPos(''); setNewPlayerDob('');
-      } catch (error) {
-          console.error("Error adding athlete:", error);
-      }
+      // Parents should use the Roster page to add players (with team selection)
+      alert("Please use the Roster page to add your players. This allows you to select which team they're joining.");
+      setIsAddAthleteOpen(false);
   };
 
   const openMedical = (player: Player) => {
@@ -128,10 +105,10 @@ const Profile: React.FC = () => {
 
   const handleSaveMedical = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!selectedAthlete || !userData?.teamId) return;
+      if (!selectedAthlete || !selectedAthlete.teamId) return;
 
       try {
-          const playerRef = doc(db, 'teams', userData.teamId, 'players', selectedAthlete.id);
+          const playerRef = doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id);
           const medicalData: MedicalInfo = {
               allergies: medAllergies,
               conditions: medConditions,
@@ -147,6 +124,9 @@ const Profile: React.FC = () => {
       }
   }
 
+  // Helper to check if medical field has data (ignoring default 'None')
+  const hasMedicalData = (val?: string) => val && val !== 'None' && val.trim() !== '';
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
       
@@ -159,6 +139,12 @@ const Profile: React.FC = () => {
             </button>
         )}
       </div>
+
+      {statusMsg && (
+          <div className={`p-4 rounded-lg border ${statusMsg.type === 'success' ? 'bg-green-500/10 border-green-500/20 text-green-600' : 'bg-red-500/10 border-red-500/20 text-red-600'}`}>
+              {statusMsg.text}
+          </div>
+      )}
 
       <div className="bg-slate-50 dark:bg-zinc-950 rounded-xl shadow-lg dark:shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="bg-slate-50 dark:bg-slate-800/50 p-6 flex flex-col md:flex-row items-center gap-6 border-b border-slate-200 dark:border-slate-800">
@@ -247,7 +233,7 @@ const Profile: React.FC = () => {
                 </div>
                 {isEditing && (
                     <div className="flex justify-end gap-3 mt-6 border-t border-slate-200 dark:border-slate-800 pt-4">
-                        <button type="button" onClick={() => {setIsEditing(false); /*reset logic*/}} className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"><X className="h-4 w-4" /> Cancel</button>
+                        <button type="button" onClick={() => {setIsEditing(false); setName(userData?.name || '');}} className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"><X className="h-4 w-4" /> Cancel</button>
                         <button type="submit" disabled={loading} className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg flex items-center gap-2"><Save className="h-4 w-4" /> Save</button>
                     </div>
                 )}
@@ -274,11 +260,11 @@ const Profile: React.FC = () => {
                   <div className="grid md:grid-cols-2 gap-6">
                       {myAthletes.map(player => {
                           const blood = player.medical?.bloodType;
-                          const allergies = player.medical?.allergies && player.medical.allergies !== 'None' && player.medical.allergies !== '' ? player.medical.allergies : null;
-                          const conditions = player.medical?.conditions && player.medical.conditions !== 'None' && player.medical.conditions !== '' ? player.medical.conditions : null;
-                          const meds = player.medical?.medications && player.medical.medications !== 'None' && player.medical.medications !== '' ? player.medical.medications : null;
+                          // Robust Logic: Check if value exists AND is not 'None'
+                          const allergies = hasMedicalData(player.medical?.allergies);
+                          const conditions = hasMedicalData(player.medical?.conditions);
+                          const meds = hasMedicalData(player.medical?.medications);
                           
-                          // Check if healthy (no issues)
                           const isHealthy = !allergies && !conditions && !meds;
 
                           return (

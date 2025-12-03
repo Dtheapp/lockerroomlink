@@ -1,24 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo } from 'react';
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { PlayerStats } from '../../types';
-import { TrendingUp, Eye } from 'lucide-react';
+import { TrendingUp, Eye, ArrowUpDown } from 'lucide-react';
 
 const StatsBoard: React.FC = () => {
   const { teamData } = useAuth();
   const [playerStats, setPlayerStats] = useState<PlayerStats[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPlayer, setSelectedPlayer] = useState<PlayerStats | null>(null);
   const [sortBy, setSortBy] = useState<keyof PlayerStats>('tds');
 
   useEffect(() => {
     if (!teamData?.id) return;
     setLoading(true);
 
+    // Fetch raw data; sorting is handled client-side
     const q = query(
       collection(db, 'teams', teamData.id, 'playerStats'),
-      orderBy('tds', 'desc')
+      orderBy('tds', 'desc') // Default initial sort for Firebase
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -30,20 +30,49 @@ const StatsBoard: React.FC = () => {
     return () => unsubscribe();
   }, [teamData?.id]);
 
-  const getSortedStats = () => {
+  // OPTIMIZATION: Memoize the top leaders to prevent recalculation on every render
+  const { topRusher, topTackler, topTD } = useMemo(() => {
+      if (playerStats.length === 0) return { topRusher: null, topTackler: null, topTD: null };
+
+      const getTopPlayer = (key: keyof PlayerStats) => {
+          return playerStats.reduce((prev, current) => 
+              ((current[key] as number) || 0) > ((prev[key] as number) || 0) ? current : prev
+          , playerStats[0]);
+      };
+
+      return {
+          topRusher: getTopPlayer('yards'),
+          topTackler: getTopPlayer('tackles'),
+          topTD: getTopPlayer('tds')
+      };
+  }, [playerStats]);
+
+
+  // Client-Side Sort
+  const getSortedStats = useMemo(() => {
     return [...playerStats].sort((a, b) => {
       const aVal = a[sortBy as keyof PlayerStats];
       const bVal = b[sortBy as keyof PlayerStats];
       if (typeof aVal === 'number' && typeof bVal === 'number') {
-        return bVal - aVal;
+        return bVal - aVal; // Always descending for simplicity in the Read-Only board
       }
       return 0;
     });
-  };
+  }, [playerStats, sortBy]);
 
-  const topRusher = playerStats.reduce((top, p) => (p.yards > (top?.yards || 0) ? p : top), playerStats[0]);
-  const topTackler = playerStats.reduce((top, p) => (p.tackles > (top?.tackles || 0) ? p : top), playerStats[0]);
-  const topTD = playerStats.reduce((top, p) => (p.tds > (top?.tds || 0) ? p : top), playerStats[0]);
+
+  const getColumnHeader = (title: string, field: keyof PlayerStats) => (
+      <th 
+        className="px-4 py-2 text-center font-semibold text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+        onClick={() => setSortBy(field)}
+      >
+        <div className="flex items-center justify-center gap-1">
+            {title}
+            {sortBy === field && <ArrowUpDown className="w-3 h-3"/>}
+        </div>
+      </th>
+  );
+
 
   return (
     <div className="space-y-6">
@@ -81,74 +110,111 @@ const StatsBoard: React.FC = () => {
             <TrendingUp className="w-5 h-5 text-sky-500" />
             Full Stat Sheet
           </h3>
+          {/* Mobile Sort Select (Visible on small screens) */}
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as keyof PlayerStats)}
-            className="bg-slate-100 dark:bg-slate-800 p-2 rounded text-sm text-slate-900 dark:text-white border border-slate-200 dark:border-zinc-800"
+            className="md:hidden bg-slate-100 dark:bg-slate-800 p-2 rounded text-sm text-slate-900 dark:text-white border border-slate-200 dark:border-zinc-800"
           >
-            <option value="tds">TDs</option>
-            <option value="yards">Yards</option>
-            <option value="tackles">Tackles</option>
-            <option value="rec">Receptions</option>
-            <option value="sacks">Sacks</option>
-            <option value="spts">Sportsmanship</option>
+            <option value="tds">Sort by TDs</option>
+            <option value="yards">Sort by Yards</option>
+            <option value="tackles">Sort by Tackles</option>
+            <option value="rec">Sort by Receptions</option>
+            <option value="sacks">Sort by Sacks</option>
+            <option value="spts">Sort by Sportsmanship</option>
           </select>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-zinc-800">
-              <tr>
-                <th className="px-4 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">#</th>
-                <th className="px-4 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">NAME</th>
-                <th className="px-4 py-2 text-center font-semibold text-slate-700 dark:text-slate-300">GP</th>
-                <th className="px-4 py-2 text-center font-semibold text-slate-700 dark:text-slate-300">TDS</th>
-                <th className="px-4 py-2 text-center font-semibold text-slate-700 dark:text-slate-300">YARDS</th>
-                <th className="px-4 py-2 text-center font-semibold text-slate-700 dark:text-slate-300">REC</th>
-                <th className="px-4 py-2 text-center font-semibold text-slate-700 dark:text-slate-300">TACKLES</th>
-                <th className="px-4 py-2 text-center font-semibold text-slate-700 dark:text-slate-300">SACKS</th>
-                <th className="px-4 py-2 text-center font-semibold text-slate-700 dark:text-slate-300">INT</th>
-                <th className="px-4 py-2 text-center font-semibold text-slate-700 dark:text-slate-300">FF</th>
-                <th className="px-4 py-2 text-center font-semibold text-slate-700 dark:text-slate-300">SPTS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={11} className="px-4 py-4 text-center text-slate-600 dark:text-slate-400">
-                    Loading stats...
-                  </td>
-                </tr>
-              ) : getSortedStats().length > 0 ? (
-                getSortedStats().map((stat) => (
-                  <tr
-                    key={stat.id}
-                    onClick={() => setSelectedPlayer(stat)}
-                    className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors"
-                  >
-                    <td className="px-4 py-3 text-slate-900 dark:text-white font-bold">{stat.playerNumber}</td>
-                    <td className="px-4 py-3 text-slate-900 dark:text-white font-medium">{stat.playerName}</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{stat.gp}</td>
-                    <td className="px-4 py-3 text-center text-red-600 dark:text-red-400 font-bold">{stat.tds}</td>
-                    <td className="px-4 py-3 text-center text-sky-600 dark:text-sky-400 font-bold">{stat.yards}</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{stat.rec}</td>
-                    <td className="px-4 py-3 text-center text-emerald-600 dark:text-emerald-400 font-bold">{stat.tackles}</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{stat.sacks}</td>
-                    <td className="px-4 py-3 text-center text-purple-600 dark:text-purple-400">{stat.int}</td>
-                    <td className="px-4 py-3 text-center text-orange-600 dark:text-orange-400">{stat.ff}</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{stat.spts}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={11} className="px-4 py-4 text-center text-slate-600 dark:text-slate-400">
+        {loading ? (
+            <div className="p-4 text-center text-slate-600 dark:text-slate-400">
+                Loading stats...
+            </div>
+        ) : getSortedStats().length > 0 ? (
+            <>
+                {/* 1. MOBILE CARD/VERTICAL VIEW (md:hidden) */}
+                <div className="md:hidden divide-y divide-slate-200 dark:divide-zinc-800">
+                    {getSortedStats().map((stat) => (
+                        <div key={stat.id} className="p-4 bg-white dark:bg-zinc-900">
+                            <div className="flex justify-between items-center mb-3">
+                                <div>
+                                    <h3 className="font-bold text-lg text-slate-900 dark:text-white">{stat.playerName}</h3>
+                                    <span className="text-xs bg-slate-100 dark:bg-zinc-800 text-slate-600 px-2 py-1 rounded">#{stat.playerNumber}</span>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-2xl font-black text-red-600 dark:text-red-400">{stat.tds} <span className="text-xs text-red-300 font-normal uppercase">TDs</span></div>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                                <div className="bg-slate-50 dark:bg-zinc-950 p-2 rounded border border-slate-200 dark:border-zinc-800">
+                                    <div className="text-slate-400 uppercase tracking-wider text-[10px]">Yds</div>
+                                    <div className="font-bold text-sky-600 dark:text-sky-400">{stat.yards}</div>
+                                </div>
+                                <div className="bg-slate-50 dark:bg-zinc-950 p-2 rounded border border-slate-200 dark:border-zinc-800">
+                                    <div className="text-slate-400 uppercase tracking-wider text-[10px]">Tkl</div>
+                                    <div className="font-bold text-emerald-600 dark:text-emerald-400">{stat.tackles}</div>
+                                </div>
+                                <div className="bg-slate-50 dark:bg-zinc-950 p-2 rounded border border-slate-200 dark:border-zinc-800">
+                                    <div className="text-slate-400 uppercase tracking-wider text-[10px]">Sks</div>
+                                    <div className="font-bold text-slate-900 dark:text-white">{stat.sacks}</div>
+                                </div>
+                                <div className="bg-slate-50 dark:bg-zinc-950 p-2 rounded border border-slate-200 dark:border-zinc-800">
+                                    <div className="text-slate-400 uppercase tracking-wider text-[10px]">GP</div>
+                                    <div className="font-bold text-slate-900 dark:text-white">{stat.gp}</div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+
+                {/* 2. DESKTOP TABLE VIEW (hidden md:block) */}
+                <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-zinc-800">
+                            <tr>
+                                <th className="px-4 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">#</th>
+                                <th className="px-4 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">NAME</th>
+                                {getColumnHeader('GP', 'gp')}
+                                {getColumnHeader('TDS', 'tds')}
+                                {getColumnHeader('YARDS', 'yards')}
+                                {getColumnHeader('REC', 'rec')}
+                                {getColumnHeader('TACKLES', 'tackles')}
+                                {getColumnHeader('SACKS', 'sacks')}
+                                {getColumnHeader('INT', 'int')}
+                                {getColumnHeader('FF', 'ff')}
+                                {getColumnHeader('SPTS', 'spts')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {getSortedStats().map((stat) => (
+                                <tr
+                                    key={stat.id}
+                                    className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                >
+                                    <td className="px-4 py-3 text-slate-900 dark:text-white font-bold">{stat.playerNumber}</td>
+                                    <td className="px-4 py-3 text-slate-900 dark:text-white font-medium">{stat.playerName}</td>
+                                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{stat.gp}</td>
+                                    <td className="px-4 py-3 text-center text-red-600 dark:text-red-400 font-bold">{stat.tds}</td>
+                                    <td className="px-4 py-3 text-center text-sky-600 dark:text-sky-400 font-bold">{stat.yards}</td>
+                                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{stat.rec}</td>
+                                    <td className="px-4 py-3 text-center text-emerald-600 dark:text-emerald-400 font-bold">{stat.tackles}</td>
+                                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{stat.sacks}</td>
+                                    <td className="px-4 py-3 text-center text-purple-600 dark:text-purple-400">{stat.int}</td>
+                                    <td className="px-4 py-3 text-center text-orange-600 dark:text-orange-400">{stat.ff}</td>
+                                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{stat.spts}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </>
+        ) : (
+            <tr>
+                <td colSpan={11} className="px-4 py-4 text-center text-slate-600 dark:text-slate-400">
                     No stats recorded yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                </td>
+            </tr>
+        )}
       </div>
 
       {/* Legend */}

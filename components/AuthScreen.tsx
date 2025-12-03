@@ -22,7 +22,7 @@ const AuthScreen: React.FC = () => {
 
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
-  const [teamId, setTeamId] = useState('');
+  const [teamId, setTeamId] = useState(''); // Only used for Coach signup now
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
@@ -69,6 +69,11 @@ const AuthScreen: React.FC = () => {
         if (!email || !password) throw new Error('Email and Password are required.');
 
         if (isSignUp) {
+            // SECURITY FIX: Prevent Admin Sign Up via UI
+            if (mode === 'Admin') {
+                throw new Error('Admin accounts cannot be created publicly.');
+            }
+
             // --- SIGN UP LOGIC ---
             if (!name) throw new Error('Full Name is required.');
             if (!username) throw new Error('Username is required.');
@@ -78,14 +83,17 @@ const AuthScreen: React.FC = () => {
                 cleanUsername = await validateUsername(username);
             }
 
+            // Parents no longer need teamId during signup - they'll add players with teamIds later
             let verifiedTeamId = null;
-            if (mode === 'Parent') {
-                if (!teamId) throw new Error('Team ID is required to join.');
-                const teamDoc = await getDoc(doc(db, 'teams', teamId));
-                if (!teamDoc.exists()) {
-                     throw new Error('Invalid Team ID. Please check the code given by your coach.');
+            if (mode === 'Coach') {
+                // Coaches can optionally provide a teamId during signup, or create one later
+                // This allows flexibility - we'll keep it optional for now
+                if (teamId) {
+                    const teamDoc = await getDoc(doc(db, 'teams', teamId));
+                    if (teamDoc.exists()) {
+                        verifiedTeamId = teamId;
+                    }
                 }
-                verifiedTeamId = teamId;
             }
 
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -96,7 +104,7 @@ const AuthScreen: React.FC = () => {
                 name,
                 email,
                 role: mode,
-                teamId: verifiedTeamId,
+                teamId: verifiedTeamId, // null for Parents, optional for Coaches
                 username: mode !== 'Admin' ? cleanUsername : undefined
             };
             
@@ -106,17 +114,23 @@ const AuthScreen: React.FC = () => {
             // --- SIGN IN LOGIC ---
             
             // PRE-FLIGHT CHECK: Verify Role BEFORE Logging In to prevent "Flash"
-            // We query the users collection by email to see who they are first.
             const q = query(collection(db, 'users'), where('email', '==', email));
             const querySnapshot = await getDocs(q);
 
             if (!querySnapshot.empty) {
                 const userDoc = querySnapshot.docs[0].data();
                 const actualRole = userDoc.role;
-                const targetRole = mode === 'Admin' ? 'SuperAdmin' : mode;
+                const targetRole = mode === 'Admin' ? 'SuperAdmin' : mode; // Map Admin UI to SuperAdmin role
 
-                if (actualRole && actualRole !== targetRole) {
-                    throw new Error(`This account is registered as a ${actualRole}. Please select the correct access tab.`);
+                // Allow 'SuperAdmin' to login via Admin tab, others strictly checked
+                if (actualRole) {
+                    if (mode === 'Admin') {
+                         if (actualRole !== 'SuperAdmin' && actualRole !== 'Admin') {
+                             throw new Error(`This account is not an Admin. Please use the ${actualRole} tab.`);
+                         }
+                    } else if (actualRole !== targetRole) {
+                        throw new Error(`This account is registered as a ${actualRole}. Please select the correct access tab.`);
+                    }
                 }
             }
 
@@ -166,11 +180,11 @@ const AuthScreen: React.FC = () => {
      if (!isSignUp) {
          return (
              <>
-                <div><label className="block text-sm font-medium text-zinc-400 mb-1">Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-orange-500" /></div>
-                <div>
-                    <label className="block text-sm font-medium text-zinc-400 mb-1">Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-orange-500" />
-                    <div className="flex justify-end mt-2"><button type="button" onClick={() => { setIsResettingPassword(true); setError(''); setSuccessMessage(''); }} className="text-xs text-zinc-500 hover:text-orange-400">Forgot Password?</button></div>
-                </div>
+               <div><label className="block text-sm font-medium text-zinc-400 mb-1">Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-orange-500" /></div>
+               <div>
+                   <label className="block text-sm font-medium text-zinc-400 mb-1">Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                   <div className="flex justify-end mt-2"><button type="button" onClick={() => { setIsResettingPassword(true); setError(''); setSuccessMessage(''); }} className="text-xs text-zinc-500 hover:text-orange-400">Forgot Password?</button></div>
+               </div>
              </>
          );
      }
@@ -181,7 +195,9 @@ const AuthScreen: React.FC = () => {
             <div><label className="block text-sm font-medium text-zinc-400 mb-1">Username</label><input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. PapaJohn23" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white font-mono focus:ring-orange-500" /></div>
             <div><label className="block text-sm font-medium text-zinc-400 mb-1">Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
             <div><label className="block text-sm font-medium text-zinc-400 mb-1">Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
-            <div className="pt-2 border-t border-zinc-800"><label className="block text-sm font-bold text-orange-400 mb-1">Team ID (Required)</label><input type="text" value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="Enter ID from coach" className="mt-1 block w-full bg-zinc-950 border border-orange-500/50 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
+            <div className="pt-2 border-t border-zinc-800">
+              <p className="text-xs text-zinc-500 italic">You'll add your players and their teams after signing up</p>
+            </div>
           </>
       );
       case 'Coach': return (
@@ -192,19 +208,19 @@ const AuthScreen: React.FC = () => {
              <div><label className="block text-sm font-medium text-zinc-400 mb-1">Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
           </>
       );
-      case 'Admin': return (
-             <>
-             <div><label className="block text-sm font-medium text-zinc-400 mb-1">Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
-             <div><label className="block text-sm font-medium text-zinc-400 mb-1">Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
-             </>
-      )
+      // SECURITY FIX: Removed Admin Sign Up Inputs
+      case 'Admin': return null; 
     }
   }
 
-  if (isConfirmingReset) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-black p-4 font-sans">
-            <div className="w-full max-w-md bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-800 p-8 relative overflow-hidden">
+  // --- RENDER ---
+  // UX FIX: Changed min-h-screen to min-h-[100dvh] and added overflow-y-auto to prevent mobile keyboard issues
+  return (
+    <div className="min-h-[100dvh] w-full flex items-center justify-center bg-black p-4 font-sans overflow-y-auto">
+      
+      {/* RESET PASSWORD CONFIRMATION */}
+      {isConfirmingReset && (
+        <div className="w-full max-w-md bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-800 p-8 relative overflow-hidden my-auto">
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1 bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-50"></div>
                 <h2 className="text-2xl font-black text-white mb-4">Create New Password</h2>
                 <form onSubmit={handleConfirmReset} className="space-y-4">
@@ -212,15 +228,12 @@ const AuthScreen: React.FC = () => {
                     <div><label className="block text-sm font-medium text-zinc-400 mb-1">New Password</label><input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:ring-orange-500" required /></div>
                     <button type="submit" disabled={loading} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50">{loading ? 'Updating...' : 'Update Password'}</button>
                 </form>
-            </div>
         </div>
-      );
-  }
+      )}
 
-  if (isResettingPassword) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-black p-4 font-sans">
-            <div className="w-full max-w-md bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-800 p-8 relative overflow-hidden animate-in fade-in zoom-in duration-300">
+      {/* RESET PASSWORD REQUEST */}
+      {!isConfirmingReset && isResettingPassword && (
+        <div className="w-full max-w-md bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-800 p-8 relative overflow-hidden animate-in fade-in zoom-in duration-300 my-auto">
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1 bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-50"></div>
                 <h2 className="text-2xl font-black text-white mb-2">Reset Password</h2>
                 <p className="text-zinc-500 text-sm mb-6">Enter your email to receive a reset link.</p>
@@ -234,39 +247,43 @@ const AuthScreen: React.FC = () => {
                     </form>
                 )}
                 <button onClick={() => setIsResettingPassword(false)} className="w-full mt-4 flex items-center justify-center gap-2 text-zinc-500 hover:text-white transition-colors text-sm"><ArrowLeft className="w-4 h-4" /> Back to Sign In</button>
-            </div>
         </div>
-      );
-  }
+      )}
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-black p-4 font-sans">
-      <div className="w-full max-w-md bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-800 p-8 relative overflow-hidden">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1 bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-50"></div>
-        <h1 className="text-3xl font-black tracking-tighter text-center text-white mb-2">LOCKER<span className="text-orange-500">ROOM</span></h1>
-        <p className="text-center text-zinc-500 mb-8 text-sm uppercase tracking-widest font-bold">Digital Locker Room</p>
-        <div className="mb-8 grid grid-cols-3 gap-2 bg-black p-1 rounded-xl border border-zinc-800">
-          {(['Parent', 'Coach', 'Admin'] as AuthMode[]).map(m => (
-            <button key={m} type="button" onClick={() => switchMode(m)} className={`py-2 px-3 rounded-lg text-sm font-bold transition-all duration-200 ${mode === m ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}>{m}</button>
-          ))}
-        </div>
-        {error && <p className="bg-red-500/10 text-red-400 p-3 rounded-lg mb-6 text-sm border border-red-500/20 text-center font-medium">{error}</p>}
-        <form onSubmit={handleAuth} className="space-y-5">
-          {renderForm()}
-          <div className="pt-2">
-            <button type="submit" disabled={loading} className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-[0_0_20px_rgba(234,88,12,0.3)] text-sm font-bold text-white bg-orange-600 hover:bg-orange-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:bg-zinc-700 disabled:cursor-not-allowed transition-all uppercase tracking-wide">
-              {loading ? <div className="w-5 h-5 border-2 border-zinc-900 border-t-white rounded-full animate-spin"></div> : getButtonText()}
-            </button>
+      {/* MAIN AUTH FORM */}
+      {!isConfirmingReset && !isResettingPassword && (
+        <div className="w-full max-w-md bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-800 p-8 relative overflow-hidden my-auto">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1 bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-50"></div>
+          <h1 className="text-3xl font-black tracking-tighter text-center text-white mb-2">LOCKER<span className="text-orange-500">ROOM</span></h1>
+          <p className="text-center text-zinc-500 mb-8 text-sm uppercase tracking-widest font-bold">Digital Locker Room</p>
+          
+          <div className="mb-8 grid grid-cols-3 gap-2 bg-black p-1 rounded-xl border border-zinc-800">
+            {(['Parent', 'Coach', 'Admin'] as AuthMode[]).map(m => (
+              <button key={m} type="button" onClick={() => switchMode(m)} className={`py-2 px-3 rounded-lg text-sm font-bold transition-all duration-200 ${mode === m ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}>{m}</button>
+            ))}
           </div>
-          {mode !== 'Admin' && (
-              <div className="text-center mt-6">
-                  <button type="button" onClick={() => setIsSignUp(!isSignUp)} className="text-sm text-zinc-400 hover:text-white transition-colors hover:underline">
-                      {isSignUp ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
-                  </button>
-              </div>
-          )}
-        </form>
-      </div>
+
+          {error && <p className="bg-red-500/10 text-red-400 p-3 rounded-lg mb-6 text-sm border border-red-500/20 text-center font-medium">{error}</p>}
+          
+          <form onSubmit={handleAuth} className="space-y-5">
+            {renderForm()}
+            <div className="pt-2">
+              <button type="submit" disabled={loading} className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-[0_0_20px_rgba(234,88,12,0.3)] text-sm font-bold text-white bg-orange-600 hover:bg-orange-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:bg-zinc-700 disabled:cursor-not-allowed transition-all uppercase tracking-wide">
+                {loading ? <div className="w-5 h-5 border-2 border-zinc-900 border-t-white rounded-full animate-spin"></div> : getButtonText()}
+              </button>
+            </div>
+            
+            {/* SECURITY FIX: Do not show Sign Up toggle for Admins */}
+            {mode !== 'Admin' && (
+                <div className="text-center mt-6">
+                    <button type="button" onClick={() => setIsSignUp(!isSignUp)} className="text-sm text-zinc-400 hover:text-white transition-colors hover:underline">
+                        {isSignUp ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
+                    </button>
+                </div>
+            )}
+          </form>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
+// ADDED: limitToLast
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp, limitToLast } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import type { Message } from '../types';
 import { Send } from 'lucide-react';
@@ -14,16 +15,21 @@ const Chat: React.FC = () => {
   useEffect(() => {
     if (!teamData?.id) return;
     const messagesCollection = collection(db, 'teams', teamData.id, 'messages');
-    const q = query(messagesCollection, orderBy('timestamp'));
+    
+    // OPTIMIZATION: Only load the last 50 messages to save data/memory
+    const q = query(messagesCollection, orderBy('timestamp'), limitToLast(50));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const messagesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
       setMessages(messagesData);
+    }, (error) => {
+        console.error("Error loading chat:", error);
     });
 
     return () => unsubscribe();
   }, [teamData?.id]);
   
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);

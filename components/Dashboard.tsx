@@ -1,15 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
-// Added Trophy, Medal, Sword, Shield for the visual upgrades
 import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock } from 'lucide-react';
 import type { BulletinPost, PlayerStats, TeamEvent } from '../types';
+import PlayerSelector from './PlayerSelector';
 
 const Dashboard: React.FC = () => {
-  const { userData, teamData } = useAuth();
+  const { userData, teamData, players, selectedPlayer } = useAuth();
   
-  // --- YOUR ORIGINAL STATE (PRESERVED) ---
   const [posts, setPosts] = useState<BulletinPost[]>([]);
   const [playerStats, setPlayerStats] = useState<PlayerStats[]>([]);
   const [teamEvents, setTeamEvents] = useState<TeamEvent[]>([]);
@@ -31,7 +30,23 @@ const Dashboard: React.FC = () => {
     title: '', date: '', time: '', location: '', description: '', type: 'Practice',
   });
 
-  // --- YOUR ORIGINAL LOGIC (PRESERVED) ---
+  // --- OPTIMIZED STATS CALCULATION (PERFORMANCE FIX) ---
+  // Calculates leaders only when playerStats data changes, not on every render
+  const topStats = useMemo(() => {
+    if (playerStats.length === 0) return null;
+
+    const getTopPlayer = (key: keyof PlayerStats) => {
+        return playerStats.reduce((prev, current) => 
+            ((current[key] as number) || 0) > ((prev[key] as number) || 0) ? current : prev
+        , playerStats[0]);
+    };
+
+    return {
+        rusher: getTopPlayer('yards'),
+        tackler: getTopPlayer('tackles'),
+        scorer: getTopPlayer('tds')
+    };
+  }, [playerStats]);
 
   useEffect(() => {
     if (!teamData?.id) return;
@@ -140,56 +155,113 @@ const Dashboard: React.FC = () => {
     return new Date(timestamp.seconds * 1000).toLocaleString();
   };
 
-  // --- RENDER (UPDATED VISUALS ONLY) ---
+  // Show onboarding for parents without players
+  if (userData?.role === 'Parent' && players.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="max-w-2xl w-full bg-white dark:bg-zinc-950 rounded-2xl p-8 border border-zinc-200 dark:border-zinc-800 shadow-2xl text-center">
+          <div className="mb-6">
+            <div className="w-20 h-20 bg-orange-100 dark:bg-orange-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Plus className="w-10 h-10 text-orange-600 dark:text-orange-400" />
+            </div>
+            <h1 className="text-3xl font-black text-zinc-900 dark:text-white mb-2">Welcome to LockerRoom!</h1>
+            <p className="text-zinc-600 dark:text-zinc-400 text-lg">Let's get started by adding your first player</p>
+          </div>
+          
+          <div className="bg-slate-50 dark:bg-black p-6 rounded-lg border border-zinc-200 dark:border-zinc-800 mb-6">
+            <h3 className="font-bold text-zinc-900 dark:text-white mb-3 text-left">Quick Start:</h3>
+            <ol className="text-left space-y-2 text-zinc-700 dark:text-zinc-300">
+              <li className="flex items-start gap-2">
+                <span className="font-bold text-orange-600 dark:text-orange-400 flex-shrink-0">1.</span>
+                <span>Go to the <strong>Roster</strong> page using the sidebar</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold text-orange-600 dark:text-orange-400 flex-shrink-0">2.</span>
+                <span>Click <strong>"Add My Player"</strong> button</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold text-orange-600 dark:text-orange-400 flex-shrink-0">3.</span>
+                <span>Select the team and enter your player's information</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold text-orange-600 dark:text-orange-400 flex-shrink-0">4.</span>
+                <span>Start accessing team chat, videos, stats, and more!</span>
+              </li>
+            </ol>
+          </div>
+          
+          <a 
+            href="#/roster" 
+            className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-bold transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            Add Your First Player
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 pb-20">
       
-      {/* HERO SECTION (Visual Upgrade) */}
+      {/* PLAYER SELECTOR (For Parents with multiple children) */}
+      <PlayerSelector />
+      
+      {/* HERO SECTION */}
         <div className="bg-gradient-to-br from-slate-200 to-slate-300 dark:from-zinc-800 dark:to-black rounded-2xl p-8 border border-slate-300 dark:border-zinc-700 relative overflow-hidden shadow-2xl">
           <div className="absolute top-0 right-0 p-8 opacity-5"><Trophy className="w-64 h-64 text-white" /></div>
           <div className="relative z-10">
                 <h1 className="text-4xl font-black tracking-tighter text-zinc-900 dark:text-white mb-2 uppercase italic">{teamData?.name || 'Loading...'}</h1>
               <div className="flex items-center gap-4">
-                   {/* Team ID Badge */}
-                    <button onClick={copyTeamId} className="flex items-center gap-2 bg-white/50 dark:bg-zinc-900/50 hover:bg-white/80 dark:hover:bg-zinc-800 border border-slate-400 dark:border-zinc-700 px-3 py-1 rounded-lg text-xs text-zinc-700 dark:text-zinc-400 transition-colors">
-                      {isCopied ? <Check className="w-3 h-3 text-green-400"/> : <Clipboard className="w-3 h-3"/>}
-                      <span className="font-mono">ID: {teamData?.id}</span>
-                   </button>
+                    {/* Team ID Badge */}
+                    {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
+                      <button onClick={copyTeamId} className="flex items-center gap-2 bg-white/50 dark:bg-zinc-900/50 hover:bg-white/80 dark:hover:bg-zinc-800 border border-slate-400 dark:border-zinc-700 px-3 py-1 rounded-lg text-xs text-zinc-700 dark:text-zinc-400 transition-colors">
+                        {isCopied ? <Check className="w-3 h-3 text-green-400"/> : <Clipboard className="w-3 h-3"/>}
+                        <span className="font-mono">ID: {teamData?.id}</span>
+                      </button>
+                    )}
               </div>
           </div>
       </div>
       
       <div className="space-y-8">
-      {/* STAT LEADERS - FIRST ON BOTH MOBILE & DESKTOP, FULL WIDTH ON DESKTOP */}
+      {/* STAT LEADERS */}
       <div className="order-1">
-           {/* STAT LEADERS (First on mobile with order-first) */}
             <div className="bg-slate-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-6 rounded-lg shadow-lg">
              <h2 className="text-xl font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2 uppercase tracking-wide">
                <TrendingUp className="w-6 h-6 text-yellow-500" /> Stat Leaders
              </h2>
-             {statsLoading ? <p className="text-zinc-500">Loading stats...</p> : playerStats.length > 0 ? (
+             {statsLoading ? <p className="text-zinc-500">Loading stats...</p> : playerStats.length > 0 && topStats ? (
                <div className="grid md:grid-cols-3 gap-4">
+                 
+                 {/* RUSHER CARD */}
                  <div className="bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 p-4 rounded-lg">
                    <div className="flex items-center gap-2 text-orange-500 mb-2"><Sword className="w-4 h-4"/><span className="text-[10px] font-bold uppercase tracking-widest">Rusher (Yds)</span></div>
                    <div className="flex justify-between items-end">
-                     <span className="text-sm font-bold text-zinc-900 dark:text-white truncate">{playerStats.reduce((top, p) => (p.yards > (top?.yards || 0) ? p : top), playerStats[0])?.playerName || '—'}</span>
-                     <span className="text-xl font-black text-zinc-900 dark:text-white">{playerStats.reduce((top, p) => (p.yards > (top?.yards || 0) ? p : top), playerStats[0])?.yards || '0'}</span>
+                     <span className="text-sm font-bold text-zinc-900 dark:text-white truncate">{topStats.rusher?.playerName || '—'}</span>
+                     <span className="text-xl font-black text-zinc-900 dark:text-white">{topStats.rusher?.yards || '0'}</span>
                    </div>
                  </div>
+
+                 {/* TACKLER CARD */}
                  <div className="bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 p-4 rounded-lg">
                    <div className="flex items-center gap-2 text-cyan-500 mb-2"><Shield className="w-4 h-4"/><span className="text-[10px] font-bold uppercase tracking-widest">Tackler</span></div>
                    <div className="flex justify-between items-end">
-                     <span className="text-sm font-bold text-zinc-900 dark:text-white truncate">{playerStats.reduce((top, p) => (p.tackles > (top?.tackles || 0) ? p : top), playerStats[0])?.playerName || '—'}</span>
-                     <span className="text-xl font-black text-zinc-900 dark:text-white">{playerStats.reduce((top, p) => (p.tackles > (top?.tackles || 0) ? p : top), playerStats[0])?.tackles || '0'}</span>
+                     <span className="text-sm font-bold text-zinc-900 dark:text-white truncate">{topStats.tackler?.playerName || '—'}</span>
+                     <span className="text-xl font-black text-zinc-900 dark:text-white">{topStats.tackler?.tackles || '0'}</span>
                    </div>
                  </div>
+
+                 {/* SCORER CARD */}
                  <div className="bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 p-4 rounded-lg">
                    <div className="flex items-center gap-2 text-lime-500 mb-2"><Trophy className="w-4 h-4"/><span className="text-[10px] font-bold uppercase tracking-widest">Scoring</span></div>
                    <div className="flex justify-between items-end">
-                     <span className="text-sm font-bold text-zinc-900 dark:text-white truncate">{playerStats.reduce((top, p) => (p.tds > (top?.tds || 0) ? p : top), playerStats[0])?.playerName || '—'}</span>
-                     <span className="text-xl font-black text-zinc-900 dark:text-white">{playerStats.reduce((top, p) => (p.tds > (top?.tds || 0) ? p : top), playerStats[0])?.tds || '0'}</span>
+                     <span className="text-sm font-bold text-zinc-900 dark:text-white truncate">{topStats.scorer?.playerName || '—'}</span>
+                     <span className="text-xl font-black text-zinc-900 dark:text-white">{topStats.scorer?.tds || '0'}</span>
                    </div>
                  </div>
+
                </div>
              ) : <p className="text-zinc-500 italic text-sm text-center py-8">No stats recorded yet.</p>}
              <a href="#/stats" className="inline-block text-cyan-500 hover:text-cyan-400 font-bold text-xs mt-4 uppercase tracking-wider">View Full Stat Sheet →</a>
@@ -197,9 +269,8 @@ const Dashboard: React.FC = () => {
         </div>
 
       <div className="grid lg:grid-cols-2 gap-8">
-        {/* BULLETIN BOARD - THIRD ON MOBILE, RIGHT ON DESKTOP */}
+        {/* BULLETIN BOARD */}
         <div className="order-3">
-           {/* BULLETIN BOARD */}
             <div className="bg-slate-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-6 rounded-lg shadow-lg">
               <h2 className="text-xl font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2 uppercase tracking-wide">
                   Bulletin Board
@@ -229,7 +300,8 @@ const Dashboard: React.FC = () => {
                         <div className="flex items-center justify-between mt-3">
                             <p className="text-xs text-zinc-500 uppercase font-bold tracking-wider">- {post.author} • {formatDate(post.timestamp)}</p>
                             {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
-                              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              /* UX FIX: Always visible on mobile, hover only on desktop */
+                              <div className="flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                 <button onClick={() => { setEditingPostId(post.id); setEditingPostText(post.text); }} className="text-zinc-400 hover:text-cyan-400"><Edit2 className="w-3 h-3"/></button>
                                 <button onClick={() => handleDeletePost(post.id)} className="text-zinc-400 hover:text-red-400"><Trash2 className="w-3 h-3"/></button>
                               </div>
@@ -243,7 +315,7 @@ const Dashboard: React.FC = () => {
             </div>
         </div>
 
-        {/* EVENTS - SECOND ON MOBILE, LEFT ON DESKTOP */}
+        {/* EVENTS */}
         <div className="order-2">
             <div className="bg-slate-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-6 rounded-lg shadow-lg">
             <div className="flex justify-between items-center mb-4">
@@ -324,7 +396,8 @@ const Dashboard: React.FC = () => {
                                     </div>
                                 )}
                                 {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
-                                    <div className="absolute bottom-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    /* UX FIX: Always visible on mobile, hover only on desktop */
+                                    <div className="absolute bottom-2 right-2 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                         <button onClick={() => { setEditingEventId(event.id); setEditingEvent(event); }} className="text-zinc-600 hover:text-cyan-500"><Edit2 className="w-3 h-3"/></button>
                                         <button onClick={() => handleDeleteEvent(event.id)} className="text-zinc-600 hover:text-red-500"><Trash2 className="w-3 h-3"/></button>
                                     </div>

@@ -3,15 +3,18 @@ import { useAuth } from '../contexts/AuthContext';
 import { collection, addDoc, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import type { Play, PlayElement, PlayRoute } from '../types';
-import { Save, Trash2, MousePointer2, Eraser, LayoutGrid, Plus, Route as RouteIcon, Undo2, BookOpen, PenTool, Maximize2, Minimize2, Menu, X } from 'lucide-react';
+import { Save, Trash2, MousePointer2, Eraser, LayoutGrid, Plus, Route as RouteIcon, Undo2, BookOpen, PenTool, Maximize2, Minimize2, Menu, X, Eye } from 'lucide-react';
 
 const ROUTE_COLORS = [
   '#FACC15', '#06b6d4', '#ec4899', '#a3e635', '#f87171', '#ffffff', '#a855f7', '#ea580c', '#3b82f6', '#14b8a6', '#8b5cf6'
 ];
 
 const Playbook: React.FC = () => {
-  const { teamData } = useAuth();
+  const { teamData, userData } = useAuth();
   
+  // SECURITY: READ-ONLY MODE FOR PARENTS
+  const isReadOnly = userData?.role === 'Parent';
+
   // UI STATE
   const [activeTab, setActiveTab] = useState<'editor' | 'library'>('editor');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -36,6 +39,13 @@ const Playbook: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragTarget, setDragTarget] = useState<{ type: 'element' | 'route_point', id: string, index?: number } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+
+  // UX: Default to Library for Read-Only users
+  useEffect(() => {
+    if (isReadOnly) {
+        setActiveTab('library');
+    }
+  }, [isReadOnly]);
 
   useEffect(() => {
     if (!teamData?.id) return;
@@ -98,20 +108,17 @@ const Playbook: React.FC = () => {
   // --- ACTIONS ---
 
   const addElement = (type: 'X' | 'O', label: string) => {
+      if (isReadOnly) return;
+
       const startX = type === 'O' ? 50 : 50; 
       const startY = type === 'O' ? 60 : 40; 
 
-      // Count existing players with the same base label (e.g., "LB", "QB", etc.)
-      // Extract base label from existing elements (remove numbers if present)
-      const baseLabel = label; // e.g., "LB", "QB", etc.
+      const baseLabel = label; 
       const existingCount = elements.filter(el => {
-          // Check if the element's label starts with the base label
-          // Handle both "LB" and "LB1", "LB2", etc.
-          const elBaseLabel = el.label.replace(/\d+$/, ''); // Remove trailing numbers
+          const elBaseLabel = el.label.replace(/\d+$/, ''); 
           return elBaseLabel === baseLabel;
       }).length;
 
-      // Create numbered label (e.g., "LB1", "LB2", "LB3", etc.)
       const numberedLabel = `${baseLabel}${existingCount + 1}`;
 
       const newEl: PlayElement = {
@@ -128,6 +135,7 @@ const Playbook: React.FC = () => {
   };
 
   const handleAddOrExtendRoute = () => {
+      if (isReadOnly) return;
       if (!selectedElementId) return;
       const el = elements.find(e => e.id === selectedElementId);
       if (!el) return;
@@ -178,6 +186,9 @@ const Playbook: React.FC = () => {
 
   const startDrag = (e: React.MouseEvent | React.TouchEvent, type: 'element' | 'route_point', id: string, index?: number) => {
       e.stopPropagation();
+      // SECURITY: PREVENT DRAGGING IN READ-ONLY MODE
+      if (isReadOnly) return;
+
       if (type === 'element') {
           setSelectedElementId(id);
           setSelectedRouteId(null);
@@ -192,6 +203,7 @@ const Playbook: React.FC = () => {
 
   const handleMove = (e: React.MouseEvent | React.TouchEvent) => {
       if (!isDragging || !canvasRef.current || !dragTarget) return;
+      if (isReadOnly) return; // Extra safety check
       
       const { x, y } = getPointerPos(e);
 
@@ -217,6 +229,7 @@ const Playbook: React.FC = () => {
   // --- SAVE / LOAD / DELETE ---
 
   const handleSavePlay = async () => {
+    if (isReadOnly) return;
     if (!teamData?.id || !playName.trim()) return;
     const playData: Partial<Play> = { name: playName, category, elements, routes, createdAt: serverTimestamp() };
     try {
@@ -248,12 +261,14 @@ const Playbook: React.FC = () => {
 
   const deletePlay = async (id: string, e: React.MouseEvent) => {
       e.stopPropagation();
+      if (isReadOnly) return;
       if (!window.confirm("Delete this play?")) return;
       await deleteDoc(doc(db, 'teams', teamData?.id!, 'plays', id));
       if (selectedPlayId === id) clearBoard();
   };
 
   const deleteSelection = () => {
+      if (isReadOnly) return;
       if (selectedElementId) {
           setRoutes(prev => prev.filter(r => r.startElementId !== selectedElementId));
           setElements(prev => prev.filter(el => el.id !== selectedElementId));
@@ -265,6 +280,7 @@ const Playbook: React.FC = () => {
   };
 
   const clearPlayerRoute = () => {
+      if (isReadOnly) return;
       if (!selectedElementId) return;
       setRoutes(prev => prev.filter(r => r.startElementId !== selectedElementId));
   }
@@ -302,17 +318,19 @@ const Playbook: React.FC = () => {
           </button>
         </div>
 
-        {/* FLOATING TOOLBAR (Bottom Right) */}
-        <button
-          onClick={() => setShowToolbar(!showToolbar)}
-          className="fixed bottom-6 right-6 z-30 bg-orange-600 hover:bg-orange-500 text-white p-4 rounded-full shadow-2xl transition-all active:scale-95"
-          title={showToolbar ? "Hide Tools" : "Show Tools"}
-        >
-          {showToolbar ? <X className="w-6 h-6" /> : <PenTool className="w-6 h-6" />}
-        </button>
+        {/* FLOATING TOOLBAR - HIDDEN FOR READ-ONLY USERS */}
+        {!isReadOnly && (
+            <button
+            onClick={() => setShowToolbar(!showToolbar)}
+            className="fixed bottom-6 right-6 z-30 bg-orange-600 hover:bg-orange-500 text-white p-4 rounded-full shadow-2xl transition-all active:scale-95"
+            title={showToolbar ? "Hide Tools" : "Show Tools"}
+            >
+            {showToolbar ? <X className="w-6 h-6" /> : <PenTool className="w-6 h-6" />}
+            </button>
+        )}
 
-        {/* TOOLS DRAWER (Slides from bottom on mobile, sidebar on desktop) */}
-        {showToolbar && (
+        {/* TOOLS DRAWER */}
+        {showToolbar && !isReadOnly && (
           <div className="fixed lg:absolute inset-x-0 bottom-0 lg:inset-y-0 lg:left-0 lg:right-auto lg:w-80 bg-slate-900 border-t lg:border-t-0 lg:border-r border-slate-800 z-20 max-h-[70vh] lg:max-h-full overflow-y-auto shadow-2xl animate-in slide-in-from-bottom lg:slide-in-from-left">
             <div className="p-4 space-y-4">
               <input 
@@ -405,7 +423,8 @@ const Playbook: React.FC = () => {
               onMouseLeave={stopDrag}
               onTouchMove={handleMove}
               onTouchEnd={stopDrag}
-              className="w-full h-full relative cursor-crosshair select-none overflow-hidden"
+              // UX FIX: touch-action-none prevents mobile scrolling when dragging players
+              className="w-full h-full relative cursor-crosshair select-none overflow-hidden touch-action-none"
               style={{ backgroundColor: '#2e7d32' }}
             >
               {/* FIELD TEXTURES */}
@@ -450,7 +469,8 @@ const Playbook: React.FC = () => {
                       key={`${route.id}-${index}`}
                       onMouseDown={(e) => startDrag(e, 'route_point', route.id, index)}
                       onTouchStart={(e) => startDrag(e, 'route_point', route.id, index)}
-                      className={`absolute w-3 h-3 rounded-full shadow-md cursor-move hover:scale-150 transition-transform ${selectedRouteId === route.id ? 'ring-2 ring-white' : ''}`}
+                      // UX: Disabled cursor if read-only
+                      className={`absolute w-3 h-3 rounded-full shadow-md transition-transform ${isReadOnly ? 'cursor-default' : 'cursor-move hover:scale-150'} ${selectedRouteId === route.id ? 'ring-2 ring-white' : ''}`}
                       style={{ backgroundColor: route.color, left: `${pt.x}%`, top: `${pt.y}%`, transform: 'translate(-50%, -50%)' }}
                     />
                   ))}
@@ -462,7 +482,8 @@ const Playbook: React.FC = () => {
                   key={el.id}
                   onMouseDown={(e) => startDrag(e, 'element', el.id)}
                   onTouchStart={(e) => startDrag(e, 'element', el.id)}
-                  className={`absolute w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-md cursor-move transition-transform active:scale-110 border-2 z-30 ${el.id === selectedElementId ? 'border-yellow-400 ring-2 ring-yellow-400/50' : 'border-white'} ${el.color}`}
+                  // UX: Disabled cursor if read-only
+                  className={`absolute w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-md transition-transform border-2 z-30 ${isReadOnly ? 'cursor-default' : 'cursor-move active:scale-110'} ${el.id === selectedElementId ? 'border-yellow-400 ring-2 ring-yellow-400/50' : 'border-white'} ${el.color}`}
                   style={{ left: `${el.x}%`, top: `${el.y}%`, transform: 'translate(-50%, -50%)' }}
                 >
                   {el.label || el.type}
@@ -483,7 +504,7 @@ const Playbook: React.FC = () => {
                 onClick={() => setActiveTab('editor')}
                 className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === 'editor' ? 'bg-white dark:bg-slate-800 text-orange-600 dark:text-orange-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
               >
-                  <PenTool className="w-4 h-4"/> Editor
+                  {isReadOnly ? <Eye className="w-4 h-4"/> : <PenTool className="w-4 h-4"/>} {isReadOnly ? 'Viewer' : 'Editor'}
               </button>
               <button 
                 onClick={() => setActiveTab('library')}
@@ -496,7 +517,18 @@ const Playbook: React.FC = () => {
           {/* TAB 1: EDITOR TOOLS */}
           {activeTab === 'editor' && (
               <div className="p-4 flex flex-col gap-4 overflow-y-auto">
-                  <div className="space-y-4">
+                  {isReadOnly ? (
+                       // READ-ONLY VIEW MESSAGE
+                       <div className="text-center py-8 px-4 text-zinc-500 space-y-2">
+                           <div className="bg-zinc-100 dark:bg-zinc-900 rounded-full p-4 w-16 h-16 mx-auto flex items-center justify-center">
+                               <Eye className="w-8 h-8 text-zinc-400"/>
+                           </div>
+                           <h3 className="font-bold text-zinc-900 dark:text-white">Study Mode</h3>
+                           <p className="text-xs">Select a play from the <strong className="text-orange-500">Library</strong> tab to view it.</p>
+                       </div>
+                  ) : (
+                    // FULL EDITOR TOOLS (COACH ONLY)
+                    <div className="space-y-4">
                       <input 
                         value={playName} 
                         onChange={e => setPlayName(e.target.value)} 
@@ -568,6 +600,7 @@ const Playbook: React.FC = () => {
                           <button onClick={clearBoard} className="flex-1 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-900 dark:text-white p-2 rounded text-sm transition-colors">New</button>
                       </div>
                   </div>
+                  )}
               </div>
           )}
 
@@ -584,9 +617,11 @@ const Playbook: React.FC = () => {
                                   <span className="text-[10px] text-slate-500 dark:text-slate-400">{play.elements?.length || 0} players</span>
                               </div>
                           </div>
-                          <button onClick={(e) => deletePlay(play.id, e)} className="text-slate-400 dark:text-slate-600 hover:text-red-500 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                              <Trash2 className="w-4 h-4" />
-                          </button>
+                          {!isReadOnly && (
+                            <button onClick={(e) => deletePlay(play.id, e)} className="text-slate-400 dark:text-slate-600 hover:text-red-500 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                       </div>
                   ))}
               </div>
@@ -626,7 +661,8 @@ const Playbook: React.FC = () => {
             onMouseLeave={stopDrag}
             onTouchMove={handleMove}
             onTouchEnd={stopDrag}
-            className="w-full h-full relative cursor-crosshair select-none overflow-hidden"
+            // UX FIX: touch-action-none prevents mobile scrolling when dragging players
+            className="w-full h-full relative cursor-crosshair select-none overflow-hidden touch-action-none"
             style={{ backgroundColor: '#2e7d32' }}
           >
               {/* FIELD TEXTURES */}
@@ -671,7 +707,7 @@ const Playbook: React.FC = () => {
                             key={`${route.id}-${index}`}
                             onMouseDown={(e) => startDrag(e, 'route_point', route.id, index)}
                             onTouchStart={(e) => startDrag(e, 'route_point', route.id, index)}
-                            className={`absolute w-3 h-3 rounded-full shadow-md cursor-move hover:scale-150 transition-transform ${selectedRouteId === route.id ? 'ring-2 ring-white' : ''}`}
+                            className={`absolute w-3 h-3 rounded-full shadow-md transition-transform ${isReadOnly ? 'cursor-default' : 'cursor-move hover:scale-150'} ${selectedRouteId === route.id ? 'ring-2 ring-white' : ''}`}
                             style={{ backgroundColor: route.color, left: `${pt.x}%`, top: `${pt.y}%`, transform: 'translate(-50%, -50%)' }}
                           />
                       ))}
@@ -683,7 +719,7 @@ const Playbook: React.FC = () => {
                     key={el.id}
                     onMouseDown={(e) => startDrag(e, 'element', el.id)}
                     onTouchStart={(e) => startDrag(e, 'element', el.id)}
-                    className={`absolute w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-md cursor-move transition-transform active:scale-110 border-2 z-30 ${el.id === selectedElementId ? 'border-yellow-400 ring-2 ring-yellow-400/50' : 'border-white'} ${el.color}`}
+                    className={`absolute w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-md transition-transform border-2 z-30 ${isReadOnly ? 'cursor-default' : 'cursor-move active:scale-110'} ${el.id === selectedElementId ? 'border-yellow-400 ring-2 ring-yellow-400/50' : 'border-white'} ${el.color}`}
                     style={{ left: `${el.x}%`, top: `${el.y}%`, transform: 'translate(-50%, -50%)' }}
                   >
                       {el.label || el.type}
