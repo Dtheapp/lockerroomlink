@@ -5,7 +5,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import type { Team, UserProfile } from '../../types';
-import { Plus, Trash2, Edit2, Users, FileText, MessageCircle, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Edit2, Users, FileText, MessageCircle, AlertTriangle, Search, X, Check } from 'lucide-react';
 
 type ModalContent = 'roster' | 'posts' | 'chat';
 
@@ -14,10 +14,17 @@ const ManageTeams: React.FC = () => {
     const [coachLookup, setCoachLookup] = useState<{[key: string]: string}>({});
     const [loading, setLoading] = useState(true);
     
+    // SEARCH STATE
+    const [searchQuery, setSearchQuery] = useState('');
+    
     // MODAL STATES
     const [isCreateModalOpen, setCreateModalOpen] = useState(false);
     const [isEditModalOpen, setEditModalOpen] = useState(false);
     const [isViewModalOpen, setViewModalOpen] = useState(false);
+    const [isDeleteTeamModalOpen, setDeleteTeamModalOpen] = useState(false);
+    const [isDeleteItemModalOpen, setDeleteItemModalOpen] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     
     // FORM STATES
     const [newTeamName, setNewTeamName] = useState('');
@@ -28,6 +35,17 @@ const ManageTeams: React.FC = () => {
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
     const [modalContent, setModalContent] = useState<ModalContent>('roster');
     const [modalData, setModalData] = useState<any[]>([]);
+    
+    // FILTERED TEAMS
+    const filteredTeams = teams.filter(team => {
+        const query = searchQuery.toLowerCase();
+        const coachName = team.coachId ? (coachLookup[team.coachId] || '').toLowerCase() : '';
+        return (
+            team.name.toLowerCase().includes(query) ||
+            team.id.toLowerCase().includes(query) ||
+            coachName.includes(query)
+        );
+    });
 
     useEffect(() => {
       // 1. Fetch Teams List
@@ -117,10 +135,13 @@ const ManageTeams: React.FC = () => {
     }
     
     // --- CRITICAL DATA INTEGRITY FIX: Cascading Delete ---
-    const handleDeleteTeam = async (teamId: string) => {
-        if (!window.confirm("CRITICAL WARNING: This will permanently delete the team, ALL its players, ALL posts, and unlink ALL associated users. Are you absolutely sure?")) return;
+    const handleDeleteTeam = async () => {
+        if (!selectedTeam) return;
+        setIsDeleting(true);
         
         try {
+            const teamId = selectedTeam.id;
+            
             // 1. Find all related users and UNLINK them
             const usersQuery = query(collection(db, 'users'), where('teamId', '==', teamId));
             const usersSnapshot = await getDocs(usersQuery);
@@ -152,29 +173,42 @@ const ManageTeams: React.FC = () => {
 
             // 3. Delete the main team document
             await deleteDoc(doc(db, 'teams', teamId));
-            alert(`Team ${teamId} and all associated data deleted successfully.`);
+            
+            setDeleteTeamModalOpen(false);
+            setSelectedTeam(null);
 
         } catch (error) { 
             console.error("Error performing cascading delete:", error); 
-            alert("FATAL ERROR: Failed to fully delete team. Check console for details.");
+        } finally {
+            setIsDeleting(false);
         }
     };
     // --- END CRITICAL DATA INTEGRITY FIX ---
 
     const openEditModal = (team: Team) => { setSelectedTeam(team); setEditTeamName(team.name); setEditModalOpen(true); }
     const openViewModal = (team: Team, contentType: ModalContent) => { setSelectedTeam(team); setModalContent(contentType); setViewModalOpen(true); }
+    const openDeleteTeamModal = (team: Team) => { setSelectedTeam(team); setDeleteTeamModalOpen(true); }
     
-    const handleDeleteItem = async (itemId: string) => {
-        if (!selectedTeam || !window.confirm("Delete this individual item?")) return;
+    const handleDeleteItem = async () => {
+        if (!selectedTeam || !itemToDelete) return;
+        setIsDeleting(true);
         try {
             const col = modalContent === 'roster' ? 'players' : modalContent === 'posts' ? 'bulletin' : modalContent === 'chat' ? 'messages' : '';
             if (col) {
-                await deleteDoc(doc(db, 'teams', selectedTeam.id, col, itemId));
+                await deleteDoc(doc(db, 'teams', selectedTeam.id, col, itemToDelete));
             }
+            setDeleteItemModalOpen(false);
+            setItemToDelete(null);
         } catch (error) {
             console.error("Error deleting item:", error);
-            alert("Failed to delete item.");
+        } finally {
+            setIsDeleting(false);
         }
+    }
+    
+    const openDeleteItemModal = (itemId: string) => {
+        setItemToDelete(itemId);
+        setDeleteItemModalOpen(true);
     }
 
     // --- HELPER: RENDER ACTION BUTTONS (Used for both Mobile & Desktop) ---
@@ -213,7 +247,7 @@ const ManageTeams: React.FC = () => {
              </button>
 
              <button 
-                onClick={() => handleDeleteTeam(team.id)} 
+                onClick={() => openDeleteTeamModal(team)} 
                 className={`flex items-center justify-center gap-1 rounded-md bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors font-medium border border-red-300 dark:border-red-800/50 ${isMobile ? 'w-full py-2 text-sm mt-2' : 'p-2 md:px-3 md:py-1.5 text-xs ml-2'}`}
              >
                 <Trash2 className={`${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />
@@ -258,7 +292,7 @@ const ManageTeams: React.FC = () => {
                     )}
                 </div>
                 <button 
-                    onClick={() => handleDeleteItem(item.id)}
+                    onClick={() => openDeleteItemModal(item.id)}
                     className="ml-3 p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
                     title="Delete"
                 >
@@ -270,17 +304,42 @@ const ManageTeams: React.FC = () => {
 
     return (
       <div className="space-y-6">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
               <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Manage Teams</h1>
-              <button onClick={() => setCreateModalOpen(true)} className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors">
-                  <Plus className="w-5 h-5" />
-                  <span className="hidden md:inline">Create Team</span>
-              </button>
+              <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                  {/* Search Bar */}
+                  <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                          type="text"
+                          placeholder="Search teams..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-10 pr-4 py-2 w-full sm:w-64 bg-slate-50 dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                      {searchQuery && (
+                          <button
+                              onClick={() => setSearchQuery('')}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                          >
+                              <X className="w-4 h-4" />
+                          </button>
+                      )}
+                  </div>
+                  <button onClick={() => setCreateModalOpen(true)} className="flex items-center justify-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors">
+                      <Plus className="w-5 h-5" />
+                      <span className="hidden md:inline">Create Team</span>
+                  </button>
+              </div>
           </div>
 
           {/* --- MOBILE VIEW: CARDS --- */}
           <div className="md:hidden space-y-4">
-              {loading ? <p className="text-center text-slate-500 dark:text-slate-400">Loading...</p> : teams.map(team => (
+              {loading ? <p className="text-center text-slate-500 dark:text-slate-400">Loading...</p> : filteredTeams.length === 0 ? (
+                  <p className="text-center text-slate-500 dark:text-slate-400 py-8">
+                      {searchQuery ? `No teams matching "${searchQuery}"` : 'No teams found.'}
+                  </p>
+              ) : filteredTeams.map(team => (
                   <div key={team.id} className="bg-slate-50 dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-zinc-800 p-5 shadow-lg">
                       <div className="flex justify-between items-start mb-2">
                           <div>
@@ -313,8 +372,12 @@ const ManageTeams: React.FC = () => {
                       <tbody className="divide-y divide-slate-200 dark:divide-zinc-800">
                       {loading ? (
                           <tr><td colSpan={4} className="text-center p-4">Loading teams...</td></tr>
+                      ) : filteredTeams.length === 0 ? (
+                          <tr><td colSpan={4} className="text-center p-4 text-slate-500 dark:text-slate-400">
+                              {searchQuery ? `No teams matching "${searchQuery}"` : 'No teams found.'}
+                          </td></tr>
                       ) : (
-                          teams.map(team => (
+                          filteredTeams.map(team => (
                           <tr key={team.id} className="bg-slate-50 dark:bg-zinc-950 hover:bg-slate-100 dark:hover:bg-black transition-colors">
                               <td className="px-6 py-4 font-medium text-slate-900 dark:text-white whitespace-nowrap">{team.name}</td>
                               <td className="px-6 py-4 font-mono text-slate-700 dark:text-slate-300">{team.id}</td>
@@ -381,6 +444,89 @@ const ManageTeams: React.FC = () => {
                       <button type="button" onClick={() => setViewModalOpen(false)} className="px-6 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold">Close</button>
                   </div>
               </div>
+              </div>
+          )}
+
+          {/* MODAL: Delete Team Confirmation */}
+          {isDeleteTeamModalOpen && selectedTeam && (
+              <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                  <div className="bg-white dark:bg-zinc-950 p-6 rounded-lg w-full max-w-md border border-red-300 dark:border-red-800 shadow-2xl">
+                      <div className="flex items-center gap-3 mb-4">
+                          <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-full">
+                              <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+                          </div>
+                          <h2 className="text-2xl font-bold text-red-600 dark:text-red-400">Delete Team</h2>
+                      </div>
+                      <p className="text-slate-700 dark:text-slate-300 mb-2">
+                          Are you sure you want to delete <span className="font-bold text-slate-900 dark:text-white">{selectedTeam.name}</span>?
+                      </p>
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-lg p-3 mb-4">
+                          <p className="text-sm text-red-700 dark:text-red-400 font-medium">⚠️ This action will permanently:</p>
+                          <ul className="text-sm text-red-600 dark:text-red-300 mt-2 space-y-1 ml-4 list-disc">
+                              <li>Delete all players in the roster</li>
+                              <li>Delete all bulletin posts</li>
+                              <li>Delete all chat messages</li>
+                              <li>Unlink all associated users</li>
+                          </ul>
+                      </div>
+                      <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-zinc-800">
+                          <button
+                              type="button"
+                              onClick={() => { setDeleteTeamModalOpen(false); setSelectedTeam(null); }}
+                              disabled={isDeleting}
+                              className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                          >
+                              Cancel
+                          </button>
+                          <button
+                              type="button"
+                              onClick={handleDeleteTeam}
+                              disabled={isDeleting}
+                              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold transition-colors disabled:opacity-50"
+                          >
+                              {isDeleting ? (
+                                  <>Deleting...</>
+                              ) : (
+                                  <><Trash2 className="w-4 h-4" /> Delete Team</>
+                              )}
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          )}
+
+          {/* MODAL: Delete Item Confirmation */}
+          {isDeleteItemModalOpen && (
+              <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                  <div className="bg-white dark:bg-zinc-950 p-6 rounded-lg w-full max-w-sm border border-red-300 dark:border-red-800 shadow-2xl">
+                      <div className="flex items-center gap-3 mb-4">
+                          <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-full">
+                              <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+                          </div>
+                          <h2 className="text-xl font-bold text-slate-900 dark:text-white">Delete {modalContent === 'roster' ? 'Player' : modalContent === 'posts' ? 'Post' : 'Message'}?</h2>
+                      </div>
+                      <p className="text-slate-600 dark:text-slate-400 text-sm mb-4">
+                          This action cannot be undone.
+                      </p>
+                      <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-zinc-800">
+                          <button
+                              type="button"
+                              onClick={() => { setDeleteItemModalOpen(false); setItemToDelete(null); }}
+                              disabled={isDeleting}
+                              className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                          >
+                              Cancel
+                          </button>
+                          <button
+                              type="button"
+                              onClick={handleDeleteItem}
+                              disabled={isDeleting}
+                              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold transition-colors disabled:opacity-50"
+                          >
+                              {isDeleting ? 'Deleting...' : 'Delete'}
+                          </button>
+                      </div>
+                  </div>
               </div>
           )}
       </div>
