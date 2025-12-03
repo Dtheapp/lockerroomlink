@@ -4,24 +4,36 @@ import { sendPasswordResetEmail } from 'firebase/auth';
 import { db, auth } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UserProfile, Team } from '../../types';
-import { Trash2, Link, User, Shield, AtSign, Key, AlertTriangle } from 'lucide-react';
+import { Trash2, Link, User, Shield, AtSign, Key, AlertTriangle, Search, Edit2, X, Check, UserX } from 'lucide-react';
 
 const ManageUsers: React.FC = () => {
-  const { user } = useAuth(); // Needed to prevent self-deletion
+  const { user } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [teamLookup, setTeamLookup] = useState<{[key: string]: string}>({});
   const [loading, setLoading] = useState(true);
   
-  // FILTER STATE
+  // FILTER & SEARCH STATE
   const [filterRole, setFilterRole] = useState<'All' | 'Coach' | 'Parent'>('All');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // MODAL STATES
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState('');
+  
+  // EDIT FORM STATE
+  const [editName, setEditName] = useState('');
+  const [editRole, setEditRole] = useState<'Coach' | 'Parent'>('Parent');
+  const [editUsername, setEditUsername] = useState('');
+  const [editError, setEditError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // SECURITY: Filter out SuperAdmins on the client side (Snapshot)
     const usersUnsub = onSnapshot(collection(db, 'users'), (snapshot) => {
       const usersData = snapshot.docs.map(doc => doc.data() as UserProfile).filter(u => u.role !== 'SuperAdmin');
       setUsers(usersData);
@@ -32,97 +44,192 @@ const ManageUsers: React.FC = () => {
         const teamsSnapshot = await getDocs(collection(db, 'teams'));
         const teamsData = teamsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Team));
         setTeams(teamsData);
+        
+        // Create lookup for team names
+        const lookup: {[key: string]: string} = {};
+        teamsData.forEach(t => { lookup[t.id] = t.name; });
+        setTeamLookup(lookup);
     }
     fetchTeams();
 
     return () => usersUnsub();
   }, []);
 
-  // COMPUTED FILTER
+  // COMPUTED FILTER + SEARCH
   const filteredUsers = users.filter(u => {
-      if (filterRole === 'All') return true;
-      return u.role === filterRole;
+      const matchesRole = filterRole === 'All' || u.role === filterRole;
+      const matchesSearch = searchQuery === '' || 
+        u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        u.username?.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesRole && matchesSearch;
   });
 
+  // --- MODAL HANDLERS ---
   const openAssignModal = (targetUser: UserProfile) => {
     setSelectedUser(targetUser);
-    setIsModalOpen(true);
+    setSelectedTeamId(targetUser.teamId || '');
+    setIsAssignModalOpen(true);
   };
   
+  const openEditModal = (targetUser: UserProfile) => {
+    setSelectedUser(targetUser);
+    setEditName(targetUser.name || '');
+    setEditRole(targetUser.role as 'Coach' | 'Parent');
+    setEditUsername(targetUser.username || '');
+    setEditError('');
+    setIsEditModalOpen(true);
+  };
+  
+  const openDeleteModal = (targetUser: UserProfile) => {
+    setSelectedUser(targetUser);
+    setIsDeleteModalOpen(true);
+  };
+  
+  const openResetModal = (targetUser: UserProfile) => {
+    setSelectedUser(targetUser);
+    setIsResetModalOpen(true);
+  };
+
+  // --- ACTION HANDLERS ---
   const handleAssignTeam = async () => {
-    if (!selectedUser || !selectedTeamId) return;
+    if (!selectedUser) return;
+    setSaving(true);
     try {
       const userDocRef = doc(db, 'users', selectedUser.uid);
-      const newTeamDocRef = doc(db, 'teams', selectedTeamId);
       
-      // 1. If Coach, handle "Ghost Coach" cleanup
-      if (selectedUser.role === 'Coach') {
-          // If they were already assigned to a DIFFERENT team, remove them from that team first
+      // If unassigning (empty selection)
+      if (!selectedTeamId) {
+        // If coach, remove from old team
+        if (selectedUser.role === 'Coach' && selectedUser.teamId) {
+          const oldTeamRef = doc(db, 'teams', selectedUser.teamId);
+          await updateDoc(oldTeamRef, { coachId: null });
+        }
+        await updateDoc(userDocRef, { teamId: null });
+      } else {
+        // Assigning to a team
+        if (selectedUser.role === 'Coach') {
+          // Remove from old team if different
           if (selectedUser.teamId && selectedUser.teamId !== selectedTeamId) {
-              const oldTeamRef = doc(db, 'teams', selectedUser.teamId);
-              await updateDoc(oldTeamRef, { coachId: null });
+            const oldTeamRef = doc(db, 'teams', selectedUser.teamId);
+            await updateDoc(oldTeamRef, { coachId: null });
           }
           // Set as coach for new team
+          const newTeamDocRef = doc(db, 'teams', selectedTeamId);
           await updateDoc(newTeamDocRef, { coachId: selectedUser.uid });
+        }
+        await updateDoc(userDocRef, { teamId: selectedTeamId });
       }
 
-      // 2. Update User Profile
-      await updateDoc(userDocRef, { teamId: selectedTeamId });
-
-      setIsModalOpen(false);
+      setIsAssignModalOpen(false);
       setSelectedUser(null);
       setSelectedTeamId('');
     } catch (error) {
       console.error("Error assigning team:", error);
-      alert("Failed to assign team.");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleDeleteUser = async (uid: string) => {
-    // SECURITY: Prevent Self-Deletion
-    if (uid === user?.uid) {
-        alert("You cannot delete your own admin account.");
-        return;
+  const handleEditUser = async () => {
+    if (!selectedUser || !editName.trim()) {
+      setEditError('Name is required');
+      return;
     }
-
-    if (!window.confirm("Are you sure? This will permanently delete the user and cannot be undone.")) return;
+    setSaving(true);
+    setEditError('');
     
     try {
-      await deleteDoc(doc(db, 'users', uid));
+      const userDocRef = doc(db, 'users', selectedUser.uid);
+      const updates: any = {
+        name: editName.trim(),
+        role: editRole,
+      };
+      
+      if (editUsername.trim()) {
+        updates.username = editUsername.trim();
+      }
+      
+      // Handle role change for coaches
+      if (selectedUser.role === 'Coach' && editRole === 'Parent' && selectedUser.teamId) {
+        // Removing coach status - clear from team
+        const teamRef = doc(db, 'teams', selectedUser.teamId);
+        await updateDoc(teamRef, { coachId: null });
+      }
+      
+      await updateDoc(userDocRef, updates);
+      setIsEditModalOpen(false);
+      setSelectedUser(null);
     } catch (error) {
-      console.error("Error deleting user:", error);
-      alert("Failed to delete user.");
+      console.error("Error updating user:", error);
+      setEditError('Failed to update user');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleResetPassword = async (email?: string) => {
-      if (!email) return;
-      if (!window.confirm(`Send password reset email to ${email}?`)) return;
-      
-      try {
-          await sendPasswordResetEmail(auth, email);
-          alert(`Reset link sent to ${email}`);
-      } catch (error) {
-          console.error("Error sending reset email:", error);
-          alert("Failed to send reset email.");
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    
+    // Prevent self-deletion
+    if (selectedUser.uid === user?.uid) {
+      setIsDeleteModalOpen(false);
+      return;
+    }
+    
+    setSaving(true);
+    try {
+      // If coach, remove from team first
+      if (selectedUser.role === 'Coach' && selectedUser.teamId) {
+        const teamRef = doc(db, 'teams', selectedUser.teamId);
+        await updateDoc(teamRef, { coachId: null });
       }
-  }
+      
+      await deleteDoc(doc(db, 'users', selectedUser.uid));
+      setIsDeleteModalOpen(false);
+      setSelectedUser(null);
+    } catch (error) {
+      console.error("Error deleting user:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  // --- HELPER: RENDER ACTIONS (Responsive) ---
+  const handleResetPassword = async () => {
+    if (!selectedUser?.email) return;
+    setSaving(true);
+    try {
+      await sendPasswordResetEmail(auth, selectedUser.email);
+      setIsResetModalOpen(false);
+      setSelectedUser(null);
+    } catch (error) {
+      console.error("Error sending reset email:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // --- HELPER: RENDER ACTIONS ---
   const renderActions = (targetUser: UserProfile, isMobile = false) => (
-      <div className={`flex items-center gap-2 ${isMobile ? 'mt-4 pt-4 border-t border-slate-300 dark:border-zinc-800 w-full' : 'justify-end'}`}>
-          {!targetUser.teamId && (
-            <button 
-                onClick={() => openAssignModal(targetUser)} 
-                className={`flex items-center justify-center gap-1 rounded-md bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors font-medium border border-orange-300 dark:border-orange-800/50 ${isMobile ? 'flex-1 py-2 text-sm' : 'px-3 py-1.5 text-xs'}`}
-                title="Assign to a Team"
-            >
-              <Link className="w-3 h-3" /> Assign
-            </button>
-          )}
+      <div className={`flex items-center gap-2 ${isMobile ? 'mt-4 pt-4 border-t border-slate-300 dark:border-zinc-800 w-full flex-wrap' : 'justify-end'}`}>
+          <button 
+            onClick={() => openEditModal(targetUser)}
+            className={`flex items-center justify-center gap-1 rounded-md bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-zinc-700 transition-colors font-medium border border-slate-300 dark:border-zinc-700 ${isMobile ? 'flex-1 py-2 text-sm' : 'px-3 py-1.5 text-xs'}`}
+            title="Edit User"
+          >
+            <Edit2 className="w-3 h-3" /> Edit
+          </button>
           
           <button 
-            onClick={() => handleResetPassword(targetUser.email)}
+            onClick={() => openAssignModal(targetUser)} 
+            className={`flex items-center justify-center gap-1 rounded-md bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors font-medium border border-orange-300 dark:border-orange-800/50 ${isMobile ? 'flex-1 py-2 text-sm' : 'px-3 py-1.5 text-xs'}`}
+            title={targetUser.teamId ? "Reassign Team" : "Assign Team"}
+          >
+            <Link className="w-3 h-3" /> {targetUser.teamId ? 'Reassign' : 'Assign'}
+          </button>
+          
+          <button 
+            onClick={() => openResetModal(targetUser)}
             className={`flex items-center justify-center gap-1 rounded-md bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 hover:bg-sky-200 dark:hover:bg-sky-900/50 transition-colors font-medium border border-sky-300 dark:border-sky-800/50 ${isMobile ? 'flex-1 py-2 text-sm' : 'px-3 py-1.5 text-xs'}`}
             title="Send Password Reset Email"
           >
@@ -130,8 +237,8 @@ const ManageUsers: React.FC = () => {
           </button>
 
           <button 
-            onClick={() => handleDeleteUser(targetUser.uid)} 
-            className={`flex items-center justify-center gap-1 rounded-md bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors font-medium border border-red-300 dark:border-red-800/50 ${isMobile ? 'flex-1 py-2 text-sm' : 'px-3 py-1.5 text-xs'}`}
+            onClick={() => openDeleteModal(targetUser)} 
+            className={`flex items-center justify-center gap-1 rounded-md bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors font-medium border border-red-300 dark:border-red-800/50 ${isMobile ? 'w-full py-2 text-sm mt-2' : 'px-3 py-1.5 text-xs'}`}
             title="Delete User"
           >
             <Trash2 className="w-3 h-3" /> Delete
@@ -165,10 +272,30 @@ const ManageUsers: React.FC = () => {
           </div>
       </div>
 
+      {/* SEARCH BAR */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+        <input
+          type="text"
+          placeholder="Search by name, email, or username..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full pl-10 pr-4 py-3 bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+        />
+        {searchQuery && (
+          <button 
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
+      </div>
+
       {/* --- MOBILE VIEW: CARDS --- */}
       <div className="md:hidden space-y-4">
           {loading ? <p className="text-center text-slate-500 dark:text-slate-400">Loading users...</p> : 
-           filteredUsers.length === 0 ? <p className="text-center text-slate-500 dark:text-slate-400 py-8">No users found.</p> :
+           filteredUsers.length === 0 ? <p className="text-center text-slate-500 dark:text-slate-400 py-8">{searchQuery ? 'No users match your search.' : 'No users found.'}</p> :
            filteredUsers.map(u => (
               <div key={u.uid} className="bg-slate-50 dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-zinc-800 p-5 shadow-lg">
                   <div className="flex justify-between items-start mb-3">
@@ -193,7 +320,7 @@ const ManageUsers: React.FC = () => {
                       <div className="flex items-center gap-2">
                           <Shield className="w-4 h-4 text-slate-500 dark:text-slate-600" />
                           <span className={u.teamId ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-500 italic'}>
-                              Team: {u.teamId ? <span className="font-mono bg-slate-200 dark:bg-zinc-900 px-1 rounded">{u.teamId}</span> : 'Unassigned'}
+                              Team: {u.teamId ? <span className="font-medium">{teamLookup[u.teamId] || u.teamId}</span> : 'Unassigned'}
                           </span>
                       </div>
                   </div>
@@ -208,12 +335,12 @@ const ManageUsers: React.FC = () => {
       <div className="hidden md:block bg-slate-50 dark:bg-zinc-950 rounded-lg shadow overflow-hidden border border-slate-200 dark:border-zinc-800">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left text-slate-700 dark:text-slate-300">
-                        <thead className="text-xs text-slate-600 dark:text-slate-400 uppercase bg-white dark:bg-black">
+            <thead className="text-xs text-slate-600 dark:text-slate-400 uppercase bg-white dark:bg-black">
               <tr>
                 <th scope="col" className="px-6 py-3">Name</th>
-                <th scope="col" className="px-6 py-3 text-orange-600 dark:text-orange-400">Username (ID)</th>
+                <th scope="col" className="px-6 py-3 text-orange-600 dark:text-orange-400">Username</th>
                 <th scope="col" className="px-6 py-3">Role</th>
-                <th scope="col" className="px-6 py-3">Team ID</th>
+                <th scope="col" className="px-6 py-3">Team</th>
                 <th scope="col" className="px-6 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -221,13 +348,13 @@ const ManageUsers: React.FC = () => {
               {loading ? (
                 <tr><td colSpan={5} className="text-center p-4">Loading users...</td></tr>
               ) : filteredUsers.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center p-8 text-slate-500 dark:text-slate-500">No {filterRole === 'All' ? 'users' : filterRole.toLowerCase() + 's'} found.</td></tr>
+                  <tr><td colSpan={5} className="text-center p-8 text-slate-500 dark:text-slate-500">{searchQuery ? 'No users match your search.' : `No ${filterRole === 'All' ? 'users' : filterRole.toLowerCase() + 's'} found.`}</td></tr>
               ) : (
                 filteredUsers.map(u => (
-                                <tr key={u.uid} className="bg-slate-50 dark:bg-zinc-950 hover:bg-slate-100 dark:hover:bg-black transition-colors">
+                  <tr key={u.uid} className="bg-slate-50 dark:bg-zinc-950 hover:bg-slate-100 dark:hover:bg-black transition-colors">
                     <td className="px-6 py-4 font-medium text-slate-900 dark:text-white whitespace-nowrap">
                         {u.name}
-                        {u.role === 'Parent' && <span className="block text-xs text-slate-500 font-normal">{u.email}</span>}
+                        <span className="block text-xs text-slate-500 font-normal">{u.email}</span>
                     </td>
                     <td className="px-6 py-4 font-mono text-orange-600 dark:text-orange-400">{u.username || '---'}</td>
                     <td className="px-6 py-4">
@@ -235,7 +362,13 @@ const ManageUsers: React.FC = () => {
                             {u.role}
                         </span>
                     </td>
-                    <td className="px-6 py-4 font-mono text-slate-700 dark:text-slate-300">{u.teamId || 'Unassigned'}</td>
+                    <td className="px-6 py-4">
+                      {u.teamId ? (
+                        <span className="font-medium text-slate-900 dark:text-white">{teamLookup[u.teamId] || u.teamId}</span>
+                      ) : (
+                        <span className="text-slate-400 italic">Unassigned</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-right">
                       {renderActions(u, false)}
                     </td>
@@ -247,31 +380,176 @@ const ManageUsers: React.FC = () => {
         </div>
       </div>
 
-      {isModalOpen && selectedUser && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl w-full max-w-md border border-slate-200 dark:border-zinc-800 shadow-2xl">
-            <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">Assign Team to {selectedUser.name}</h2>
+      {/* MODAL: Assign/Reassign Team */}
+      {isAssignModalOpen && selectedUser && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm" onClick={() => setIsAssignModalOpen(false)}>
+          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl w-full max-w-md border border-slate-200 dark:border-zinc-800 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">
+              {selectedUser.teamId ? 'Reassign' : 'Assign'} Team
+            </h2>
+            <p className="text-slate-600 dark:text-slate-400 mb-4">User: <span className="font-bold text-slate-900 dark:text-white">{selectedUser.name}</span></p>
             
-            {/* Warning for Coaches */}
-            {selectedUser.role === 'Coach' && (
+            {selectedUser.role === 'Coach' && selectedUser.teamId && (
                 <div className="mb-4 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900/50 text-yellow-800 dark:text-yellow-400 p-3 rounded-lg text-sm flex items-start gap-2">
                     <AlertTriangle className="w-5 h-5 shrink-0"/>
-                    <p>Assigning a new team will remove this coach from their current team if they have one.</p>
+                    <p>This coach will be removed from their current team ({teamLookup[selectedUser.teamId] || selectedUser.teamId}).</p>
                 </div>
             )}
 
             <div className="space-y-4">
                <label htmlFor="team" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Select a Team</label>
-               <select id="team" value={selectedTeamId} onChange={(e) => setSelectedTeamId(e.target.value)} className="w-full bg-slate-50 dark:bg-black p-3 rounded-lg border border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500">
-                  <option value="">-- Choose a team --</option>
+               <select 
+                 id="team" 
+                 value={selectedTeamId} 
+                 onChange={(e) => setSelectedTeamId(e.target.value)} 
+                 className="w-full bg-slate-50 dark:bg-black p-3 rounded-lg border border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500"
+               >
+                  <option value="">-- Unassign from team --</option>
                   {teams.map(team => (
-                    <option key={team.id} value={team.id}>{team.name} ({team.id})</option>
+                    <option key={team.id} value={team.id}>{team.name}</option>
                   ))}
                </select>
             </div>
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200 dark:border-zinc-800">
-              <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">Cancel</button>
-              <button onClick={handleAssignTeam} disabled={!selectedTeamId} className="px-6 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-orange-900/20">Assign</button>
+              <button type="button" onClick={() => setIsAssignModalOpen(false)} className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">Cancel</button>
+              <button onClick={handleAssignTeam} disabled={saving} className="px-6 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold disabled:opacity-50 shadow-lg shadow-orange-900/20 flex items-center gap-2">
+                {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
+                {selectedTeamId ? 'Assign' : 'Unassign'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Edit User */}
+      {isEditModalOpen && selectedUser && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm" onClick={() => setIsEditModalOpen(false)}>
+          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl w-full max-w-md border border-slate-200 dark:border-zinc-800 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">Edit User</h2>
+            
+            {editError && (
+              <div className="mb-4 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-400 p-3 rounded-lg text-sm flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" /> {editError}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
+                <input 
+                  value={editName} 
+                  onChange={(e) => setEditName(e.target.value)} 
+                  className="w-full bg-slate-50 dark:bg-black p-3 rounded-lg border border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder="Enter full name"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Username</label>
+                <input 
+                  value={editUsername} 
+                  onChange={(e) => setEditUsername(e.target.value)} 
+                  className="w-full bg-slate-50 dark:bg-black p-3 rounded-lg border border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder="Enter username"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Role</label>
+                <select 
+                  value={editRole} 
+                  onChange={(e) => setEditRole(e.target.value as 'Coach' | 'Parent')}
+                  className="w-full bg-slate-50 dark:bg-black p-3 rounded-lg border border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="Parent">Parent</option>
+                  <option value="Coach">Coach</option>
+                </select>
+                {selectedUser.role === 'Coach' && editRole === 'Parent' && selectedUser.teamId && (
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">⚠️ Changing to Parent will remove coach status from their team.</p>
+                )}
+              </div>
+              
+              <div className="bg-slate-100 dark:bg-zinc-900 p-3 rounded-lg">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <span className="font-medium">Email:</span> {selectedUser.email}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  <span className="font-medium">UID:</span> {selectedUser.uid}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200 dark:border-zinc-800">
+              <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">Cancel</button>
+              <button onClick={handleEditUser} disabled={saving} className="px-6 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold disabled:opacity-50 shadow-lg shadow-orange-900/20 flex items-center gap-2">
+                {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Delete Confirmation */}
+      {isDeleteModalOpen && selectedUser && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm" onClick={() => setIsDeleteModalOpen(false)}>
+          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl w-full max-w-md border border-slate-200 dark:border-zinc-800 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Delete User</h2>
+                <p className="text-sm text-slate-500">This action cannot be undone</p>
+              </div>
+            </div>
+            
+            <p className="text-slate-600 dark:text-slate-400 mb-4">
+              Are you sure you want to permanently delete <span className="font-bold text-slate-900 dark:text-white">{selectedUser.name}</span>?
+            </p>
+            
+            {selectedUser.role === 'Coach' && selectedUser.teamId && (
+              <div className="mb-4 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900/50 text-yellow-800 dark:text-yellow-400 p-3 rounded-lg text-sm flex items-start gap-2">
+                <AlertTriangle className="w-5 h-5 shrink-0"/>
+                <p>This will also remove them as coach from {teamLookup[selectedUser.teamId] || selectedUser.teamId}.</p>
+              </div>
+            )}
+            
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200 dark:border-zinc-800">
+              <button type="button" onClick={() => setIsDeleteModalOpen(false)} className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">Cancel</button>
+              <button onClick={handleDeleteUser} disabled={saving} className="px-6 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold disabled:opacity-50 shadow-lg shadow-red-900/20 flex items-center gap-2">
+                {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Password Reset Confirmation */}
+      {isResetModalOpen && selectedUser && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm" onClick={() => setIsResetModalOpen(false)}>
+          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl w-full max-w-md border border-slate-200 dark:border-zinc-800 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-sky-100 dark:bg-sky-900/30 rounded-full flex items-center justify-center">
+                <Key className="w-6 h-6 text-sky-600 dark:text-sky-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Reset Password</h2>
+                <p className="text-sm text-slate-500">Send password reset email</p>
+              </div>
+            </div>
+            
+            <p className="text-slate-600 dark:text-slate-400 mb-4">
+              Send a password reset link to <span className="font-bold text-slate-900 dark:text-white">{selectedUser.email}</span>?
+            </p>
+            
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200 dark:border-zinc-800">
+              <button type="button" onClick={() => setIsResetModalOpen(false)} className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">Cancel</button>
+              <button onClick={handleResetPassword} disabled={saving} className="px-6 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold disabled:opacity-50 shadow-lg shadow-sky-900/20 flex items-center gap-2">
+                {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Key className="w-4 h-4" />}
+                Send Reset Link
+              </button>
             </div>
           </div>
         </div>
