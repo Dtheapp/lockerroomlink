@@ -760,15 +760,18 @@ const Roster: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Date of Birth</label>
-                <input 
-                  type="date"
-                  value={editingPlayer.dob}
-                  onChange={(e) => setEditingPlayer({...editingPlayer, dob: e.target.value})}
-                  className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
-                />
-              </div>
+              {/* PARENT-ONLY FIELD: Date of Birth */}
+              {isParent && (
+                <div>
+                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Date of Birth</label>
+                  <input 
+                    type="date"
+                    value={editingPlayer.dob}
+                    onChange={(e) => setEditingPlayer({...editingPlayer, dob: e.target.value})}
+                    className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                  />
+                </div>
+              )}
 
               {/* COACH-ONLY FIELDS: Jersey Number and Position */}
               {isStaff && (
