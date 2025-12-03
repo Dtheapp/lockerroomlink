@@ -49,9 +49,9 @@ const Layout: React.FC = () => {
       
       {/* MOBILE HEADER */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-900 flex items-center justify-between px-4 z-40 shadow-sm">
-          <div className="text-xl font-black tracking-tighter">
+          <NavLink to="/dashboard" className="text-xl font-black tracking-tighter hover:opacity-80 transition-opacity">
             <span className="text-orange-500">LOCKER</span><span className="text-zinc-900 dark:text-white">ROOM</span>
-          </div>
+          </NavLink>
           <button onClick={() => setIsSidebarOpen(true)} className="text-zinc-600 dark:text-zinc-300">
               <Menu className="w-8 h-8" />
           </button>
@@ -68,7 +68,7 @@ const Layout: React.FC = () => {
         
         <div className="flex items-center justify-between mb-8 h-10">
             {!isDesktopCollapsed && (
-                <div className="min-w-0">
+                <NavLink to="/dashboard" className="min-w-0 hover:opacity-80 transition-opacity">
                     {/* FIX: Split Logo Color Logic */}
                     <div className="text-xl font-black tracking-tighter truncate leading-none">
                         <span className="text-orange-500">LOCKER</span>
@@ -77,7 +77,13 @@ const Layout: React.FC = () => {
                     <p className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold truncate mt-1">
                         Digital Link
                     </p>
-                </div>
+                </NavLink>
+            )}
+            {isDesktopCollapsed && (
+                <NavLink to="/dashboard" className="mx-auto hover:opacity-80 transition-opacity" title="Go to Dashboard">
+                    <span className="text-xl font-black text-orange-500">L</span>
+                    <span className="text-xl font-black text-zinc-900 dark:text-white">R</span>
+                </NavLink>
             )}
             
             <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-zinc-500 hover:text-red-500">
