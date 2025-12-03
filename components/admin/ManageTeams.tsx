@@ -5,13 +5,20 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import type { Team, UserProfile } from '../../types';
-import { Plus, Trash2, Edit2, Users, FileText, MessageCircle, AlertTriangle, Search, X, Check } from 'lucide-react';
+import { Plus, Trash2, Edit2, Users, FileText, MessageCircle, AlertTriangle, Search, X, Check, UserX, UserCheck } from 'lucide-react';
 
 type ModalContent = 'roster' | 'posts' | 'chat';
+
+interface CoachOption {
+    id: string;
+    name: string;
+    currentTeamId?: string | null;
+}
 
 const ManageTeams: React.FC = () => {
     const [teams, setTeams] = useState<Team[]>([]);
     const [coachLookup, setCoachLookup] = useState<{[key: string]: string}>({});
+    const [availableCoaches, setAvailableCoaches] = useState<CoachOption[]>([]);
     const [loading, setLoading] = useState(true);
     
     // SEARCH STATE
@@ -30,7 +37,9 @@ const ManageTeams: React.FC = () => {
     const [newTeamName, setNewTeamName] = useState('');
     const [newTeamId, setNewTeamId] = useState('');
     const [editTeamName, setEditTeamName] = useState('');
+    const [editCoachId, setEditCoachId] = useState<string | null>(null);
     const [createError, setCreateError] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
 
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
     const [modalContent, setModalContent] = useState<ModalContent>('roster');
@@ -54,16 +63,23 @@ const ManageTeams: React.FC = () => {
         setTeams(teamsData);
       });
 
-      // 2. Fetch Coaches Lookup
+      // 2. Fetch Coaches Lookup and Available Coaches
       const fetchCoaches = async () => {
           const coachesQuery = query(collection(db, 'users'), where('role', '==', 'Coach'));
           const snapshot = await getDocs(coachesQuery);
           const lookup: {[key: string]: string} = {};
+          const coaches: CoachOption[] = [];
           snapshot.docs.forEach(docSnap => {
               const data = docSnap.data() as UserProfile;
               lookup[docSnap.id] = data.username || data.name;
+              coaches.push({
+                  id: docSnap.id,
+                  name: data.username || data.name,
+                  currentTeamId: data.teamId || null
+              });
           });
           setCoachLookup(lookup);
+          setAvailableCoaches(coaches);
           setLoading(false);
       };
       
@@ -128,10 +144,59 @@ const ManageTeams: React.FC = () => {
     const handleUpdateTeam = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedTeam || !editTeamName.trim()) return;
+        setIsSaving(true);
+        
         try {
-            await updateDoc(doc(db, 'teams', selectedTeam.id), { name: editTeamName });
-            setEditModalOpen(false); setSelectedTeam(null);
-        } catch (error) { console.error(error); alert("Failed to update."); }
+            const oldCoachId = selectedTeam.coachId;
+            const newCoachId = editCoachId;
+            
+            // Update team document
+            await updateDoc(doc(db, 'teams', selectedTeam.id), { 
+                name: editTeamName,
+                coachId: newCoachId 
+            });
+            
+            // If coach changed, update user documents
+            if (oldCoachId !== newCoachId) {
+                // Unlink old coach from this team
+                if (oldCoachId) {
+                    await updateDoc(doc(db, 'users', oldCoachId), { teamId: null });
+                }
+                
+                // Link new coach to this team (if not unassigning)
+                if (newCoachId) {
+                    // First, unlink new coach from their old team if they had one
+                    const newCoach = availableCoaches.find(c => c.id === newCoachId);
+                    if (newCoach?.currentTeamId && newCoach.currentTeamId !== selectedTeam.id) {
+                        // Update their old team to remove this coach
+                        await updateDoc(doc(db, 'teams', newCoach.currentTeamId), { coachId: null });
+                    }
+                    // Assign new coach to this team
+                    await updateDoc(doc(db, 'users', newCoachId), { teamId: selectedTeam.id });
+                }
+            }
+            
+            // Refresh coach list
+            const coachesQuery = query(collection(db, 'users'), where('role', '==', 'Coach'));
+            const snapshot = await getDocs(coachesQuery);
+            const coaches: CoachOption[] = [];
+            snapshot.docs.forEach(docSnap => {
+                const data = docSnap.data() as UserProfile;
+                coaches.push({
+                    id: docSnap.id,
+                    name: data.username || data.name,
+                    currentTeamId: data.teamId || null
+                });
+            });
+            setAvailableCoaches(coaches);
+            
+            setEditModalOpen(false); 
+            setSelectedTeam(null);
+        } catch (error) { 
+            console.error(error); 
+        } finally {
+            setIsSaving(false);
+        }
     }
     
     // --- CRITICAL DATA INTEGRITY FIX: Cascading Delete ---
@@ -185,7 +250,12 @@ const ManageTeams: React.FC = () => {
     };
     // --- END CRITICAL DATA INTEGRITY FIX ---
 
-    const openEditModal = (team: Team) => { setSelectedTeam(team); setEditTeamName(team.name); setEditModalOpen(true); }
+    const openEditModal = (team: Team) => { 
+        setSelectedTeam(team); 
+        setEditTeamName(team.name); 
+        setEditCoachId(team.coachId || null);
+        setEditModalOpen(true); 
+    }
     const openViewModal = (team: Team, contentType: ModalContent) => { setSelectedTeam(team); setModalContent(contentType); setViewModalOpen(true); }
     const openDeleteTeamModal = (team: Team) => { setSelectedTeam(team); setDeleteTeamModalOpen(true); }
     
@@ -415,17 +485,80 @@ const ManageTeams: React.FC = () => {
               </div>
           )}
 
-          {/* MODAL: Edit Team Name */}
+          {/* MODAL: Edit Team */}
           {isEditModalOpen && selectedTeam && (
               <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
               <div className="bg-white dark:bg-zinc-950 p-6 rounded-lg w-full max-w-md border border-slate-200 dark:border-zinc-700 shadow-2xl">
-                  <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">Edit Team Name</h2>
+                  <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">Edit Team</h2>
                   <form onSubmit={handleUpdateTeam} className="space-y-4">
-                      <input value={editTeamName} onChange={(e) => setEditTeamName(e.target.value)} className="w-full bg-slate-50 dark:bg-zinc-900 p-3 rounded border border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500" required />
-                      <p className="text-sm text-slate-600 dark:text-slate-400">Team ID ({selectedTeam.id}) cannot be changed.</p>
+                      {/* Team Name */}
+                      <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Team Name</label>
+                          <input 
+                              value={editTeamName} 
+                              onChange={(e) => setEditTeamName(e.target.value)} 
+                              className="w-full bg-slate-50 dark:bg-zinc-900 p-3 rounded border border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500" 
+                              required 
+                          />
+                      </div>
+                      
+                      {/* Team ID (Read-only) */}
+                      <p className="text-sm text-slate-500 dark:text-slate-500">Team ID: <span className="font-mono">{selectedTeam.id}</span> (cannot be changed)</p>
+                      
+                      {/* Coach Assignment */}
+                      <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Assigned Coach</label>
+                          <select
+                              value={editCoachId || ''}
+                              onChange={(e) => setEditCoachId(e.target.value || null)}
+                              className="w-full bg-slate-50 dark:bg-zinc-900 p-3 rounded border border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500"
+                          >
+                              <option value="">— No Coach (Unassigned) —</option>
+                              {availableCoaches.map(coach => (
+                                  <option key={coach.id} value={coach.id}>
+                                      {coach.name}
+                                      {coach.currentTeamId && coach.currentTeamId !== selectedTeam.id 
+                                          ? ` (currently on ${teams.find(t => t.id === coach.currentTeamId)?.name || coach.currentTeamId})` 
+                                          : coach.currentTeamId === selectedTeam.id 
+                                              ? ' (current)' 
+                                              : ''}
+                                  </option>
+                              ))}
+                          </select>
+                          {editCoachId !== selectedTeam.coachId && (
+                              <div className="mt-2 p-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800/50 rounded text-sm">
+                                  {!editCoachId ? (
+                                      <p className="text-orange-700 dark:text-orange-400 flex items-center gap-2">
+                                          <UserX className="w-4 h-4" /> Coach will be unassigned from this team
+                                      </p>
+                                  ) : (
+                                      <p className="text-orange-700 dark:text-orange-400 flex items-center gap-2">
+                                          <UserCheck className="w-4 h-4" /> 
+                                          {availableCoaches.find(c => c.id === editCoachId)?.currentTeamId 
+                                              ? `Coach will be reassigned from ${teams.find(t => t.id === availableCoaches.find(c => c.id === editCoachId)?.currentTeamId)?.name || 'another team'}` 
+                                              : 'Coach will be assigned to this team'}
+                                      </p>
+                                  )}
+                              </div>
+                          )}
+                      </div>
+                      
                       <div className="flex justify-end gap-4 mt-6 pt-4 border-t border-slate-200 dark:border-zinc-800">
-                          <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">Cancel</button>
-                          <button type="submit" className="px-6 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold shadow-lg shadow-orange-900/20">Save</button>
+                          <button 
+                              type="button" 
+                              onClick={() => setEditModalOpen(false)} 
+                              disabled={isSaving}
+                              className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                          >
+                              Cancel
+                          </button>
+                          <button 
+                              type="submit" 
+                              disabled={isSaving}
+                              className="px-6 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold shadow-lg shadow-orange-900/20 disabled:opacity-50 flex items-center gap-2"
+                          >
+                              {isSaving ? 'Saving...' : <><Check className="w-4 h-4" /> Save Changes</>}
+                          </button>
                       </div>
                   </form>
               </div>
