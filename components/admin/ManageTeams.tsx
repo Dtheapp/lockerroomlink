@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
     collection, onSnapshot, setDoc, doc, deleteDoc, updateDoc, 
-    query, orderBy, getDoc, getDocs, where, writeBatch, limit // <--- CORRECTED IMPORT
+    query, orderBy, getDoc, getDocs, where, writeBatch, limit, addDoc, serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
+import { useAuth } from '../../contexts/AuthContext';
 import type { Team, UserProfile } from '../../types';
 import { Plus, Trash2, Edit2, Users, FileText, MessageCircle, AlertTriangle, Search, X, Check, UserX, UserCheck } from 'lucide-react';
 
@@ -16,6 +17,7 @@ interface CoachOption {
 }
 
 const ManageTeams: React.FC = () => {
+    const { userData } = useAuth();
     const [teams, setTeams] = useState<Team[]>([]);
     const [coachLookup, setCoachLookup] = useState<{[key: string]: string}>({});
     const [availableCoaches, setAvailableCoaches] = useState<CoachOption[]>([]);
@@ -48,14 +50,31 @@ const ManageTeams: React.FC = () => {
     
     // FILTERED TEAMS
     const filteredTeams = teams.filter(team => {
-        const query = searchQuery.toLowerCase();
+        const q = searchQuery.toLowerCase();
         const coachName = team.coachId ? (coachLookup[team.coachId] || '').toLowerCase() : '';
         return (
-            team.name.toLowerCase().includes(query) ||
-            team.id.toLowerCase().includes(query) ||
-            coachName.includes(query)
+            team.name.toLowerCase().includes(q) ||
+            team.id.toLowerCase().includes(q) ||
+            coachName.includes(q)
         );
     });
+
+    // ACTIVITY LOGGING FUNCTION
+    const logActivity = async (action: string, targetType: string, targetId: string, details?: string) => {
+        try {
+            await addDoc(collection(db, 'adminActivityLog'), {
+                action,
+                targetType,
+                targetId,
+                details: details || '',
+                performedBy: userData?.uid || 'unknown',
+                performedByName: userData?.name || userData?.email || 'Unknown Admin',
+                timestamp: serverTimestamp()
+            });
+        } catch (error) {
+            console.error('Failed to log activity:', error);
+        }
+    };
 
     useEffect(() => {
       // 1. Fetch Teams List
@@ -167,6 +186,9 @@ const ManageTeams: React.FC = () => {
             record: { wins: 0, losses: 0, ties: 0 } // Initialize record
         });
         
+        // Log activity
+        await logActivity('CREATE', 'team', cleanId, `Created team "${newTeamName}"`);
+        
         setNewTeamName(''); setNewTeamId(''); setCreateModalOpen(false);
       } catch (error) { console.error(error); setCreateError("Failed to create team."); }
     };
@@ -220,6 +242,18 @@ const ManageTeams: React.FC = () => {
             });
             setAvailableCoaches(coaches);
             
+            // Log activity
+            const changes: string[] = [];
+            if (editTeamName !== selectedTeam.name) changes.push(`renamed to "${editTeamName}"`);
+            if (oldCoachId !== newCoachId) {
+                if (!newCoachId) changes.push('coach unassigned');
+                else if (!oldCoachId) changes.push(`coach assigned: ${coachLookup[newCoachId] || newCoachId}`);
+                else changes.push(`coach changed from ${coachLookup[oldCoachId] || oldCoachId} to ${coachLookup[newCoachId] || newCoachId}`);
+            }
+            if (changes.length > 0) {
+                await logActivity('UPDATE', 'team', selectedTeam.id, `Updated team "${selectedTeam.name}": ${changes.join(', ')}`);
+            }
+            
             setEditModalOpen(false); 
             setSelectedTeam(null);
         } catch (error) { 
@@ -269,6 +303,9 @@ const ManageTeams: React.FC = () => {
             // 3. Delete the main team document
             await deleteDoc(doc(db, 'teams', teamId));
             
+            // Log activity
+            await logActivity('DELETE', 'team', teamId, `Deleted team "${selectedTeam.name}" (unlinked ${usersSnapshot.size} users, deleted subcollections)`);
+            
             setDeleteTeamModalOpen(false);
             setSelectedTeam(null);
 
@@ -294,8 +331,16 @@ const ManageTeams: React.FC = () => {
         setIsDeleting(true);
         try {
             const col = modalContent === 'roster' ? 'players' : modalContent === 'posts' ? 'bulletin' : modalContent === 'chat' ? 'messages' : '';
+            const itemType = modalContent === 'roster' ? 'player' : modalContent === 'posts' ? 'post' : 'message';
             if (col) {
+                // Get item details before deleting for logging
+                const itemData = modalData.find(item => item.id === itemToDelete);
+                const itemName = itemData?.name || itemData?.text?.substring(0, 50) || itemToDelete;
+                
                 await deleteDoc(doc(db, 'teams', selectedTeam.id, col, itemToDelete));
+                
+                // Log activity
+                await logActivity('DELETE', itemType, itemToDelete, `Deleted ${itemType} "${itemName}" from team "${selectedTeam.name}"`);
             }
             setDeleteItemModalOpen(false);
             setItemToDelete(null);
