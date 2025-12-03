@@ -186,6 +186,7 @@ const Playbook: React.FC = () => {
 
   const startDrag = (e: React.MouseEvent | React.TouchEvent, type: 'element' | 'route_point', id: string, index?: number) => {
       e.stopPropagation();
+      e.preventDefault(); // Prevent browser gestures
       // SECURITY: PREVENT DRAGGING IN READ-ONLY MODE
       if (isReadOnly) return;
 
@@ -204,6 +205,8 @@ const Playbook: React.FC = () => {
   const handleMove = (e: React.MouseEvent | React.TouchEvent) => {
       if (!isDragging || !canvasRef.current || !dragTarget) return;
       if (isReadOnly) return; // Extra safety check
+      
+      e.preventDefault(); // Prevent scrolling while dragging
       
       const { x, y } = getPointerPos(e);
 
@@ -246,8 +249,33 @@ const Playbook: React.FC = () => {
   const loadPlay = (play: Play) => {
       setPlayName(play.name);
       setCategory(play.category);
-      setElements(play.elements || []);
-      setRoutes(play.routes || []); 
+      
+      // Normalize coordinates - if any value > 100, it's likely pixels from old saves
+      // Convert to percentages assuming old canvas was ~600x400
+      const normalizeCoord = (val: number, max: number = 100) => {
+        if (val > 100) {
+          // Old pixel value - normalize to percentage (assume 600px width, 400px height)
+          return Math.min(100, Math.max(0, (val / 6))); // rough conversion
+        }
+        return Math.min(100, Math.max(0, val));
+      };
+      
+      const normalizedElements = (play.elements || []).map(el => ({
+        ...el,
+        x: normalizeCoord(el.x),
+        y: normalizeCoord(el.y)
+      }));
+      
+      const normalizedRoutes = (play.routes || []).map(route => ({
+        ...route,
+        points: route.points.map(pt => ({
+          x: normalizeCoord(pt.x),
+          y: normalizeCoord(pt.y)
+        }))
+      }));
+      
+      setElements(normalizedElements);
+      setRoutes(normalizedRoutes);
       setSelectedPlayId(play.id);
       setActiveTab('editor');
   };
@@ -302,7 +330,19 @@ const Playbook: React.FC = () => {
 
     {/* FULLSCREEN MODE */}
     {isFullscreen ? (
-      <div className="fixed inset-0 z-50 bg-slate-950">
+      <div 
+        className="fixed inset-0 z-50 bg-slate-950"
+        // Prevent all touch gestures on the container
+        onTouchMove={(e) => e.preventDefault()}
+        style={{ touchAction: 'none' }}
+      >
+        {/* Landscape Mode Indicator - shows briefly */}
+        {isMobileOrTablet && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 bg-emerald-600/90 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-2 animate-pulse pointer-events-none">
+            <span>📱</span> Drawing Mode Active
+          </div>
+        )}
+        
         {/* Minimal Header */}
         <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-30 pointer-events-none">
           <h2 className="text-white font-bold text-lg bg-slate-900/80 backdrop-blur-sm px-4 py-2 rounded-lg pointer-events-auto">{playName}</h2>
