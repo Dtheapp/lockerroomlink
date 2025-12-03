@@ -17,10 +17,10 @@ const Chat: React.FC = () => {
     const messagesCollection = collection(db, 'teams', teamData.id, 'messages');
     
     // OPTIMIZATION: Only load the last 50 messages to save data/memory
-    const q = query(messagesCollection, orderBy('timestamp'), limitToLast(50));
+    const messagesQuery = query(messagesCollection, orderBy('timestamp'), limitToLast(50));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const messagesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+    const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+      const messagesData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Message));
       setMessages(messagesData);
     }, (error) => {
         console.error("Error loading chat:", error);

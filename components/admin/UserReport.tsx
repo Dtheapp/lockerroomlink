@@ -15,25 +15,23 @@ const UserReport: React.FC = () => {
   const [sortKey, setSortKey] = useState<SortKey>('role');
   const [sortDirection, setSortDirection] = useState<SortOrder>('asc');
 
-  // --- SCALABILITY WARNING: Data is still loaded entirely client-side for simplicity ---
-  useEffect(() => {
-    // We query all users and handle the SuperAdmin filter client-side, 
+  // --- SCALABILITY WARNING: Data is still loaded entirely client-side for simplicity ---
+  useEffect(() => {
+    // We query all users and handle the SuperAdmin filter client-side, 
     // as true server-side reporting pagination requires architectural changes.
-    const q = query(collection(db, 'users')); 
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const usersData = snapshot.docs
-        .map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile))
-        .filter(user => user.role !== 'SuperAdmin');
-      
-      setUsers(usersData);
-      setLoading(false);
-    });
+    const usersQuery = query(collection(db, 'users')); 
+    
+    const unsubscribe = onSnapshot(usersQuery, (snapshot) => {
+      const usersData = snapshot.docs
+        .map(docSnap => ({ uid: docSnap.id, ...docSnap.data() } as UserProfile))
+        .filter(user => user.role !== 'SuperAdmin');
+      
+      setUsers(usersData);
+      setLoading(false);
+    });
 
-    return () => unsubscribe();
-  }, []);
-
-  const coachCount = users.filter(u => u.role === 'Coach').length;
+    return () => unsubscribe();
+  }, []);  const coachCount = users.filter(u => u.role === 'Coach').length;
   const parentCount = users.filter(u => u.role === 'Parent').length;
 
   const filteredUsers = users.filter(user => {

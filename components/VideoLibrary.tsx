@@ -18,9 +18,9 @@ const VideoLibrary: React.FC = () => {
 
   useEffect(() => {
     if (!teamData?.id) return;
-    const q = query(collection(db, 'teams', teamData.id, 'videos'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const videoData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Video));
+    const videosQuery = query(collection(db, 'teams', teamData.id, 'videos'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(videosQuery, (snapshot) => {
+      const videoData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Video));
       setVideos(videoData);
       setLoading(false);
     });

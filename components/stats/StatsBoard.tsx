@@ -19,13 +19,13 @@ const StatsBoard: React.FC = () => {
     setLoading(true);
 
     // Fetch raw data; sorting is handled client-side
-    const q = query(
+    const statsQuery = query(
       collection(db, 'teams', teamData.id, 'playerStats'),
       orderBy('tds', 'desc') // Default initial sort for Firebase
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const stats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerStats));
+    const unsubscribe = onSnapshot(statsQuery, (snapshot) => {
+      const stats = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as PlayerStats));
       setPlayerStats(stats);
       setLoading(false);
     });

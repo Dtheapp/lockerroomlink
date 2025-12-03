@@ -52,8 +52,8 @@ const AuthScreen: React.FC = () => {
           throw new Error('Username can only contain letters and numbers.');
       }
       const clean = u.trim().toLowerCase();
-      const q = query(collection(db, 'users'), where('username', '==', clean));
-      const querySnapshot = await getDocs(q);
+      const usernameQuery = query(collection(db, 'users'), where('username', '==', clean));
+      const querySnapshot = await getDocs(usernameQuery);
       if (!querySnapshot.empty) {
           throw new Error(`The Username "${clean}" is already taken.`);
       }
@@ -114,8 +114,8 @@ const AuthScreen: React.FC = () => {
             // --- SIGN IN LOGIC ---
             
             // PRE-FLIGHT CHECK: Verify Role BEFORE Logging In to prevent "Flash"
-            const q = query(collection(db, 'users'), where('email', '==', email));
-            const querySnapshot = await getDocs(q);
+            const emailQuery = query(collection(db, 'users'), where('email', '==', email));
+            const querySnapshot = await getDocs(emailQuery);
 
             if (!querySnapshot.empty) {
                 const userDoc = querySnapshot.docs[0].data();

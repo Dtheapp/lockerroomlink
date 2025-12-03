@@ -39,12 +39,12 @@ const Stats: React.FC = () => {
   useEffect(() => {
     if (userData?.role === 'SuperAdmin' && selectedTeamId) {
       setLoading(true);
-      const q = query(
+      const statsQuery = query(
         collection(db, 'teams', selectedTeamId, 'playerStats')
         // We fetch raw data, sorting is handled client-side for better UX
       );
-      const unsub = onSnapshot(q, (snapshot) => {
-        const stats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerStats));
+      const unsub = onSnapshot(statsQuery, (snapshot) => {
+        const stats = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as PlayerStats));
         setPlayerStats(stats);
         setLoading(false);
       });

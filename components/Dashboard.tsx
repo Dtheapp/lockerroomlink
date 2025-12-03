@@ -52,10 +52,10 @@ const Dashboard: React.FC = () => {
     if (!teamData?.id) return;
     setLoading(true);
     const postsCollection = collection(db, 'teams', teamData.id, 'bulletin');
-    const q = query(postsCollection, orderBy('timestamp', 'desc'));
+    const postsQuery = query(postsCollection, orderBy('timestamp', 'desc'));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const postsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BulletinPost));
+    const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
+      const postsData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as BulletinPost));
       setPosts(postsData);
       setLoading(false);
     }, (error) => { console.error("Error fetching posts:", error); setLoading(false); });
@@ -66,10 +66,10 @@ const Dashboard: React.FC = () => {
     if (!teamData?.id) return;
     setStatsLoading(true);
     const statsCollection = collection(db, 'teams', teamData.id, 'playerStats');
-    const q = query(statsCollection, orderBy('tds', 'desc'));
+    const statsQuery = query(statsCollection, orderBy('tds', 'desc'));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const statsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerStats));
+    const unsubscribe = onSnapshot(statsQuery, (snapshot) => {
+      const statsData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as PlayerStats));
       setPlayerStats(statsData);
       setStatsLoading(false);
     }, (error) => { console.error("Error fetching stats:", error); setStatsLoading(false); });
@@ -80,10 +80,10 @@ const Dashboard: React.FC = () => {
     if (!teamData?.id) return;
     setEventsLoading(true);
     const eventsCollection = collection(db, 'teams', teamData.id, 'events');
-    const q = query(eventsCollection, orderBy('date', 'asc'));
+    const eventsQuery = query(eventsCollection, orderBy('date', 'asc'));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const eventsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TeamEvent));
+    const unsubscribe = onSnapshot(eventsQuery, (snapshot) => {
+      const eventsData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as TeamEvent));
       setTeamEvents(eventsData);
       setEventsLoading(false);
     }, (error) => { console.error("Error fetching events:", error); setEventsLoading(false); });

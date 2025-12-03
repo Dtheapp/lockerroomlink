@@ -14,13 +14,13 @@ const EventAnnouncements: React.FC = () => {
     if (!teamData?.id) return;
     setLoading(true);
 
-    const q = query(
+    const eventsQuery = query(
       collection(db, 'teams', teamData.id, 'events'),
       orderBy('date', 'asc')
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const eventsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TeamEvent));
+    const unsubscribe = onSnapshot(eventsQuery, (snapshot) => {
+      const eventsData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as TeamEvent));
       setEvents(eventsData);
       setLoading(false);
     });

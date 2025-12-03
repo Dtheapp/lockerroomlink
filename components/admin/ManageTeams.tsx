@@ -32,18 +32,18 @@ const ManageTeams: React.FC = () => {
     useEffect(() => {
       // 1. Fetch Teams List
       const teamsUnsub = onSnapshot(collection(db, 'teams'), (snapshot) => {
-        const teamsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
+        const teamsData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Team));
         setTeams(teamsData);
       });
 
       // 2. Fetch Coaches Lookup
       const fetchCoaches = async () => {
-          const q = query(collection(db, 'users'), where('role', '==', 'Coach'));
-          const snapshot = await getDocs(q);
+          const coachesQuery = query(collection(db, 'users'), where('role', '==', 'Coach'));
+          const snapshot = await getDocs(coachesQuery);
           const lookup: {[key: string]: string} = {};
-          snapshot.docs.forEach(doc => {
-              const data = doc.data() as UserProfile;
-              lookup[doc.id] = data.username || data.name;
+          snapshot.docs.forEach(docSnap => {
+              const data = docSnap.data() as UserProfile;
+              lookup[docSnap.id] = data.username || data.name;
           });
           setCoachLookup(lookup);
           setLoading(false);
@@ -64,14 +64,14 @@ const ManageTeams: React.FC = () => {
       const subCol = modalContent === 'roster' ? 'players' : modalContent === 'posts' ? 'bulletin' : 'messages';
       
       // OPTIMIZATION: Limit chat/posts data for viewing performance
-      const q = query(
+      const contentQuery = query(
         collection(db, 'teams', selectedTeam.id, subCol), 
         orderBy(subCol === 'messages' ? 'timestamp' : subCol === 'bulletin' ? 'timestamp' : 'number', subCol === 'messages' || subCol === 'bulletin' ? 'desc' : 'asc'), 
         subCol === 'messages' || subCol === 'bulletin' ? limit(50) : undefined // Limit to 50 for performance
       );
       
-      unsub = onSnapshot(q, (snapshot) => {
-          setModalData(snapshot.docs.map(d => ({id: d.id, ...d.data()})));
+      unsub = onSnapshot(contentQuery, (snapshot) => {
+          setModalData(snapshot.docs.map(docSnap => ({id: docSnap.id, ...docSnap.data()})));
       }, (error) => {
           console.error(`Error fetching ${subCol} data:`, error);
           setModalData([]);

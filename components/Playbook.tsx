@@ -49,9 +49,9 @@ const Playbook: React.FC = () => {
 
   useEffect(() => {
     if (!teamData?.id) return;
-    const q = query(collection(db, 'teams', teamData.id, 'plays'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const playsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Play));
+    const playsQuery = query(collection(db, 'teams', teamData.id, 'plays'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(playsQuery, (snapshot) => {
+      const playsData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Play));
       setSavedPlays(playsData);
     });
     return () => unsubscribe();

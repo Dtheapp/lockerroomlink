@@ -69,9 +69,9 @@ const Roster: React.FC = () => {
     
     setLoading(true);
 
-    const q = query(collection(db, 'teams', teamData.id, 'players'), orderBy('number'));
-    const unsubRoster = onSnapshot(q, (snapshot) => {
-      const playersData = snapshot.docs.map(doc => ({ id: doc.id, teamId: teamData.id, ...doc.data() } as Player));
+    const rosterQuery = query(collection(db, 'teams', teamData.id, 'players'), orderBy('number'));
+    const unsubRoster = onSnapshot(rosterQuery, (snapshot) => {
+      const playersData = snapshot.docs.map(docSnap => ({ id: docSnap.id, teamId: teamData.id, ...docSnap.data() } as Player));
       setRoster(playersData);
       setLoading(false);
     });

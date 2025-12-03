@@ -21,9 +21,9 @@ const Messenger: React.FC = () => {
   // 1. LOAD CHATS
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'private_chats'), where('participants', 'array-contains', user.uid), orderBy('updatedAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        setChats(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as PrivateChat)));
+    const chatsQuery = query(collection(db, 'private_chats'), where('participants', 'array-contains', user.uid), orderBy('updatedAt', 'desc'));
+    const unsubscribe = onSnapshot(chatsQuery, (snapshot) => {
+        setChats(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as PrivateChat)));
     });
     return () => unsubscribe();
   }, [user]);
@@ -32,10 +32,10 @@ const Messenger: React.FC = () => {
   useEffect(() => {
       if (!activeChat) return;
       // FIX: Added limitToLast(50) to prevent loading thousands of old messages
-      const q = query(collection(db, 'private_chats', activeChat.id, 'messages'), orderBy('timestamp', 'asc'), limitToLast(50));
+      const messagesQuery = query(collection(db, 'private_chats', activeChat.id, 'messages'), orderBy('timestamp', 'asc'), limitToLast(50));
       
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-          setMessages(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as PrivateMessage)));
+      const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+          setMessages(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as PrivateMessage)));
           setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       });
       return () => unsubscribe();
@@ -48,11 +48,11 @@ const Messenger: React.FC = () => {
       // Prevents parents from seeing strangers from other teams and prevents downloading the whole DB.
       if (!teamData?.id) return;
 
-      const q = query(collection(db, 'users'), where('teamId', '==', teamData.id));
+      const usersQuery = query(collection(db, 'users'), where('teamId', '==', teamData.id));
       
       try {
-        const snap = await getDocs(q);
-        const users = snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
+        const snap = await getDocs(usersQuery);
+        const users = snap.docs.map(docSnap => ({ uid: docSnap.id, ...docSnap.data() } as UserProfile));
         setAllUsers(users.filter(u => u.uid !== user?.uid));
       } catch (error) {
         console.error("Error loading teammates:", error);
