@@ -10,7 +10,7 @@ import { BarChart3, Users, TrendingUp, ArrowUpDown, ChevronDown, ChevronUp } fro
 type SortField = keyof PlayerStats;
 
 const Stats: React.FC = () => {
-  const { userData, teamData, players } = useAuth();
+  const { userData, teamData, players, loading: authLoading } = useAuth();
   const [teams, setTeams] = useState<Team[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
   const [playerStats, setPlayerStats] = useState<PlayerStats[]>([]);
@@ -91,7 +91,12 @@ const Stats: React.FC = () => {
       {/* Parent View: Read-only Stats */}
       {userData?.role === 'Parent' && (
         <section>
-          {!teamData || !players || players.length === 0 ? (
+          {authLoading ? (
+            <div className="bg-slate-50 dark:bg-zinc-950 rounded-xl p-12 text-center border border-slate-200 dark:border-zinc-800">
+              <div className="w-12 h-12 border-4 border-dashed rounded-full animate-spin border-orange-500 mx-auto mb-4"></div>
+              <p className="text-slate-600 dark:text-slate-400">Loading team data...</p>
+            </div>
+          ) : !teamData || !players || players.length === 0 ? (
             <div className="bg-slate-50 dark:bg-zinc-950 rounded-xl p-12 text-center border border-slate-200 dark:border-zinc-800">
               <BarChart3 className="w-16 h-16 text-slate-300 dark:text-zinc-700 mx-auto mb-4" />
               <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">No Team Stats Available</h3>
@@ -103,9 +108,9 @@ const Stats: React.FC = () => {
                 Go to Roster
               </a>
             </div>
-          ) : teamData ? (
+          ) : (
             <StatsBoard />
-          ) : null}
+          )}
         </section>
       )}
 
