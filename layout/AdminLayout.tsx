@@ -116,7 +116,7 @@ const AdminLayout: React.FC = () => {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1">
+        <nav className="flex-1 space-y-1 overflow-y-auto min-h-0">
           {adminNavItems.map((item) => (
             <NavLink
               key={item.name}
@@ -131,7 +131,7 @@ const AdminLayout: React.FC = () => {
           ))}
         </nav>
 
-        <div className="border-t border-zinc-200 dark:border-zinc-900 pt-4 mt-auto space-y-2">
+        <div className="border-t border-zinc-200 dark:border-zinc-900 pt-4 mt-auto flex-shrink-0 space-y-2">
           <button
             onClick={toggleTheme}
             className={`${navLinkClasses} ${inactiveClasses} w-full justify-start`}
