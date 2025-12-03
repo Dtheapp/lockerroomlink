@@ -112,30 +112,39 @@ const AuthScreen: React.FC = () => {
 
         } else {
             // --- SIGN IN LOGIC ---
+            // Sign in first, then verify role after authentication
+            await signInWithEmailAndPassword(auth, email, password);
             
-            // PRE-FLIGHT CHECK: Verify Role BEFORE Logging In to prevent "Flash"
-            const emailQuery = query(collection(db, 'users'), where('email', '==', email));
-            const querySnapshot = await getDocs(emailQuery);
-
-            if (!querySnapshot.empty) {
-                const userDoc = querySnapshot.docs[0].data();
-                const actualRole = userDoc.role;
-                const targetRole = mode === 'Admin' ? 'SuperAdmin' : mode; // Map Admin UI to SuperAdmin role
-
-                // Allow 'SuperAdmin' to login via Admin tab, others strictly checked
-                if (actualRole) {
-                    if (mode === 'Admin') {
-                         if (actualRole !== 'SuperAdmin' && actualRole !== 'Admin') {
-                             throw new Error(`This account is not an Admin. Please use the ${actualRole} tab.`);
-                         }
-                    } else if (actualRole !== targetRole) {
-                        throw new Error(`This account is registered as a ${actualRole}. Please select the correct access tab.`);
+            // POST-LOGIN: Verify role matches selected tab
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+                const userDocRef = doc(db, 'users', currentUser.uid);
+                const userDocSnap = await getDoc(userDocRef);
+                
+                if (userDocSnap.exists()) {
+                    const userData = userDocSnap.data();
+                    const actualRole = userData.role;
+                    const targetRole = mode === 'Admin' ? 'SuperAdmin' : mode;
+                    
+                    // Check role mismatch
+                    if (actualRole) {
+                        let roleMismatch = false;
+                        if (mode === 'Admin') {
+                            if (actualRole !== 'SuperAdmin' && actualRole !== 'Admin') {
+                                roleMismatch = true;
+                            }
+                        } else if (actualRole !== targetRole) {
+                            roleMismatch = true;
+                        }
+                        
+                        if (roleMismatch) {
+                            // Sign out and show error
+                            await auth.signOut();
+                            throw new Error(`This account is registered as a ${actualRole}. Please select the correct access tab.`);
+                        }
                     }
                 }
             }
-
-            // If Pre-Flight passes (or user not found in DB yet), try to Sign In
-            await signInWithEmailAndPassword(auth, email, password);
         }
 
     } catch (err: any) {
