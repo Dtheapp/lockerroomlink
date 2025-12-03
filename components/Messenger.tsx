@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc, limitToLast } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { sanitizeText } from '../services/sanitize';
+import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, Send, MessageSquare } from 'lucide-react';
+import { Search, Send, MessageSquare, AlertCircle } from 'lucide-react';
 import type { PrivateChat, PrivateMessage, UserProfile } from '../types';
 
 const Messenger: React.FC = () => {
@@ -18,6 +20,7 @@ const Messenger: React.FC = () => {
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [sending, setSending] = useState(false);
+  const [rateLimitError, setRateLimitError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // 1. LOAD CHATS
@@ -107,8 +110,23 @@ const Messenger: React.FC = () => {
   const sendMessage = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!newMessage.trim() || !activeChat || !user || sending) return;
-      const text = newMessage; setNewMessage('');
+      
+      // Rate limit check
+      const rateLimitKey = `pm:${user.uid}`;
+      const rateLimitResult = checkRateLimit(rateLimitKey, RATE_LIMITS.PRIVATE_MESSAGE);
+      
+      if (!rateLimitResult.allowed) {
+        const seconds = Math.ceil(rateLimitResult.retryAfterMs / 1000);
+        setRateLimitError(`Please wait ${seconds}s before sending another message.`);
+        setTimeout(() => setRateLimitError(null), 3000);
+        return;
+      }
+      
+      // SECURITY: Sanitize message before storing
+      const text = sanitizeText(newMessage, 2000); 
+      setNewMessage('');
       setSending(true);
+      setRateLimitError(null);
       try {
           await addDoc(collection(db, 'private_chats', activeChat.id, 'messages'), { text, senderId: user.uid, timestamp: serverTimestamp() });
           await updateDoc(doc(db, 'private_chats', activeChat.id), { lastMessage: text, updatedAt: serverTimestamp(), lastMessageTime: serverTimestamp() });
@@ -218,6 +236,14 @@ const Messenger: React.FC = () => {
                     })}
                     <div ref={scrollRef} />
                 </div>
+
+                {/* Rate limit warning */}
+                {rateLimitError && (
+                  <div className="px-4 py-2 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm bg-amber-50 dark:bg-amber-900/20 border-t border-amber-200 dark:border-amber-900/30">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    {rateLimitError}
+                  </div>
+                )}
 
                 <form onSubmit={sendMessage} className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex gap-2">
                     <input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Type a message..." className="flex-1 bg-zinc-100 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-full px-4 py-2 text-zinc-900 dark:text-white focus:outline-none focus:border-orange-500 transition-colors"/>

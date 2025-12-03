@@ -2,7 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info } from 'lucide-react';
+import { sanitizeText } from '../services/sanitize';
+import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
+import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle } from 'lucide-react';
 import type { BulletinPost, PlayerStats, TeamEvent } from '../types';
 import PlayerSelector from './PlayerSelector';
 
@@ -37,6 +39,9 @@ const Dashboard: React.FC = () => {
   // Loading states for async operations
   const [addingPost, setAddingPost] = useState(false);
   const [addingEvent, setAddingEvent] = useState(false);
+  
+  // Rate limit error state
+  const [rateLimitError, setRateLimitError] = useState<string | null>(null);
 
   // --- OPTIMIZED STATS CALCULATION (PERFORMANCE FIX) ---
   // Calculates leaders only when playerStats data changes, not on every render
@@ -101,10 +106,27 @@ const Dashboard: React.FC = () => {
   const handleAddPost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPost.trim() || !teamData?.id || !userData?.name || addingPost) return;
+    
+    // Rate limit check
+    const rateLimitKey = `bulletin:${userData.uid}`;
+    const rateLimitResult = checkRateLimit(rateLimitKey, RATE_LIMITS.BULLETIN_POST);
+    
+    if (!rateLimitResult.allowed) {
+      const seconds = Math.ceil(rateLimitResult.retryAfterMs / 1000);
+      setRateLimitError(`Please wait ${seconds}s before posting again.`);
+      setTimeout(() => setRateLimitError(null), 4000);
+      return;
+    }
+    
     setAddingPost(true);
+    setRateLimitError(null);
     try {
+      // SECURITY: Sanitize bulletin post before storing
       await addDoc(collection(db, 'teams', teamData.id, 'bulletin'), {
-        text: newPost, author: userData.name, authorId: userData.uid, timestamp: serverTimestamp(),
+        text: sanitizeText(newPost, 2000), 
+        author: sanitizeText(userData.name, 100), 
+        authorId: userData.uid, 
+        timestamp: serverTimestamp(),
       });
       setNewPost('');
     } catch (error) { console.error("Error adding post:", error); }
@@ -114,7 +136,8 @@ const Dashboard: React.FC = () => {
   const handleEditPost = async (postId: string) => {
     if (!editingPostText.trim() || !teamData?.id) return;
     try {
-      await updateDoc(doc(db, 'teams', teamData.id, 'bulletin', postId), { text: editingPostText });
+      // SECURITY: Sanitize edited post
+      await updateDoc(doc(db, 'teams', teamData.id, 'bulletin', postId), { text: sanitizeText(editingPostText, 2000) });
       setEditingPostId(null); setEditingPostText('');
     } catch (error) { console.error("Error updating post:", error); }
   };
@@ -127,9 +150,14 @@ const Dashboard: React.FC = () => {
   const handleEditEvent = async (eventId: string) => {
     if (!teamData?.id || !editingEvent.title?.trim()) return;
     try {
+      // SECURITY: Sanitize event data
       await updateDoc(doc(db, 'teams', teamData.id, 'events', eventId), {
-        title: editingEvent.title, date: editingEvent.date, time: editingEvent.time,
-        location: editingEvent.location, description: editingEvent.description, type: editingEvent.type,
+        title: sanitizeText(editingEvent.title || '', 200), 
+        date: editingEvent.date, 
+        time: editingEvent.time,
+        location: sanitizeText(editingEvent.location || '', 200), 
+        description: sanitizeText(editingEvent.description || '', 1000), 
+        type: editingEvent.type,
       });
       setEditingEventId(null); setEditingEvent({});
     } catch (error) { console.error("Error updating event:", error); }
@@ -145,9 +173,19 @@ const Dashboard: React.FC = () => {
     if (!newEvent.title?.trim() || !newEvent.date || !teamData?.id || !userData?.uid || addingEvent) return;
     setAddingEvent(true);
     try {
-      await addDoc(collection(db, 'teams', teamData.id, 'events'), {
-        ...newEvent, createdAt: serverTimestamp(), createdBy: userData.uid, updatedAt: serverTimestamp(),
-      });
+      // SECURITY: Sanitize new event data
+      const sanitizedEvent = {
+        title: sanitizeText(newEvent.title || '', 200),
+        date: newEvent.date,
+        time: newEvent.time,
+        location: sanitizeText(newEvent.location || '', 200),
+        description: sanitizeText(newEvent.description || '', 1000),
+        type: newEvent.type,
+        createdAt: serverTimestamp(), 
+        createdBy: userData.uid, 
+        updatedAt: serverTimestamp(),
+      };
+      await addDoc(collection(db, 'teams', teamData.id, 'events'), sanitizedEvent);
       setNewEvent({ title: '', date: '', time: '', location: '', description: '', type: 'Practice' });
       setShowNewEventForm(false);
     } catch (error) { console.error("Error adding event:", error); }
@@ -422,6 +460,13 @@ const Dashboard: React.FC = () => {
                   Bulletin Board
               </h2>
               {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
+                <>
+                {rateLimitError && (
+                  <div className="mb-4 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg border border-amber-200 dark:border-amber-900/30">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    {rateLimitError}
+                  </div>
+                )}
                 <form onSubmit={handleAddPost} className="mb-6 flex items-center gap-4">
                   <input type="text" value={newPost} onChange={(e) => setNewPost(e.target.value)} placeholder="Post an announcement..." className="flex-1 bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-lg p-3 text-zinc-900 dark:text-white focus:border-orange-500 outline-none" />
                   <button type="submit" aria-label="Post announcement" className="bg-orange-600 hover:bg-orange-500 text-white p-3 rounded-lg transition-colors disabled:opacity-50" disabled={!newPost.trim() || addingPost}>
@@ -432,6 +477,7 @@ const Dashboard: React.FC = () => {
                     )}
                   </button>
                 </form>
+                </>
               )}
               <div className="space-y-4 max-h-80 overflow-y-auto custom-scrollbar">
                 {loading ? <p className="text-zinc-500">Loading...</p> : posts.length > 0 ? posts.map(post => (

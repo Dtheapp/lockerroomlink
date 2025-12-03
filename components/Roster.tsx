@@ -1,9 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc, getDocs, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { sanitizeText, sanitizeNumber, sanitizeDate } from '../services/sanitize';
 import type { Player, UserProfile, Team } from '../types';
-import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link, User, X, Edit2 } from 'lucide-react';
+import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link, User, X, Edit2, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+
+// Pagination settings
+const PLAYERS_PER_PAGE = 12;
 
 const Roster: React.FC = () => {
   const { userData, teamData } = useAuth();
@@ -12,8 +16,34 @@ const Roster: React.FC = () => {
   const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchFilter, setSearchFilter] = useState('');
+  
   const isStaff = userData?.role === 'Coach' || userData?.role === 'SuperAdmin';
   const isParent = userData?.role === 'Parent';
+
+  // Filter and paginate roster
+  const filteredRoster = useMemo(() => {
+    if (!searchFilter.trim()) return roster;
+    const term = searchFilter.toLowerCase();
+    return roster.filter(player => 
+      player.name.toLowerCase().includes(term) ||
+      player.position.toLowerCase().includes(term) ||
+      player.number.toString().includes(term)
+    );
+  }, [roster, searchFilter]);
+
+  const totalPages = Math.ceil(filteredRoster.length / PLAYERS_PER_PAGE);
+  const paginatedRoster = useMemo(() => {
+    const start = (currentPage - 1) * PLAYERS_PER_PAGE;
+    return filteredRoster.slice(start, start + PLAYERS_PER_PAGE);
+  }, [filteredRoster, currentPage]);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchFilter]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
@@ -124,9 +154,10 @@ const Roster: React.FC = () => {
     
     setAddingPlayer(true);
     try {
+      // SECURITY: Sanitize all input before storing
       const playerData: any = {
-        name: newPlayer.name,
-        dob: newPlayer.dob,
+        name: sanitizeText(newPlayer.name, 100),
+        dob: sanitizeDate(newPlayer.dob),
         teamId: targetTeamId,
         parentId: isParent ? userData?.uid : undefined,
         medical: { allergies: 'None', conditions: 'None', medications: 'None', bloodType: '' }
@@ -134,19 +165,19 @@ const Roster: React.FC = () => {
 
       if (isParent) {
         // Parents only provide uniform sizes
-        playerData.shirtSize = newPlayer.shirtSize || '';
-        playerData.pantSize = newPlayer.pantSize || '';
+        playerData.shirtSize = sanitizeText(newPlayer.shirtSize, 20);
+        playerData.pantSize = sanitizeText(newPlayer.pantSize, 20);
         // Initialize stats and position as empty - coach will fill
         playerData.stats = { td: 0, tkl: 0 };
         playerData.number = 0; // Placeholder
         playerData.position = 'TBD'; // To be determined by coach
       } else {
         // Coaches provide full details
-        playerData.number = parseInt(newPlayer.number, 10);
-        playerData.position = newPlayer.position;
-        playerData.stats = { td: parseInt(newPlayer.td, 10), tkl: parseInt(newPlayer.tkl, 10) };
-        playerData.shirtSize = newPlayer.shirtSize || '';
-        playerData.pantSize = newPlayer.pantSize || '';
+        playerData.number = sanitizeNumber(newPlayer.number, 0, 99);
+        playerData.position = sanitizeText(newPlayer.position, 20);
+        playerData.stats = { td: sanitizeNumber(newPlayer.td, 0, 999), tkl: sanitizeNumber(newPlayer.tkl, 0, 999) };
+        playerData.shirtSize = sanitizeText(newPlayer.shirtSize, 20);
+        playerData.pantSize = sanitizeText(newPlayer.pantSize, 20);
       }
 
       await addDoc(collection(db, 'teams', targetTeamId, 'players'), playerData);
@@ -265,14 +296,36 @@ const Roster: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-20">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">Team Roster</h1>
-        {(isStaff || isParent) && (
-          <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-500 transition-colors shadow-lg shadow-orange-900/20">
-            <Plus className="w-5 h-5" /> {isParent ? 'Add My Player' : 'Add Player'}
-          </button>
-        )}
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          {/* Search Filter */}
+          {roster.length > 0 && (
+            <div className="relative flex-1 sm:flex-none">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <input
+                type="text"
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                placeholder="Search players..."
+                className="w-full sm:w-48 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg pl-10 pr-3 py-2 text-sm text-zinc-900 dark:text-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none"
+              />
+            </div>
+          )}
+          {(isStaff || isParent) && (
+            <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-500 transition-colors shadow-lg shadow-orange-900/20 whitespace-nowrap">
+              <Plus className="w-5 h-5" /> {isParent ? 'Add My Player' : 'Add Player'}
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Results count */}
+      {roster.length > 0 && searchFilter && (
+        <p className="text-sm text-zinc-500">
+          Showing {filteredRoster.length} of {roster.length} players
+        </p>
+      )}
 
       {!teamData && isParent ? (
         <div className="bg-slate-50 dark:bg-zinc-950 rounded-xl p-8 text-center border border-zinc-200 dark:border-zinc-800">
@@ -281,9 +334,10 @@ const Roster: React.FC = () => {
             <Plus className="w-5 h-5" /> Add My Player
           </button>
         </div>
-      ) : loading ? <p className="text-zinc-500">Loading roster...</p> : roster.length > 0 ? (
+      ) : loading ? <p className="text-zinc-500">Loading roster...</p> : filteredRoster.length > 0 ? (
+        <>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {roster.map(player => {
+          {paginatedRoster.map(player => {
             const hasMedicalAlert = player.medical && (player.medical.allergies !== 'None' || player.medical.conditions !== 'None');
             const parent = getParentInfo(player.parentId);
 
@@ -379,7 +433,51 @@ const Roster: React.FC = () => {
             );
           })}
         </div>
-      ) : <p className="text-zinc-500 text-center py-8">No players yet.</p>}
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-6">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                    currentPage === page
+                      ? 'bg-orange-600 text-white'
+                      : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+            </div>
+            
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+              aria-label="Next page"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+        </>
+      ) : searchFilter ? (
+        <p className="text-zinc-500 text-center py-8">No players match your search.</p>
+      ) : (
+        <p className="text-zinc-500 text-center py-8">No players yet.</p>
+      )}
 
       {/* MODALS (Styled) */}
       {isAddModalOpen && (

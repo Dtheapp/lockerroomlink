@@ -3,14 +3,17 @@ import { useAuth } from '../contexts/AuthContext';
 // ADDED: limitToLast
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp, limitToLast } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { sanitizeText } from '../services/sanitize';
+import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import type { Message } from '../types';
-import { Send } from 'lucide-react';
+import { Send, AlertCircle } from 'lucide-react';
 
 const Chat: React.FC = () => {
   const { user, userData, teamData } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const [rateLimitError, setRateLimitError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,13 +42,26 @@ const Chat: React.FC = () => {
     e.preventDefault();
     if (!newMessage.trim() || !user || !userData || !teamData?.id || sending) return;
 
+    // Rate limit check
+    const rateLimitKey = `chat:${user.uid}`;
+    const rateLimitResult = checkRateLimit(rateLimitKey, RATE_LIMITS.CHAT_MESSAGE);
+    
+    if (!rateLimitResult.allowed) {
+      const seconds = Math.ceil(rateLimitResult.retryAfterMs / 1000);
+      setRateLimitError(`Slow down! Please wait ${seconds}s before sending another message.`);
+      setTimeout(() => setRateLimitError(null), 3000);
+      return;
+    }
+
     setSending(true);
+    setRateLimitError(null);
     try {
+      // SECURITY: Sanitize message before storing
       await addDoc(collection(db, 'teams', teamData.id, 'messages'), {
-        text: newMessage,
+        text: sanitizeText(newMessage, 2000),
         sender: {
             uid: user.uid,
-            name: userData.name
+            name: sanitizeText(userData.name, 100)
         },
         timestamp: serverTimestamp(),
       });
@@ -98,6 +114,13 @@ const Chat: React.FC = () => {
 
       {/* INPUT AREA */}
       <div className="p-4 border-t border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+        {/* Rate limit warning */}
+        {rateLimitError && (
+          <div className="mb-3 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            {rateLimitError}
+          </div>
+        )}
         <form onSubmit={handleSendMessage} className="flex items-center gap-3">
           <input
             type="text"
