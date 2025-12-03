@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, updateDoc, deleteDoc, getDocs, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, getDocs, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { db, auth } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UserProfile, Team } from '../../types';
-import { Trash2, Link, User, Shield, AtSign, Key, AlertTriangle, Search, Edit2, X, Check, UserX, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trash2, Link, User, Shield, AtSign, Key, AlertTriangle, Search, Edit2, X, Check, UserX, ChevronLeft, ChevronRight, Download, CheckSquare, Square, History } from 'lucide-react';
 
 const ManageUsers: React.FC = () => {
   const { user } = useAuth();
@@ -36,6 +36,16 @@ const ManageUsers: React.FC = () => {
   const [editUsername, setEditUsername] = useState('');
   const [editError, setEditError] = useState('');
   const [saving, setSaving] = useState(false);
+  
+  // BULK SELECTION STATE
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  const [isBulkAssignModalOpen, setIsBulkAssignModalOpen] = useState(false);
+  const [bulkAssignTeamId, setBulkAssignTeamId] = useState('');
+  
+  // ACTIVITY LOG STATE
+  const [activityLog, setActivityLog] = useState<Array<{id: string, action: string, target: string, timestamp: any, admin: string}>>([]);
+  const [isActivityLogOpen, setIsActivityLogOpen] = useState(false);
 
   useEffect(() => {
     const usersUnsub = onSnapshot(collection(db, 'users'), (snapshot) => {
@@ -55,9 +65,32 @@ const ManageUsers: React.FC = () => {
         setTeamLookup(lookup);
     }
     fetchTeams();
+    
+    // Fetch activity log
+    const activityUnsub = onSnapshot(collection(db, 'adminActivityLog'), (snapshot) => {
+        const logs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as any))
+            .sort((a, b) => (b.timestamp?.toMillis?.() || 0) - (a.timestamp?.toMillis?.() || 0))
+            .slice(0, 50); // Keep last 50 entries
+        setActivityLog(logs);
+    });
 
-    return () => usersUnsub();
+    return () => { usersUnsub(); activityUnsub(); };
   }, []);
+  
+  // Helper to log admin actions
+  const logActivity = async (action: string, target: string) => {
+      try {
+          await addDoc(collection(db, 'adminActivityLog'), {
+              action,
+              target,
+              admin: user?.email || 'Unknown',
+              adminUid: user?.uid,
+              timestamp: serverTimestamp()
+          });
+      } catch (err) {
+          console.error('Failed to log activity:', err);
+      }
+  };
 
   // COMPUTED FILTER + SEARCH
   const filteredUsers = users.filter(u => {
@@ -80,6 +113,120 @@ const ManageUsers: React.FC = () => {
   useEffect(() => {
       setCurrentPage(1);
   }, [filterRole, searchQuery]);
+  
+  // Clear selection when filters change
+  useEffect(() => {
+      setSelectedUserIds(new Set());
+  }, [filterRole, searchQuery]);
+  
+  // --- BULK SELECTION HANDLERS ---
+  const toggleUserSelection = (uid: string) => {
+      setSelectedUserIds(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(uid)) {
+              newSet.delete(uid);
+          } else {
+              newSet.add(uid);
+          }
+          return newSet;
+      });
+  };
+  
+  const toggleSelectAll = () => {
+      if (selectedUserIds.size === paginatedUsers.length) {
+          setSelectedUserIds(new Set());
+      } else {
+          setSelectedUserIds(new Set(paginatedUsers.map(u => u.uid)));
+      }
+  };
+  
+  const handleBulkDelete = async () => {
+      if (selectedUserIds.size === 0) return;
+      setSaving(true);
+      
+      try {
+          const usersToDelete = users.filter(u => selectedUserIds.has(u.uid) && u.uid !== user?.uid);
+          
+          for (const targetUser of usersToDelete) {
+              // If coach, remove from team first
+              if (targetUser.role === 'Coach' && targetUser.teamId) {
+                  const teamRef = doc(db, 'teams', targetUser.teamId);
+                  await updateDoc(teamRef, { coachId: null });
+              }
+              await deleteDoc(doc(db, 'users', targetUser.uid));
+          }
+          
+          await logActivity('Bulk Delete', `Deleted ${usersToDelete.length} users`);
+          setSelectedUserIds(new Set());
+          setIsBulkDeleteModalOpen(false);
+      } catch (error) {
+          console.error("Error in bulk delete:", error);
+      } finally {
+          setSaving(false);
+      }
+  };
+  
+  const handleBulkAssign = async () => {
+      if (selectedUserIds.size === 0) return;
+      setSaving(true);
+      
+      try {
+          const usersToAssign = users.filter(u => selectedUserIds.has(u.uid));
+          
+          for (const targetUser of usersToAssign) {
+              const userDocRef = doc(db, 'users', targetUser.uid);
+              
+              if (!bulkAssignTeamId) {
+                  // Unassigning
+                  if (targetUser.role === 'Coach' && targetUser.teamId) {
+                      const oldTeamRef = doc(db, 'teams', targetUser.teamId);
+                      await updateDoc(oldTeamRef, { coachId: null });
+                  }
+                  await updateDoc(userDocRef, { teamId: null });
+              } else {
+                  // Note: For bulk assign, we don't set coaches as team coach (too complex)
+                  // They just get teamId set
+                  await updateDoc(userDocRef, { teamId: bulkAssignTeamId });
+              }
+          }
+          
+          await logActivity('Bulk Assign', `Assigned ${usersToAssign.length} users to ${bulkAssignTeamId ? teamLookup[bulkAssignTeamId] : 'no team'}`);
+          setSelectedUserIds(new Set());
+          setIsBulkAssignModalOpen(false);
+          setBulkAssignTeamId('');
+      } catch (error) {
+          console.error("Error in bulk assign:", error);
+      } finally {
+          setSaving(false);
+      }
+  };
+  
+  // --- CSV EXPORT ---
+  const exportToCSV = () => {
+      const headers = ['Name', 'Email', 'Username', 'Role', 'Team', 'Team ID', 'User ID'];
+      const rows = filteredUsers.map(u => [
+          u.name || '',
+          u.email || '',
+          u.username || '',
+          u.role || '',
+          u.teamId ? (teamLookup[u.teamId] || '') : '',
+          u.teamId || '',
+          u.uid || ''
+      ]);
+      
+      const csvContent = [
+          headers.join(','),
+          ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      ].join('\n');
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `users_export_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      
+      logActivity('Export CSV', `Exported ${filteredUsers.length} users`);
+  };
 
   // --- MODAL HANDLERS ---
   const openAssignModal = (targetUser: UserProfile) => {
@@ -140,6 +287,8 @@ const ManageUsers: React.FC = () => {
       setIsAssignModalOpen(false);
       setSelectedUser(null);
       setSelectedTeamId('');
+      
+      await logActivity('Assign Team', `Assigned ${selectedUser.name} to ${selectedTeamId ? teamLookup[selectedTeamId] : 'no team'}`);
     } catch (error) {
       console.error("Error assigning team:", error);
     } finally {
@@ -174,6 +323,9 @@ const ManageUsers: React.FC = () => {
       }
       
       await updateDoc(userDocRef, updates);
+      
+      await logActivity('Edit User', `Updated ${selectedUser.name}: role=${editRole}`);
+      
       setIsEditModalOpen(false);
       setSelectedUser(null);
     } catch (error) {
@@ -202,6 +354,9 @@ const ManageUsers: React.FC = () => {
       }
       
       await deleteDoc(doc(db, 'users', selectedUser.uid));
+      
+      await logActivity('Delete User', `Deleted ${selectedUser.name} (${selectedUser.email})`);
+      
       setIsDeleteModalOpen(false);
       setSelectedUser(null);
     } catch (error) {
@@ -216,6 +371,9 @@ const ManageUsers: React.FC = () => {
     setSaving(true);
     try {
       await sendPasswordResetEmail(auth, selectedUser.email);
+      
+      await logActivity('Password Reset', `Sent reset email to ${selectedUser.email}`);
+      
       setIsResetModalOpen(false);
       setSelectedUser(null);
     } catch (error) {
@@ -308,20 +466,81 @@ const ManageUsers: React.FC = () => {
         )}
       </div>
 
+      {/* TOOLBAR: Bulk Actions + Export + Activity Log */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-3">
+          <div className="flex items-center gap-3">
+              {/* Selection info */}
+              {selectedUserIds.size > 0 && (
+                  <span className="text-sm text-slate-600 dark:text-slate-400">
+                      <span className="font-bold text-orange-600 dark:text-orange-400">{selectedUserIds.size}</span> selected
+                  </span>
+              )}
+              
+              {/* Bulk Actions */}
+              {selectedUserIds.size > 0 && (
+                  <>
+                      <button
+                          onClick={() => setIsBulkAssignModalOpen(true)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-md hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors border border-orange-300 dark:border-orange-800/50"
+                      >
+                          <Link className="w-3.5 h-3.5" /> Bulk Assign
+                      </button>
+                      <button
+                          onClick={() => setIsBulkDeleteModalOpen(true)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors border border-red-300 dark:border-red-800/50"
+                      >
+                          <Trash2 className="w-3.5 h-3.5" /> Bulk Delete
+                      </button>
+                  </>
+              )}
+          </div>
+          
+          <div className="flex items-center gap-2">
+              {/* Export CSV */}
+              <button
+                  onClick={exportToCSV}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-md hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors border border-emerald-300 dark:border-emerald-800/50"
+              >
+                  <Download className="w-3.5 h-3.5" /> Export CSV
+              </button>
+              
+              {/* Activity Log */}
+              <button
+                  onClick={() => setIsActivityLogOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-slate-300 rounded-md hover:bg-slate-300 dark:hover:bg-zinc-700 transition-colors border border-slate-300 dark:border-zinc-700"
+              >
+                  <History className="w-3.5 h-3.5" /> Activity Log
+              </button>
+          </div>
+      </div>
+
       {/* --- MOBILE VIEW: CARDS --- */}
       <div className="md:hidden space-y-4">
           {loading ? <p className="text-center text-slate-500 dark:text-slate-400">Loading users...</p> : 
            filteredUsers.length === 0 ? <p className="text-center text-slate-500 dark:text-slate-400 py-8">{searchQuery ? 'No users match your search.' : 'No users found.'}</p> :
            paginatedUsers.map(u => (
-              <div key={u.uid} className="bg-slate-50 dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-zinc-800 p-5 shadow-lg">
+              <div key={u.uid} className={`bg-slate-50 dark:bg-zinc-950 rounded-xl border p-5 shadow-lg transition-colors ${selectedUserIds.has(u.uid) ? 'border-orange-500 ring-2 ring-orange-500/20' : 'border-slate-200 dark:border-zinc-800'}`}>
                   <div className="flex justify-between items-start mb-3">
-                      <div>
-                          <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                              {u.name}
-                          </h3>
-                          <div className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 font-mono mt-1">
+                      <div className="flex items-start gap-3">
+                          {/* Checkbox */}
+                          <button
+                              onClick={() => toggleUserSelection(u.uid)}
+                              className="mt-1 text-slate-400 hover:text-orange-500 transition-colors"
+                          >
+                              {selectedUserIds.has(u.uid) ? (
+                                  <CheckSquare className="w-5 h-5 text-orange-500" />
+                              ) : (
+                                  <Square className="w-5 h-5" />
+                              )}
+                          </button>
+                          <div>
+                              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                  {u.name}
+                              </h3>
+                              <div className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 font-mono mt-1">
                               <AtSign className="w-3 h-3" /> {u.username || 'No Username'}
                           </div>
+                      </div>
                       </div>
                       <span className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${u.role === 'Coach' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 border border-purple-300 dark:border-purple-800' : 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800'}`}>
                           {u.role}
@@ -353,6 +572,15 @@ const ManageUsers: React.FC = () => {
           <table className="w-full text-sm text-left text-slate-700 dark:text-slate-300">
             <thead className="text-xs text-slate-600 dark:text-slate-400 uppercase bg-white dark:bg-black">
               <tr>
+                <th scope="col" className="px-4 py-3 w-10">
+                    <button onClick={toggleSelectAll} className="text-slate-400 hover:text-orange-500 transition-colors">
+                        {selectedUserIds.size === paginatedUsers.length && paginatedUsers.length > 0 ? (
+                            <CheckSquare className="w-4 h-4 text-orange-500" />
+                        ) : (
+                            <Square className="w-4 h-4" />
+                        )}
+                    </button>
+                </th>
                 <th scope="col" className="px-6 py-3">Name</th>
                 <th scope="col" className="px-6 py-3 text-orange-600 dark:text-orange-400">Username</th>
                 <th scope="col" className="px-6 py-3">Role</th>
@@ -362,12 +590,21 @@ const ManageUsers: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-zinc-800">
               {loading ? (
-                <tr><td colSpan={5} className="text-center p-4">Loading users...</td></tr>
+                <tr><td colSpan={6} className="text-center p-4">Loading users...</td></tr>
               ) : filteredUsers.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center p-8 text-slate-500 dark:text-slate-500">{searchQuery ? 'No users match your search.' : `No ${filterRole === 'All' ? 'users' : filterRole.toLowerCase() + 's'} found.`}</td></tr>
+                  <tr><td colSpan={6} className="text-center p-8 text-slate-500 dark:text-slate-500">{searchQuery ? 'No users match your search.' : `No ${filterRole === 'All' ? 'users' : filterRole.toLowerCase() + 's'} found.`}</td></tr>
               ) : (
                 paginatedUsers.map(u => (
-                  <tr key={u.uid} className="bg-slate-50 dark:bg-zinc-950 hover:bg-slate-100 dark:hover:bg-black transition-colors">
+                  <tr key={u.uid} className={`hover:bg-slate-100 dark:hover:bg-black transition-colors ${selectedUserIds.has(u.uid) ? 'bg-orange-50 dark:bg-orange-900/10' : 'bg-slate-50 dark:bg-zinc-950'}`}>
+                    <td className="px-4 py-4">
+                        <button onClick={() => toggleUserSelection(u.uid)} className="text-slate-400 hover:text-orange-500 transition-colors">
+                            {selectedUserIds.has(u.uid) ? (
+                                <CheckSquare className="w-4 h-4 text-orange-500" />
+                            ) : (
+                                <Square className="w-4 h-4" />
+                            )}
+                        </button>
+                    </td>
                     <td className="px-6 py-4 font-medium text-slate-900 dark:text-white whitespace-nowrap">
                         {u.name}
                         <span className="block text-xs text-slate-500 font-normal">{u.email}</span>
@@ -619,6 +856,136 @@ const ManageUsers: React.FC = () => {
               <button onClick={handleResetPassword} disabled={saving} className="px-6 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold disabled:opacity-50 shadow-lg shadow-sky-900/20 flex items-center gap-2">
                 {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Key className="w-4 h-4" />}
                 Send Reset Link
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Bulk Delete Confirmation */}
+      {isBulkDeleteModalOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm" onClick={() => setIsBulkDeleteModalOpen(false)}>
+          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl w-full max-w-md border border-red-200 dark:border-red-800 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-red-600 dark:text-red-400">Bulk Delete</h2>
+                <p className="text-sm text-slate-500">This action cannot be undone</p>
+              </div>
+            </div>
+            
+            <p className="text-slate-600 dark:text-slate-400 mb-4">
+              Are you sure you want to delete <span className="font-bold text-red-600 dark:text-red-400">{selectedUserIds.size}</span> selected users?
+            </p>
+            
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-lg p-3 mb-4">
+              <p className="text-sm text-red-700 dark:text-red-400">⚠️ Any coaches will be removed from their teams.</p>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200 dark:border-zinc-800">
+              <button type="button" onClick={() => setIsBulkDeleteModalOpen(false)} className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">Cancel</button>
+              <button onClick={handleBulkDelete} disabled={saving} className="px-6 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold disabled:opacity-50 shadow-lg shadow-red-900/20 flex items-center gap-2">
+                {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Delete {selectedUserIds.size} Users
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Bulk Assign Team */}
+      {isBulkAssignModalOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm" onClick={() => setIsBulkAssignModalOpen(false)}>
+          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl w-full max-w-md border border-slate-200 dark:border-zinc-800 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
+                <Link className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Bulk Assign Team</h2>
+                <p className="text-sm text-slate-500">Assign {selectedUserIds.size} users to a team</p>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+               <label htmlFor="bulkTeam" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Select a Team</label>
+               <select 
+                 id="bulkTeam" 
+                 value={bulkAssignTeamId} 
+                 onChange={(e) => setBulkAssignTeamId(e.target.value)} 
+                 className="w-full bg-slate-50 dark:bg-black p-3 rounded-lg border border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500"
+               >
+                  <option value="">-- Unassign from team --</option>
+                  {teams.map(team => (
+                    <option key={team.id} value={team.id}>{team.name}</option>
+                  ))}
+               </select>
+               
+               <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/50 rounded-lg p-3 text-sm text-yellow-700 dark:text-yellow-400">
+                   <p>⚠️ Note: Coaches will have their teamId updated but won't be set as the team's coach (use individual assign for that).</p>
+               </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200 dark:border-zinc-800">
+              <button type="button" onClick={() => setIsBulkAssignModalOpen(false)} className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">Cancel</button>
+              <button onClick={handleBulkAssign} disabled={saving} className="px-6 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold disabled:opacity-50 shadow-lg shadow-orange-900/20 flex items-center gap-2">
+                {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
+                {bulkAssignTeamId ? 'Assign' : 'Unassign'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Activity Log */}
+      {isActivityLogOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm" onClick={() => setIsActivityLogOpen(false)}>
+          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col border border-slate-200 dark:border-zinc-800 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-slate-100 dark:bg-zinc-800 rounded-full flex items-center justify-center">
+                  <History className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Activity Log</h2>
+                  <p className="text-sm text-slate-500">Recent admin actions</p>
+                </div>
+              </div>
+              <button onClick={() => setIsActivityLogOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto">
+              {activityLog.length === 0 ? (
+                <p className="text-center text-slate-500 py-8">No activity recorded yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {activityLog.map(log => (
+                    <div key={log.id} className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-zinc-900 rounded-lg border border-slate-200 dark:border-zinc-800">
+                      <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center shrink-0">
+                        <History className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-900 dark:text-white">{log.action}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 truncate">{log.target}</p>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
+                          <span>by {log.admin}</span>
+                          <span>•</span>
+                          <span>{log.timestamp?.toDate?.().toLocaleString() || 'Just now'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="flex justify-end mt-4 pt-4 border-t border-slate-200 dark:border-zinc-800">
+              <button onClick={() => setIsActivityLogOpen(false)} className="px-6 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold">
+                Close
               </button>
             </div>
           </div>
