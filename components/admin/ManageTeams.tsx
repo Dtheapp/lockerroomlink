@@ -19,6 +19,7 @@ const ManageTeams: React.FC = () => {
     const [teams, setTeams] = useState<Team[]>([]);
     const [coachLookup, setCoachLookup] = useState<{[key: string]: string}>({});
     const [availableCoaches, setAvailableCoaches] = useState<CoachOption[]>([]);
+    const [teamMemberCounts, setTeamMemberCounts] = useState<{[key: string]: { users: number, players: number }}>({});
     const [loading, setLoading] = useState(true);
     
     // SEARCH STATE
@@ -84,6 +85,35 @@ const ManageTeams: React.FC = () => {
       };
       
       fetchCoaches();
+      
+      // 3. Fetch team member counts (users + roster players)
+      const fetchMemberCounts = async () => {
+          // Get all users to count by teamId
+          const usersSnapshot = await getDocs(collection(db, 'users'));
+          const userCounts: {[key: string]: number} = {};
+          usersSnapshot.docs.forEach(docSnap => {
+              const data = docSnap.data() as UserProfile;
+              if (data.teamId) {
+                  userCounts[data.teamId] = (userCounts[data.teamId] || 0) + 1;
+              }
+          });
+          
+          // Get all teams to fetch roster counts
+          const teamsSnapshot = await getDocs(collection(db, 'teams'));
+          const counts: {[key: string]: { users: number, players: number }} = {};
+          
+          for (const teamDoc of teamsSnapshot.docs) {
+              const teamId = teamDoc.id;
+              const playersSnapshot = await getDocs(collection(db, 'teams', teamId, 'players'));
+              counts[teamId] = {
+                  users: userCounts[teamId] || 0,
+                  players: playersSnapshot.size
+              };
+          }
+          setTeamMemberCounts(counts);
+      };
+      
+      fetchMemberCounts();
 
       return () => teamsUnsub(); // Only need to unsubscribe from teams list
     }, []);
@@ -421,6 +451,17 @@ const ManageTeams: React.FC = () => {
                           </div>
                       </div>
                       
+                      {/* Member counts */}
+                      <div className="flex gap-4 text-xs text-slate-600 dark:text-slate-400 mb-2">
+                          <span className="flex items-center gap-1">
+                              <Users className="w-3 h-3" /> 
+                              {teamMemberCounts[team.id]?.users || 0} users
+                          </span>
+                          <span className="flex items-center gap-1">
+                              👤 {teamMemberCounts[team.id]?.players || 0} players
+                          </span>
+                      </div>
+                      
                       {/* RENDER ACTIONS (Mobile Mode) */}
                       {renderTeamActions(team, true)}
                   </div>
@@ -436,14 +477,15 @@ const ManageTeams: React.FC = () => {
                           <th className="px-6 py-3">Team Name</th>
                           <th className="px-6 py-3">Team ID</th>
                           <th className="px-6 py-3 text-orange-600 dark:text-orange-400">Coach</th>
+                          <th className="px-6 py-3 text-center">Members</th>
                           <th className="px-6 py-3 text-right">Actions</th>
                       </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 dark:divide-zinc-800">
                       {loading ? (
-                          <tr><td colSpan={4} className="text-center p-4">Loading teams...</td></tr>
+                          <tr><td colSpan={5} className="text-center p-4">Loading teams...</td></tr>
                       ) : filteredTeams.length === 0 ? (
-                          <tr><td colSpan={4} className="text-center p-4 text-slate-500 dark:text-slate-400">
+                          <tr><td colSpan={5} className="text-center p-4 text-slate-500 dark:text-slate-400">
                               {searchQuery ? `No teams matching "${searchQuery}"` : 'No teams found.'}
                           </td></tr>
                       ) : (
@@ -453,6 +495,16 @@ const ManageTeams: React.FC = () => {
                               <td className="px-6 py-4 font-mono text-slate-700 dark:text-slate-300">{team.id}</td>
                               <td className="px-6 py-4 font-mono text-orange-600 dark:text-orange-400">
                                   {team.coachId ? (coachLookup[team.coachId] || team.coachId) : 'Unassigned'}
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                  <div className="flex items-center justify-center gap-3 text-xs">
+                                      <span className="flex items-center gap-1 text-slate-600 dark:text-slate-400" title="Linked Users">
+                                          <Users className="w-3 h-3" /> {teamMemberCounts[team.id]?.users || 0}
+                                      </span>
+                                      <span className="flex items-center gap-1 text-slate-600 dark:text-slate-400" title="Roster Players">
+                                          👤 {teamMemberCounts[team.id]?.players || 0}
+                                      </span>
+                                  </div>
                               </td>
                               <td className="px-6 py-4 text-right">
                                  {/* RENDER ACTIONS (Desktop Mode) */}

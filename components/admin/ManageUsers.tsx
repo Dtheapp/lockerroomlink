@@ -4,7 +4,7 @@ import { sendPasswordResetEmail } from 'firebase/auth';
 import { db, auth } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UserProfile, Team } from '../../types';
-import { Trash2, Link, User, Shield, AtSign, Key, AlertTriangle, Search, Edit2, X, Check, UserX } from 'lucide-react';
+import { Trash2, Link, User, Shield, AtSign, Key, AlertTriangle, Search, Edit2, X, Check, UserX, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const ManageUsers: React.FC = () => {
   const { user } = useAuth();
@@ -16,6 +16,10 @@ const ManageUsers: React.FC = () => {
   // FILTER & SEARCH STATE
   const [filterRole, setFilterRole] = useState<'All' | 'Coach' | 'Parent'>('All');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // PAGINATION STATE
+  const [currentPage, setCurrentPage] = useState(1);
+  const USERS_PER_PAGE = 20;
 
   // MODAL STATES
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -64,6 +68,18 @@ const ManageUsers: React.FC = () => {
         u.username?.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesRole && matchesSearch;
   });
+  
+  // PAGINATION
+  const totalPages = Math.ceil(filteredUsers.length / USERS_PER_PAGE);
+  const paginatedUsers = filteredUsers.slice(
+      (currentPage - 1) * USERS_PER_PAGE,
+      currentPage * USERS_PER_PAGE
+  );
+  
+  // Reset to page 1 when filters change
+  useEffect(() => {
+      setCurrentPage(1);
+  }, [filterRole, searchQuery]);
 
   // --- MODAL HANDLERS ---
   const openAssignModal = (targetUser: UserProfile) => {
@@ -296,7 +312,7 @@ const ManageUsers: React.FC = () => {
       <div className="md:hidden space-y-4">
           {loading ? <p className="text-center text-slate-500 dark:text-slate-400">Loading users...</p> : 
            filteredUsers.length === 0 ? <p className="text-center text-slate-500 dark:text-slate-400 py-8">{searchQuery ? 'No users match your search.' : 'No users found.'}</p> :
-           filteredUsers.map(u => (
+           paginatedUsers.map(u => (
               <div key={u.uid} className="bg-slate-50 dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-zinc-800 p-5 shadow-lg">
                   <div className="flex justify-between items-start mb-3">
                       <div>
@@ -350,7 +366,7 @@ const ManageUsers: React.FC = () => {
               ) : filteredUsers.length === 0 ? (
                   <tr><td colSpan={5} className="text-center p-8 text-slate-500 dark:text-slate-500">{searchQuery ? 'No users match your search.' : `No ${filterRole === 'All' ? 'users' : filterRole.toLowerCase() + 's'} found.`}</td></tr>
               ) : (
-                filteredUsers.map(u => (
+                paginatedUsers.map(u => (
                   <tr key={u.uid} className="bg-slate-50 dark:bg-zinc-950 hover:bg-slate-100 dark:hover:bg-black transition-colors">
                     <td className="px-6 py-4 font-medium text-slate-900 dark:text-white whitespace-nowrap">
                         {u.name}
@@ -379,6 +395,60 @@ const ManageUsers: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* PAGINATION CONTROLS */}
+      {filteredUsers.length > USERS_PER_PAGE && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-lg p-4">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Showing {((currentPage - 1) * USERS_PER_PAGE) + 1} - {Math.min(currentPage * USERS_PER_PAGE, filteredUsers.length)} of {filteredUsers.length} users
+              </p>
+              <div className="flex items-center gap-2">
+                  <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="flex items-center gap-1 px-3 py-2 rounded-lg bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                      <ChevronLeft className="w-4 h-4" /> Prev
+                  </button>
+                  
+                  <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum: number;
+                          if (totalPages <= 5) {
+                              pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                              pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                              pageNum = totalPages - 4 + i;
+                          } else {
+                              pageNum = currentPage - 2 + i;
+                          }
+                          return (
+                              <button
+                                  key={pageNum}
+                                  onClick={() => setCurrentPage(pageNum)}
+                                  className={`w-9 h-9 rounded-lg font-medium text-sm transition-colors ${
+                                      currentPage === pageNum
+                                          ? 'bg-orange-600 text-white'
+                                          : 'bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-zinc-800'
+                                  }`}
+                              >
+                                  {pageNum}
+                              </button>
+                          );
+                      })}
+                  </div>
+                  
+                  <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="flex items-center gap-1 px-3 py-2 rounded-lg bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                      Next <ChevronRight className="w-4 h-4" />
+                  </button>
+              </div>
+          </div>
+      )}
 
       {/* MODAL: Assign/Reassign Team */}
       {isAssignModalOpen && selectedUser && (
