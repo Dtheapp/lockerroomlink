@@ -326,12 +326,37 @@ const Dashboard: React.FC = () => {
             
             {/* Modal Footer */}
             <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 rounded-b-2xl">
-              <button 
-                onClick={() => setSelectedEvent(null)}
-                className="w-full py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg font-bold transition-colors"
-              >
-                Close
-              </button>
+              <div className="flex gap-2">
+                {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
+                  <>
+                    <button 
+                      onClick={() => {
+                        setEditingEventId(selectedEvent.id);
+                        setEditingEvent(selectedEvent);
+                        setSelectedEvent(null);
+                      }}
+                      className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Edit2 className="w-4 h-4" /> Edit
+                    </button>
+                    <button 
+                      onClick={() => {
+                        handleDeleteEvent(selectedEvent.id);
+                        setSelectedEvent(null);
+                      }}
+                      className="py-3 px-4 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+                <button 
+                  onClick={() => setSelectedEvent(null)}
+                  className={`${(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') ? 'flex-1' : 'w-full'} py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg font-bold transition-colors`}
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -377,12 +402,37 @@ const Dashboard: React.FC = () => {
             
             {/* Modal Footer */}
             <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 rounded-b-2xl">
-              <button 
-                onClick={() => setSelectedPost(null)}
-                className="w-full py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg font-bold transition-colors"
-              >
-                Close
-              </button>
+              <div className="flex gap-2">
+                {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
+                  <>
+                    <button 
+                      onClick={() => {
+                        setEditingPostId(selectedPost.id);
+                        setEditingPostText(selectedPost.text);
+                        setSelectedPost(null);
+                      }}
+                      className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Edit2 className="w-4 h-4" /> Edit
+                    </button>
+                    <button 
+                      onClick={() => {
+                        handleDeletePost(selectedPost.id);
+                        setSelectedPost(null);
+                      }}
+                      className="py-3 px-4 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+                <button 
+                  onClick={() => setSelectedPost(null)}
+                  className={`${(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') ? 'flex-1' : 'w-full'} py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg font-bold transition-colors`}
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -579,10 +629,21 @@ const Dashboard: React.FC = () => {
                      >
                          {editingEventId === event.id ? (
                              <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
-                                 <input value={editingEvent.title} onChange={e => setEditingEvent({...editingEvent, title: e.target.value})} className="w-full bg-zinc-900 border border-zinc-700 text-white text-xs p-1"/>
+                                 <input value={editingEvent.title || ''} onChange={e => setEditingEvent({...editingEvent, title: e.target.value})} placeholder="Event Title" className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm p-2 rounded"/>
+                                 <div className="grid grid-cols-2 gap-2">
+                                     <input type="date" value={editingEvent.date || ''} onChange={e => setEditingEvent({...editingEvent, date: e.target.value})} className="bg-zinc-900 border border-zinc-700 text-white text-sm p-2 rounded"/>
+                                     <input type="time" value={editingEvent.time || ''} onChange={e => setEditingEvent({...editingEvent, time: e.target.value})} className="bg-zinc-900 border border-zinc-700 text-white text-sm p-2 rounded"/>
+                                 </div>
+                                 <input value={editingEvent.location || ''} onChange={e => setEditingEvent({...editingEvent, location: e.target.value})} placeholder="Location" className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm p-2 rounded"/>
+                                 <select value={editingEvent.type || 'Practice'} onChange={e => setEditingEvent({...editingEvent, type: e.target.value as any})} className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm p-2 rounded">
+                                     <option value="Practice">Practice</option>
+                                     <option value="Game">Game</option>
+                                     <option value="Other">Other</option>
+                                 </select>
+                                 <textarea value={editingEvent.description || ''} onChange={e => setEditingEvent({...editingEvent, description: e.target.value})} placeholder="Description (optional)" className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm p-2 rounded" rows={2}/>
                                  <div className="flex gap-2">
-                                     <button onClick={() => handleEditEvent(event.id)} className="text-xs text-emerald-500">Save</button>
-                                     <button onClick={() => setEditingEventId(null)} className="text-xs text-zinc-500">Cancel</button>
+                                     <button onClick={() => handleEditEvent(event.id)} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded text-xs font-bold">Save</button>
+                                     <button onClick={() => setEditingEventId(null)} className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white py-2 rounded text-xs">Cancel</button>
                                  </div>
                              </div>
                          ) : (
