@@ -224,8 +224,7 @@ const Roster: React.FC = () => {
         name: editingPlayer.name,
         dob: editingPlayer.dob,
         shirtSize: editingPlayer.shirtSize || '',
-        pantSize: editingPlayer.pantSize || '',
-        medical: editingPlayer.medical || { allergies: 'None', conditions: 'None', medications: 'None', bloodType: '' }
+        pantSize: editingPlayer.pantSize || ''
       });
       setEditingPlayer(null);
     } catch (error) {
@@ -794,74 +793,6 @@ const Roster: React.FC = () => {
                       <option value="Adult L">Adult L</option>
                       <option value="Adult XL">Adult XL</option>
                       <option value="Adult 2XL">Adult 2XL</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800">
-                <p className="text-xs font-bold text-red-600 dark:text-red-400 mb-3 uppercase tracking-wider flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" /> Medical Information
-                </p>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Allergies</label>
-                    <input 
-                      type="text"
-                      value={editingPlayer.medical?.allergies || 'None'}
-                      onChange={(e) => setEditingPlayer({
-                        ...editingPlayer, 
-                        medical: {...(editingPlayer.medical || {allergies: '', conditions: '', medications: '', bloodType: ''}), allergies: e.target.value}
-                      })}
-                      placeholder="e.g., Peanuts, Penicillin"
-                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Medical Conditions</label>
-                    <input 
-                      type="text"
-                      value={editingPlayer.medical?.conditions || 'None'}
-                      onChange={(e) => setEditingPlayer({
-                        ...editingPlayer, 
-                        medical: {...(editingPlayer.medical || {allergies: '', conditions: '', medications: '', bloodType: ''}), conditions: e.target.value}
-                      })}
-                      placeholder="e.g., Asthma, Diabetes"
-                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Medications</label>
-                    <input 
-                      type="text"
-                      value={editingPlayer.medical?.medications || 'None'}
-                      onChange={(e) => setEditingPlayer({
-                        ...editingPlayer, 
-                        medical: {...(editingPlayer.medical || {allergies: '', conditions: '', medications: '', bloodType: ''}), medications: e.target.value}
-                      })}
-                      placeholder="e.g., Inhaler, EpiPen"
-                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Blood Type</label>
-                    <select 
-                      value={editingPlayer.medical?.bloodType || ''}
-                      onChange={(e) => setEditingPlayer({
-                        ...editingPlayer, 
-                        medical: {...(editingPlayer.medical || {allergies: '', conditions: '', medications: '', bloodType: ''}), bloodType: e.target.value}
-                      })}
-                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
-                    >
-                      <option value="">Unknown</option>
-                      <option value="A+">A+</option>
-                      <option value="A-">A-</option>
-                      <option value="B+">B+</option>
-                      <option value="B-">B-</option>
-                      <option value="AB+">AB+</option>
-                      <option value="AB-">AB-</option>
-                      <option value="O+">O+</option>
-                      <option value="O-">O-</option>
                     </select>
                   </div>
                 </div>
