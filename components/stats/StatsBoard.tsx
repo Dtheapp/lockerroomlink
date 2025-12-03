@@ -132,11 +132,11 @@ const StatsBoard: React.FC = () => {
             <div className="p-12 flex justify-center">
                 <div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-sky-500"></div>
             </div>
-        ) : getSortedStats().length > 0 ? (
+        ) : getSortedStats.length > 0 ? (
             <>
                 {/* 1. MOBILE CARD/VERTICAL VIEW (md:hidden) */}
                 <div className="md:hidden divide-y divide-slate-200 dark:divide-zinc-800">
-                    {getSortedStats().map((stat) => (
+                    {getSortedStats.map((stat) => (
                         <div key={stat.id} className="p-4 bg-white dark:bg-zinc-900">
                             <div className="flex justify-between items-center mb-3">
                                 <div>
@@ -189,7 +189,7 @@ const StatsBoard: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {getSortedStats().map((stat) => (
+                            {getSortedStats.map((stat) => (
                                 <tr
                                     key={stat.id}
                                     className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
