@@ -129,8 +129,8 @@ const StatsBoard: React.FC = () => {
         </div>
 
         {loading ? (
-            <div className="p-4 text-center text-slate-600 dark:text-slate-400">
-                Loading stats...
+            <div className="p-12 flex justify-center">
+                <div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-sky-500"></div>
             </div>
         ) : getSortedStats().length > 0 ? (
             <>
@@ -212,11 +212,11 @@ const StatsBoard: React.FC = () => {
                 </div>
             </>
         ) : (
-            <tr>
-                <td colSpan={11} className="px-4 py-4 text-center text-slate-600 dark:text-slate-400">
-                    No stats recorded yet.
-                </td>
-            </tr>
+            <div className="p-12 text-center text-slate-600 dark:text-slate-400">
+                <Eye className="w-12 h-12 text-slate-300 dark:text-zinc-700 mx-auto mb-3" />
+                <p className="font-semibold mb-1">No Stats Recorded Yet</p>
+                <p className="text-sm">Stats will appear here once coaches enter player data</p>
+            </div>
         )}
       </div>
 

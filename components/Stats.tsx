@@ -91,7 +91,7 @@ const Stats: React.FC = () => {
       {/* Parent View: Read-only Stats */}
       {userData?.role === 'Parent' && (
         <section>
-          {!teamData && players.length === 0 ? (
+          {!teamData || !players || players.length === 0 ? (
             <div className="bg-slate-50 dark:bg-zinc-950 rounded-xl p-12 text-center border border-slate-200 dark:border-zinc-800">
               <BarChart3 className="w-16 h-16 text-slate-300 dark:text-zinc-700 mx-auto mb-4" />
               <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">No Team Stats Available</h3>
@@ -103,9 +103,9 @@ const Stats: React.FC = () => {
                 Go to Roster
               </a>
             </div>
-          ) : (
+          ) : teamData ? (
             <StatsBoard />
-          )}
+          ) : null}
         </section>
       )}
 
