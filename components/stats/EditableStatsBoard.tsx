@@ -306,7 +306,7 @@ const EditableStatsBoard: React.FC = () => {
 
       {/* Sort Dropdown */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-600 dark:text-slate-400">{getSortedStats().length} players</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400">{getSortedStats.length} players</p>
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as keyof PlayerStats)}
@@ -326,7 +326,7 @@ const EditableStatsBoard: React.FC = () => {
         
         {/* MOBILE EDITING CARDS */}
         <div className="md:hidden divide-y divide-slate-200 dark:divide-zinc-800">
-            {getSortedStats().map((stat) => (
+            {getSortedStats.map((stat) => (
                 <div key={stat.id} className="p-4 bg-white dark:bg-black space-y-3">
                     <div className="flex justify-between items-center">
                         <h3 className="font-bold text-lg text-slate-900 dark:text-white">{stat.playerName}</h3>
@@ -383,8 +383,8 @@ const EditableStatsBoard: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {getSortedStats().length > 0 ? (
-                getSortedStats().map((stat) => (
+              {getSortedStats.length > 0 ? (
+                getSortedStats.map((stat) => (
                   <tr key={stat.id} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3 text-slate-900 dark:text-white font-bold">{stat.playerNumber}</td>
                     <td className="px-4 py-3 text-slate-900 dark:text-white font-medium">{stat.playerName}</td>
