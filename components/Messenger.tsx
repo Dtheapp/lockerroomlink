@@ -4,12 +4,14 @@ import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { useAuth } from '../contexts/AuthContext';
+import { useUnreadMessages } from '../hooks/useUnreadMessages';
 import { Search, Send, MessageSquare, AlertCircle } from 'lucide-react';
 import type { PrivateChat, PrivateMessage, UserProfile } from '../types';
 
 const Messenger: React.FC = () => {
   // ADDED: teamData to scope the search to teammates only
   const { user, userData, teamData } = useAuth();
+  const { markAsRead } = useUnreadMessages();
   
   const [chats, setChats] = useState<PrivateChat[]>([]);
   const [activeChat, setActiveChat] = useState<PrivateChat | null>(null);
@@ -22,6 +24,13 @@ const Messenger: React.FC = () => {
   const [sending, setSending] = useState(false);
   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Mark conversation as read when opening it
+  useEffect(() => {
+    if (activeChat?.id) {
+      markAsRead('messenger', activeChat.id);
+    }
+  }, [activeChat?.id, markAsRead]);
 
   // 1. LOAD CHATS
   useEffect(() => {
@@ -129,7 +138,7 @@ const Messenger: React.FC = () => {
       setRateLimitError(null);
       try {
           await addDoc(collection(db, 'private_chats', activeChat.id, 'messages'), { text, senderId: user.uid, timestamp: serverTimestamp() });
-          await updateDoc(doc(db, 'private_chats', activeChat.id), { lastMessage: text, updatedAt: serverTimestamp(), lastMessageTime: serverTimestamp() });
+          await updateDoc(doc(db, 'private_chats', activeChat.id), { lastMessage: text, updatedAt: serverTimestamp(), lastMessageTime: serverTimestamp(), lastSenderId: user.uid });
       } catch (error) { console.error(error); }
       finally { setSending(false); }
   };
