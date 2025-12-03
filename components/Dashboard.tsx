@@ -571,7 +571,7 @@ const Dashboard: React.FC = () => {
             )}
 
             <div className="space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar">
-                 {eventsLoading ? <p className="text-zinc-500">Loading...</p> : teamEvents.filter(event => eventFilter === 'All' || event.type === eventFilter).length > 0 ? teamEvents.filter(event => eventFilter === 'All' || event.type === eventFilter).map(event => (
+                 {eventsLoading ? <p className="text-zinc-500">Loading...</p> : teamEvents.filter(event => eventFilter === 'All' || event.type?.toLowerCase() === eventFilter.toLowerCase()).length > 0 ? teamEvents.filter(event => eventFilter === 'All' || event.type?.toLowerCase() === eventFilter.toLowerCase()).map(event => (
                      <div 
                        key={event.id} 
                        className="relative bg-zinc-50 dark:bg-black p-4 rounded-lg border-l-4 border-l-orange-500 border-t border-t-zinc-200 dark:border-t-zinc-800 border-b border-b-zinc-200 dark:border-b-zinc-800 border-r border-r-zinc-200 dark:border-r-zinc-800 group cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-900/50 transition-colors"
