@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
-import { LayoutDashboard, Users, Shield, LogOut, FileText, Menu, X, ChevronLeft, Sun, Moon, BarChart3, Megaphone, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, Shield, LogOut, FileText, Menu, X, ChevronLeft, Sun, Moon, BarChart3, Megaphone, Settings, PieChart } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -11,7 +11,8 @@ const adminNavItems = [
   { name: 'Users', path: '/admin/users', icon: Users },
   { name: 'Teams', path: '/admin/teams', icon: Shield },
   { name: 'Announcements', path: '/admin/announcements', icon: Megaphone },
-  { name: 'Reports', path: '/admin/reports', icon: FileText },
+  { name: 'Team Reports', path: '/admin/team-reports', icon: PieChart },
+  { name: 'User Reports', path: '/admin/reports', icon: FileText },
   { name: 'Stats', path: '/admin/stats', icon: BarChart3 },
   { name: 'Settings', path: '/admin/settings', icon: Settings },
 ];
