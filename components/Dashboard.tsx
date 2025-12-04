@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp, deleteDoc, doc, updateDoc, where } from 'firebase/firestore';
+import { Link } from 'react-router-dom';
+import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp, deleteDoc, doc, updateDoc, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
-import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle, Minus, ExternalLink, Copy, Link as LinkIcon } from 'lucide-react';
-import type { BulletinPost, PlayerSeasonStats, TeamEvent } from '../types';
+import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle, Minus, ExternalLink, Copy, Link as LinkIcon, Users, Crown, User } from 'lucide-react';
+import type { BulletinPost, PlayerSeasonStats, TeamEvent, UserProfile } from '../types';
 
 // Helper: Format date string (YYYY-MM-DD) to readable format without timezone issues
 const formatEventDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
@@ -73,6 +74,10 @@ const Dashboard: React.FC = () => {
   const [editRecord, setEditRecord] = useState({ wins: 0, losses: 0, ties: 0 });
   const [savingRecord, setSavingRecord] = useState(false);
 
+  // Coaching Staff state
+  const [coaches, setCoaches] = useState<(UserProfile & { isHeadCoach: boolean })[]>([]);
+  const [coachesLoading, setCoachesLoading] = useState(true);
+
   // --- OPTIMIZED STATS CALCULATION (PERFORMANCE FIX) ---
   // Calculates leaders only when playerStats data changes, not on every render
   const topStats = useMemo(() => {
@@ -136,6 +141,49 @@ const Dashboard: React.FC = () => {
     }, (error) => { console.error("Error fetching events:", error); setEventsLoading(false); });
     return () => unsubscribe();
   }, [teamData?.id]);
+
+  // Fetch coaches for this team
+  useEffect(() => {
+    const fetchCoaches = async () => {
+      if (!teamData?.id) return;
+      setCoachesLoading(true);
+      
+      try {
+        // Query users who are coaches and have this team in their teamIds or teamId
+        const usersRef = collection(db, 'users');
+        const coachesQuery = query(usersRef, where('role', '==', 'Coach'));
+        const snapshot = await getDocs(coachesQuery);
+        
+        const teamCoaches: (UserProfile & { isHeadCoach: boolean })[] = [];
+        
+        snapshot.forEach(doc => {
+          const coachData = { uid: doc.id, ...doc.data() } as UserProfile;
+          const coachTeamIds = coachData.teamIds || (coachData.teamId ? [coachData.teamId] : []);
+          
+          if (coachTeamIds.includes(teamData.id)) {
+            // Check if this coach is the head coach
+            const isHeadCoach = teamData.headCoachId === doc.id || teamData.coachId === doc.id;
+            teamCoaches.push({ ...coachData, isHeadCoach });
+          }
+        });
+        
+        // Sort: head coach first, then alphabetically
+        teamCoaches.sort((a, b) => {
+          if (a.isHeadCoach && !b.isHeadCoach) return -1;
+          if (!a.isHeadCoach && b.isHeadCoach) return 1;
+          return a.name.localeCompare(b.name);
+        });
+        
+        setCoaches(teamCoaches);
+      } catch (error) {
+        console.error('Error fetching coaches:', error);
+      } finally {
+        setCoachesLoading(false);
+      }
+    };
+    
+    fetchCoaches();
+  }, [teamData?.id, teamData?.headCoachId, teamData?.coachId]);
 
   const handleAddPost = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -949,6 +997,63 @@ const Dashboard: React.FC = () => {
              <a href="#/stats" className="inline-block text-cyan-500 hover:text-cyan-400 font-bold text-xs mt-4 uppercase tracking-wider">View Full Stat Sheet →</a>
            </div>
         </div>
+
+      {/* COACHING STAFF */}
+      <div className="order-2">
+        <div className="bg-slate-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-6 rounded-lg shadow-lg">
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2 uppercase tracking-wide">
+            <Users className="w-6 h-6 text-amber-500" /> Coaching Staff
+          </h2>
+          
+          {coachesLoading ? (
+            <p className="text-zinc-500">Loading coaches...</p>
+          ) : coaches.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {coaches.map(coach => (
+                <Link
+                  key={coach.uid}
+                  to={`/coach/${coach.uid}`}
+                  className="group bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 text-center hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10 transition-all"
+                >
+                  {/* Coach Photo */}
+                  <div className="relative mx-auto mb-3">
+                    {coach.photoUrl ? (
+                      <img 
+                        src={coach.photoUrl} 
+                        alt={coach.name}
+                        className={`w-16 h-16 rounded-full object-cover mx-auto ${
+                          coach.isHeadCoach ? 'ring-2 ring-amber-500 ring-offset-2 ring-offset-white dark:ring-offset-black' : ''
+                        }`}
+                      />
+                    ) : (
+                      <div className={`w-16 h-16 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center mx-auto ${
+                        coach.isHeadCoach ? 'ring-2 ring-amber-500 ring-offset-2 ring-offset-white dark:ring-offset-black' : ''
+                      }`}>
+                        <User className="w-8 h-8 text-white" />
+                      </div>
+                    )}
+                    {coach.isHeadCoach && (
+                      <div className="absolute -top-1 -right-1 w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center shadow-lg">
+                        <Crown className="w-3 h-3 text-white" />
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Coach Name */}
+                  <p className="font-bold text-zinc-900 dark:text-white text-sm truncate group-hover:text-amber-500 transition-colors">
+                    {coach.name}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    {coach.isHeadCoach ? 'Head Coach' : 'Coach'}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="text-zinc-500 italic text-sm text-center py-8">No coaches assigned yet.</p>
+          )}
+        </div>
+      </div>
 
       <div className="grid lg:grid-cols-2 gap-8">
         {/* BULLETIN BOARD */}
