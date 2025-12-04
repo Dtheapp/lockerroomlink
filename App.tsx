@@ -25,6 +25,7 @@ const Stats = lazy(() => import('./components/Stats'));
 
 // Lazy-loaded Admin Pages
 const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard'));
+const AdminMessenger = lazy(() => import('./components/admin/AdminMessenger'));
 const ManageUsers = lazy(() => import('./components/admin/ManageUsers'));
 const ManageTeams = lazy(() => import('./components/admin/ManageTeams'));
 const UserReport = lazy(() => import('./components/admin/UserReport'));
@@ -81,6 +82,7 @@ const AppContent: React.FC = () => {
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<Navigate to="/admin/dashboard" replace />} />
                 <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="messenger" element={<AdminMessenger />} />
                 <Route path="users" element={<ManageUsers />} />
                 <Route path="teams" element={<ManageTeams />} />
                 <Route path="announcements" element={<Announcements />} />
