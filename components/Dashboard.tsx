@@ -706,11 +706,11 @@ const Dashboard: React.FC = () => {
       {isEditingRecord && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setIsEditingRecord(false)}>
           <div 
-            className="bg-zinc-900 rounded-2xl w-full max-w-sm border border-zinc-700 shadow-2xl animate-in zoom-in-95 duration-200"
+            className="bg-zinc-900 rounded-2xl w-full max-w-sm border border-zinc-700 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-yellow-600 to-orange-600 p-5 rounded-t-2xl">
+            <div className="bg-gradient-to-r from-yellow-600 to-orange-600 p-5 rounded-t-2xl sticky top-0">
               <div className="flex items-center gap-3">
                 <Trophy className="w-6 h-6 text-white" />
                 <div>
@@ -721,14 +721,14 @@ const Dashboard: React.FC = () => {
             </div>
             
             {/* Modal Body */}
-            <div className="p-6 space-y-4">
+            <div className="p-5 space-y-5">
               {/* Wins */}
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-2 block">Wins</label>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <button 
                     onClick={() => setEditRecord({...editRecord, wins: Math.max(0, editRecord.wins - 1)})}
-                    className="w-12 h-12 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg flex items-center justify-center text-zinc-400 transition-colors"
+                    className="w-11 h-11 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg flex items-center justify-center text-zinc-400 transition-colors flex-shrink-0"
                   >
                     <Minus className="w-5 h-5" />
                   </button>
@@ -737,11 +737,11 @@ const Dashboard: React.FC = () => {
                     min="0"
                     value={editRecord.wins} 
                     onChange={(e) => setEditRecord({...editRecord, wins: parseInt(e.target.value) || 0})}
-                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-center text-2xl font-black text-emerald-400 outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-center text-2xl font-black text-emerald-400 outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                   <button 
                     onClick={() => setEditRecord({...editRecord, wins: editRecord.wins + 1})}
-                    className="w-12 h-12 bg-emerald-600 hover:bg-emerald-500 rounded-lg flex items-center justify-center text-white transition-colors"
+                    className="w-11 h-11 bg-emerald-600 hover:bg-emerald-500 rounded-lg flex items-center justify-center text-white transition-colors flex-shrink-0"
                   >
                     <Plus className="w-5 h-5" />
                   </button>
@@ -751,10 +751,10 @@ const Dashboard: React.FC = () => {
               {/* Losses */}
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-red-400 mb-2 block">Losses</label>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <button 
                     onClick={() => setEditRecord({...editRecord, losses: Math.max(0, editRecord.losses - 1)})}
-                    className="w-12 h-12 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg flex items-center justify-center text-zinc-400 transition-colors"
+                    className="w-11 h-11 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg flex items-center justify-center text-zinc-400 transition-colors flex-shrink-0"
                   >
                     <Minus className="w-5 h-5" />
                   </button>
@@ -763,11 +763,11 @@ const Dashboard: React.FC = () => {
                     min="0"
                     value={editRecord.losses} 
                     onChange={(e) => setEditRecord({...editRecord, losses: parseInt(e.target.value) || 0})}
-                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-center text-2xl font-black text-red-400 outline-none focus:ring-2 focus:ring-red-500"
+                    className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-center text-2xl font-black text-red-400 outline-none focus:ring-2 focus:ring-red-500"
                   />
                   <button 
                     onClick={() => setEditRecord({...editRecord, losses: editRecord.losses + 1})}
-                    className="w-12 h-12 bg-red-600 hover:bg-red-500 rounded-lg flex items-center justify-center text-white transition-colors"
+                    className="w-11 h-11 bg-red-600 hover:bg-red-500 rounded-lg flex items-center justify-center text-white transition-colors flex-shrink-0"
                   >
                     <Plus className="w-5 h-5" />
                   </button>
@@ -777,10 +777,10 @@ const Dashboard: React.FC = () => {
               {/* Ties */}
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2 block">Ties</label>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <button 
                     onClick={() => setEditRecord({...editRecord, ties: Math.max(0, editRecord.ties - 1)})}
-                    className="w-12 h-12 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg flex items-center justify-center text-zinc-400 transition-colors"
+                    className="w-11 h-11 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg flex items-center justify-center text-zinc-400 transition-colors flex-shrink-0"
                   >
                     <Minus className="w-5 h-5" />
                   </button>
@@ -789,11 +789,11 @@ const Dashboard: React.FC = () => {
                     min="0"
                     value={editRecord.ties} 
                     onChange={(e) => setEditRecord({...editRecord, ties: parseInt(e.target.value) || 0})}
-                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-center text-2xl font-black text-zinc-400 outline-none focus:ring-2 focus:ring-zinc-500"
+                    className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-center text-2xl font-black text-zinc-400 outline-none focus:ring-2 focus:ring-zinc-500"
                   />
                   <button 
                     onClick={() => setEditRecord({...editRecord, ties: editRecord.ties + 1})}
-                    className="w-12 h-12 bg-zinc-600 hover:bg-zinc-500 rounded-lg flex items-center justify-center text-white transition-colors"
+                    className="w-11 h-11 bg-zinc-600 hover:bg-zinc-500 rounded-lg flex items-center justify-center text-white transition-colors flex-shrink-0"
                   >
                     <Plus className="w-5 h-5" />
                   </button>
@@ -802,7 +802,7 @@ const Dashboard: React.FC = () => {
             </div>
             
             {/* Modal Footer */}
-            <div className="p-4 border-t border-zinc-800 bg-zinc-950 rounded-b-2xl flex gap-3">
+            <div className="p-4 border-t border-zinc-800 bg-zinc-950 rounded-b-2xl flex gap-3 sticky bottom-0">
               <button 
                 onClick={() => setIsEditingRecord(false)}
                 disabled={savingRecord}
