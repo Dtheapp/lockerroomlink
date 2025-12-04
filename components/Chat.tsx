@@ -5,7 +5,7 @@ import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import type { Message } from '../types';
-import { Send, AlertCircle, VolumeX, Volume2, MoreVertical, X, Trash2 } from 'lucide-react';
+import { Send, AlertCircle, VolumeX, Volume2, MoreVertical, X, Trash2, Edit2, Check } from 'lucide-react';
 
 interface MutedUser {
   mutedBy: string;
@@ -33,6 +33,11 @@ const Chat: React.FC = () => {
   const [activeMessageMenu, setActiveMessageMenu] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ messageId: string; messageText: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  
+  // Edit message state
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Check if current user can moderate (Coach or SuperAdmin)
   const canModerate = userData?.role === 'Coach' || userData?.role === 'SuperAdmin';
@@ -175,6 +180,32 @@ const Chat: React.FC = () => {
       setDeleting(false);
     }
   };
+
+  const handleEditMessage = async (messageId: string) => {
+    if (!teamData?.id || !editingText.trim()) return;
+    
+    setSavingEdit(true);
+    try {
+      const messageDocRef = doc(db, 'teams', teamData.id, 'messages', messageId);
+      await updateDoc(messageDocRef, {
+        text: sanitizeText(editingText, 2000),
+        edited: true,
+        editedAt: serverTimestamp()
+      });
+      setEditingMessageId(null);
+      setEditingText('');
+    } catch (error) {
+      console.error("Error editing message:", error);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const startEditing = (msg: Message) => {
+    setEditingMessageId(msg.id);
+    setEditingText(msg.text);
+    setActiveMessageMenu(null);
+  };
   
   const formatDate = (timestamp: Timestamp | null) => {
     if (!timestamp) return '';
@@ -227,6 +258,8 @@ const Chat: React.FC = () => {
           const isUserMuted = !!mutedUsers[msg.sender.uid];
           const senderRole = (msg.sender as any).role;
           const isParent = senderRole === 'Parent' || (!senderRole && !isMe); // Assume parent if no role
+          const isEditing = editingMessageId === msg.id;
+          const isEdited = (msg as any).edited;
           
           return (
             <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
@@ -235,6 +268,7 @@ const Chat: React.FC = () => {
                   ? 'bg-orange-600 text-white rounded-br-none'
                   : 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-zinc-700'
               }`}>
+                {/* Header for OTHER users' messages */}
                 {!isMe && (
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <p className="text-xs font-bold text-orange-600 dark:text-orange-400 flex items-center gap-1">
@@ -305,22 +339,82 @@ const Chat: React.FC = () => {
                     )}
                   </div>
                 )}
-                <p className="text-sm leading-relaxed">{msg.text}</p>
-                <div className="flex items-center justify-between mt-1">
-                  <p className={`text-[10px] ${isMe ? 'text-orange-200' : 'text-slate-400'}`}>
-                    {formatDate(msg.timestamp)}
-                  </p>
-                  {/* Delete button for own messages (moderators) */}
-                  {isMe && canModerate && (
-                    <button
-                      onClick={() => setShowDeleteConfirm({ messageId: msg.id, messageText: msg.text })}
-                      className="text-orange-200 hover:text-white p-0.5 transition-colors"
-                      title="Delete message"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
+                
+                {/* Message Content - with edit mode */}
+                {isEditing ? (
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={editingText}
+                      onChange={(e) => setEditingText(e.target.value)}
+                      className="w-full bg-white/20 border border-white/30 rounded-lg px-3 py-2 text-sm text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleEditMessage(msg.id);
+                        }
+                        if (e.key === 'Escape') {
+                          setEditingMessageId(null);
+                          setEditingText('');
+                        }
+                      }}
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => { setEditingMessageId(null); setEditingText(''); }}
+                        className="text-xs text-white/70 hover:text-white px-2 py-1"
+                        disabled={savingEdit}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleEditMessage(msg.id)}
+                        disabled={savingEdit || !editingText.trim()}
+                        className="text-xs bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded flex items-center gap-1 disabled:opacity-50"
+                      >
+                        {savingEdit ? (
+                          <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Check className="w-3 h-3" />
+                        )}
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm leading-relaxed">{msg.text}</p>
+                )}
+                
+                {/* Footer - timestamp and actions */}
+                {!isEditing && (
+                  <div className="flex items-center justify-between mt-1 gap-2">
+                    <p className={`text-[10px] ${isMe ? 'text-orange-200' : 'text-slate-400'}`}>
+                      {formatDate(msg.timestamp)}
+                      {isEdited && <span className="ml-1 italic">(edited)</span>}
+                    </p>
+                    
+                    {/* Actions for OWN messages - everyone can edit/delete their own */}
+                    {isMe && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => startEditing(msg)}
+                          className="text-orange-200 hover:text-white p-0.5 transition-colors"
+                          title="Edit message"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteConfirm({ messageId: msg.id, messageText: msg.text })}
+                          className="text-orange-200 hover:text-white p-0.5 transition-colors"
+                          title="Delete message"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           );
