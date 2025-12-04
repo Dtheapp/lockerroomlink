@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import type { Player, Team, PlayerSeasonStats, Game, GamePlayerStats } from '../../types';
-import { User, Trophy, Sword, Shield, Target, Activity, Calendar, MapPin, TrendingUp, Star, Zap, Crown, Users, ArrowLeft, Home } from 'lucide-react';
+import { User, Trophy, Sword, Shield, Target, Activity, Calendar, MapPin, TrendingUp, Star, Zap, Crown, Users, ArrowLeft, Home, Award, Heart } from 'lucide-react';
 
 interface PublicAthleteData {
   player: Player;
@@ -11,6 +11,8 @@ interface PublicAthleteData {
   seasonStats: PlayerSeasonStats | null;
   recentGames: { game: Game; stats: GamePlayerStats }[];
   careerStats: { season: number; teamName: string; stats: PlayerSeasonStats }[];
+  isSportsmanshipLeader: boolean;
+  sportsmanshipPoints: number;
 }
 
 const PublicAthleteProfile: React.FC = () => {
@@ -107,12 +109,35 @@ const PublicAthleteProfile: React.FC = () => {
         }
         careerStats.sort((a, b) => b.season - a.season);
 
+        // Check if this player is the sportsmanship leader for current season
+        let isSportsmanshipLeader = false;
+        let playerSportsmanshipPoints = (seasonStats as any)?.spts || 0;
+        let highestSportsmanship = 0;
+        let leaderId: string | null = null;
+
+        for (const statDoc of allSeasonStatsSnapshot.docs) {
+          const stat = statDoc.data() as PlayerSeasonStats;
+          if (stat.season === currentYear) {
+            const spts = (stat as any).spts || 0;
+            if (spts > highestSportsmanship) {
+              highestSportsmanship = spts;
+              leaderId = stat.playerId;
+            }
+          }
+        }
+
+        if (leaderId === foundPlayer.id && playerSportsmanshipPoints > 0) {
+          isSportsmanshipLeader = true;
+        }
+
         setData({
           player: foundPlayer,
           team,
           seasonStats,
           recentGames,
-          careerStats
+          careerStats,
+          isSportsmanshipLeader,
+          sportsmanshipPoints: playerSportsmanshipPoints
         });
       } catch (err) {
         console.error('Error fetching athlete data:', err);
@@ -161,7 +186,7 @@ const PublicAthleteProfile: React.FC = () => {
     );
   }
 
-  const { player, team, seasonStats, recentGames, careerStats } = data;
+  const { player, team, seasonStats, recentGames, careerStats, isSportsmanshipLeader, sportsmanshipPoints } = data;
   const currentYear = new Date().getFullYear();
 
   return (
@@ -178,6 +203,35 @@ const PublicAthleteProfile: React.FC = () => {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-8">
+        {/* Sportsmanship Leader Banner */}
+        {isSportsmanshipLeader && (
+          <div className="sportsmanship-badge bg-gradient-to-r from-amber-900/50 via-orange-900/40 to-amber-900/50 rounded-xl border-2 border-amber-500/50 p-4 mb-6 relative overflow-hidden">
+            <div className="absolute top-1 right-2 text-amber-400 sparkle-animation">
+              <Star className="w-5 h-5" fill="currentColor" />
+            </div>
+            <div className="absolute bottom-1 left-2 text-amber-400/60 sparkle-animation-delay">
+              <Star className="w-4 h-4" fill="currentColor" />
+            </div>
+            <div className="flex items-center justify-center gap-3">
+              <Award className="w-8 h-8 text-amber-400 float-animation" />
+              <div className="text-center">
+                <h2 className="text-lg font-bold bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
+                  🏆 Team Sportsmanship Star 🏆
+                </h2>
+                <p className="text-amber-400/80 text-sm flex items-center justify-center gap-2 mt-1">
+                  <Star className="w-4 h-4" fill="currentColor" />
+                  <span className="font-bold text-amber-300">{sportsmanshipPoints}</span> sportsmanship points
+                  <Heart className="w-4 h-4 text-amber-400" fill="currentColor" />
+                </p>
+              </div>
+              <Award className="w-8 h-8 text-amber-400 float-animation" />
+            </div>
+            <p className="text-xs text-amber-400/60 italic text-center mt-2">
+              ✨ Leading by example on and off the field ✨
+            </p>
+          </div>
+        )}
+
         {/* Hero Section */}
         <div className="bg-gradient-to-r from-zinc-800/80 to-zinc-900/80 rounded-2xl p-6 md:p-8 border border-zinc-700/50 mb-8">
           <div className="flex flex-col md:flex-row items-center gap-6">

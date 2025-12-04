@@ -455,17 +455,25 @@ const PublicTeamProfile: React.FC = () => {
             </div>
 
             {/* Sportsmanship Star */}
-            {sportsmanshipLeader && (
-              <div className="bg-gradient-to-br from-amber-900/30 to-orange-900/30 rounded-xl border border-amber-700/50 p-6 relative overflow-hidden">
-                {/* Sparkle decorations */}
-                <div className="absolute top-2 right-2 text-amber-400/30">
+            {sportsmanshipLeader && sportsmanshipLeader.player.username && (
+              <Link 
+                to={`/athlete/${sportsmanshipLeader.player.username}`}
+                className="block sportsmanship-card bg-gradient-to-br from-amber-900/40 to-orange-900/40 rounded-xl border-2 border-amber-500/50 p-6 relative overflow-hidden transition-all duration-300 cursor-pointer hover:border-amber-400"
+              >
+                {/* Shimmer overlay handled by CSS ::before */}
+                
+                {/* Sparkle decorations with animations */}
+                <div className="absolute top-2 right-2 text-amber-400 sparkle-animation">
                   <Star className="w-6 h-6" fill="currentColor" />
                 </div>
-                <div className="absolute bottom-2 left-2 text-amber-400/20">
+                <div className="absolute bottom-2 left-2 text-amber-400/60 sparkle-animation-delay">
                   <Star className="w-4 h-4" fill="currentColor" />
                 </div>
+                <div className="absolute top-1/2 right-4 text-amber-400/40 sparkle-animation">
+                  <Star className="w-3 h-3" fill="currentColor" />
+                </div>
                 
-                <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2 float-animation">
                   <Award className="w-5 h-5 text-amber-400" />
                   <span className="bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
                     Sportsmanship Star
@@ -479,16 +487,16 @@ const PublicTeamProfile: React.FC = () => {
                       <img 
                         src={sportsmanshipLeader.player.photoUrl} 
                         alt={sportsmanshipLeader.player.name}
-                        className="w-16 h-16 rounded-full object-cover border-2 border-amber-400 shadow-lg shadow-amber-500/20"
+                        className="w-16 h-16 rounded-full object-cover border-2 border-amber-400 shadow-lg shadow-amber-500/30"
                       />
                     ) : (
-                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center border-2 border-amber-400 shadow-lg shadow-amber-500/20">
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center border-2 border-amber-400 shadow-lg shadow-amber-500/30">
                         <span className="text-white font-bold text-xl">
                           {sportsmanshipLeader.player.name.charAt(0).toUpperCase()}
                         </span>
                       </div>
                     )}
-                    <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-amber-400 rounded-full flex items-center justify-center border-2 border-zinc-900">
+                    <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-amber-400 rounded-full flex items-center justify-center border-2 border-zinc-900 shadow-lg shadow-amber-500/50">
                       <Heart className="w-3 h-3 text-zinc-900" fill="currentColor" />
                     </div>
                   </div>
@@ -505,12 +513,19 @@ const PublicTeamProfile: React.FC = () => {
                       <span className="text-amber-400/60 text-xs">sportsmanship points</span>
                     </div>
                   </div>
+                  
+                  {/* Arrow indicator */}
+                  <ChevronRight className="w-5 h-5 text-amber-400/60 flex-shrink-0" />
                 </div>
                 
-                <p className="mt-4 text-xs text-amber-400/60 italic text-center">
+                <p className="mt-4 text-xs text-amber-400/70 italic text-center">
                   ✨ Leading by example on and off the field ✨
                 </p>
-              </div>
+                
+                <p className="mt-2 text-xs text-amber-500/50 text-center font-medium">
+                  Tap to view full profile →
+                </p>
+              </Link>
             )}
 
             {/* Top Performers */}
