@@ -228,7 +228,12 @@ const ManageTeams: React.FC = () => {
             const oldCoachId = selectedTeam.coachId;
             const newCoachId = editCoachId;
             const oldHeadCoachId = selectedTeam.headCoachId;
-            const newHeadCoachId = editHeadCoachId;
+            let newHeadCoachId = editHeadCoachId;
+            
+            // AUTO HEAD COACH: If assigning first coach and no head coach exists, make them head coach
+            if (newCoachId && !oldCoachId && !oldHeadCoachId) {
+                newHeadCoachId = newCoachId;
+            }
             
             // Update team document
             await updateDoc(doc(db, 'teams', selectedTeam.id), { 

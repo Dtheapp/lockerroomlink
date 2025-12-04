@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc, getDocs, where, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc, getDocs, where, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { sanitizeText, sanitizeNumber, sanitizeDate } from '../services/sanitize';
 import type { Player, UserProfile, Team } from '../types';
-import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera } from 'lucide-react';
+import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera, UserPlus, ArrowRightLeft } from 'lucide-react';
 
 // Pagination settings
 const PLAYERS_PER_PAGE = 12;
@@ -30,6 +30,17 @@ const Roster: React.FC = () => {
   const [teamCoaches, setTeamCoaches] = useState<UserProfile[]>([]);
   const [removeCoachConfirm, setRemoveCoachConfirm] = useState<{ id: string; name: string } | null>(null);
   const [removingCoach, setRemovingCoach] = useState(false);
+  
+  // Add Coach modal state (Head Coach only)
+  const [isAddCoachModalOpen, setIsAddCoachModalOpen] = useState(false);
+  const [coachSearchQuery, setCoachSearchQuery] = useState('');
+  const [availableCoaches, setAvailableCoaches] = useState<UserProfile[]>([]);
+  const [searchingCoaches, setSearchingCoaches] = useState(false);
+  const [addingCoach, setAddingCoach] = useState(false);
+  
+  // Transfer Head Coach state
+  const [transferHeadCoachTo, setTransferHeadCoachTo] = useState<{ id: string; name: string } | null>(null);
+  const [transferringHeadCoach, setTransferringHeadCoach] = useState(false);
 
   // Filter, sort (starters first), and paginate roster
   const filteredRoster = useMemo(() => {
@@ -471,8 +482,12 @@ const Roster: React.FC = () => {
     
     setRemovingCoach(true);
     try {
-      // Remove coach from team by setting teamId to null
-      await updateDoc(doc(db, 'users', removeCoachConfirm.id), { teamId: null });
+      // Remove team from coach's teamIds array and clear teamId if it matches
+      const coachRef = doc(db, 'users', removeCoachConfirm.id);
+      await updateDoc(coachRef, { 
+        teamId: null,
+        teamIds: arrayRemove(teamData.id)
+      });
       
       // Log the action to Activity Log
       await addDoc(collection(db, 'adminActivityLog'), {
@@ -485,15 +500,8 @@ const Roster: React.FC = () => {
         timestamp: serverTimestamp()
       });
       
-      // Refresh coaches list
-      const coachesQuery = query(
-        collection(db, 'users'),
-        where('role', '==', 'Coach'),
-        where('teamId', '==', teamData.id)
-      );
-      const snapshot = await getDocs(coachesQuery);
-      const coachesData = snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
-      setTeamCoaches(coachesData);
+      // Update local state
+      setTeamCoaches(prev => prev.filter(c => c.uid !== removeCoachConfirm.id));
       
       setRemoveCoachConfirm(null);
     } catch (error) {
@@ -501,6 +509,114 @@ const Roster: React.FC = () => {
       alert('Failed to remove coach from team.');
     } finally {
       setRemovingCoach(false);
+    }
+  };
+
+  // Search for coaches to add (Head Coach only)
+  const handleSearchCoaches = async () => {
+    if (!coachSearchQuery.trim() || searchingCoaches) return;
+    
+    setSearchingCoaches(true);
+    try {
+      // Search all coaches by name, username, or email
+      const coachesQuery = query(
+        collection(db, 'users'),
+        where('role', '==', 'Coach')
+      );
+      const snapshot = await getDocs(coachesQuery);
+      const allCoaches = snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
+      
+      // Filter by search query (client-side for flexibility)
+      const searchTerm = coachSearchQuery.toLowerCase();
+      const filtered = allCoaches.filter(coach => 
+        (coach.name?.toLowerCase().includes(searchTerm) ||
+        coach.username?.toLowerCase().includes(searchTerm) ||
+        coach.email?.toLowerCase().includes(searchTerm)) &&
+        // Exclude coaches already on this team
+        !teamCoaches.some(tc => tc.uid === coach.uid)
+      );
+      
+      setAvailableCoaches(filtered);
+    } catch (error) {
+      console.error('Error searching coaches:', error);
+      alert('Failed to search for coaches.');
+    } finally {
+      setSearchingCoaches(false);
+    }
+  };
+
+  // Add coach to team (Head Coach only)
+  const handleAddCoachToTeam = async (coach: UserProfile) => {
+    if (!teamData?.id || !isHeadCoach || addingCoach) return;
+    
+    setAddingCoach(true);
+    try {
+      // Add team to coach's teamIds array (supports multiple teams)
+      // Also set teamId for backward compatibility
+      await updateDoc(doc(db, 'users', coach.uid), { 
+        teamId: teamData.id,
+        teamIds: arrayUnion(teamData.id)
+      });
+      
+      // Log the action
+      await addDoc(collection(db, 'adminActivityLog'), {
+        action: 'ADD_COACH',
+        targetType: 'coach',
+        targetId: coach.uid,
+        details: `Head Coach "${userData?.name}" added coach "${coach.name}" to team "${teamData?.name || teamData?.id}"`,
+        performedBy: userData?.uid || 'unknown',
+        performedByName: userData?.name || 'Unknown',
+        timestamp: serverTimestamp()
+      });
+      
+      // Refresh coaches list
+      setTeamCoaches(prev => [...prev, coach]);
+      setAvailableCoaches(prev => prev.filter(c => c.uid !== coach.uid));
+      
+      // Close modal if no more results
+      if (availableCoaches.length <= 1) {
+        setIsAddCoachModalOpen(false);
+        setCoachSearchQuery('');
+        setAvailableCoaches([]);
+      }
+    } catch (error) {
+      console.error('Error adding coach:', error);
+      alert('Failed to add coach to team.');
+    } finally {
+      setAddingCoach(false);
+    }
+  };
+
+  // Transfer Head Coach title (current Head Coach only)
+  const handleTransferHeadCoach = async () => {
+    if (!transferHeadCoachTo || !teamData?.id || !isHeadCoach || transferringHeadCoach) return;
+    
+    setTransferringHeadCoach(true);
+    try {
+      // Update team's headCoachId
+      await updateDoc(doc(db, 'teams', teamData.id), {
+        headCoachId: transferHeadCoachTo.id
+      });
+      
+      // Log the action
+      await addDoc(collection(db, 'adminActivityLog'), {
+        action: 'TRANSFER_HEAD_COACH',
+        targetType: 'team',
+        targetId: teamData.id,
+        details: `"${userData?.name}" transferred Head Coach title to "${transferHeadCoachTo.name}" for team "${teamData?.name || teamData?.id}"`,
+        performedBy: userData?.uid || 'unknown',
+        performedByName: userData?.name || 'Unknown',
+        timestamp: serverTimestamp()
+      });
+      
+      setTransferHeadCoachTo(null);
+      // Page will refresh with new head coach through onSnapshot
+      window.location.reload();
+    } catch (error) {
+      console.error('Error transferring head coach:', error);
+      alert('Failed to transfer Head Coach title.');
+    } finally {
+      setTransferringHeadCoach(false);
     }
   };
 
@@ -755,20 +871,44 @@ const Roster: React.FC = () => {
       )}
 
       {/* COACHING STAFF SECTION - Only visible to coaches */}
-      {isStaff && teamCoaches.length > 0 && (
+      {isStaff && (
         <div className="mt-8 pt-8 border-t border-zinc-200 dark:border-zinc-800">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
             <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
               <Users className="w-5 h-5 text-orange-500" />
               Coaching Staff ({teamCoaches.length})
             </h2>
-            {isHeadCoach && (
-              <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-1 rounded-full flex items-center gap-1">
-                <Crown className="w-3 h-3" /> Head Coach
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {isHeadCoach && (
+                <>
+                  <button
+                    onClick={() => setIsAddCoachModalOpen(true)}
+                    className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <UserPlus className="w-4 h-4" /> Add Coach
+                  </button>
+                  <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-1 rounded-full flex items-center gap-1">
+                    <Crown className="w-3 h-3" /> Head Coach
+                  </span>
+                </>
+              )}
+            </div>
           </div>
           
+          {teamCoaches.length === 0 ? (
+            <div className="text-center py-8 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">
+              <Users className="w-10 h-10 text-zinc-400 mx-auto mb-2" />
+              <p className="text-zinc-500">No coaches on this team yet.</p>
+              {isHeadCoach && (
+                <button
+                  onClick={() => setIsAddCoachModalOpen(true)}
+                  className="mt-3 inline-flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                >
+                  <UserPlus className="w-4 h-4" /> Add Your First Coach
+                </button>
+              )}
+            </div>
+          ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {teamCoaches.map(coach => (
               <div 
@@ -795,15 +935,24 @@ const Roster: React.FC = () => {
                     </div>
                   </div>
                   
-                  {/* Only Head Coach can remove other coaches (not themselves) */}
+                  {/* Head Coach actions for other coaches */}
                   {isHeadCoach && coach.uid !== userData?.uid && (
-                    <button
-                      onClick={() => setRemoveCoachConfirm({ id: coach.uid, name: coach.name })}
-                      className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                      title="Remove from team"
-                    >
-                      <UserMinus className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setTransferHeadCoachTo({ id: coach.uid, name: coach.name })}
+                        className="text-purple-500 hover:text-purple-700 p-1 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
+                        title="Transfer Head Coach title"
+                      >
+                        <ArrowRightLeft className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setRemoveCoachConfirm({ id: coach.uid, name: coach.name })}
+                        className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                        title="Remove from team"
+                      >
+                        <UserMinus className="w-4 h-4" />
+                      </button>
+                    </div>
                   )}
                 </div>
                 
@@ -814,6 +963,146 @@ const Roster: React.FC = () => {
                 )}
               </div>
             ))}
+          </div>
+          )}
+        </div>
+      )}
+
+      {/* ADD COACH MODAL (Head Coach only) */}
+      {isAddCoachModalOpen && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl w-full max-w-md border border-zinc-200 dark:border-zinc-800 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-purple-500" />
+                Add Coach to Team
+              </h2>
+              <button
+                onClick={() => {
+                  setIsAddCoachModalOpen(false);
+                  setCoachSearchQuery('');
+                  setAvailableCoaches([]);
+                }}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+              Search for coaches who have already signed up. Enter their name, username, or email.
+            </p>
+            
+            {/* Search Input */}
+            <div className="flex gap-2 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                <input
+                  type="text"
+                  value={coachSearchQuery}
+                  onChange={(e) => setCoachSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearchCoaches()}
+                  placeholder="Search coaches..."
+                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-700 rounded-lg pl-10 pr-3 py-2.5 text-zinc-900 dark:text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none"
+                />
+              </div>
+              <button
+                onClick={handleSearchCoaches}
+                disabled={searchingCoaches || !coachSearchQuery.trim()}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              >
+                {searchingCoaches ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4" />
+                )}
+              </button>
+            </div>
+            
+            {/* Search Results */}
+            {availableCoaches.length > 0 ? (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {availableCoaches.map(coach => (
+                  <div
+                    key={coach.uid}
+                    className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-700 rounded-full flex items-center justify-center text-white font-bold">
+                        {coach.name?.charAt(0).toUpperCase() || 'C'}
+                      </div>
+                      <div>
+                        <p className="font-medium text-zinc-900 dark:text-white">{coach.name}</p>
+                        <p className="text-xs text-zinc-500">@{coach.username || coach.email}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleAddCoachToTeam(coach)}
+                      disabled={addingCoach}
+                      className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-500 disabled:opacity-50 transition-colors flex items-center gap-1"
+                    >
+                      {addingCoach ? (
+                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <Plus className="w-3 h-3" /> Add
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : coachSearchQuery && !searchingCoaches ? (
+              <div className="text-center py-8 text-zinc-500">
+                <User className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p>No coaches found matching "{coachSearchQuery}"</p>
+                <p className="text-xs mt-1">Make sure the coach has signed up first</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* TRANSFER HEAD COACH CONFIRMATION MODAL */}
+      {transferHeadCoachTo && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl w-full max-w-sm border border-zinc-200 dark:border-zinc-800 shadow-2xl">
+            <h2 className="text-xl font-bold mb-4 text-zinc-900 dark:text-white flex items-center gap-2">
+              <ArrowRightLeft className="w-5 h-5 text-purple-500" />
+              Transfer Head Coach?
+            </h2>
+            <p className="text-zinc-600 dark:text-zinc-400 mb-6">
+              Are you sure you want to transfer the <strong className="text-purple-600 dark:text-purple-400">Head Coach</strong> title to <strong className="text-zinc-900 dark:text-white">{transferHeadCoachTo.name}</strong>?
+            </p>
+            <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg mb-6">
+              ⚠️ You will lose your Head Coach privileges and only they can transfer it back.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setTransferHeadCoachTo(null)}
+                disabled={transferringHeadCoach}
+                className="flex-1 px-4 py-2 bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleTransferHeadCoach}
+                disabled={transferringHeadCoach}
+                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {transferringHeadCoach ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Transferring...
+                  </>
+                ) : (
+                  <>
+                    <Crown className="w-4 h-4" />
+                    Transfer
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

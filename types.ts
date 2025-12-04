@@ -47,7 +47,8 @@ export interface UserProfile {
   uid: string;
   name: string;
   role: UserRole;
-  teamId: string | null; // For Coaches/Admins only - deprecated for Parents
+  teamId: string | null; // Primary team (legacy) - still used for single team assignment
+  teamIds?: string[]; // NEW: Array of team IDs coach belongs to (supports multiple teams)
   email?: string;
   username?: string;
   isRootAdmin?: boolean; // God Mode - only Root Admin can manage other SuperAdmins
