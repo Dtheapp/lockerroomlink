@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, updateDoc, collection, addDoc, query, where, onSnapshot, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye, Sword, User, Camera, Star, Crown, Ruler, Scale, Users, Trash2, AtSign } from 'lucide-react';
+import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye, Sword, User, Camera, Star, Crown, Ruler, Scale, Users, Trash2, AtSign, Link as LinkIcon, Copy, Check, ExternalLink } from 'lucide-react';
 import type { Player, MedicalInfo, Team } from '../types';
 import PlayerStatsModal from './stats/PlayerStatsModal';
 
@@ -54,6 +54,9 @@ const Profile: React.FC = () => {
   
   // Player Stats Modal state
   const [viewStatsPlayer, setViewStatsPlayer] = useState<Player | null>(null);
+  
+  // Copy link feedback
+  const [copiedPlayerId, setCopiedPlayerId] = useState<string | null>(null);
 
   // Full Edit Form State (including medical)
   const [editForm, setEditForm] = useState({
@@ -146,6 +149,22 @@ const Profile: React.FC = () => {
   };
 
   // --- HANDLERS ---
+
+  // Copy public profile link
+  const copyPublicLink = async (player: Player) => {
+    if (!player.username) return;
+    
+    const baseUrl = window.location.origin + window.location.pathname;
+    const publicUrl = `${baseUrl}#/athlete/${player.username}`;
+    
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setCopiedPlayerId(player.id);
+      setTimeout(() => setCopiedPlayerId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy link:', err);
+    }
+  };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -699,6 +718,50 @@ const Profile: React.FC = () => {
                                         <Shield className="w-3 h-3 text-cyan-500" /> <span className="font-bold">{player.stats?.tkl || 0}</span> TKL
                                     </div>
                                 </div>
+
+                                {/* Public Profile Link */}
+                                {player.username && (
+                                  <div className="mt-3 bg-purple-50 dark:bg-purple-900/10 p-3 rounded-lg border border-purple-200 dark:border-purple-900/30">
+                                    <p className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                      <LinkIcon className="w-3 h-3" /> Public Profile
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex-1 bg-white dark:bg-zinc-800 rounded px-2 py-1.5 text-xs text-slate-600 dark:text-slate-300 truncate border border-purple-200 dark:border-purple-800">
+                                        lockerroomlink.com/#/athlete/{player.username}
+                                      </div>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); copyPublicLink(player); }}
+                                        className={`flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium transition-all ${
+                                          copiedPlayerId === player.id
+                                            ? 'bg-emerald-500 text-white'
+                                            : 'bg-purple-500 hover:bg-purple-600 text-white'
+                                        }`}
+                                      >
+                                        {copiedPlayerId === player.id ? (
+                                          <>
+                                            <Check className="w-3 h-3" />
+                                            Copied!
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Copy className="w-3 h-3" />
+                                            Copy
+                                          </>
+                                        )}
+                                      </button>
+                                      <a
+                                        href={`#/athlete/${player.username}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="p-1.5 bg-slate-200 dark:bg-zinc-700 hover:bg-slate-300 dark:hover:bg-zinc-600 rounded transition-colors"
+                                        title="View public profile"
+                                      >
+                                        <ExternalLink className="w-3 h-3 text-slate-600 dark:text-slate-300" />
+                                      </a>
+                                    </div>
+                                  </div>
+                                )}
 
                                 {/* Physical Info */}
                                 {(player.height || player.weight) && (

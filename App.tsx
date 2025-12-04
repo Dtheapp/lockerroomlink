@@ -14,6 +14,10 @@ import AdminLayout from './layout/AdminLayout';
 // Auth Screen (loaded immediately as it's the entry point)
 import AuthScreen from './components/AuthScreen';
 
+// Public Pages (accessible without auth)
+const PublicAthleteProfile = lazy(() => import('./components/public/PublicAthleteProfile'));
+const PublicTeamProfile = lazy(() => import('./components/public/PublicTeamProfile'));
+
 // Lazy-loaded pages for code splitting (reduces initial bundle size)
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const Roster = lazy(() => import('./components/Roster'));
@@ -105,6 +109,10 @@ const AppContent: React.FC = () => {
       <UnsavedChangesProvider>
       <Suspense fallback={<PageLoader />}>
         <Routes>
+          {/* Public Routes - Always accessible */}
+          <Route path="/athlete/:username" element={<PublicAthleteProfile />} />
+          <Route path="/team/:teamId" element={<PublicTeamProfile />} />
+          
           {!user ? (
             <>
               <Route path="/auth" element={<AuthScreen />} />

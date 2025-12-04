@@ -1,0 +1,467 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
+import { db } from '../../services/firebase';
+import type { Player, Team, PlayerSeasonStats, Game, TeamEvent, UserProfile } from '../../types';
+import { Users, Trophy, Calendar, MapPin, Clock, User, Crown, Star, Shield, Sword, TrendingUp, ChevronRight, Home } from 'lucide-react';
+
+interface TeamCoach {
+  id: string;
+  name: string;
+  email?: string;
+  isHeadCoach?: boolean;
+}
+
+interface PublicTeamData {
+  team: Team;
+  coaches: TeamCoach[];
+  players: Player[];
+  games: Game[];
+  upcomingEvents: TeamEvent[];
+  seasonRecord: { wins: number; losses: number; ties: number };
+  seasonStats: {
+    totalTds: number;
+    totalRushYards: number;
+    totalPassYards: number;
+    totalTackles: number;
+  };
+}
+
+const PublicTeamProfile: React.FC = () => {
+  const { teamId } = useParams<{ teamId: string }>();
+  const [data, setData] = useState<PublicTeamData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchTeamData = async () => {
+      if (!teamId) {
+        setError('No team ID provided');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Get team document
+        const teamDoc = await getDoc(doc(db, 'teams', teamId));
+        if (!teamDoc.exists()) {
+          setError('Team not found');
+          setLoading(false);
+          return;
+        }
+
+        const team = { id: teamDoc.id, ...teamDoc.data() } as Team;
+        const currentYear = new Date().getFullYear();
+
+        // Get coaches for this team
+        const coachesQuery = query(
+          collection(db, 'users'),
+          where('role', '==', 'Coach')
+        );
+        const coachesSnapshot = await getDocs(coachesQuery);
+        const coaches: TeamCoach[] = [];
+        
+        coachesSnapshot.docs.forEach(coachDoc => {
+          const coachData = coachDoc.data() as UserProfile;
+          // Check if coach belongs to this team (either as primary or in teamIds array)
+          const belongsToTeam = coachData.teamId === teamId || 
+            (coachData.teamIds && coachData.teamIds.includes(teamId));
+          
+          if (belongsToTeam) {
+            coaches.push({
+              id: coachDoc.id,
+              name: coachData.name,
+              email: coachData.email,
+              isHeadCoach: team.headCoachId === coachDoc.id || team.coachId === coachDoc.id
+            });
+          }
+        });
+
+        // Sort coaches - head coach first
+        coaches.sort((a, b) => (b.isHeadCoach ? 1 : 0) - (a.isHeadCoach ? 1 : 0));
+
+        // Get players
+        const playersSnapshot = await getDocs(collection(db, 'teams', teamId, 'players'));
+        const players = playersSnapshot.docs
+          .map(d => ({ id: d.id, ...d.data() } as Player))
+          .sort((a, b) => (a.number || 999) - (b.number || 999));
+
+        // Get games for current season
+        const gamesQuery = query(
+          collection(db, 'teams', teamId, 'games'),
+          where('season', '==', currentYear)
+        );
+        const gamesSnapshot = await getDocs(gamesQuery);
+        const games = gamesSnapshot.docs
+          .map(d => ({ id: d.id, ...d.data() } as Game))
+          .sort((a, b) => b.date.localeCompare(a.date));
+
+        // Calculate season record
+        const seasonRecord = {
+          wins: games.filter(g => g.result === 'W').length,
+          losses: games.filter(g => g.result === 'L').length,
+          ties: games.filter(g => g.result === 'T').length
+        };
+
+        // Get upcoming events
+        const today = new Date().toISOString().split('T')[0];
+        const eventsQuery = query(collection(db, 'teams', teamId, 'events'));
+        const eventsSnapshot = await getDocs(eventsQuery);
+        const upcomingEvents = eventsSnapshot.docs
+          .map(d => ({ id: d.id, ...d.data() } as TeamEvent))
+          .filter(e => e.date >= today)
+          .sort((a, b) => a.date.localeCompare(b.date))
+          .slice(0, 5);
+
+        // Get aggregated season stats
+        const seasonStatsSnapshot = await getDocs(collection(db, 'teams', teamId, 'seasonStats'));
+        let totalTds = 0, totalRushYards = 0, totalPassYards = 0, totalTackles = 0;
+        
+        seasonStatsSnapshot.docs.forEach(statDoc => {
+          const stats = statDoc.data() as PlayerSeasonStats;
+          if (stats.season === currentYear) {
+            totalTds += stats.tds || 0;
+            totalRushYards += stats.rushYards || 0;
+            totalPassYards += stats.passYards || 0;
+            totalTackles += stats.tackles || 0;
+          }
+        });
+
+        setData({
+          team,
+          coaches,
+          players,
+          games,
+          upcomingEvents,
+          seasonRecord,
+          seasonStats: { totalTds, totalRushYards, totalPassYards, totalTackles }
+        });
+      } catch (err) {
+        console.error('Error fetching team data:', err);
+        setError('Failed to load team profile');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTeamData();
+  }, [teamId]);
+
+  // Format date helper
+  const formatDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString('en-US', options || { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+
+  // Format time helper
+  const formatTime = (time: string) => {
+    if (!time) return '';
+    const [hours, minutes] = time.split(':');
+    const h = parseInt(hours);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour = h % 12 || 12;
+    return `${hour}:${minutes} ${ampm}`;
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-black to-zinc-900 flex items-center justify-center">
+        <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-orange-500"></div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-black to-zinc-900 flex flex-col items-center justify-center p-4">
+        <div className="bg-zinc-800/50 rounded-2xl p-8 text-center max-w-md border border-zinc-700">
+          <Users className="w-16 h-16 text-zinc-600 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-white mb-2">Team Not Found</h1>
+          <p className="text-zinc-400 mb-6">
+            The team profile you're looking for doesn't exist or has been removed.
+          </p>
+          <Link 
+            to="/"
+            className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 text-white px-6 py-3 rounded-lg font-bold transition-colors"
+          >
+            <Home className="w-5 h-5" />
+            Go to Home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const { team, coaches, players, games, upcomingEvents, seasonRecord, seasonStats } = data;
+  const currentYear = new Date().getFullYear();
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-black to-zinc-900">
+      {/* Header Bar */}
+      <header className="bg-zinc-900/80 backdrop-blur-sm border-b border-zinc-800 sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2 text-xl font-black tracking-tighter">
+            <span className="text-orange-500">LOCKER</span>
+            <span className="text-white">ROOM</span>
+          </Link>
+          <span className="text-xs text-zinc-500">Team Profile</span>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        {/* Hero Section */}
+        <div className="bg-gradient-to-r from-orange-600/20 to-zinc-900/80 rounded-2xl p-6 md:p-8 border border-orange-500/30 mb-8">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="text-center md:text-left">
+              <h1 className="text-4xl md:text-5xl font-black text-white mb-2">{team.name}</h1>
+              <p className="text-zinc-400 text-lg mb-4">{currentYear} Season</p>
+              
+              {/* Season Record */}
+              <div className="flex justify-center md:justify-start gap-4">
+                <div className="bg-emerald-500/20 px-4 py-2 rounded-lg border border-emerald-500/30">
+                  <span className="text-2xl font-black text-emerald-400">{seasonRecord.wins}</span>
+                  <span className="text-zinc-400 ml-1">Wins</span>
+                </div>
+                <div className="bg-red-500/20 px-4 py-2 rounded-lg border border-red-500/30">
+                  <span className="text-2xl font-black text-red-400">{seasonRecord.losses}</span>
+                  <span className="text-zinc-400 ml-1">Losses</span>
+                </div>
+                {seasonRecord.ties > 0 && (
+                  <div className="bg-yellow-500/20 px-4 py-2 rounded-lg border border-yellow-500/30">
+                    <span className="text-2xl font-black text-yellow-400">{seasonRecord.ties}</span>
+                    <span className="text-zinc-400 ml-1">Ties</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Team Stats */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-black/40 rounded-lg p-4 text-center border border-zinc-700 min-w-[100px]">
+                <p className="text-3xl font-black text-orange-400">{seasonStats.totalTds}</p>
+                <p className="text-xs text-zinc-500">Team TDs</p>
+              </div>
+              <div className="bg-black/40 rounded-lg p-4 text-center border border-zinc-700 min-w-[100px]">
+                <p className="text-3xl font-black text-cyan-400">{seasonStats.totalRushYards + seasonStats.totalPassYards}</p>
+                <p className="text-xs text-zinc-500">Total Yards</p>
+              </div>
+              <div className="bg-black/40 rounded-lg p-4 text-center border border-zinc-700 min-w-[100px]">
+                <p className="text-3xl font-black text-emerald-400">{seasonStats.totalTackles}</p>
+                <p className="text-xs text-zinc-500">Total Tackles</p>
+              </div>
+              <div className="bg-black/40 rounded-lg p-4 text-center border border-zinc-700 min-w-[100px]">
+                <p className="text-3xl font-black text-purple-400">{players.length}</p>
+                <p className="text-xs text-zinc-500">Players</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Content */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Coaching Staff */}
+            {coaches.length > 0 && (
+              <div className="bg-zinc-800/50 rounded-xl border border-zinc-700 p-6">
+                <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                  <Crown className="w-5 h-5 text-amber-500" />
+                  Coaching Staff
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {coaches.map((coach) => (
+                    <div 
+                      key={coach.id} 
+                      className={`flex items-center gap-3 p-3 rounded-lg ${
+                        coach.isHeadCoach 
+                          ? 'bg-amber-500/10 border border-amber-500/30' 
+                          : 'bg-zinc-900/50 border border-zinc-700'
+                      }`}
+                    >
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        coach.isHeadCoach ? 'bg-amber-500' : 'bg-zinc-700'
+                      }`}>
+                        <User className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-white">{coach.name}</p>
+                        <p className="text-xs text-zinc-500">
+                          {coach.isHeadCoach ? 'Head Coach' : 'Assistant Coach'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Game Results */}
+            {games.length > 0 && (
+              <div className="bg-zinc-800/50 rounded-xl border border-zinc-700 p-6">
+                <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-orange-500" />
+                  {currentYear} Game Results
+                </h2>
+                <div className="space-y-2">
+                  {games.map((game) => {
+                    const resultColor = game.result === 'W' ? 'text-emerald-400' : game.result === 'L' ? 'text-red-400' : 'text-yellow-400';
+                    const resultBg = game.result === 'W' ? 'bg-emerald-500' : game.result === 'L' ? 'bg-red-500' : 'bg-yellow-500';
+                    
+                    return (
+                      <div key={game.id} className="flex items-center justify-between bg-zinc-900/50 rounded-lg p-3 border border-zinc-700">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 ${resultBg} rounded flex items-center justify-center text-white font-black text-sm`}>
+                            {game.result}
+                          </div>
+                          <div>
+                            <p className="font-bold text-white">
+                              {game.isHome ? 'vs' : '@'} {game.opponent}
+                            </p>
+                            <p className="text-xs text-zinc-500">{formatDate(game.date)}</p>
+                          </div>
+                        </div>
+                        <p className={`text-xl font-black ${resultColor}`}>
+                          {game.teamScore} - {game.opponentScore}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Roster */}
+            <div className="bg-zinc-800/50 rounded-xl border border-zinc-700 p-6">
+              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <Users className="w-5 h-5 text-orange-500" />
+                Team Roster
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {players.map((player) => (
+                  <Link
+                    key={player.id}
+                    to={player.username ? `/athlete/${player.username}` : '#'}
+                    className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
+                      player.username 
+                        ? 'bg-zinc-900/50 hover:bg-zinc-700/50 border border-zinc-700 cursor-pointer' 
+                        : 'bg-zinc-900/30 border border-zinc-800 cursor-default'
+                    } ${player.isStarter ? 'ring-2 ring-orange-500/50' : ''}`}
+                  >
+                    {player.photoUrl ? (
+                      <img src={player.photoUrl} alt={player.name} className="w-10 h-10 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center">
+                        <User className="w-5 h-5 text-zinc-500" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-white truncate flex items-center gap-1">
+                        {player.name}
+                        {player.isCaptain && <Crown className="w-3 h-3 text-amber-500" />}
+                        {player.isStarter && <Star className="w-3 h-3 text-orange-500" />}
+                      </p>
+                      <p className="text-xs text-zinc-500">
+                        #{player.number || '?'} • {player.position || 'N/A'}
+                      </p>
+                    </div>
+                    {player.username && (
+                      <ChevronRight className="w-4 h-4 text-zinc-600" />
+                    )}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Upcoming Events */}
+            <div className="bg-zinc-800/50 rounded-xl border border-zinc-700 p-6">
+              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-orange-500" />
+                Upcoming Events
+              </h2>
+              {upcomingEvents.length === 0 ? (
+                <p className="text-zinc-500 text-sm">No upcoming events scheduled.</p>
+              ) : (
+                <div className="space-y-3">
+                  {upcomingEvents.map((event) => {
+                    const typeColor = event.type === 'Game' ? 'bg-orange-500' : event.type === 'Practice' ? 'bg-emerald-500' : 'bg-blue-500';
+                    
+                    return (
+                      <div key={event.id} className="bg-zinc-900/50 rounded-lg p-3 border border-zinc-700">
+                        <div className="flex items-start gap-3">
+                          <div className={`w-2 h-2 ${typeColor} rounded-full mt-1.5 flex-shrink-0`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-white text-sm truncate">{event.title}</p>
+                            <p className="text-xs text-zinc-500 flex items-center gap-1 mt-1">
+                              <Calendar className="w-3 h-3" />
+                              {formatDate(event.date)}
+                              {event.time && (
+                                <>
+                                  <span className="mx-1">•</span>
+                                  <Clock className="w-3 h-3" />
+                                  {formatTime(event.time)}
+                                </>
+                              )}
+                            </p>
+                            {event.location && (
+                              <p className="text-xs text-zinc-500 flex items-center gap-1 mt-0.5">
+                                <MapPin className="w-3 h-3" />
+                                {event.location}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Top Performers */}
+            <div className="bg-zinc-800/50 rounded-xl border border-zinc-700 p-6">
+              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-orange-500" />
+                Top Performers
+              </h2>
+              <div className="space-y-3">
+                {players
+                  .filter(p => (p.stats?.td || 0) + (p.stats?.tkl || 0) > 0)
+                  .sort((a, b) => ((b.stats?.td || 0) + (b.stats?.tkl || 0)) - ((a.stats?.td || 0) + (a.stats?.tkl || 0)))
+                  .slice(0, 5)
+                  .map((player, index) => (
+                    <div key={player.id} className="flex items-center gap-3">
+                      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                        index === 0 ? 'bg-amber-500 text-white' : 'bg-zinc-700 text-zinc-400'
+                      }`}>
+                        {index + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-white text-sm truncate">{player.name}</p>
+                      </div>
+                      <div className="flex gap-2 text-xs">
+                        <span className="text-orange-400 font-bold">{player.stats?.td || 0} TD</span>
+                        <span className="text-emerald-400 font-bold">{player.stats?.tkl || 0} TKL</span>
+                      </div>
+                    </div>
+                  ))}
+                {players.filter(p => (p.stats?.td || 0) + (p.stats?.tkl || 0) > 0).length === 0 && (
+                  <p className="text-zinc-500 text-sm">No stats recorded yet.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <footer className="mt-12 text-center text-zinc-600 text-sm">
+          <p>Powered by <span className="text-orange-500 font-bold">LockerRoom</span></p>
+        </footer>
+      </main>
+    </div>
+  );
+};
+
+export default PublicTeamProfile;

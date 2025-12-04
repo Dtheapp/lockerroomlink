@@ -4,7 +4,7 @@ import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateD
 import { db } from '../services/firebase';
 import { sanitizeText, sanitizeNumber, sanitizeDate } from '../services/sanitize';
 import type { Player, UserProfile, Team } from '../types';
-import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera, UserPlus, ArrowRightLeft, BarChart3, Eye, AtSign } from 'lucide-react';
+import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link as LinkIcon, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera, UserPlus, ArrowRightLeft, BarChart3, Eye, AtSign, Copy, Check, ExternalLink } from 'lucide-react';
 import PlayerStatsModal from './stats/PlayerStatsModal';
 
 // Pagination settings
@@ -107,6 +107,9 @@ const Roster: React.FC = () => {
   
   // Player Stats Modal state
   const [viewStatsPlayer, setViewStatsPlayer] = useState<Player | null>(null);
+  
+  // Team public link copy state
+  const [copiedTeamLink, setCopiedTeamLink] = useState(false);
   
   const [newPlayer, setNewPlayer] = useState({ 
     name: '', 
@@ -702,6 +705,22 @@ const Roster: React.FC = () => {
     }
   };
 
+  // Copy team public link
+  const copyTeamLink = async () => {
+    if (!teamData?.id) return;
+    
+    const baseUrl = window.location.origin + window.location.pathname;
+    const publicUrl = `${baseUrl}#/team/${teamData.id}`;
+    
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setCopiedTeamLink(true);
+      setTimeout(() => setCopiedTeamLink(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy link:', err);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -728,6 +747,57 @@ const Roster: React.FC = () => {
         <p className="text-sm text-zinc-500">
           Showing {filteredRoster.length} of {roster.length} players
         </p>
+      )}
+
+      {/* Team Public Page Link - Coaches only */}
+      {isStaff && teamData?.id && (
+        <div className="bg-gradient-to-r from-purple-500/10 to-sky-500/10 rounded-xl p-4 border border-purple-500/20">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center">
+                <ExternalLink className="w-5 h-5 text-purple-500" />
+              </div>
+              <div>
+                <p className="font-bold text-zinc-900 dark:text-white">Public Team Page</p>
+                <p className="text-xs text-zinc-500">Share your team's stats, roster, and schedule</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex-1 sm:flex-none bg-white dark:bg-zinc-800 rounded px-3 py-2 text-xs text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 truncate max-w-[220px]">
+                lockerroomlink.com/#/team/{teamData.id}
+              </div>
+              <button
+                onClick={copyTeamLink}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded text-sm font-medium transition-all ${
+                  copiedTeamLink
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-purple-500 hover:bg-purple-600 text-white'
+                }`}
+              >
+                {copiedTeamLink ? (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    Copy Link
+                  </>
+                )}
+              </button>
+              <a
+                href={`#/team/${teamData.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 rounded transition-colors"
+                title="View public team page"
+              >
+                <Eye className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
+              </a>
+            </div>
+          </div>
+        </div>
       )}
 
       {!teamData && isParent ? (
@@ -906,7 +976,7 @@ const Roster: React.FC = () => {
                         <div className="border-t border-zinc-200 dark:border-zinc-800 pt-3 mt-2 space-y-2">
                             <div className="flex justify-between items-center">
                                 {!player.parentId ? (
-                                    <button onClick={() => { setSelectedPlayerId(player.id); setIsLinkModalOpen(true); }} className="text-xs flex items-center gap-1 text-zinc-400 hover:text-zinc-900 dark:hover:text-white"><Link className="w-3 h-3" /> Link Parent</button>
+                                    <button onClick={() => { setSelectedPlayerId(player.id); setIsLinkModalOpen(true); }} className="text-xs flex items-center gap-1 text-zinc-400 hover:text-zinc-900 dark:hover:text-white"><LinkIcon className="w-3 h-3" /> Link Parent</button>
                                 ) : (
                                     <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><User className="w-3 h-3"/> {parent?.name || 'Linked'}</span>
                                 )}
