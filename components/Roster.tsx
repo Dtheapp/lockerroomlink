@@ -4,7 +4,7 @@ import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateD
 import { db } from '../services/firebase';
 import { sanitizeText, sanitizeNumber, sanitizeDate } from '../services/sanitize';
 import type { Player, UserProfile, Team } from '../types';
-import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus } from 'lucide-react';
+import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star } from 'lucide-react';
 
 // Pagination settings
 const PLAYERS_PER_PAGE = 12;
@@ -314,10 +314,12 @@ const Roster: React.FC = () => {
         pantSize: editingPlayer.pantSize || ''
       };
       
-      // Coaches can also edit jersey number and position
+      // Coaches can also edit jersey number, position, and designations
       if (isStaff) {
         updateData.number = editingPlayer.number || 0;
         updateData.position = editingPlayer.position || 'TBD';
+        updateData.isStarter = editingPlayer.isStarter || false;
+        updateData.isCaptain = editingPlayer.isCaptain || false;
       }
       
       await updateDoc(playerRef, updateData);
@@ -422,11 +424,40 @@ const Roster: React.FC = () => {
           {paginatedRoster.map(player => {
             const hasMedicalAlert = player.medical && (player.medical.allergies !== 'None' || player.medical.conditions !== 'None');
             const parent = getParentInfo(player.parentId);
+            const isStarter = player.isStarter;
+            const isCaptain = player.isCaptain;
 
             return (
-                <div key={player.id} className="bg-slate-50 dark:bg-zinc-950 rounded-xl p-5 flex flex-col relative overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-lg hover:border-orange-500/30 transition-colors">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="bg-zinc-100 dark:bg-zinc-900 rounded-full h-12 w-12 flex items-center justify-center text-xl font-bold text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700 font-mono">
+                <div 
+                  key={player.id} 
+                  className={`bg-slate-50 dark:bg-zinc-950 rounded-xl p-5 flex flex-col relative overflow-hidden border shadow-lg transition-all duration-300 ${
+                    isStarter 
+                      ? 'border-yellow-400 dark:border-yellow-500 ring-2 ring-yellow-400/50 dark:ring-yellow-500/40 shadow-yellow-400/20 dark:shadow-yellow-500/20' 
+                      : 'border-zinc-200 dark:border-zinc-800 hover:border-orange-500/30'
+                  }`}
+                  style={isStarter ? { boxShadow: '0 0 20px rgba(251, 191, 36, 0.3), 0 0 40px rgba(251, 191, 36, 0.1)' } : {}}
+                >
+                    {/* Captain Badge - Top Right Corner */}
+                    {isCaptain && (
+                      <div className="absolute top-2 right-2 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-full p-1.5 shadow-lg animate-pulse">
+                        <Crown className="w-4 h-4 text-white" />
+                      </div>
+                    )}
+                    
+                    {/* Starter Badge - Top Left Corner */}
+                    {isStarter && (
+                      <div className="absolute top-2 left-2 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full px-2 py-0.5 shadow-lg flex items-center gap-1">
+                        <Star className="w-3 h-3 text-white fill-white" />
+                        <span className="text-[10px] font-bold text-white uppercase tracking-wide">Starter</span>
+                      </div>
+                    )}
+                    
+                    <div className="flex justify-between items-start mb-4 mt-2">
+                        <div className={`rounded-full h-12 w-12 flex items-center justify-center text-xl font-bold border font-mono ${
+                          isStarter 
+                            ? 'bg-gradient-to-br from-yellow-100 to-amber-100 dark:from-yellow-900/30 dark:to-amber-900/30 border-yellow-400 dark:border-yellow-600 text-yellow-700 dark:text-yellow-400' 
+                            : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white'
+                        }`}>
                             {player.number}
                         </div>
                         <div className="flex gap-2">
@@ -445,7 +476,10 @@ const Roster: React.FC = () => {
                     </div>
 
                     <div className="text-center mb-4">
-                        <h3 className="text-xl font-bold text-zinc-900 dark:text-white truncate">{player.name}</h3>
+                        <h3 className="text-xl font-bold text-zinc-900 dark:text-white truncate flex items-center justify-center gap-2">
+                          {player.name}
+                          {isCaptain && <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-medium">C</span>}
+                        </h3>
                         <p className="text-orange-500 font-bold text-sm uppercase tracking-wide">{player.position}</p>
                         <p className="text-xs text-zinc-500 mt-1">DOB: {player.dob || '--'}</p>
                     </div>
@@ -1123,6 +1157,62 @@ const Roster: React.FC = () => {
                         className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
                       />
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* COACH-ONLY: Starter and Captain Designations */}
+              {isStaff && (
+                <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800">
+                  <p className="text-xs font-bold text-purple-600 dark:text-purple-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                    <Crown className="w-3 h-3" /> Player Designations
+                  </p>
+                  <div className="space-y-3">
+                    {/* Starter Toggle */}
+                    <label className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-black rounded-lg border border-zinc-300 dark:border-zinc-800 cursor-pointer hover:border-yellow-400 dark:hover:border-yellow-500 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                          <Star className="w-4 h-4 text-white fill-white" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-zinc-900 dark:text-white text-sm">Starter</p>
+                          <p className="text-xs text-zinc-500">Shows golden glow on roster card</p>
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <input 
+                          type="checkbox"
+                          checked={editingPlayer.isStarter || false}
+                          onChange={(e) => setEditingPlayer({...editingPlayer, isStarter: e.target.checked})}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-zinc-300 dark:bg-zinc-700 rounded-full peer peer-checked:bg-yellow-500 peer-checked:dark:bg-yellow-500 transition-colors"></div>
+                        <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow peer-checked:translate-x-5 transition-transform"></div>
+                      </div>
+                    </label>
+                    
+                    {/* Captain Toggle */}
+                    <label className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-black rounded-lg border border-zinc-300 dark:border-zinc-800 cursor-pointer hover:border-amber-400 dark:hover:border-amber-500 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-full flex items-center justify-center">
+                          <Crown className="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-zinc-900 dark:text-white text-sm">Captain</p>
+                          <p className="text-xs text-zinc-500">Shows crown badge on roster card</p>
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <input 
+                          type="checkbox"
+                          checked={editingPlayer.isCaptain || false}
+                          onChange={(e) => setEditingPlayer({...editingPlayer, isCaptain: e.target.checked})}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-zinc-300 dark:bg-zinc-700 rounded-full peer peer-checked:bg-amber-500 peer-checked:dark:bg-amber-500 transition-colors"></div>
+                        <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow peer-checked:translate-x-5 transition-transform"></div>
+                      </div>
+                    </label>
                   </div>
                 </div>
               )}

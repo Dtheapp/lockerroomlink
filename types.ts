@@ -93,6 +93,10 @@ export interface Player {
   shirtSize?: string; // e.g. "Youth Large", "Adult M"
   pantSize?: string; // e.g. "Youth Small", "Adult L"
   
+  // NEW: Starter & Captain status (Coach-set)
+  isStarter?: boolean;  // Shows glowing border on roster
+  isCaptain?: boolean;  // Shows captain crown badge
+  
   // Link to Parent
   parentId?: string; 
   
