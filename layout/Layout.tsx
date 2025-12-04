@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
-import { Home, Users, ClipboardList, MessageCircle, Video, LogOut, User, Send, Menu, X, ChevronLeft, Sun, Moon, BarChart3, Shield } from 'lucide-react';
+import { Home, Users, ClipboardList, MessageCircle, Video, LogOut, User, Send, Menu, X, ChevronLeft, Sun, Moon, BarChart3, Shield, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
 import { useUnreadMessages } from '../hooks/useUnreadMessages';
 import PlayerSelector from '../components/PlayerSelector';
 import TeamSelector from '../components/TeamSelector';
@@ -14,10 +15,13 @@ const Layout: React.FC = () => {
   const location = useLocation();
   const { teamData, userData } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { hasUnsavedChanges, setHasUnsavedChanges } = useUnsavedChanges();
   const { unread, markAsRead } = useUnreadMessages();
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [pendingNavPath, setPendingNavPath] = useState<string | null>(null);
   
   // Ref for main content scrolling
   const mainContentRef = useRef<HTMLDivElement>(null);
@@ -32,9 +36,50 @@ const Layout: React.FC = () => {
     // Messenger handles its own read status per conversation
   }, [location.pathname]);
 
+  // Handle navigation click with unsaved changes check
+  const handleNavClick = (e: React.MouseEvent, path: string) => {
+    // If navigating to the same page, no need to check
+    if (location.pathname === path) {
+      setIsSidebarOpen(false);
+      return;
+    }
+    
+    if (hasUnsavedChanges) {
+      e.preventDefault();
+      setPendingNavPath(path);
+      setShowUnsavedModal(true);
+    } else {
+      setIsSidebarOpen(false);
+    }
+  };
+
+  // Handle confirm leave (discard changes)
+  const handleConfirmLeave = () => {
+    setHasUnsavedChanges(false);
+    setShowUnsavedModal(false);
+    setIsSidebarOpen(false);
+    if (pendingNavPath) {
+      navigate(pendingNavPath);
+      setPendingNavPath(null);
+    }
+  };
+
+  // Handle cancel (stay on page)
+  const handleCancelLeave = () => {
+    setShowUnsavedModal(false);
+    setPendingNavPath(null);
+  };
+
   // Handle logo click - navigate to dashboard AND scroll to top
   const handleLogoClick = (e: React.MouseEvent) => {
     e.preventDefault();
+    
+    // Check for unsaved changes
+    if (hasUnsavedChanges && location.pathname !== '/dashboard') {
+      setPendingNavPath('/dashboard');
+      setShowUnsavedModal(true);
+      return;
+    }
     
     // Always scroll to top
     if (mainContentRef.current) {
@@ -157,7 +202,7 @@ const Layout: React.FC = () => {
               <NavLink
                 key={item.name}
                 to={item.path}
-                onClick={() => setIsSidebarOpen(false)} 
+                onClick={(e) => handleNavClick(e, item.path)} 
                 className={({ isActive }) => `${navLinkClasses} ${isActive ? activeClasses : inactiveClasses} relative`}
                 title={!showLabel ? item.name : ''}
               >
@@ -223,6 +268,40 @@ const Layout: React.FC = () => {
           <Outlet />
         </div>
       </main>
+
+      {/* Unsaved Changes Warning Modal */}
+      {showUnsavedModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl p-6 max-w-md w-full shadow-2xl border border-zinc-200 dark:border-zinc-700">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-6 h-6 text-orange-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">Unsaved Changes</h3>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">You have unsaved game stats</p>
+              </div>
+            </div>
+            <p className="text-zinc-600 dark:text-zinc-300 mb-6">
+              Are you sure you want to leave this page? Your unsaved changes will be lost.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleCancelLeave}
+                className="flex-1 px-4 py-2.5 border border-zinc-300 dark:border-zinc-600 rounded-lg text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors font-medium"
+              >
+                Stay on Page
+              </button>
+              <button
+                onClick={handleConfirmLeave}
+                className="flex-1 px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium"
+              >
+                Leave & Discard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, query, onSnapshot, orderBy, doc, setDoc, deleteDoc, writeBatch, serverTimestamp, where, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useUnsavedChanges } from '../../contexts/UnsavedChangesContext';
 import type { Game, GamePlayerStats, Player, PlayerSeasonStats } from '../../types';
 import { Plus, Trophy, Calendar, MapPin, Users, ChevronDown, ChevronUp, Save, Trash2, X, Sword, Shield, Target, Check, Edit2, TrendingUp, UserCheck, AtSign, Zap, Star, AlertTriangle } from 'lucide-react';
 
@@ -104,6 +105,7 @@ const ScoreInput: React.FC<{ label: string; value: number; onChange: (val: numbe
 
 const GameStatsEntry: React.FC = () => {
   const { teamData, userData } = useAuth();
+  const { setHasUnsavedChanges } = useUnsavedChanges();
   const currentYear = new Date().getFullYear();
   
   const [games, setGames] = useState<Game[]>([]);
@@ -359,12 +361,16 @@ const GameStatsEntry: React.FC = () => {
     return editedPlayerStats.size > 0;
   }, [editedPlayerStats]);
 
-  // Emit unsaved changes state to parent (Stats.tsx) whenever it changes
+  // Emit unsaved changes state to parent (Stats.tsx) and global context whenever it changes
   useEffect(() => {
+    const hasChanges = editedPlayerStats.size > 0;
+    // Update global context for sidebar navigation blocking
+    setHasUnsavedChanges(hasChanges);
+    // Also emit custom event for Stats.tsx tab switching
     window.dispatchEvent(new CustomEvent('gameStatsUnsavedChanges', {
-      detail: { hasChanges: editedPlayerStats.size > 0 }
+      detail: { hasChanges }
     }));
-  }, [editedPlayerStats]);
+  }, [editedPlayerStats, setHasUnsavedChanges]);
 
   // Get the game with unsaved changes (for saving from modal)
   const getGameWithUnsavedChanges = (): Game | null => {
@@ -388,6 +394,13 @@ const GameStatsEntry: React.FC = () => {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [editedPlayerStats]);
+
+  // Clear global unsaved changes state on unmount
+  useEffect(() => {
+    return () => {
+      setHasUnsavedChanges(false);
+    };
+  }, [setHasUnsavedChanges]);
 
   // Listen for clear and save commands from Stats.tsx
   useEffect(() => {

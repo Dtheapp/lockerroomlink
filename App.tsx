@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { UnsavedChangesProvider } from './contexts/UnsavedChangesContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import InstallPrompt from './components/InstallPrompt';
 import ForcePasswordChange from './components/ForcePasswordChange';
@@ -101,6 +102,7 @@ const AppContent: React.FC = () => {
 
   return (
     <HashRouter>
+      <UnsavedChangesProvider>
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {!user ? (
@@ -147,6 +149,7 @@ const AppContent: React.FC = () => {
           )}
         </Routes>
       </Suspense>
+      </UnsavedChangesProvider>
     </HashRouter>
   );
 };
