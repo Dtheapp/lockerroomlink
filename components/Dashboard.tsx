@@ -660,8 +660,8 @@ const Dashboard: React.FC = () => {
                 <h1 className="text-4xl font-black tracking-tighter text-zinc-900 dark:text-white mb-2 uppercase italic">{teamData?.name || 'Loading...'}</h1>
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-3 flex-wrap">
-                    {/* Team ID Badge */}
-                    {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
+                    {/* Team ID Badge - Visible to all users */}
+                    {teamData?.id && (
                       <button onClick={copyTeamId} className="flex items-center gap-2 bg-white/50 dark:bg-zinc-900/50 hover:bg-white/80 dark:hover:bg-zinc-800 border border-slate-400 dark:border-zinc-700 px-3 py-1 rounded-lg text-xs text-zinc-700 dark:text-zinc-400 transition-colors">
                         {isCopied ? <Check className="w-3 h-3 text-green-400"/> : <Clipboard className="w-3 h-3"/>}
                         <span className="font-mono">ID: {teamData?.id}</span>
@@ -669,7 +669,7 @@ const Dashboard: React.FC = () => {
                     )}
                 </div>
                 
-                {/* Public Team Page Link */}
+                {/* Public Team Page Link - Coaches only */}
                 {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && teamData?.id && (
                   <div className="flex items-center gap-2 flex-wrap">
                     <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/30 px-3 py-1.5 rounded-lg">
