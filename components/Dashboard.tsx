@@ -4,7 +4,7 @@ import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timest
 import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
-import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle, Minus } from 'lucide-react';
+import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle, Minus, ExternalLink, Copy, Link as LinkIcon } from 'lucide-react';
 import type { BulletinPost, PlayerSeasonStats, TeamEvent } from '../types';
 
 // Helper: Format date string (YYYY-MM-DD) to readable format without timezone issues
@@ -37,6 +37,7 @@ const Dashboard: React.FC = () => {
   const [statsLoading, setStatsLoading] = useState(true);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [isCopied, setIsCopied] = useState(false);
+  const [isPublicLinkCopied, setIsPublicLinkCopied] = useState(false);
   
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editingPostText, setEditingPostText] = useState('');
@@ -242,6 +243,16 @@ const Dashboard: React.FC = () => {
       navigator.clipboard.writeText(teamData.id);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
+    }
+  };
+
+  const copyPublicLink = () => {
+    if (teamData?.id) {
+      const baseUrl = window.location.origin + window.location.pathname;
+      const publicUrl = `${baseUrl}#/team/${teamData.id}`;
+      navigator.clipboard.writeText(publicUrl);
+      setIsPublicLinkCopied(true);
+      setTimeout(() => setIsPublicLinkCopied(false), 2000);
     }
   };
   
@@ -647,7 +658,8 @@ const Dashboard: React.FC = () => {
           <div className="absolute top-0 right-0 p-8 opacity-5"><Trophy className="w-64 h-64 text-white" /></div>
           <div className="relative z-10">
                 <h1 className="text-4xl font-black tracking-tighter text-zinc-900 dark:text-white mb-2 uppercase italic">{teamData?.name || 'Loading...'}</h1>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-3 flex-wrap">
                     {/* Team ID Badge */}
                     {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
                       <button onClick={copyTeamId} className="flex items-center gap-2 bg-white/50 dark:bg-zinc-900/50 hover:bg-white/80 dark:hover:bg-zinc-800 border border-slate-400 dark:border-zinc-700 px-3 py-1 rounded-lg text-xs text-zinc-700 dark:text-zinc-400 transition-colors">
@@ -655,6 +667,50 @@ const Dashboard: React.FC = () => {
                         <span className="font-mono">ID: {teamData?.id}</span>
                       </button>
                     )}
+                </div>
+                
+                {/* Public Team Page Link */}
+                {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && teamData?.id && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/30 px-3 py-1.5 rounded-lg">
+                      <LinkIcon className="w-3 h-3 text-purple-400" />
+                      <span className="text-xs text-purple-300 font-medium">Public Page:</span>
+                      <span className="text-xs text-purple-400 font-mono truncate max-w-[200px]">
+                        lockerroomlink.com/#/team/{teamData.id}
+                      </span>
+                    </div>
+                    <button
+                      onClick={copyPublicLink}
+                      className={`flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium transition-all ${
+                        isPublicLinkCopied
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-purple-500 hover:bg-purple-600 text-white'
+                      }`}
+                    >
+                      {isPublicLinkCopied ? (
+                        <>
+                          <Check className="w-3 h-3" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          Copy
+                        </>
+                      )}
+                    </button>
+                    <a
+                      href={`#/team/${teamData.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 px-2 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded text-xs font-medium transition-colors"
+                      title="View public team page"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      View
+                    </a>
+                  </div>
+                )}
               </div>
           </div>
       </div>
