@@ -1,17 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import type { Video } from '../types';
-import { Plus, Trash2, Play, Video as VideoIcon, X, AlertCircle } from 'lucide-react';
+import type { Video, VideoCategory, Player } from '../types';
+import { Plus, Trash2, Play, Video as VideoIcon, X, AlertCircle, Film, Dumbbell, Trophy, FolderOpen, Edit2, Check, Lock, Users, Filter, User } from 'lucide-react';
+
+const VIDEO_CATEGORIES: { value: VideoCategory; label: string; icon: React.ReactNode; color: string }[] = [
+  { value: 'Game Film', label: 'Game Film', icon: <Film className="w-4 h-4" />, color: 'text-red-500 bg-red-500/10 border-red-500/20' },
+  { value: 'Training', label: 'Training', icon: <Dumbbell className="w-4 h-4" />, color: 'text-cyan-500 bg-cyan-500/10 border-cyan-500/20' },
+  { value: 'Highlights', label: 'Highlights', icon: <Trophy className="w-4 h-4" />, color: 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20' },
+  { value: 'Other', label: 'Other', icon: <FolderOpen className="w-4 h-4" />, color: 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20' },
+];
 
 const VideoLibrary: React.FC = () => {
-  const { userData, teamData } = useAuth();
+  const { userData, teamData, players, selectedPlayer } = useAuth();
   const [videos, setVideos] = useState<Video[]>([]);
+  const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newVideo, setNewVideo] = useState({ title: '', url: '' });
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingVideo, setEditingVideo] = useState<Video | null>(null);
+  const [newVideo, setNewVideo] = useState<{
+    title: string;
+    url: string;
+    category: VideoCategory;
+    playerId: string;
+    description: string;
+  }>({ title: '', url: '', category: 'Game Film', playerId: '', description: '' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  
+  // Filter state
+  const [filterCategory, setFilterCategory] = useState<VideoCategory | 'All' | 'My Videos'>('All');
   
   // Track which video is playing (YouTube ID)
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
@@ -20,6 +40,7 @@ const VideoLibrary: React.FC = () => {
   const [deleteVideoConfirm, setDeleteVideoConfirm] = useState<{ id: string; title: string } | null>(null);
   const [deletingVideo, setDeletingVideo] = useState(false);
 
+  // Fetch videos
   useEffect(() => {
     if (!teamData?.id) return;
     const videosQuery = query(collection(db, 'teams', teamData.id, 'videos'), orderBy('createdAt', 'desc'));
@@ -31,11 +52,90 @@ const VideoLibrary: React.FC = () => {
     return () => unsubscribe();
   }, [teamData?.id]);
 
+  // Fetch team players (for coaches to select when adding private videos)
+  useEffect(() => {
+    if (!teamData?.id || userData?.role === 'Parent') return;
+    
+    const fetchPlayers = async () => {
+      const playersSnapshot = await getDocs(collection(db, 'teams', teamData.id, 'players'));
+      const playersData = playersSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Player));
+      setTeamPlayers(playersData);
+    };
+    fetchPlayers();
+  }, [teamData?.id, userData?.role]);
+
+  // Filter videos based on user role and selected filter
+  const filteredVideos = videos.filter(video => {
+    // For Parents: Show team videos (no playerId) OR videos specifically for their player
+    if (userData?.role === 'Parent') {
+      const isTeamVideo = !video.playerId;
+      const isMyPlayerVideo = video.playerId && players.some(p => p.id === video.playerId);
+      
+      if (!isTeamVideo && !isMyPlayerVideo) return false;
+      
+      // Apply category filter
+      if (filterCategory === 'My Videos') {
+        return isMyPlayerVideo;
+      }
+    }
+    
+    // Apply category filter
+    if (filterCategory !== 'All' && filterCategory !== 'My Videos') {
+      return video.category === filterCategory;
+    }
+    
+    return true;
+  });
+
+  // Count videos by category for filter badges
+  const getCategoryCount = (category: VideoCategory | 'All' | 'My Videos') => {
+    if (category === 'All') {
+      // For parents, only count visible videos
+      if (userData?.role === 'Parent') {
+        return videos.filter(v => !v.playerId || players.some(p => p.id === v.playerId)).length;
+      }
+      return videos.length;
+    }
+    if (category === 'My Videos') {
+      return videos.filter(v => v.playerId && players.some(p => p.id === v.playerId)).length;
+    }
+    // For parents, only count visible videos in category
+    if (userData?.role === 'Parent') {
+      return videos.filter(v => v.category === category && (!v.playerId || players.some(p => p.id === v.playerId))).length;
+    }
+    return videos.filter(v => v.category === category).length;
+  };
+
   // OPTIMIZED: Robust Regex that handles Standard, Share links, Embeds, AND Shorts
   const extractYoutubeId = (url: string) => {
     const regExp = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
     const match = url.match(regExp);
     return (match && match[1]) ? match[1] : null;
+  };
+
+  const resetForm = () => {
+    setNewVideo({ title: '', url: '', category: 'Game Film', playerId: '', description: '' });
+    setIsEditMode(false);
+    setEditingVideo(null);
+    setError('');
+  };
+
+  const openAddModal = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (video: Video) => {
+    setEditingVideo(video);
+    setNewVideo({
+      title: video.title,
+      url: video.url,
+      category: video.category || 'Other',
+      playerId: video.playerId || '',
+      description: video.description || ''
+    });
+    setIsEditMode(true);
+    setIsModalOpen(true);
   };
 
   const handleAddVideo = async (e: React.FormEvent) => {
@@ -46,21 +146,87 @@ const VideoLibrary: React.FC = () => {
     
     const youtubeId = extractYoutubeId(newVideo.url);
     
-    // UX FIX: Inline error instead of alert()
     if (!youtubeId) { 
-        setError('Invalid URL. We support YouTube Videos and Shorts.'); 
-        return; 
+      setError('Invalid URL. We support YouTube Videos and Shorts.'); 
+      return; 
     }
 
+    setSaving(true);
+    
     try {
+      // Find player name if a player is selected
+      let playerName = null;
+      if (newVideo.playerId) {
+        const player = teamPlayers.find(p => p.id === newVideo.playerId);
+        playerName = player?.name || null;
+      }
+
       await addDoc(collection(db, 'teams', teamData.id, 'videos'), {
-        title: newVideo.title, url: newVideo.url, youtubeId, createdAt: serverTimestamp()
+        title: newVideo.title,
+        url: newVideo.url,
+        youtubeId,
+        category: newVideo.category,
+        playerId: newVideo.playerId || null,
+        playerName: playerName,
+        description: newVideo.description || null,
+        createdAt: serverTimestamp(),
+        createdBy: userData?.uid
       });
-      setNewVideo({ title: '', url: '' }); 
+      
+      resetForm();
       setIsModalOpen(false);
     } catch (error) { 
-        console.error("Error adding video:", error);
-        setError('Failed to save video. Please try again.');
+      console.error("Error adding video:", error);
+      setError('Failed to save video. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateVideo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    
+    if (!teamData?.id || !editingVideo || !newVideo.title) return;
+    
+    // If URL changed, re-extract YouTube ID
+    let youtubeId = editingVideo.youtubeId;
+    if (newVideo.url !== editingVideo.url) {
+      const newYoutubeId = extractYoutubeId(newVideo.url);
+      if (!newYoutubeId) {
+        setError('Invalid URL. We support YouTube Videos and Shorts.');
+        return;
+      }
+      youtubeId = newYoutubeId;
+    }
+
+    setSaving(true);
+    
+    try {
+      // Find player name if a player is selected
+      let playerName = null;
+      if (newVideo.playerId) {
+        const player = teamPlayers.find(p => p.id === newVideo.playerId);
+        playerName = player?.name || null;
+      }
+
+      await updateDoc(doc(db, 'teams', teamData.id, 'videos', editingVideo.id), {
+        title: newVideo.title,
+        url: newVideo.url,
+        youtubeId,
+        category: newVideo.category,
+        playerId: newVideo.playerId || null,
+        playerName: playerName,
+        description: newVideo.description || null,
+      });
+      
+      resetForm();
+      setIsModalOpen(false);
+    } catch (error) { 
+      console.error("Error updating video:", error);
+      setError('Failed to update video. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -77,76 +243,349 @@ const VideoLibrary: React.FC = () => {
     }
   };
 
+  const getCategoryStyle = (category: VideoCategory) => {
+    const cat = VIDEO_CATEGORIES.find(c => c.value === category);
+    return cat?.color || 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20';
+  };
+
+  const getCategoryIcon = (category: VideoCategory) => {
+    const cat = VIDEO_CATEGORIES.find(c => c.value === category);
+    return cat?.icon || <FolderOpen className="w-4 h-4" />;
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">Film Room</h1>
+    <div className="space-y-6 pb-20">
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">Film Room</h1>
+          <p className="text-zinc-500 text-sm mt-1">
+            {userData?.role === 'Parent' 
+              ? 'Watch game film, training videos, and personalized feedback'
+              : 'Manage and share videos with your team'
+            }
+          </p>
+        </div>
         {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
-          <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-500 transition-colors shadow-lg shadow-orange-900/20">
+          <button 
+            onClick={openAddModal} 
+            className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2.5 rounded-lg hover:bg-orange-500 transition-colors shadow-lg shadow-orange-900/20 font-medium"
+          >
             <Plus className="w-5 h-5" /> Add Video
           </button>
         )}
       </div>
 
-      {loading ? <p className="text-zinc-500">Loading videos...</p> : videos.length > 0 ? (
+      {/* FILTER TABS */}
+      <div className="flex flex-wrap gap-2">
+        {/* All filter */}
+        <button
+          onClick={() => setFilterCategory('All')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+            filterCategory === 'All'
+              ? 'bg-orange-600 text-white border-orange-600 shadow-lg'
+              : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:border-orange-500/50'
+          }`}
+        >
+          <Filter className="w-4 h-4" />
+          All
+          <span className={`text-xs px-1.5 py-0.5 rounded-full ${filterCategory === 'All' ? 'bg-white/20' : 'bg-zinc-200 dark:bg-zinc-800'}`}>
+            {getCategoryCount('All')}
+          </span>
+        </button>
+
+        {/* Category filters */}
+        {VIDEO_CATEGORIES.map(cat => (
+          <button
+            key={cat.value}
+            onClick={() => setFilterCategory(cat.value)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+              filterCategory === cat.value
+                ? `${cat.color} border-current shadow-lg`
+                : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:border-orange-500/50'
+            }`}
+          >
+            {cat.icon}
+            <span className="hidden sm:inline">{cat.label}</span>
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${filterCategory === cat.value ? 'bg-current/20' : 'bg-zinc-200 dark:bg-zinc-800'}`}>
+              {getCategoryCount(cat.value)}
+            </span>
+          </button>
+        ))}
+
+        {/* My Videos filter (for parents) */}
+        {userData?.role === 'Parent' && getCategoryCount('My Videos') > 0 && (
+          <button
+            onClick={() => setFilterCategory('My Videos')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+              filterCategory === 'My Videos'
+                ? 'bg-purple-500/10 text-purple-500 border-purple-500/30 shadow-lg'
+                : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:border-purple-500/50'
+            }`}
+          >
+            <User className="w-4 h-4" />
+            <span className="hidden sm:inline">For {selectedPlayer?.name || 'My Player'}</span>
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${filterCategory === 'My Videos' ? 'bg-purple-500/20' : 'bg-zinc-200 dark:bg-zinc-800'}`}>
+              {getCategoryCount('My Videos')}
+            </span>
+          </button>
+        )}
+      </div>
+
+      {/* VIDEO GRID */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="w-10 h-10 border-4 border-dashed rounded-full animate-spin border-orange-500"></div>
+        </div>
+      ) : filteredVideos.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {videos.map(video => (
-            <div key={video.id} className="bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-lg hover:border-orange-500/30 transition-colors group">
+          {filteredVideos.map(video => (
+            <div 
+              key={video.id} 
+              className={`bg-white dark:bg-zinc-950 rounded-xl border overflow-hidden shadow-lg hover:shadow-xl transition-all group ${
+                video.playerId 
+                  ? 'border-purple-500/30 ring-1 ring-purple-500/10' 
+                  : 'border-zinc-200 dark:border-zinc-800 hover:border-orange-500/30'
+              }`}
+            >
+              {/* Thumbnail */}
               <div className="relative aspect-video bg-black cursor-pointer" onClick={() => setPlayingVideoId(video.youtubeId)}>
-                <img src={`https://img.youtube.com/vi/${video.youtubeId}/mqdefault.jpg`} alt={video.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"/>
+                <img 
+                  src={`https://img.youtube.com/vi/${video.youtubeId}/mqdefault.jpg`} 
+                  alt={video.title} 
+                  className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                />
                 <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/0 transition-colors">
                   <div className="bg-orange-600/90 text-white p-3 rounded-full shadow-xl scale-100 group-hover:scale-110 transition-transform">
                     <Play className="w-6 h-6 fill-current" />
                   </div>
                 </div>
-              </div>
-              <div className="p-4 flex justify-between items-start">
-                <div className="flex items-start gap-2">
-                    <VideoIcon className="w-4 h-4 text-zinc-500 mt-1" />
-                    <h3 className="font-bold text-zinc-900 dark:text-white line-clamp-2">{video.title}</h3>
+                
+                {/* Category Badge */}
+                <div className={`absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-bold border backdrop-blur-sm ${getCategoryStyle(video.category || 'Other')}`}>
+                  {getCategoryIcon(video.category || 'Other')}
+                  {video.category || 'Other'}
                 </div>
-                {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
-                  <button onClick={() => setDeleteVideoConfirm({ id: video.id, title: video.title })} className="text-zinc-600 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>
+                
+                {/* Private Badge */}
+                {video.playerId && (
+                  <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold bg-purple-600 text-white">
+                    <Lock className="w-3 h-3" />
+                    Private
+                  </div>
                 )}
+              </div>
+              
+              {/* Info */}
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-zinc-900 dark:text-white line-clamp-2">{video.title}</h3>
+                    
+                    {/* Player assignment (for private videos) */}
+                    {video.playerId && video.playerName && (
+                      <div className="flex items-center gap-1.5 mt-2 text-xs text-purple-500">
+                        <User className="w-3 h-3" />
+                        <span>For {video.playerName}</span>
+                      </div>
+                    )}
+                    
+                    {/* Visibility indicator */}
+                    {!video.playerId && (userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
+                      <div className="flex items-center gap-1.5 mt-2 text-xs text-zinc-500">
+                        <Users className="w-3 h-3" />
+                        <span>Visible to all team</span>
+                      </div>
+                    )}
+                    
+                    {/* Description preview */}
+                    {video.description && (
+                      <p className="text-xs text-zinc-500 mt-2 line-clamp-2">{video.description}</p>
+                    )}
+                  </div>
+                  
+                  {/* Actions (Coach only) */}
+                  {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
+                    <div className="flex items-center gap-1">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); openEditModal(video); }} 
+                        className="p-2 text-zinc-400 hover:text-cyan-500 hover:bg-cyan-500/10 rounded-lg transition-colors"
+                      >
+                        <Edit2 className="w-4 h-4"/>
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setDeleteVideoConfirm({ id: video.id, title: video.title }); }} 
+                        className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4"/>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-900/30 rounded-xl border border-dashed border-zinc-300 dark:border-zinc-800">
-            <VideoIcon className="w-12 h-12 mx-auto text-zinc-600 mb-3 opacity-50" />
-            <p className="text-zinc-500">No videos in the library yet.</p>
+        <div className="text-center py-16 bg-zinc-50 dark:bg-zinc-900/30 rounded-xl border border-dashed border-zinc-300 dark:border-zinc-800">
+          <VideoIcon className="w-16 h-16 mx-auto text-zinc-400 mb-4 opacity-50" />
+          <p className="text-zinc-500 text-lg font-medium">
+            {filterCategory === 'All' 
+              ? 'No videos in the Film Room yet.'
+              : filterCategory === 'My Videos'
+                ? 'No videos specifically for your player yet.'
+                : `No ${filterCategory} videos yet.`
+            }
+          </p>
+          {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
+            <button 
+              onClick={openAddModal}
+              className="mt-4 inline-flex items-center gap-2 text-orange-500 hover:text-orange-400 font-medium"
+            >
+              <Plus className="w-4 h-4" /> Add the first video
+            </button>
+          )}
         </div>
       )}
 
-      {/* ADD VIDEO MODAL */}
+      {/* ADD/EDIT VIDEO MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-zinc-950 w-full max-w-md rounded-xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Add New Video</h2>
-                <button onClick={() => { setIsModalOpen(false); setError(''); }} className="text-zinc-500 hover:text-white"><X className="w-5 h-5"/></button>
+          <div className="bg-white dark:bg-zinc-950 w-full max-w-lg rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-2xl max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 px-6 py-4 flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-zinc-900 dark:text-white">
+                  {isEditMode ? 'Edit Video' : 'Add New Video'}
+                </h2>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  {isEditMode ? 'Update video details' : 'Share a YouTube video with your team'}
+                </p>
+              </div>
+              <button 
+                onClick={() => { setIsModalOpen(false); resetForm(); }} 
+                className="text-zinc-500 hover:text-zinc-900 dark:hover:text-white p-1"
+              >
+                <X className="w-5 h-5"/>
+              </button>
             </div>
             
-            {error && (
-                <div className="mb-4 bg-red-500/10 border border-red-500/20 text-red-500 p-3 rounded-lg text-sm flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4"/> {error}
+            {/* Modal Body */}
+            <form onSubmit={isEditMode ? handleUpdateVideo : handleAddVideo} className="p-6 space-y-5">
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-3 rounded-lg text-sm flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0"/> {error}
                 </div>
-            )}
+              )}
 
-            <form onSubmit={handleAddVideo} className="space-y-4">
+              {/* Title */}
               <div>
-                  <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Video Title</label>
-                  <input value={newVideo.title} onChange={e => setNewVideo({...newVideo, title: e.target.value})} className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded p-3 text-zinc-900 dark:text-white focus:border-orange-500 outline-none" placeholder="e.g. Game Highlights vs Tigers" required />
+                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1.5">Video Title *</label>
+                <input 
+                  value={newVideo.title} 
+                  onChange={e => setNewVideo({...newVideo, title: e.target.value})} 
+                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-lg p-3 text-zinc-900 dark:text-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none" 
+                  placeholder="e.g. Week 3 Game Highlights" 
+                  required 
+                />
               </div>
+              
+              {/* URL */}
               <div>
-                  <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">YouTube URL</label>
-                  <input value={newVideo.url} onChange={e => setNewVideo({...newVideo, url: e.target.value})} className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded p-3 text-zinc-900 dark:text-white focus:border-orange-500 outline-none" placeholder="https://youtube.com/watch?v=..." required />
-                  <p className="text-[10px] text-zinc-500 mt-1">Supports YouTube Videos & Shorts</p>
+                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1.5">YouTube URL *</label>
+                <input 
+                  value={newVideo.url} 
+                  onChange={e => setNewVideo({...newVideo, url: e.target.value})} 
+                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-lg p-3 text-zinc-900 dark:text-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none" 
+                  placeholder="https://youtube.com/watch?v=..." 
+                  required 
+                />
+                <p className="text-[10px] text-zinc-500 mt-1">Supports YouTube Videos & Shorts</p>
               </div>
-              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-zinc-200 dark:border-zinc-900">
-                <button type="button" onClick={() => { setIsModalOpen(false); setError(''); }} className="px-4 py-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white">Cancel</button>
-                <button type="submit" className="bg-orange-600 hover:bg-orange-500 text-white px-6 py-2 rounded-lg font-bold shadow-lg shadow-orange-900/20">Add Video</button>
+
+              {/* Category */}
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1.5">Category *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {VIDEO_CATEGORIES.map(cat => (
+                    <button
+                      key={cat.value}
+                      type="button"
+                      onClick={() => setNewVideo({...newVideo, category: cat.value})}
+                      className={`flex items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+                        newVideo.category === cat.value
+                          ? `${cat.color} border-current`
+                          : 'border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-700'
+                      }`}
+                    >
+                      {cat.icon}
+                      <span className="font-medium text-sm">{cat.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Player Assignment (Private Video) */}
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-3 h-3" />
+                    Share Privately With Player (Optional)
+                  </div>
+                </label>
+                <select
+                  value={newVideo.playerId}
+                  onChange={e => setNewVideo({...newVideo, playerId: e.target.value})}
+                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-lg p-3 text-zinc-900 dark:text-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none"
+                >
+                  <option value="">Visible to entire team</option>
+                  {teamPlayers.map(player => (
+                    <option key={player.id} value={player.id}>
+                      {player.name} {player.number ? `#${player.number}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  {newVideo.playerId 
+                    ? '🔒 Only the selected player\'s parent will see this video'
+                    : '👥 All team members will see this video'
+                  }
+                </p>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1.5">Description (Optional)</label>
+                <textarea 
+                  value={newVideo.description} 
+                  onChange={e => setNewVideo({...newVideo, description: e.target.value})} 
+                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-lg p-3 text-zinc-900 dark:text-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none resize-none" 
+                  placeholder="Add notes, timestamps, or instructions..."
+                  rows={3}
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-zinc-200 dark:border-zinc-900">
+                <button 
+                  type="button" 
+                  onClick={() => { setIsModalOpen(false); resetForm(); }} 
+                  className="px-4 py-2.5 text-zinc-500 hover:text-zinc-900 dark:hover:text-white font-medium"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={saving}
+                  className="bg-orange-600 hover:bg-orange-500 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg shadow-orange-900/20 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {saving ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Check className="w-4 h-4" />
+                  )}
+                  {isEditMode ? 'Save Changes' : 'Add Video'}
+                </button>
               </div>
             </form>
           </div>
@@ -155,27 +594,27 @@ const VideoLibrary: React.FC = () => {
 
       {/* CINEMA MODE PLAYER (FULLSCREEN OVERLAY) */}
       {playingVideoId && (
-          <div className="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-0 md:p-10 animate-in fade-in duration-300">
-              <div className="w-full max-w-6xl w-full relative aspect-video bg-black shadow-2xl rounded-lg overflow-hidden">
-                  {/* Close Button */}
-                  <button 
-                      onClick={() => setPlayingVideoId(null)} 
-                      className="absolute top-4 right-4 z-10 bg-black/50 text-white hover:bg-orange-600 p-2 rounded-full transition-colors backdrop-blur-sm"
-                  >
-                      <X className="w-6 h-6" />
-                  </button>
-                  
-                  {/* YouTube Embed */}
-                  <iframe 
-                      src={`https://www.youtube.com/embed/${playingVideoId}?autoplay=1&rel=0&modestbranding=1`} 
-                      title="YouTube video player" 
-                      className="w-full h-full"
-                      frameBorder="0" 
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-                      allowFullScreen
-                  ></iframe>
-              </div>
+        <div className="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-0 md:p-10 animate-in fade-in duration-300">
+          <div className="w-full max-w-6xl relative aspect-video bg-black shadow-2xl rounded-lg overflow-hidden">
+            {/* Close Button */}
+            <button 
+              onClick={() => setPlayingVideoId(null)} 
+              className="absolute top-4 right-4 z-10 bg-black/50 text-white hover:bg-orange-600 p-2 rounded-full transition-colors backdrop-blur-sm"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            
+            {/* YouTube Embed */}
+            <iframe 
+              src={`https://www.youtube.com/embed/${playingVideoId}?autoplay=1&rel=0&modestbranding=1`} 
+              title="YouTube video player" 
+              className="w-full h-full"
+              frameBorder="0" 
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+              allowFullScreen
+            ></iframe>
           </div>
+        </div>
       )}
 
       {/* DELETE VIDEO CONFIRMATION MODAL */}

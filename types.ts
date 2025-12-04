@@ -165,11 +165,21 @@ export interface Marker {
 }
 
 // --- VIDEO ---
+export type VideoCategory = 'Game Film' | 'Training' | 'Highlights' | 'Other';
+
 export interface Video {
   id: string;
   title: string;
   url: string;
   youtubeId: string;
+  category: VideoCategory;
+  // For private player-specific videos
+  playerId?: string | null;  // If set, only visible to that player's parent
+  playerName?: string | null; // Store name for display
+  // Metadata
+  createdAt?: any;
+  createdBy?: string;
+  description?: string;
 }
 
 // --- PRIVATE MESSAGING ---
