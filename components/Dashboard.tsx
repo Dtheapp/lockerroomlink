@@ -4,7 +4,7 @@ import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timest
 import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
-import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle } from 'lucide-react';
+import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle, Minus } from 'lucide-react';
 import type { BulletinPost, PlayerStats, TeamEvent } from '../types';
 
 const Dashboard: React.FC = () => {
@@ -47,6 +47,11 @@ const Dashboard: React.FC = () => {
   const [deleteEventConfirm, setDeleteEventConfirm] = useState<{ id: string; title: string; date: string } | null>(null);
   const [deletingPost, setDeletingPost] = useState(false);
   const [deletingEvent, setDeletingEvent] = useState(false);
+  
+  // Team Record state
+  const [isEditingRecord, setIsEditingRecord] = useState(false);
+  const [editRecord, setEditRecord] = useState({ wins: 0, losses: 0, ties: 0 });
+  const [savingRecord, setSavingRecord] = useState(false);
 
   // --- OPTIMIZED STATS CALCULATION (PERFORMANCE FIX) ---
   // Calculates leaders only when playerStats data changes, not on every render
@@ -220,6 +225,36 @@ const Dashboard: React.FC = () => {
   const formatDate = (timestamp: Timestamp | null) => {
     if (!timestamp) return 'Just now';
     return new Date(timestamp.seconds * 1000).toLocaleString();
+  };
+
+  // Handle saving team record
+  const handleSaveRecord = async () => {
+    if (!teamData?.id) return;
+    setSavingRecord(true);
+    try {
+      await updateDoc(doc(db, 'teams', teamData.id), {
+        record: {
+          wins: Math.max(0, editRecord.wins),
+          losses: Math.max(0, editRecord.losses),
+          ties: Math.max(0, editRecord.ties)
+        }
+      });
+      setIsEditingRecord(false);
+    } catch (error) {
+      console.error("Error saving record:", error);
+    } finally {
+      setSavingRecord(false);
+    }
+  };
+
+  // Open edit record modal
+  const openEditRecord = () => {
+    setEditRecord({
+      wins: teamData?.record?.wins || 0,
+      losses: teamData?.record?.losses || 0,
+      ties: teamData?.record?.ties || 0
+    });
+    setIsEditingRecord(true);
   };
 
   // Get event type styling
@@ -600,6 +635,198 @@ const Dashboard: React.FC = () => {
               </div>
           </div>
       </div>
+
+      {/* TEAM RECORD */}
+      <div className="bg-gradient-to-br from-zinc-900 to-black rounded-2xl border border-zinc-800 overflow-hidden shadow-xl">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-lg flex items-center justify-center shadow-lg">
+                <Trophy className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Season Record</h2>
+                <p className="text-xs text-zinc-500">Track your team's wins & losses</p>
+              </div>
+            </div>
+            {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
+              <button 
+                onClick={openEditRecord}
+                className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-medium transition-colors border border-zinc-700"
+              >
+                <Edit2 className="w-3 h-3" /> Update
+              </button>
+            )}
+          </div>
+          
+          {/* Record Display */}
+          <div className="grid grid-cols-3 gap-4">
+            {/* Wins */}
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 text-center">
+              <p className="text-4xl font-black text-emerald-400">{teamData?.record?.wins || 0}</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-emerald-500/70 mt-1">Wins</p>
+            </div>
+            
+            {/* Losses */}
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center">
+              <p className="text-4xl font-black text-red-400">{teamData?.record?.losses || 0}</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-red-500/70 mt-1">Losses</p>
+            </div>
+            
+            {/* Ties */}
+            <div className="bg-zinc-500/10 border border-zinc-500/20 rounded-xl p-4 text-center">
+              <p className="text-4xl font-black text-zinc-400">{teamData?.record?.ties || 0}</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-zinc-500/70 mt-1">Ties</p>
+            </div>
+          </div>
+          
+          {/* Win Percentage Bar */}
+          {((teamData?.record?.wins || 0) + (teamData?.record?.losses || 0) + (teamData?.record?.ties || 0)) > 0 && (
+            <div className="mt-4">
+              <div className="flex justify-between text-xs text-zinc-500 mb-1">
+                <span>Win Rate</span>
+                <span className="font-mono">
+                  {Math.round(((teamData?.record?.wins || 0) / ((teamData?.record?.wins || 0) + (teamData?.record?.losses || 0) + (teamData?.record?.ties || 0))) * 100)}%
+                </span>
+              </div>
+              <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-500"
+                  style={{ 
+                    width: `${((teamData?.record?.wins || 0) / ((teamData?.record?.wins || 0) + (teamData?.record?.losses || 0) + (teamData?.record?.ties || 0))) * 100}%` 
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* EDIT RECORD MODAL */}
+      {isEditingRecord && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setIsEditingRecord(false)}>
+          <div 
+            className="bg-zinc-900 rounded-2xl w-full max-w-sm border border-zinc-700 shadow-2xl animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-yellow-600 to-orange-600 p-5 rounded-t-2xl">
+              <div className="flex items-center gap-3">
+                <Trophy className="w-6 h-6 text-white" />
+                <div>
+                  <h2 className="text-xl font-bold text-white">Update Record</h2>
+                  <p className="text-xs text-white/70">Log your team's game results</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              {/* Wins */}
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-2 block">Wins</label>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => setEditRecord({...editRecord, wins: Math.max(0, editRecord.wins - 1)})}
+                    className="w-12 h-12 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg flex items-center justify-center text-zinc-400 transition-colors"
+                  >
+                    <Minus className="w-5 h-5" />
+                  </button>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={editRecord.wins} 
+                    onChange={(e) => setEditRecord({...editRecord, wins: parseInt(e.target.value) || 0})}
+                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-center text-2xl font-black text-emerald-400 outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <button 
+                    onClick={() => setEditRecord({...editRecord, wins: editRecord.wins + 1})}
+                    className="w-12 h-12 bg-emerald-600 hover:bg-emerald-500 rounded-lg flex items-center justify-center text-white transition-colors"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Losses */}
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-red-400 mb-2 block">Losses</label>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => setEditRecord({...editRecord, losses: Math.max(0, editRecord.losses - 1)})}
+                    className="w-12 h-12 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg flex items-center justify-center text-zinc-400 transition-colors"
+                  >
+                    <Minus className="w-5 h-5" />
+                  </button>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={editRecord.losses} 
+                    onChange={(e) => setEditRecord({...editRecord, losses: parseInt(e.target.value) || 0})}
+                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-center text-2xl font-black text-red-400 outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                  <button 
+                    onClick={() => setEditRecord({...editRecord, losses: editRecord.losses + 1})}
+                    className="w-12 h-12 bg-red-600 hover:bg-red-500 rounded-lg flex items-center justify-center text-white transition-colors"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Ties */}
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2 block">Ties</label>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => setEditRecord({...editRecord, ties: Math.max(0, editRecord.ties - 1)})}
+                    className="w-12 h-12 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg flex items-center justify-center text-zinc-400 transition-colors"
+                  >
+                    <Minus className="w-5 h-5" />
+                  </button>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={editRecord.ties} 
+                    onChange={(e) => setEditRecord({...editRecord, ties: parseInt(e.target.value) || 0})}
+                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-center text-2xl font-black text-zinc-400 outline-none focus:ring-2 focus:ring-zinc-500"
+                  />
+                  <button 
+                    onClick={() => setEditRecord({...editRecord, ties: editRecord.ties + 1})}
+                    className="w-12 h-12 bg-zinc-600 hover:bg-zinc-500 rounded-lg flex items-center justify-center text-white transition-colors"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-zinc-800 bg-zinc-950 rounded-b-2xl flex gap-3">
+              <button 
+                onClick={() => setIsEditingRecord(false)}
+                disabled={savingRecord}
+                className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveRecord}
+                disabled={savingRecord}
+                className="flex-1 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+              >
+                {savingRecord ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" /> Save Record
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="space-y-8">
       {/* STAT LEADERS */}
