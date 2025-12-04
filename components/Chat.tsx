@@ -254,7 +254,7 @@ const Chat: React.FC = () => {
                             e.stopPropagation();
                             setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id);
                           }}
-                          className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 p-1 -mr-1 transition-opacity"
+                          className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 p-1 -mr-1 transition-colors"
                         >
                           <MoreVertical className="w-4 h-4" />
                         </button>
@@ -314,7 +314,7 @@ const Chat: React.FC = () => {
                   {isMe && canModerate && (
                     <button
                       onClick={() => setShowDeleteConfirm({ messageId: msg.id, messageText: msg.text })}
-                      className="opacity-0 group-hover:opacity-100 text-orange-200 hover:text-white p-0.5 transition-opacity"
+                      className="text-orange-200 hover:text-white p-0.5 transition-colors"
                       title="Delete message"
                     >
                       <Trash2 className="w-3 h-3" />
