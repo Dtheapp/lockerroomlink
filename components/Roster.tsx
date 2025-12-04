@@ -512,36 +512,90 @@ const Roster: React.FC = () => {
     }
   };
 
-  // Search for coaches to add (Head Coach only)
-  const handleSearchCoaches = async () => {
-    if (!coachSearchQuery.trim() || searchingCoaches) return;
+  // All coaches cache for live search
+  const [allCoachesCache, setAllCoachesCache] = useState<UserProfile[]>([]);
+  const [coachesCacheLoaded, setCoachesCacheLoaded] = useState(false);
+  
+  // Load all coaches when modal opens (for instant search)
+  useEffect(() => {
+    if (isAddCoachModalOpen && !coachesCacheLoaded) {
+      const loadAllCoaches = async () => {
+        setSearchingCoaches(true);
+        try {
+          const coachesQuery = query(
+            collection(db, 'users'),
+            where('role', '==', 'Coach')
+          );
+          const snapshot = await getDocs(coachesQuery);
+          const allCoaches = snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
+          setAllCoachesCache(allCoaches);
+          setCoachesCacheLoaded(true);
+        } catch (error) {
+          console.error('Error loading coaches:', error);
+        } finally {
+          setSearchingCoaches(false);
+        }
+      };
+      loadAllCoaches();
+    }
+  }, [isAddCoachModalOpen, coachesCacheLoaded]);
+  
+  // Live filter coaches as user types
+  useEffect(() => {
+    if (!coachesCacheLoaded || !isAddCoachModalOpen) return;
     
-    setSearchingCoaches(true);
-    try {
-      // Search all coaches by name, username, or email
-      const coachesQuery = query(
-        collection(db, 'users'),
-        where('role', '==', 'Coach')
-      );
-      const snapshot = await getDocs(coachesQuery);
-      const allCoaches = snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
-      
-      // Filter by search query (client-side for flexibility)
-      const searchTerm = coachSearchQuery.toLowerCase();
-      const filtered = allCoaches.filter(coach => 
-        (coach.name?.toLowerCase().includes(searchTerm) ||
-        coach.username?.toLowerCase().includes(searchTerm) ||
-        coach.email?.toLowerCase().includes(searchTerm)) &&
-        // Exclude coaches already on this team
-        !teamCoaches.some(tc => tc.uid === coach.uid)
-      );
-      
-      setAvailableCoaches(filtered);
-    } catch (error) {
-      console.error('Error searching coaches:', error);
-      alert('Failed to search for coaches.');
-    } finally {
-      setSearchingCoaches(false);
+    const searchTerm = coachSearchQuery.toLowerCase().trim();
+    
+    if (!searchTerm) {
+      setAvailableCoaches([]);
+      return;
+    }
+    
+    // Filter from cache (instant)
+    const filtered = allCoachesCache.filter(coach => 
+      (coach.name?.toLowerCase().includes(searchTerm) ||
+      coach.username?.toLowerCase().includes(searchTerm) ||
+      coach.email?.toLowerCase().includes(searchTerm)) &&
+      // Exclude coaches already on this team
+      !teamCoaches.some(tc => tc.uid === coach.uid)
+    );
+    
+    setAvailableCoaches(filtered);
+  }, [coachSearchQuery, allCoachesCache, coachesCacheLoaded, teamCoaches, isAddCoachModalOpen]);
+  
+  // Search for coaches to add (Head Coach only) - kept for Enter key support
+  const handleSearchCoaches = async () => {
+    // This function is now optional - search happens live as you type
+    // But we keep it for manual trigger if needed
+    if (!coachSearchQuery.trim()) return;
+    
+    if (!coachesCacheLoaded) {
+      setSearchingCoaches(true);
+      try {
+        const coachesQuery = query(
+          collection(db, 'users'),
+          where('role', '==', 'Coach')
+        );
+        const snapshot = await getDocs(coachesQuery);
+        const allCoaches = snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
+        setAllCoachesCache(allCoaches);
+        setCoachesCacheLoaded(true);
+        
+        // Filter immediately
+        const searchTerm = coachSearchQuery.toLowerCase();
+        const filtered = allCoaches.filter(coach => 
+          (coach.name?.toLowerCase().includes(searchTerm) ||
+          coach.username?.toLowerCase().includes(searchTerm) ||
+          coach.email?.toLowerCase().includes(searchTerm)) &&
+          !teamCoaches.some(tc => tc.uid === coach.uid)
+        );
+        setAvailableCoaches(filtered);
+      } catch (error) {
+        console.error('Error searching coaches:', error);
+        alert('Failed to search for coaches.');
+      } finally {
+        setSearchingCoaches(false);
+      }
     }
   };
 
@@ -982,6 +1036,8 @@ const Roster: React.FC = () => {
                   setIsAddCoachModalOpen(false);
                   setCoachSearchQuery('');
                   setAvailableCoaches([]);
+                  setCoachesCacheLoaded(false);
+                  setAllCoachesCache([]);
                 }}
                 className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
               >
@@ -993,30 +1049,22 @@ const Roster: React.FC = () => {
               Search for coaches who have already signed up. Enter their name, username, or email.
             </p>
             
-            {/* Search Input */}
-            <div className="flex gap-2 mb-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-                <input
-                  type="text"
-                  value={coachSearchQuery}
-                  onChange={(e) => setCoachSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearchCoaches()}
-                  placeholder="Search coaches..."
-                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-700 rounded-lg pl-10 pr-3 py-2.5 text-zinc-900 dark:text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none"
-                />
-              </div>
-              <button
-                onClick={handleSearchCoaches}
-                disabled={searchingCoaches || !coachSearchQuery.trim()}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-              >
-                {searchingCoaches ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Search className="w-4 h-4" />
-                )}
-              </button>
+            {/* Search Input - Live search as you type */}
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <input
+                type="text"
+                value={coachSearchQuery}
+                onChange={(e) => setCoachSearchQuery(e.target.value)}
+                placeholder="Start typing to search coaches..."
+                className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-700 rounded-lg pl-10 pr-10 py-2.5 text-zinc-900 dark:text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none"
+                autoFocus
+              />
+              {searchingCoaches && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
             </div>
             
             {/* Search Results */}
@@ -1052,11 +1100,16 @@ const Roster: React.FC = () => {
                   </div>
                 ))}
               </div>
-            ) : coachSearchQuery && !searchingCoaches ? (
+            ) : coachSearchQuery.trim() && coachesCacheLoaded && !searchingCoaches ? (
               <div className="text-center py-8 text-zinc-500">
                 <User className="w-10 h-10 mx-auto mb-2 opacity-50" />
                 <p>No coaches found matching "{coachSearchQuery}"</p>
                 <p className="text-xs mt-1">Make sure the coach has signed up first</p>
+              </div>
+            ) : !coachSearchQuery.trim() && coachesCacheLoaded ? (
+              <div className="text-center py-6 text-zinc-400">
+                <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Start typing to search for coaches</p>
               </div>
             ) : null}
           </div>
