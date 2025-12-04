@@ -48,7 +48,7 @@ export interface UserProfile {
   name: string;
   role: UserRole;
   teamId: string | null; // Primary team (legacy) - still used for single team assignment
-  teamIds?: string[]; // NEW: Array of team IDs coach belongs to (supports multiple teams)
+  teamIds?: string[]; // Array of team IDs coach belongs to (supports multiple teams)
   email?: string;
   username?: string;
   isRootAdmin?: boolean; // God Mode - only Root Admin can manage other SuperAdmins
@@ -66,6 +66,9 @@ export interface UserProfile {
   
   // For Parents: Track currently selected player
   selectedPlayerId?: string;
+  
+  // For Coaches: Track currently selected team (when coaching multiple teams)
+  selectedTeamId?: string;
 }
 
 export interface Team {

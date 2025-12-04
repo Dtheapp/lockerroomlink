@@ -9,10 +9,13 @@ interface AuthContextType {
   userData: UserProfile | null;
   teamData: Team | null;
   loading: boolean;
-  // New: Player management for parents
+  // Player management for parents
   players: Player[];
   selectedPlayer: Player | null;
   setSelectedPlayer: (player: Player) => void;
+  // Team management for coaches with multiple teams
+  coachTeams: Team[];
+  setSelectedTeam: (team: Team) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -23,6 +26,8 @@ const AuthContext = createContext<AuthContextType>({
   players: [],
   selectedPlayer: null,
   setSelectedPlayer: () => {},
+  coachTeams: [],
+  setSelectedTeam: () => {},
 });
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -31,9 +36,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [teamData, setTeamData] = useState<Team | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // New: Player management for parents
+  // Player management for parents
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayer, setSelectedPlayerState] = useState<Player | null>(null);
+  
+  // Team management for coaches with multiple teams
+  const [coachTeams, setCoachTeams] = useState<Team[]>([]);
 
   // Function to set selected player and persist to Firestore
   const setSelectedPlayer = async (player: Player) => {
@@ -45,6 +53,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
       } catch (error) {
         console.error('Error saving selected player:', error);
+      }
+    }
+  };
+  
+  // Function to set selected team for coaches and persist to Firestore
+  const setSelectedTeam = async (team: Team) => {
+    setTeamData(team);
+    if (userData && userData.role === 'Coach') {
+      try {
+        await updateDoc(doc(db, 'users', userData.uid), {
+          teamId: team.id,
+          selectedTeamId: team.id
+        });
+      } catch (error) {
+        console.error('Error saving selected team:', error);
       }
     }
   };
@@ -121,7 +144,72 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                         setLoading(false);
                     }
                 }
-                // COACH/ADMIN FLOW: Use teamId directly
+                // COACH FLOW: Load all teams they are assigned to
+                else if (profile.role === 'Coach') {
+                    try {
+                        // Get teams from teamIds array (for coaches on multiple teams)
+                        const teamIds = profile.teamIds || [];
+                        // Also include legacy teamId if not in array
+                        if (profile.teamId && !teamIds.includes(profile.teamId)) {
+                            teamIds.push(profile.teamId);
+                        }
+                        
+                        if (teamIds.length > 0) {
+                            // Load all teams for this coach
+                            const allTeams: Team[] = [];
+                            for (const teamId of teamIds) {
+                                const teamDocRef = doc(db, 'teams', teamId);
+                                const teamSnap = await getDocs(query(collection(db, 'teams'), where('__name__', '==', teamId)));
+                                // Use getDoc pattern instead
+                            }
+                            
+                            // Fetch all teams at once
+                            const teamsSnapshot = await getDocs(collection(db, 'teams'));
+                            teamsSnapshot.docs.forEach(teamDoc => {
+                                if (teamIds.includes(teamDoc.id)) {
+                                    allTeams.push({ id: teamDoc.id, ...teamDoc.data() } as Team);
+                                }
+                            });
+                            
+                            setCoachTeams(allTeams);
+                            
+                            // Auto-select team
+                            if (allTeams.length > 0) {
+                                let teamToSelect = allTeams[0];
+                                
+                                // If user has a saved selectedTeamId or teamId, try to find it
+                                const savedTeamId = profile.selectedTeamId || profile.teamId;
+                                if (savedTeamId) {
+                                    const saved = allTeams.find(t => t.id === savedTeamId);
+                                    if (saved) teamToSelect = saved;
+                                }
+                                
+                                // Set up listener for selected team
+                                if (unsubscribeTeamDoc) unsubscribeTeamDoc();
+                                const teamDocRef = doc(db, 'teams', teamToSelect.id);
+                                unsubscribeTeamDoc = onSnapshot(teamDocRef, (teamSnap) => {
+                                    if (teamSnap.exists()) {
+                                        setTeamData({ id: teamSnap.id, ...teamSnap.data() } as Team);
+                                    } else {
+                                        setTeamData(null);
+                                    }
+                                    setLoading(false);
+                                });
+                            } else {
+                                setTeamData(null);
+                                setLoading(false);
+                            }
+                        } else {
+                            setCoachTeams([]);
+                            setTeamData(null);
+                            setLoading(false);
+                        }
+                    } catch (error) {
+                        console.error('Error loading coach teams:', error);
+                        setLoading(false);
+                    }
+                }
+                // SUPERADMIN FLOW: Use teamId directly (or no team)
                 else if (profile.teamId) {
                     if (unsubscribeTeamDoc) unsubscribeTeamDoc();
                     
@@ -156,6 +244,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setTeamData(null);
         setPlayers([]);
         setSelectedPlayerState(null);
+        setCoachTeams([]);
         setLoading(false);
         
         // Clean up listeners
@@ -191,7 +280,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, [selectedPlayer, userData?.role]);
 
-  const value = { user, userData, teamData, loading, players, selectedPlayer, setSelectedPlayer };
+  const value = { user, userData, teamData, loading, players, selectedPlayer, setSelectedPlayer, coachTeams, setSelectedTeam };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

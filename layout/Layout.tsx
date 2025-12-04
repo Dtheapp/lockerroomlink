@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useUnreadMessages } from '../hooks/useUnreadMessages';
 import PlayerSelector from '../components/PlayerSelector';
+import TeamSelector from '../components/TeamSelector';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
@@ -130,6 +131,13 @@ const Layout: React.FC = () => {
                 <ChevronLeft className={`w-5 h-5 transition-transform duration-300 ${isDesktopCollapsed ? 'rotate-180' : ''}`} />
             </button>
         </div>
+
+        {/* TEAM SELECTOR (For coaches with multiple teams) */}
+        {!isDesktopCollapsed && userData?.role === 'Coach' && (
+          <div className="mb-4">
+            <TeamSelector />
+          </div>
+        )}
 
         {/* PLAYER SELECTOR (Compact version for sidebar) */}
         {!isDesktopCollapsed && userData?.role === 'Parent' && (
