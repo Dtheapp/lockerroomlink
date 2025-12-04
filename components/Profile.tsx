@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { doc, updateDoc, collection, addDoc, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle } from 'lucide-react';
+import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye } from 'lucide-react';
 import type { Player, MedicalInfo } from '../types';
+import PlayerStatsModal from './stats/PlayerStatsModal';
 
 const Profile: React.FC = () => {
-  const { user, userData, players: contextPlayers } = useAuth();
+  const { user, userData, players: contextPlayers, teamData } = useAuth();
   
   // PARENT PROFILE STATES
   const [isEditing, setIsEditing] = useState(false);
@@ -25,6 +26,9 @@ const Profile: React.FC = () => {
   const [myAthletes, setMyAthletes] = useState<Player[]>([]);
   const [selectedAthlete, setSelectedAthlete] = useState<Player | null>(null);
   const [isMedicalOpen, setIsMedicalOpen] = useState(false);
+  
+  // Player Stats Modal state
+  const [viewStatsPlayer, setViewStatsPlayer] = useState<Player | null>(null);
 
   // Medical Form
   const [medAllergies, setMedAllergies] = useState('');
@@ -321,12 +325,29 @@ const Profile: React.FC = () => {
                                         </div>
                                     )}
                                 </div>
+                                
+                                {/* VIEW STATS BUTTON */}
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setViewStatsPlayer(player); }}
+                                  className="w-full mt-3 flex items-center justify-center gap-2 text-sm font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 py-2.5 rounded-lg border border-orange-200 dark:border-orange-900/30 transition-colors"
+                                >
+                                  <BarChart3 className="w-4 h-4" /> View Stats History
+                                </button>
                             </div>
                           );
                       })}
                   </div>
               )}
           </div>
+      )}
+
+      {/* PLAYER STATS HISTORY MODAL */}
+      {viewStatsPlayer && (
+        <PlayerStatsModal
+          player={viewStatsPlayer}
+          teamName={teamData?.name}
+          onClose={() => setViewStatsPlayer(null)}
+        />
       )}
 
       {/* MODAL: MEDICAL INFO */}

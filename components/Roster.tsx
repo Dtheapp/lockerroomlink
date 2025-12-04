@@ -4,7 +4,8 @@ import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateD
 import { db } from '../services/firebase';
 import { sanitizeText, sanitizeNumber, sanitizeDate } from '../services/sanitize';
 import type { Player, UserProfile, Team } from '../types';
-import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera, UserPlus, ArrowRightLeft } from 'lucide-react';
+import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera, UserPlus, ArrowRightLeft, BarChart3, Eye } from 'lucide-react';
+import PlayerStatsModal from './stats/PlayerStatsModal';
 
 // Pagination settings
 const PLAYERS_PER_PAGE = 12;
@@ -102,6 +103,9 @@ const Roster: React.FC = () => {
   
   // Photo popup state
   const [viewPhotoPlayer, setViewPhotoPlayer] = useState<Player | null>(null);
+  
+  // Player Stats Modal state
+  const [viewStatsPlayer, setViewStatsPlayer] = useState<Player | null>(null);
   
   const [newPlayer, setNewPlayer] = useState({ 
     name: '', 
@@ -817,13 +821,22 @@ const Roster: React.FC = () => {
                         <p className="text-xs text-zinc-500 mt-1">DOB: {player.dob || '--'}</p>
                     </div>
 
-                    <div className="flex justify-center gap-4 mt-auto mb-4 bg-zinc-50 dark:bg-black p-2 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                    {/* Quick Stats with View Stats Button */}
+                    <div className="mt-auto mb-4">
+                      <div className="flex justify-center gap-4 bg-zinc-50 dark:bg-black p-2 rounded-t-lg border border-b-0 border-zinc-200 dark:border-zinc-800">
                         <div className="flex items-center gap-1 text-sm text-zinc-600 dark:text-zinc-400">
-                            <Sword className="w-3 h-3 text-orange-500" /> <span className="font-bold">{player.stats.td}</span> TD
+                            <Sword className="w-3 h-3 text-orange-500" /> <span className="font-bold">{player.stats?.td || 0}</span> TD
                         </div>
                         <div className="flex items-center gap-1 text-sm text-zinc-600 dark:text-zinc-400">
-                            <Shield className="w-3 h-3 text-cyan-500" /> <span className="font-bold">{player.stats.tkl}</span> TKL
+                            <Shield className="w-3 h-3 text-cyan-500" /> <span className="font-bold">{player.stats?.tkl || 0}</span> TKL
                         </div>
+                      </div>
+                      <button
+                        onClick={() => setViewStatsPlayer(player)}
+                        className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 py-2 rounded-b-lg border border-t-0 border-orange-200 dark:border-orange-900/30 transition-colors"
+                      >
+                        <Eye className="w-3 h-3" /> View Stats History
+                      </button>
                     </div>
 
                     {/* Height & Weight - Visible to everyone */}
@@ -1972,6 +1985,15 @@ const Roster: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* PLAYER STATS HISTORY MODAL */}
+      {viewStatsPlayer && (
+        <PlayerStatsModal
+          player={viewStatsPlayer}
+          teamName={teamData?.name}
+          onClose={() => setViewStatsPlayer(null)}
+        />
       )}
 
       {/* PLAYER PHOTO POPUP MODAL */}

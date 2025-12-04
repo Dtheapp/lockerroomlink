@@ -215,7 +215,83 @@ export interface PrivateMessage {
   timestamp: Timestamp;
 }
 
-// --- ADVANCED STATS (Future Proofing) ---
+// --- ADVANCED STATS ENGINE ---
+// Current year stats for a player on a team
+export interface PlayerSeasonStats {
+  id: string;
+  playerId: string;
+  playerName: string;
+  playerNumber: number;
+  teamId: string;
+  teamName?: string;
+  season: number; // Year (e.g., 2025)
+  
+  // Offensive Stats
+  gp: number;        // Games Played
+  tds: number;       // Touchdowns
+  rushYards: number; // Rushing Yards
+  rushAttempts: number; // Rushing Attempts
+  passYards: number; // Passing Yards (for QBs)
+  passAttempts: number; // Pass Attempts
+  passCompletions: number; // Completions
+  rec: number;       // Receptions
+  recYards: number;  // Receiving Yards
+  
+  // Defensive Stats
+  tackles: number;   // Total Tackles
+  soloTackles: number; // Solo Tackles
+  assistTackles: number; // Assisted Tackles
+  sacks: number;     // Sacks
+  int: number;       // Interceptions
+  intYards: number;  // Interception Return Yards
+  ff: number;        // Forced Fumbles
+  fr: number;        // Fumble Recoveries
+  passDefended: number; // Passes Defended/Broken Up
+  
+  // Special Teams
+  kickReturnYards: number;
+  puntReturnYards: number;
+  kickReturnTds: number;
+  puntReturnTds: number;
+  
+  // Sportsmanship
+  spts: number;      // Sportsmanship Points
+  
+  // Metadata
+  createdAt?: any;
+  updatedAt?: any;
+  updatedBy?: string;
+}
+
+// Historical stats stored per player (across all seasons)
+export interface PlayerCareerStats {
+  id: string;
+  playerId: string;
+  playerName: string;
+  seasons: PlayerSeasonSummary[];
+  totalGp: number;
+  totalTds: number;
+  totalYards: number;
+  totalTackles: number;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+export interface PlayerSeasonSummary {
+  season: number;
+  teamId: string;
+  teamName: string;
+  gp: number;
+  tds: number;
+  rushYards: number;
+  passYards: number;
+  recYards: number;
+  tackles: number;
+  sacks: number;
+  int: number;
+}
+
+// Legacy interface for backward compatibility
 export interface PlayerStats {
   id: string;
   playerId: string;

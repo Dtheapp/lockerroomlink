@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp, deleteDoc, doc, updateDoc, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle, Minus } from 'lucide-react';
-import type { BulletinPost, PlayerStats, TeamEvent } from '../types';
+import type { BulletinPost, PlayerSeasonStats, TeamEvent } from '../types';
 
 const Dashboard: React.FC = () => {
   const { userData, teamData, players, selectedPlayer } = useAuth();
+  const currentYear = new Date().getFullYear();
   
   const [posts, setPosts] = useState<BulletinPost[]>([]);
-  const [playerStats, setPlayerStats] = useState<PlayerStats[]>([]);
+  const [playerStats, setPlayerStats] = useState<PlayerSeasonStats[]>([]);
   const [teamEvents, setTeamEvents] = useState<TeamEvent[]>([]);
   const [newPost, setNewPost] = useState('');
   const [loading, setLoading] = useState(true);
@@ -58,16 +59,16 @@ const Dashboard: React.FC = () => {
   const topStats = useMemo(() => {
     if (playerStats.length === 0) return null;
 
-    const getTopPlayer = (key: keyof PlayerStats) => {
+    const getTopPlayer = (getValue: (s: PlayerSeasonStats) => number) => {
         return playerStats.reduce((prev, current) => 
-            ((current[key] as number) || 0) > ((prev[key] as number) || 0) ? current : prev
+            getValue(current) > getValue(prev) ? current : prev
         , playerStats[0]);
     };
 
     return {
-        rusher: getTopPlayer('yards'),
-        tackler: getTopPlayer('tackles'),
-        scorer: getTopPlayer('tds')
+        rusher: getTopPlayer(s => (s.rushYards || 0) + (s.recYards || 0)),
+        tackler: getTopPlayer(s => s.tackles || 0),
+        scorer: getTopPlayer(s => s.tds || 0)
     };
   }, [playerStats]);
 
@@ -88,16 +89,20 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     if (!teamData?.id) return;
     setStatsLoading(true);
-    const statsCollection = collection(db, 'teams', teamData.id, 'playerStats');
-    const statsQuery = query(statsCollection, orderBy('tds', 'desc'));
+    // Load current season stats from the new seasonStats collection
+    const statsQuery = query(
+      collection(db, 'teams', teamData.id, 'seasonStats'),
+      where('season', '==', currentYear),
+      orderBy('tds', 'desc')
+    );
 
     const unsubscribe = onSnapshot(statsQuery, (snapshot) => {
-      const statsData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as PlayerStats));
+      const statsData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as PlayerSeasonStats));
       setPlayerStats(statsData);
       setStatsLoading(false);
     }, (error) => { console.error("Error fetching stats:", error); setStatsLoading(false); });
     return () => unsubscribe();
-  }, [teamData?.id]);
+  }, [teamData?.id, currentYear]);
 
   useEffect(() => {
     if (!teamData?.id) return;
@@ -840,10 +845,10 @@ const Dashboard: React.FC = () => {
                  
                  {/* RUSHER CARD */}
                  <div className="bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 p-4 rounded-lg">
-                   <div className="flex items-center gap-2 text-orange-500 mb-2"><Sword className="w-4 h-4"/><span className="text-[10px] font-bold uppercase tracking-widest">Rusher (Yds)</span></div>
+                   <div className="flex items-center gap-2 text-orange-500 mb-2"><Sword className="w-4 h-4"/><span className="text-[10px] font-bold uppercase tracking-widest">Yards</span></div>
                    <div className="flex justify-between items-end">
                      <span className="text-sm font-bold text-zinc-900 dark:text-white truncate">{topStats.rusher?.playerName || '—'}</span>
-                     <span className="text-xl font-black text-zinc-900 dark:text-white">{topStats.rusher?.yards || '0'}</span>
+                     <span className="text-xl font-black text-zinc-900 dark:text-white">{(topStats.rusher?.rushYards || 0) + (topStats.rusher?.recYards || 0)}</span>
                    </div>
                  </div>
 
