@@ -750,14 +750,23 @@ const Profile: React.FC = () => {
                                   </div>
                                 )}
                                 
-                                {/* Delete Button - Top Right */}
-                                <button 
-                                  onClick={() => setDeleteAthleteConfirm(player)}
-                                  className="absolute top-2 right-2 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors z-10"
-                                  title="Remove Athlete"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                {/* Action Buttons - Top Right (stacked vertically) */}
+                                <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
+                                  <button 
+                                    onClick={() => openEditModal(player)}
+                                    className="p-1.5 text-slate-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-full transition-colors"
+                                    title="Edit Player"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                  <button 
+                                    onClick={() => setDeleteAthleteConfirm(player)}
+                                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+                                    title="Remove Athlete"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
 
                                 {/* Player Photo & Basic Info */}
                                 <div className={`flex items-start gap-4 ${isStarter ? 'mt-6' : ''}`}>
@@ -812,14 +821,6 @@ const Profile: React.FC = () => {
                                         </div>
                                         <p className="text-xs text-slate-500 mt-1">DOB: {player.dob || '--'}</p>
                                     </div>
-                                    
-                                    {/* Edit Button */}
-                                    <button 
-                                      onClick={() => openEditModal(player)}
-                                      className="flex-shrink-0 p-2 text-slate-400 hover:text-orange-500 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
-                                    >
-                                        <Edit2 className="h-5 w-5" />
-                                    </button>
                                 </div>
 
                                 {/* Quick Stats */}
