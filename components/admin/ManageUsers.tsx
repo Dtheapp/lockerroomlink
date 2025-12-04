@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, updateDoc, deleteDoc, getDocs, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
-import { sendPasswordResetEmail } from 'firebase/auth';
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, getDocs, getDoc, addDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { sendPasswordResetEmail, createUserWithEmailAndPassword } from 'firebase/auth';
+import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 import { db, auth } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UserProfile, Team } from '../../types';
-import { Trash2, Link, User, Shield, AtSign, Key, AlertTriangle, Search, Edit2, X, Check, UserX, ChevronLeft, ChevronRight, Download, CheckSquare, Square, History, Crown, Plus } from 'lucide-react';
+import { Trash2, Link, User, Shield, AtSign, Key, AlertTriangle, Search, Edit2, X, Check, UserX, ChevronLeft, ChevronRight, Download, CheckSquare, Square, History, Crown, Plus, Copy, Eye, EyeOff } from 'lucide-react';
 
 const ManageUsers: React.FC = () => {
   const { user, userData } = useAuth();
@@ -23,7 +25,10 @@ const ManageUsers: React.FC = () => {
   const [selectedSuperAdmin, setSelectedSuperAdmin] = useState<UserProfile | null>(null);
   const [newSuperAdminEmail, setNewSuperAdminEmail] = useState('');
   const [newSuperAdminName, setNewSuperAdminName] = useState('');
+  const [newSuperAdminPassword, setNewSuperAdminPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [superAdminError, setSuperAdminError] = useState('');
+  const [createdAdminCredentials, setCreatedAdminCredentials] = useState<{email: string, password: string} | null>(null);
   
   // FILTER & SEARCH STATE
   const [filterRole, setFilterRole] = useState<'All' | 'Coach' | 'Parent'>('All');
@@ -401,44 +406,101 @@ const ManageUsers: React.FC = () => {
   };
 
   // --- SUPERADMIN MANAGEMENT (Root Admin Only) ---
-  const handlePromoteToSuperAdmin = async () => {
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  };
+
+  const handleCreateSuperAdmin = async () => {
     if (!newSuperAdminEmail.trim() || !newSuperAdminName.trim()) {
       setSuperAdminError('Email and name are required');
       return;
     }
+    
+    const password = newSuperAdminPassword.trim() || generatePassword();
+    
+    if (password.length < 6) {
+      setSuperAdminError('Password must be at least 6 characters');
+      return;
+    }
+    
     setSaving(true);
     setSuperAdminError('');
     
     try {
-      // Find user by email
-      const usersSnapshot = await getDocs(collection(db, 'users'));
-      const existingUser = usersSnapshot.docs.find(doc => 
-        (doc.data() as UserProfile).email?.toLowerCase() === newSuperAdminEmail.toLowerCase().trim()
-      );
+      // Create a secondary Firebase app instance to create user without signing out current user
+      const firebaseConfig = {
+        apiKey: import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_API_KEY,
+        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || import.meta.env.VITE_AUTH_DOMAIN,
+        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || import.meta.env.VITE_PROJECT_ID,
+        storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || import.meta.env.VITE_STORAGE_BUCKET,
+        messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || import.meta.env.VITE_MESSAGING_SENDER_ID,
+        appId: import.meta.env.VITE_FIREBASE_APP_ID || import.meta.env.VITE_APP_ID,
+      };
       
-      if (existingUser) {
-        // Promote existing user to SuperAdmin
-        await updateDoc(doc(db, 'users', existingUser.id), {
-          role: 'SuperAdmin',
-          name: newSuperAdminName.trim(),
-          teamId: null
-        });
-        await logActivity('Promote SuperAdmin', `Promoted ${newSuperAdminEmail} to SuperAdmin`);
-      } else {
-        setSuperAdminError('User not found. They must register first, then you can promote them.');
-        setSaving(false);
-        return;
-      }
+      const secondaryApp = initializeApp(firebaseConfig, 'secondary');
+      const secondaryAuth = getAuth(secondaryApp);
       
-      setIsCreateSuperAdminModalOpen(false);
+      // Create the new user account
+      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newSuperAdminEmail.trim(), password);
+      const newUid = userCredential.user.uid;
+      
+      // Sign out from secondary app immediately
+      await secondaryAuth.signOut();
+      
+      // Create the user document in Firestore
+      await setDoc(doc(db, 'users', newUid), {
+        uid: newUid,
+        email: newSuperAdminEmail.trim().toLowerCase(),
+        name: newSuperAdminName.trim(),
+        role: 'SuperAdmin',
+        teamId: null,
+        createdAt: serverTimestamp(),
+        createdBy: user?.email || 'Root Admin'
+      });
+      
+      await logActivity('Create SuperAdmin', `Created new SuperAdmin: ${newSuperAdminEmail}`);
+      
+      // Show credentials to copy
+      setCreatedAdminCredentials({ email: newSuperAdminEmail.trim(), password });
+      
+      // Reset form but keep modal open to show credentials
       setNewSuperAdminEmail('');
       setNewSuperAdminName('');
-    } catch (error) {
-      console.error("Error promoting to SuperAdmin:", error);
-      setSuperAdminError('Failed to promote user');
+      setNewSuperAdminPassword('');
+      
+    } catch (error: any) {
+      console.error("Error creating SuperAdmin:", error);
+      if (error.code === 'auth/email-already-in-use') {
+        setSuperAdminError('This email is already registered. Use a different email.');
+      } else if (error.code === 'auth/invalid-email') {
+        setSuperAdminError('Invalid email address format.');
+      } else if (error.code === 'auth/weak-password') {
+        setSuperAdminError('Password is too weak. Use at least 6 characters.');
+      } else {
+        setSuperAdminError('Failed to create SuperAdmin: ' + (error.message || 'Unknown error'));
+      }
     } finally {
       setSaving(false);
     }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  const closeCreateSuperAdminModal = () => {
+    setIsCreateSuperAdminModalOpen(false);
+    setSuperAdminError('');
+    setCreatedAdminCredentials(null);
+    setNewSuperAdminEmail('');
+    setNewSuperAdminName('');
+    setNewSuperAdminPassword('');
+    setShowPassword(false);
   };
 
   const handleDeleteSuperAdmin = async () => {
@@ -1151,54 +1213,148 @@ const ManageUsers: React.FC = () => {
 
       {/* MODAL: Add SuperAdmin (Root Admin Only) */}
       {isCreateSuperAdminModalOpen && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm" onClick={() => setIsCreateSuperAdminModalOpen(false)}>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm" onClick={closeCreateSuperAdminModal}>
           <div className="bg-zinc-950 p-6 rounded-xl w-full max-w-md border border-purple-500/30 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center">
-                <Crown className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-white">Add SuperAdmin</h2>
-                <p className="text-sm text-purple-300/70">Promote an existing user</p>
-              </div>
-            </div>
-            
-            {superAdminError && (
-              <div className="mb-4 bg-red-900/30 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4" /> {superAdminError}
-              </div>
-            )}
+            {createdAdminCredentials ? (
+              // SUCCESS: Show credentials to copy
+              <>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
+                    <Check className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">SuperAdmin Created!</h2>
+                    <p className="text-sm text-green-400">Save these credentials now</p>
+                  </div>
+                </div>
+                
+                <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4 mb-4">
+                  <p className="text-sm text-green-300 mb-3">⚠️ Copy these credentials - the password won't be shown again!</p>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-green-400 mb-1">Email</label>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          readOnly 
+                          value={createdAdminCredentials.email} 
+                          className="flex-1 bg-black p-2 rounded border border-green-500/30 text-white text-sm"
+                        />
+                        <button 
+                          onClick={() => copyToClipboard(createdAdminCredentials.email)}
+                          className="p-2 bg-green-600 hover:bg-green-700 rounded text-white"
+                          title="Copy email"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-xs font-medium text-green-400 mb-1">Password</label>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          readOnly 
+                          value={createdAdminCredentials.password} 
+                          className="flex-1 bg-black p-2 rounded border border-green-500/30 text-white text-sm font-mono"
+                        />
+                        <button 
+                          onClick={() => copyToClipboard(createdAdminCredentials.password)}
+                          className="p-2 bg-green-600 hover:bg-green-700 rounded text-white"
+                          title="Copy password"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <button 
+                      onClick={() => copyToClipboard(`Email: ${createdAdminCredentials.email}\nPassword: ${createdAdminCredentials.password}`)}
+                      className="w-full py-2 bg-green-600 hover:bg-green-700 rounded text-white text-sm font-medium flex items-center justify-center gap-2"
+                    >
+                      <Copy className="w-4 h-4" /> Copy Both
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end">
+                  <button onClick={closeCreateSuperAdminModal} className="px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold">
+                    Done
+                  </button>
+                </div>
+              </>
+            ) : (
+              // FORM: Create new SuperAdmin
+              <>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center">
+                    <Crown className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">Create SuperAdmin</h2>
+                    <p className="text-sm text-purple-300/70">Create a new admin account</p>
+                  </div>
+                </div>
+                
+                {superAdminError && (
+                  <div className="mb-4 bg-red-900/30 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4" /> {superAdminError}
+                  </div>
+                )}
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-purple-300 mb-1">User Email</label>
-                <input 
-                  value={newSuperAdminEmail} 
-                  onChange={(e) => setNewSuperAdminEmail(e.target.value)} 
-                  className="w-full bg-black p-3 rounded-lg border border-purple-500/30 text-white outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="Enter user's email"
-                />
-                <p className="text-xs text-purple-300/50 mt-1">User must have an existing account</p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-purple-300 mb-1">Display Name</label>
-                <input 
-                  value={newSuperAdminName} 
-                  onChange={(e) => setNewSuperAdminName(e.target.value)} 
-                  className="w-full bg-black p-3 rounded-lg border border-purple-500/30 text-white outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="Admin display name"
-                />
-              </div>
-            </div>
-            
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-purple-500/20">
-              <button type="button" onClick={() => { setIsCreateSuperAdminModalOpen(false); setSuperAdminError(''); }} className="px-4 py-2 rounded-lg text-purple-300 hover:bg-purple-900/30 transition-colors">Cancel</button>
-              <button onClick={handlePromoteToSuperAdmin} disabled={saving} className="px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold disabled:opacity-50 flex items-center gap-2">
-                {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Crown className="w-4 h-4" />}
-                Promote
-              </button>
-            </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-purple-300 mb-1">Email Address *</label>
+                    <input 
+                      type="email"
+                      value={newSuperAdminEmail} 
+                      onChange={(e) => setNewSuperAdminEmail(e.target.value)} 
+                      className="w-full bg-black p-3 rounded-lg border border-purple-500/30 text-white outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="admin@example.com"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-purple-300 mb-1">Display Name *</label>
+                    <input 
+                      value={newSuperAdminName} 
+                      onChange={(e) => setNewSuperAdminName(e.target.value)} 
+                      className="w-full bg-black p-3 rounded-lg border border-purple-500/30 text-white outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Admin Name"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-purple-300 mb-1">Password (optional)</label>
+                    <div className="relative">
+                      <input 
+                        type={showPassword ? 'text' : 'password'}
+                        value={newSuperAdminPassword} 
+                        onChange={(e) => setNewSuperAdminPassword(e.target.value)} 
+                        className="w-full bg-black p-3 pr-10 rounded-lg border border-purple-500/30 text-white outline-none focus:ring-2 focus:ring-purple-500"
+                        placeholder="Leave blank to auto-generate"
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-400 hover:text-purple-300"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-purple-300/50 mt-1">Min 6 characters. Leave blank to auto-generate a secure password.</p>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-purple-500/20">
+                  <button type="button" onClick={closeCreateSuperAdminModal} className="px-4 py-2 rounded-lg text-purple-300 hover:bg-purple-900/30 transition-colors">Cancel</button>
+                  <button onClick={handleCreateSuperAdmin} disabled={saving} className="px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold disabled:opacity-50 flex items-center gap-2">
+                    {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Plus className="w-4 h-4" />}
+                    Create Account
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
