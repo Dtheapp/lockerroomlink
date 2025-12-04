@@ -459,6 +459,7 @@ const ManageUsers: React.FC = () => {
         name: newSuperAdminName.trim(),
         role: 'SuperAdmin',
         teamId: null,
+        mustChangePassword: true, // Force password change on first login
         createdAt: serverTimestamp(),
         createdBy: user?.email || 'Root Admin'
       });

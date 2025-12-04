@@ -51,6 +51,7 @@ export interface UserProfile {
   email?: string;
   username?: string;
   isRootAdmin?: boolean; // God Mode - only Root Admin can manage other SuperAdmins
+  mustChangePassword?: boolean; // Force password change on first login
   
   // Contact Details
   phone?: string;          

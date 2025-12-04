@@ -1,9 +1,10 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import InstallPrompt from './components/InstallPrompt';
+import ForcePasswordChange from './components/ForcePasswordChange';
 
 // Layouts (loaded immediately as they're structural)
 import Layout from './layout/Layout';
@@ -59,11 +60,22 @@ const App: React.FC = () => {
 
 const AppContent: React.FC = () => {
   const { user, userData, loading } = useAuth();
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [passwordChangeComplete, setPasswordChangeComplete] = useState(false);
+
+  // Check if user needs to change password
+  useEffect(() => {
+    if (userData && (userData as any).mustChangePassword === true && !passwordChangeComplete) {
+      setShowPasswordChange(true);
+    } else {
+      setShowPasswordChange(false);
+    }
+  }, [userData, passwordChangeComplete]);
 
   // Debug logging for SuperAdmin issues
   console.log('AppContent Debug:', { 
     user: user?.email, 
-    userData: userData ? { role: userData.role, name: userData.name, uid: userData.uid } : null, 
+    userData: userData ? { role: userData.role, name: userData.name, uid: userData.uid, mustChangePassword: (userData as any).mustChangePassword } : null, 
     loading 
   });
 
@@ -72,6 +84,18 @@ const AppContent: React.FC = () => {
       <div className="flex items-center justify-center h-screen bg-white dark:bg-black">
         <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-orange-500"></div>
       </div>
+    );
+  }
+
+  // Show forced password change modal if needed
+  if (showPasswordChange && user) {
+    return (
+      <ForcePasswordChange 
+        onComplete={() => {
+          setPasswordChangeComplete(true);
+          setShowPasswordChange(false);
+        }} 
+      />
     );
   }
 
