@@ -762,14 +762,41 @@ const Dashboard: React.FC = () => {
 
                 {/* Public Team Page Link - Parents */}
                 {userData?.role === 'Parent' && teamData?.id && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/30 px-3 py-1.5 rounded-lg">
+                      <LinkIcon className="w-3 h-3 text-purple-400" />
+                      <span className="text-xs text-purple-300 font-medium">Share Team Page:</span>
+                      <span className="text-xs text-purple-400 font-mono truncate max-w-[200px]">
+                        lockerroomlink.com/#/team/{teamData.id}
+                      </span>
+                    </div>
+                    <button
+                      onClick={copyPublicLink}
+                      className={`flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium transition-all ${
+                        isPublicLinkCopied
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-purple-500 hover:bg-purple-600 text-white'
+                      }`}
+                    >
+                      {isPublicLinkCopied ? (
+                        <>
+                          <Check className="w-3 h-3" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          Copy
+                        </>
+                      )}
+                    </button>
                     <a
                       href={`#/team/${teamData.id}`}
-                      className="flex items-center gap-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 px-3 py-1.5 rounded-lg transition-colors"
+                      className="flex items-center gap-1 px-2 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded text-xs font-medium transition-colors"
                       title="View public team page"
                     >
-                      <ExternalLink className="w-3 h-3 text-purple-400" />
-                      <span className="text-xs text-purple-300 font-medium">View Team's Public Page</span>
+                      <ExternalLink className="w-3 h-3" />
+                      View
                     </a>
                   </div>
                 )}
