@@ -3,7 +3,7 @@ import { collection, query, onSnapshot, orderBy, doc, setDoc, deleteDoc, writeBa
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Game, GamePlayerStats, Player, PlayerSeasonStats } from '../../types';
-import { Plus, Trophy, Calendar, MapPin, Users, ChevronDown, ChevronUp, Save, Trash2, X, Sword, Shield, Target, Check, Edit2, TrendingUp, UserCheck, AtSign } from 'lucide-react';
+import { Plus, Trophy, Calendar, MapPin, Users, ChevronDown, ChevronUp, Save, Trash2, X, Sword, Shield, Target, Check, Edit2, TrendingUp, UserCheck, AtSign, Zap, Star } from 'lucide-react';
 
 // Helper: Format date string without timezone issues
 const formatEventDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
@@ -810,16 +810,20 @@ const GameStatsEntry: React.FC = () => {
 
                             {/* Stats Grid - Only show if played */}
                             {isPlayed && (
-                              <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-3">
                                 {/* Offense */}
                                 <div>
                                   <div className="flex items-center gap-1 mb-2">
                                     <Sword className="w-3 h-3 text-orange-500" />
                                     <span className="text-[9px] font-bold uppercase text-zinc-500">Offense</span>
                                   </div>
-                                  <div className="grid grid-cols-4 gap-1">
+                                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-1">
                                     <StatInput label="TD" value={stats.tds || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'tds', v)} color="text-orange-400" />
                                     <StatInput label="RuYd" value={stats.rushYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'rushYards', v)} color="text-cyan-400" />
+                                    <StatInput label="RuAtt" value={stats.rushAttempts || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'rushAttempts', v)} />
+                                    <StatInput label="PaYd" value={stats.passYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'passYards', v)} color="text-cyan-400" />
+                                    <StatInput label="PaAtt" value={stats.passAttempts || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'passAttempts', v)} />
+                                    <StatInput label="Comp" value={stats.passCompletions || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'passCompletions', v)} />
                                     <StatInput label="Rec" value={stats.rec || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'rec', v)} />
                                     <StatInput label="ReYd" value={stats.recYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'recYards', v)} color="text-cyan-400" />
                                   </div>
@@ -831,11 +835,41 @@ const GameStatsEntry: React.FC = () => {
                                     <Shield className="w-3 h-3 text-emerald-500" />
                                     <span className="text-[9px] font-bold uppercase text-zinc-500">Defense</span>
                                   </div>
-                                  <div className="grid grid-cols-4 gap-1">
+                                  <div className="grid grid-cols-3 sm:grid-cols-9 gap-1">
                                     <StatInput label="Tkl" value={stats.tackles || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'tackles', v)} color="text-emerald-400" />
+                                    <StatInput label="Solo" value={stats.soloTackles || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'soloTackles', v)} />
+                                    <StatInput label="Asst" value={stats.assistTackles || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'assistTackles', v)} />
                                     <StatInput label="Sack" value={stats.sacks || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'sacks', v)} color="text-purple-400" />
                                     <StatInput label="INT" value={stats.int || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'int', v)} color="text-red-400" />
+                                    <StatInput label="IYd" value={stats.intYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'intYards', v)} />
                                     <StatInput label="FF" value={stats.ff || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'ff', v)} color="text-orange-400" />
+                                    <StatInput label="FR" value={stats.fr || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'fr', v)} color="text-orange-400" />
+                                    <StatInput label="PD" value={stats.passDefended || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'passDefended', v)} />
+                                  </div>
+                                </div>
+
+                                {/* Special Teams & Sportsmanship */}
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <div className="flex items-center gap-1 mb-2">
+                                      <Zap className="w-3 h-3 text-yellow-500" />
+                                      <span className="text-[9px] font-bold uppercase text-zinc-500">Special Teams</span>
+                                    </div>
+                                    <div className="grid grid-cols-4 gap-1">
+                                      <StatInput label="KRYd" value={stats.kickReturnYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'kickReturnYards', v)} color="text-yellow-400" />
+                                      <StatInput label="KRTD" value={stats.kickReturnTds || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'kickReturnTds', v)} color="text-orange-400" />
+                                      <StatInput label="PRYd" value={stats.puntReturnYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'puntReturnYards', v)} color="text-yellow-400" />
+                                      <StatInput label="PRTD" value={stats.puntReturnTds || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'puntReturnTds', v)} color="text-orange-400" />
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center gap-1 mb-2">
+                                      <Star className="w-3 h-3 text-pink-500" />
+                                      <span className="text-[9px] font-bold uppercase text-zinc-500">Sportsmanship</span>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-1">
+                                      <StatInput label="SPTS" value={stats.spts || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'spts', v)} color="text-pink-400" />
+                                    </div>
                                   </div>
                                 </div>
                               </div>
