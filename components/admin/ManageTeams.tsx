@@ -435,7 +435,7 @@ const ManageTeams: React.FC = () => {
                 className={`flex items-center justify-center gap-1 rounded-md bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors font-medium border border-orange-300 dark:border-orange-800/50 ${isMobile ? 'flex-1 py-2 text-sm' : 'p-2 md:px-3 md:py-1.5 text-xs'}`}
              >
                 <FileText className={`${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />
-                <span className={isMobile ? 'inline' : 'hidden xl:inline ml-1'}>Posts</span>
+                <span className={isMobile ? 'inline' : 'hidden xl:inline ml-1'}>Bulletin</span>
              </button>
              
              <button 
