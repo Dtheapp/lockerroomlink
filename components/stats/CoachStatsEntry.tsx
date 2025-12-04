@@ -1,9 +1,53 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, query, onSnapshot, orderBy, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { PlayerSeasonStats, Player } from '../../types';
 import { Save, TrendingUp, Users, ChevronDown, ChevronUp, Check, Search, Sword, Shield, Target, AlertCircle } from 'lucide-react';
+
+// Stat Input Component - defined OUTSIDE main component to prevent re-renders
+interface StatInputProps {
+  label: string;
+  value: number;
+  onChange: (val: number) => void;
+  color?: string;
+}
+
+const StatInput: React.FC<StatInputProps> = ({ label, value, onChange, color = 'text-white' }) => {
+  const [localValue, setLocalValue] = useState(value === 0 ? '' : value.toString());
+  const inputRef = useRef<HTMLInputElement>(null);
+  
+  // Only sync from parent when value actually changes AND input is not focused
+  useEffect(() => {
+    if (document.activeElement !== inputRef.current) {
+      setLocalValue(value === 0 ? '' : value.toString());
+    }
+  }, [value]);
+
+  return (
+    <div className="flex-1 min-w-[60px]">
+      <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">{label}</label>
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={localValue}
+        onChange={(e) => {
+          const newVal = e.target.value.replace(/[^0-9]/g, '');
+          setLocalValue(newVal);
+        }}
+        onBlur={() => {
+          // Only commit to parent on blur
+          const numVal = parseInt(localValue, 10) || 0;
+          onChange(numVal);
+        }}
+        placeholder="0"
+        className={`w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-center font-bold ${color} focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-sm placeholder-zinc-600`}
+      />
+    </div>
+  );
+};
 
 const CoachStatsEntry: React.FC = () => {
   const { teamData, userData } = useAuth();
@@ -94,13 +138,12 @@ const CoachStatsEntry: React.FC = () => {
     puntReturnTds: 0, spts: 0
   });
 
-  // Handle stat change
-  const handleStatChange = (playerId: string, field: keyof PlayerSeasonStats, value: string) => {
-    const numValue = parseInt(value) || 0;
+  // Handle stat change - now accepts number directly
+  const handleStatChange = (playerId: string, field: keyof PlayerSeasonStats, value: number) => {
     setEditedStats(prev => {
       const newMap = new Map(prev);
       const current = newMap.get(playerId) || {};
-      newMap.set(playerId, { ...current, [field]: numValue });
+      newMap.set(playerId, { ...current, [field]: value });
       return newMap;
     });
   };
@@ -155,59 +198,6 @@ const CoachStatsEntry: React.FC = () => {
   // Check if player has unsaved changes
   const hasUnsavedChanges = (playerId: string): boolean => {
     return editedStats.has(playerId);
-  };
-
-  // Stat input component - use text input to avoid leading zero issues
-  const StatInput = ({ 
-    label, 
-    value, 
-    onChange, 
-    color = 'text-white',
-    small = false 
-  }: { 
-    label: string; 
-    value: number; 
-    onChange: (val: string) => void;
-    color?: string;
-    small?: boolean;
-  }) => {
-    const [localValue, setLocalValue] = useState(value === 0 ? '' : value.toString());
-    const [isFocused, setIsFocused] = useState(false);
-    
-    // Sync local value when external value changes (but not while focused)
-    useEffect(() => {
-      if (!isFocused) {
-        setLocalValue(value === 0 ? '' : value.toString());
-      }
-    }, [value, isFocused]);
-    
-    return (
-      <div className={small ? 'flex-1 min-w-[60px]' : ''}>
-        <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">{label}</label>
-        <input
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          value={isFocused ? localValue : (value === 0 ? '' : value.toString())}
-          onFocus={() => {
-            setIsFocused(true);
-            setLocalValue(value === 0 ? '' : value.toString());
-          }}
-          onBlur={() => {
-            setIsFocused(false);
-            // Commit value on blur
-            onChange(localValue || '0');
-          }}
-          onChange={(e) => {
-            const newVal = e.target.value.replace(/[^0-9]/g, '');
-            setLocalValue(newVal);
-            onChange(newVal || '0');
-          }}
-          placeholder="0"
-          className={`w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-center font-bold ${color} focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-sm placeholder-zinc-600`}
-        />
-      </div>
-    );
   };
 
   if (!teamData) {
