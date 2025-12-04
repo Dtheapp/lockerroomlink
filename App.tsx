@@ -17,6 +17,7 @@ import AuthScreen from './components/AuthScreen';
 // Public Pages (accessible without auth)
 const PublicAthleteProfile = lazy(() => import('./components/public/PublicAthleteProfile'));
 const PublicTeamProfile = lazy(() => import('./components/public/PublicTeamProfile'));
+const PublicCoachProfile = lazy(() => import('./components/public/PublicCoachProfile'));
 
 // Lazy-loaded pages for code splitting (reduces initial bundle size)
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -112,6 +113,7 @@ const AppContent: React.FC = () => {
           {/* Public Routes - Always accessible */}
           <Route path="/athlete/:username" element={<PublicAthleteProfile />} />
           <Route path="/team/:teamId" element={<PublicTeamProfile />} />
+          <Route path="/coach/:coachId" element={<PublicCoachProfile />} />
           
           {!user ? (
             <>

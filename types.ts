@@ -63,6 +63,7 @@ export interface UserProfile {
   emergencyContact?: EmergencyContact;
   
   photoUrl?: string;
+  bio?: string; // About me / bio section for coaches and parents
   
   // For Parents: Track currently selected player
   selectedPlayerId?: string;

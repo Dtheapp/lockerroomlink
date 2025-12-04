@@ -10,6 +10,7 @@ interface TeamCoach {
   name: string;
   email?: string;
   isHeadCoach?: boolean;
+  photoUrl?: string;
 }
 
 interface SportsmanshipLeader {
@@ -79,7 +80,8 @@ const PublicTeamProfile: React.FC = () => {
               id: coachDoc.id,
               name: coachData.name,
               email: coachData.email,
-              isHeadCoach: team.headCoachId === coachDoc.id || team.coachId === coachDoc.id
+              isHeadCoach: team.headCoachId === coachDoc.id || team.coachId === coachDoc.id,
+              photoUrl: coachData.photoUrl
             });
           }
         });
@@ -299,26 +301,38 @@ const PublicTeamProfile: React.FC = () => {
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {coaches.map((coach) => (
-                    <div 
-                      key={coach.id} 
-                      className={`flex items-center gap-3 p-3 rounded-lg ${
+                    <Link 
+                      key={coach.id}
+                      to={`/coach/${coach.id}`}
+                      className={`flex items-center gap-3 p-3 rounded-lg transition-all hover:scale-[1.02] ${
                         coach.isHeadCoach 
-                          ? 'bg-amber-500/10 border border-amber-500/30' 
-                          : 'bg-zinc-900/50 border border-zinc-700'
+                          ? 'bg-amber-500/10 border border-amber-500/30 hover:border-amber-400' 
+                          : 'bg-zinc-900/50 border border-zinc-700 hover:border-zinc-500'
                       }`}
                     >
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        coach.isHeadCoach ? 'bg-amber-500' : 'bg-zinc-700'
-                      }`}>
-                        <User className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-white">{coach.name}</p>
+                      {coach.photoUrl ? (
+                        <img 
+                          src={coach.photoUrl} 
+                          alt={coach.name}
+                          className={`w-10 h-10 rounded-full object-cover border-2 ${
+                            coach.isHeadCoach ? 'border-amber-500' : 'border-zinc-600'
+                          }`}
+                        />
+                      ) : (
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          coach.isHeadCoach ? 'bg-amber-500' : 'bg-zinc-700'
+                        }`}>
+                          <User className="w-5 h-5 text-white" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-white truncate">{coach.name}</p>
                         <p className="text-xs text-zinc-500">
                           {coach.isHeadCoach ? 'Head Coach' : 'Assistant Coach'}
                         </p>
                       </div>
-                    </div>
+                      <ChevronRight className="w-4 h-4 text-zinc-500 flex-shrink-0" />
+                    </Link>
                   ))}
                 </div>
               </div>

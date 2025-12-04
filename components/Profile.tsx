@@ -77,6 +77,13 @@ const Profile: React.FC = () => {
   const [savingPlayer, setSavingPlayer] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   
+  // Profile photo upload for parent/coach
+  const [uploadingProfilePhoto, setUploadingProfilePhoto] = useState(false);
+  const [showProfilePhotoModal, setShowProfilePhotoModal] = useState(false);
+  
+  // Bio state for coaches
+  const [bio, setBio] = useState('');
+  
   // Edit username validation state
   const [editUsernameError, setEditUsernameError] = useState<string | null>(null);
   const [checkingEditUsername, setCheckingEditUsername] = useState(false);
@@ -88,6 +95,7 @@ const Profile: React.FC = () => {
       setPhone(userData.phone || '');
       setSecondaryPhone(userData.secondaryPhone || '');
       setAddress(userData.address || '');
+      setBio(userData.bio || '');
       if (userData.emergencyContact) {
           setEmergName(userData.emergencyContact.name || '');
           setEmergPhone(userData.emergencyContact.phone || '');
@@ -175,7 +183,7 @@ const Profile: React.FC = () => {
     try {
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
-        name, phone, secondaryPhone, address,
+        name, phone, secondaryPhone, address, bio,
         emergencyContact: { name: emergName, phone: emergPhone, relation: emergRelation }
       });
       setIsEditing(false);
@@ -186,6 +194,57 @@ const Profile: React.FC = () => {
       setStatusMsg({ type: 'error', text: 'Failed to save changes.' });
     } finally {
       setLoading(false);
+    }
+  };
+  
+  // Handle profile photo upload for parent/coach
+  const handleProfilePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user || !e.target.files || e.target.files.length === 0) return;
+    
+    const file = e.target.files[0];
+    
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file.');
+      return;
+    }
+    
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image must be less than 2MB. Please choose a smaller image.');
+      return;
+    }
+    
+    setUploadingProfilePhoto(true);
+    try {
+      const resizedBase64 = await resizeImage(file, 300, 300);
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, { photoUrl: resizedBase64 });
+      setStatusMsg({ type: 'success', text: 'Profile photo updated!' });
+      setTimeout(() => setStatusMsg(null), 3000);
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      alert('Failed to upload photo. Please try again.');
+    } finally {
+      setUploadingProfilePhoto(false);
+    }
+  };
+  
+  // Remove profile photo
+  const handleRemoveProfilePhoto = async () => {
+    if (!user) return;
+    
+    if (!confirm('Remove your profile photo?')) return;
+    
+    setUploadingProfilePhoto(true);
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, { photoUrl: null });
+      setStatusMsg({ type: 'success', text: 'Profile photo removed.' });
+      setTimeout(() => setStatusMsg(null), 3000);
+    } catch (error) {
+      console.error('Error removing photo:', error);
+      alert('Failed to remove photo.');
+    } finally {
+      setUploadingProfilePhoto(false);
     }
   };
 
@@ -489,12 +548,44 @@ const Profile: React.FC = () => {
 
       <div className="bg-slate-50 dark:bg-zinc-950 rounded-xl shadow-lg dark:shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="bg-slate-50 dark:bg-slate-800/50 p-6 flex flex-col md:flex-row items-center gap-6 border-b border-slate-200 dark:border-slate-800">
-            <div className="h-20 w-20 bg-gradient-to-br from-sky-600 to-blue-700 rounded-full flex items-center justify-center text-3xl font-bold text-white">
-                {name.charAt(0).toUpperCase()}
+            {/* Profile Photo with Upload */}
+            <div className="relative group">
+              {userData?.photoUrl ? (
+                <img 
+                  src={userData.photoUrl} 
+                  alt={name}
+                  onClick={() => setShowProfilePhotoModal(true)}
+                  className="h-20 w-20 rounded-full object-cover border-4 border-sky-500 cursor-pointer hover:opacity-80 transition-opacity"
+                />
+              ) : (
+                <div className="h-20 w-20 bg-gradient-to-br from-sky-600 to-blue-700 rounded-full flex items-center justify-center text-3xl font-bold text-white">
+                    {name.charAt(0).toUpperCase()}
+                </div>
+              )}
+              {/* Photo upload overlay */}
+              <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                <input type="file" accept="image/*" onChange={handleProfilePhotoUpload} className="hidden" disabled={uploadingProfilePhoto} />
+                <Camera className="w-6 h-6 text-white" />
+              </label>
+              {uploadingProfilePhoto && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/70 rounded-full">
+                  <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+              {userData?.photoUrl && !uploadingProfilePhoto && (
+                <button 
+                  onClick={handleRemoveProfilePhoto}
+                  className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-colors shadow-lg"
+                  title="Remove photo"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
             <div className="text-center md:text-left">
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">{userData?.username || 'User'}</h2>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">{userData?.username || name || 'User'}</h2>
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-500/20 uppercase tracking-wider">{userData?.role}</span>
+                <p className="text-xs text-slate-500 mt-2">Hover over photo to change</p>
             </div>
         </div>
 
@@ -572,9 +663,31 @@ const Profile: React.FC = () => {
                         </div>
                     </div>
                 </div>
+                
+                {/* Bio Section - for Coaches */}
+                {userData?.role === 'Coach' && (
+                  <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+                    <h3 className="text-sm font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                      <User className="w-4 h-4" /> About Me
+                    </h3>
+                    <p className="text-xs text-slate-500 mb-2">This will be displayed on your public coach profile for parents and visitors to see.</p>
+                    {isEditing ? (
+                      <textarea 
+                        value={bio} 
+                        onChange={e => setBio(e.target.value)} 
+                        placeholder="Tell parents about yourself, your coaching experience, philosophy, etc..."
+                        rows={4}
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-3 text-slate-900 dark:text-white"
+                      />
+                    ) : (
+                      <p className="text-slate-900 dark:text-white whitespace-pre-wrap">{bio || <span className="text-slate-500 italic">No bio added yet. Click Edit to add one.</span>}</p>
+                    )}
+                  </div>
+                )}
+                
                 {isEditing && (
                     <div className="flex justify-end gap-3 mt-6 border-t border-slate-200 dark:border-slate-800 pt-4">
-                        <button type="button" onClick={() => {setIsEditing(false); setName(userData?.name || '');}} className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"><X className="h-4 w-4" /> Cancel</button>
+                        <button type="button" onClick={() => {setIsEditing(false); setName(userData?.name || ''); setBio(userData?.bio || '');}} className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"><X className="h-4 w-4" /> Cancel</button>
                         <button type="submit" disabled={loading} className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg flex items-center gap-2"><Save className="h-4 w-4" /> Save</button>
                     </div>
                 )}
@@ -1405,6 +1518,29 @@ const Profile: React.FC = () => {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Photo Modal */}
+      {showProfilePhotoModal && userData?.photoUrl && (
+        <div 
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          onClick={() => setShowProfilePhotoModal(false)}
+        >
+          <div className="relative max-w-2xl max-h-[80vh]">
+            <button
+              onClick={() => setShowProfilePhotoModal(false)}
+              className="absolute -top-12 right-0 p-2 text-white hover:text-zinc-300 transition-colors"
+            >
+              <X className="w-8 h-8" />
+            </button>
+            <img 
+              src={userData.photoUrl} 
+              alt={name}
+              className="max-w-full max-h-[80vh] object-contain rounded-lg"
+            />
+            <p className="text-center text-white font-bold mt-4">{name}</p>
           </div>
         </div>
       )}
