@@ -180,13 +180,29 @@ const Roster: React.FC = () => {
     // Load coaches on this team (for Head Coach management)
     const fetchTeamCoaches = async () => {
       try {
+        // Query coaches who have this team in their teamIds array
         const coachesQuery = query(
+          collection(db, 'users'),
+          where('role', '==', 'Coach'),
+          where('teamIds', 'array-contains', teamData?.id)
+        );
+        const snapshot = await getDocs(coachesQuery);
+        let coachesData = snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
+        
+        // Also check for coaches with legacy teamId field (who might not have teamIds yet)
+        const legacyQuery = query(
           collection(db, 'users'),
           where('role', '==', 'Coach'),
           where('teamId', '==', teamData?.id)
         );
-        const snapshot = await getDocs(coachesQuery);
-        const coachesData = snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
+        const legacySnapshot = await getDocs(legacyQuery);
+        legacySnapshot.docs.forEach(d => {
+          // Only add if not already in the list
+          if (!coachesData.some(c => c.uid === d.id)) {
+            coachesData.push({ uid: d.id, ...d.data() } as UserProfile);
+          }
+        });
+        
         setTeamCoaches(coachesData);
       } catch (err) {
         console.error("Error fetching team coaches:", err);
