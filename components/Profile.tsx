@@ -587,6 +587,12 @@ const Profile: React.FC = () => {
                                         <div className="flex items-center gap-1 mt-1.5">
                                           <Users className="w-3 h-3 text-sky-500" />
                                           <span className="text-xs text-sky-600 dark:text-sky-400 font-medium">{playerTeam?.name || 'Unknown Team'}</span>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); openEditModal(player); }}
+                                            className="ml-1 text-[10px] text-sky-500 hover:text-sky-700 dark:hover:text-sky-300 underline"
+                                          >
+                                            (change)
+                                          </button>
                                         </div>
                                         <p className="text-xs text-slate-500 mt-1">DOB: {player.dob || '--'}</p>
                                     </div>
