@@ -1,22 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import type { UserProfile, Team } from '../../types';
-import { User, Crown, Users, Mail, Trophy, Calendar, MapPin, Home, X, Award, Shield } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import type { UserProfile, Team, CoachKudos, CoachFeedback } from '../../types';
+import { User, Crown, Users, Mail, Trophy, Calendar, MapPin, Home, X, Award, Shield, ThumbsUp, Heart, MessageSquare, Send, CheckCircle, AlertTriangle } from 'lucide-react';
 
 interface CoachData {
   coach: UserProfile;
   teams: Team[];
   isHeadCoach: boolean[];
+  kudosCount: number;
+  hasGivenKudos: boolean;
 }
 
 const PublicCoachProfile: React.FC = () => {
   const { coachId } = useParams<{ coachId: string }>();
+  const { user, userData } = useAuth();
   const [data, setData] = useState<CoachData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [showKudosModal, setShowKudosModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [kudosMessage, setKudosMessage] = useState('');
+  const [feedbackCategory, setFeedbackCategory] = useState<'communication' | 'conduct' | 'fairness' | 'safety' | 'other'>('other');
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState<'kudos' | 'feedback' | null>(null);
 
   useEffect(() => {
     const fetchCoachData = async () => {
@@ -58,7 +69,22 @@ const PublicCoachProfile: React.FC = () => {
           }
         }
 
-        setData({ coach, teams, isHeadCoach });
+        // Get kudos count
+        const kudosQuery = query(collection(db, 'coachKudos'), where('coachId', '==', coachId));
+        const kudosSnapshot = await getDocs(kudosQuery);
+        const kudosCount = kudosSnapshot.size;
+        
+        // Check if current user has already given kudos
+        let hasGivenKudos = false;
+        if (user) {
+          kudosSnapshot.forEach(doc => {
+            if (doc.data().parentId === user.uid) {
+              hasGivenKudos = true;
+            }
+          });
+        }
+
+        setData({ coach, teams, isHeadCoach, kudosCount, hasGivenKudos });
       } catch (err) {
         console.error('Error fetching coach data:', err);
         setError('Failed to load coach profile');
@@ -68,7 +94,77 @@ const PublicCoachProfile: React.FC = () => {
     };
 
     fetchCoachData();
-  }, [coachId]);
+  }, [coachId, user]);
+
+  // Handle giving kudos
+  const handleGiveKudos = async () => {
+    if (!user || !userData || !data || data.hasGivenKudos) return;
+    
+    setSubmitting(true);
+    try {
+      // Find the team connection between parent and coach
+      const parentTeamId = userData.teamId || '';
+      const teamMatch = data.teams.find(t => t.id === parentTeamId);
+      
+      await addDoc(collection(db, 'coachKudos'), {
+        coachId: coachId,
+        parentId: user.uid,
+        parentName: userData.name,
+        teamId: parentTeamId,
+        teamName: teamMatch?.name || 'Unknown Team',
+        message: kudosMessage.trim() || null,
+        createdAt: serverTimestamp()
+      });
+      
+      // Update local state
+      setData(prev => prev ? { ...prev, kudosCount: prev.kudosCount + 1, hasGivenKudos: true } : null);
+      setSubmitSuccess('kudos');
+      setShowKudosModal(false);
+      setKudosMessage('');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSubmitSuccess(null), 3000);
+    } catch (err) {
+      console.error('Error giving kudos:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Handle submitting private feedback
+  const handleSubmitFeedback = async () => {
+    if (!user || !userData || !data || !feedbackMessage.trim()) return;
+    
+    setSubmitting(true);
+    try {
+      const parentTeamId = userData.teamId || '';
+      const teamMatch = data.teams.find(t => t.id === parentTeamId);
+      
+      await addDoc(collection(db, 'coachFeedback'), {
+        coachId: coachId,
+        coachName: data.coach.name,
+        parentId: user.uid,
+        parentName: userData.name,
+        teamId: parentTeamId,
+        teamName: teamMatch?.name || 'Unknown Team',
+        category: feedbackCategory,
+        message: feedbackMessage.trim(),
+        status: 'new',
+        createdAt: serverTimestamp()
+      });
+      
+      setSubmitSuccess('feedback');
+      setShowFeedbackModal(false);
+      setFeedbackMessage('');
+      setFeedbackCategory('other');
+      
+      setTimeout(() => setSubmitSuccess(null), 3000);
+    } catch (err) {
+      console.error('Error submitting feedback:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -99,10 +195,19 @@ const PublicCoachProfile: React.FC = () => {
     );
   }
 
-  const { coach, teams, isHeadCoach } = data;
+  const { coach, teams, isHeadCoach, kudosCount, hasGivenKudos } = data;
+  const isParent = userData?.role === 'Parent';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-black to-zinc-900">
+      {/* Success Toast */}
+      {submitSuccess && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-fade-in">
+          <CheckCircle className="w-5 h-5" />
+          {submitSuccess === 'kudos' ? 'Kudos sent! Thank you!' : 'Feedback submitted privately to admins'}
+        </div>
+      )}
+
       {/* Header Bar */}
       <header className="bg-zinc-900/80 backdrop-blur-sm border-b border-zinc-800 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -170,6 +275,44 @@ const PublicCoachProfile: React.FC = () => {
                   </Link>
                 ))}
               </div>
+
+              {/* Kudos Counter */}
+              {kudosCount > 0 && (
+                <div className="mt-4 flex justify-center md:justify-start">
+                  <div className="inline-flex items-center gap-2 bg-gradient-to-r from-pink-500/20 to-red-500/20 border border-pink-500/30 px-4 py-2 rounded-full">
+                    <Heart className="w-5 h-5 text-pink-500 fill-pink-500" />
+                    <span className="text-white font-bold">{kudosCount}</span>
+                    <span className="text-pink-300 text-sm">Kudos from Parents</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Parent Action Buttons */}
+              {isParent && user && (
+                <div className="mt-4 flex flex-wrap justify-center md:justify-start gap-3">
+                  {!hasGivenKudos ? (
+                    <button
+                      onClick={() => setShowKudosModal(true)}
+                      className="flex items-center gap-2 bg-gradient-to-r from-pink-600 to-red-600 hover:from-pink-500 hover:to-red-500 text-white px-4 py-2 rounded-lg font-semibold transition-all shadow-lg hover:shadow-pink-500/25"
+                    >
+                      <ThumbsUp className="w-4 h-4" />
+                      Give Kudos
+                    </button>
+                  ) : (
+                    <span className="flex items-center gap-2 bg-pink-500/20 text-pink-300 px-4 py-2 rounded-lg font-semibold">
+                      <Heart className="w-4 h-4 fill-pink-400" />
+                      You gave kudos!
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setShowFeedbackModal(true)}
+                    className="flex items-center gap-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 px-4 py-2 rounded-lg font-semibold transition-all"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    Private Feedback
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -269,6 +412,129 @@ const PublicCoachProfile: React.FC = () => {
               className="max-w-full max-h-[80vh] object-contain rounded-lg"
             />
             <p className="text-center text-white font-bold mt-4">{coach.name}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Kudos Modal */}
+      {showKudosModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-zinc-900 rounded-2xl p-6 max-w-md w-full border border-zinc-700 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Heart className="w-6 h-6 text-pink-500" />
+                Give Kudos
+              </h3>
+              <button onClick={() => setShowKudosModal(false)} className="text-zinc-400 hover:text-white">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <p className="text-zinc-400 mb-4">
+              Show your appreciation for Coach {coach.name.split(' ')[0]}! Your kudos will be displayed publicly.
+            </p>
+            
+            <textarea
+              value={kudosMessage}
+              onChange={(e) => setKudosMessage(e.target.value)}
+              placeholder="Add a short thank you message (optional)"
+              maxLength={200}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white placeholder-zinc-500 focus:outline-none focus:border-pink-500 resize-none"
+              rows={3}
+            />
+            <p className="text-xs text-zinc-500 mt-1 mb-4">{kudosMessage.length}/200 characters</p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowKudosModal(false)}
+                className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white py-3 rounded-lg font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleGiveKudos}
+                disabled={submitting}
+                className="flex-1 bg-gradient-to-r from-pink-600 to-red-600 hover:from-pink-500 hover:to-red-500 text-white py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {submitting ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <ThumbsUp className="w-4 h-4" />
+                    Send Kudos
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Private Feedback Modal */}
+      {showFeedbackModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-zinc-900 rounded-2xl p-6 max-w-md w-full border border-zinc-700 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <MessageSquare className="w-6 h-6 text-sky-500" />
+                Private Feedback
+              </h3>
+              <button onClick={() => setShowFeedbackModal(false)} className="text-zinc-400 hover:text-white">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="bg-sky-500/10 border border-sky-500/30 rounded-lg p-3 mb-4">
+              <p className="text-sky-300 text-sm flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                This feedback is private and will only be seen by organization administrators. It will not be shown to the coach.
+              </p>
+            </div>
+            
+            <label className="block text-sm font-medium text-zinc-300 mb-2">Category</label>
+            <select
+              value={feedbackCategory}
+              onChange={(e) => setFeedbackCategory(e.target.value as any)}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white mb-4 focus:outline-none focus:border-sky-500"
+            >
+              <option value="communication">Communication</option>
+              <option value="conduct">Conduct/Behavior</option>
+              <option value="fairness">Fairness/Playing Time</option>
+              <option value="safety">Safety Concern</option>
+              <option value="other">Other</option>
+            </select>
+            
+            <label className="block text-sm font-medium text-zinc-300 mb-2">Your Feedback</label>
+            <textarea
+              value={feedbackMessage}
+              onChange={(e) => setFeedbackMessage(e.target.value)}
+              placeholder="Please describe your concern..."
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white placeholder-zinc-500 focus:outline-none focus:border-sky-500 resize-none"
+              rows={4}
+            />
+            
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => setShowFeedbackModal(false)}
+                className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white py-3 rounded-lg font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitFeedback}
+                disabled={submitting || !feedbackMessage.trim()}
+                className="flex-1 bg-sky-600 hover:bg-sky-500 text-white py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {submitting ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    Submit
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

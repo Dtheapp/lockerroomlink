@@ -362,6 +362,37 @@ export interface PlayerSeasonSummary {
   int: number;
 }
 
+// --- COACH FEEDBACK SYSTEM ---
+// Public kudos (positive recognition only)
+export interface CoachKudos {
+  id: string;
+  coachId: string;
+  parentId: string;
+  parentName: string;
+  teamId: string;
+  teamName: string;
+  message?: string; // Optional short thank you message
+  createdAt: any;
+}
+
+// Private feedback to admins (concerns)
+export interface CoachFeedback {
+  id: string;
+  coachId: string;
+  coachName: string;
+  parentId: string;
+  parentName: string;
+  teamId: string;
+  teamName: string;
+  category: 'communication' | 'conduct' | 'fairness' | 'safety' | 'other';
+  message: string;
+  status: 'new' | 'reviewed' | 'resolved';
+  adminNotes?: string;
+  createdAt: any;
+  reviewedAt?: any;
+  reviewedBy?: string;
+}
+
 // Legacy interface for backward compatibility
 export interface PlayerStats {
   id: string;

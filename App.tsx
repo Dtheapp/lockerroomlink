@@ -77,6 +77,7 @@ const ContentModeration = lazyWithRetry(() => import('./components/admin/Content
 const DataManagement = lazyWithRetry(() => import('./components/admin/DataManagement'));
 const EmailCommunication = lazyWithRetry(() => import('./components/admin/EmailCommunication'));
 const ActivityLog = lazyWithRetry(() => import('./components/admin/ActivityLog'));
+const CoachFeedback = lazyWithRetry(() => import('./components/admin/CoachFeedback'));
 
 // Loading fallback for lazy-loaded components
 const PageLoader = () => (
@@ -165,6 +166,7 @@ const AppContent: React.FC = () => {
                 <Route path="announcements" element={<Announcements />} />
                 <Route path="email" element={<EmailCommunication />} />
                 <Route path="moderation" element={<ContentModeration />} />
+                <Route path="coach-feedback" element={<CoachFeedback />} />
                 <Route path="team-reports" element={<TeamReports />} />
                 <Route path="reports" element={<UserReport />} />
                 <Route path="activity" element={<ActivityLog />} />
