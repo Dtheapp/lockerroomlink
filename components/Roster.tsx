@@ -4,7 +4,7 @@ import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateD
 import { db } from '../services/firebase';
 import { sanitizeText, sanitizeNumber, sanitizeDate } from '../services/sanitize';
 import type { Player, UserProfile, Team } from '../types';
-import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star } from 'lucide-react';
+import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera } from 'lucide-react';
 
 // Pagination settings
 const PLAYERS_PER_PAGE = 12;
@@ -81,6 +81,7 @@ const Roster: React.FC = () => {
   const [linkingParent, setLinkingParent] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
   const [savingPlayer, setSavingPlayer] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   
   // Delete confirmation state
   const [deletePlayerConfirm, setDeletePlayerConfirm] = useState<{ id: string; name: string; number: string } | null>(null);
@@ -95,7 +96,9 @@ const Roster: React.FC = () => {
     dob: '', 
     teamId: '', // NEW: Team selection for parents
     shirtSize: '', // For parents: uniform sizing
-    pantSize: '' // For parents: uniform sizing
+    pantSize: '', // For parents: uniform sizing
+    height: '', // Player height
+    weight: '' // Player weight
   });
   const [selectedPlayerId, setSelectedPlayerId] = useState('');
   const [selectedParentId, setSelectedParentId] = useState('');
@@ -214,6 +217,8 @@ const Roster: React.FC = () => {
         // Parents only provide uniform sizes
         playerData.shirtSize = sanitizeText(newPlayer.shirtSize, 20);
         playerData.pantSize = sanitizeText(newPlayer.pantSize, 20);
+        playerData.height = sanitizeText(newPlayer.height, 10);
+        playerData.weight = sanitizeText(newPlayer.weight, 10);
         // Initialize stats and position as empty - coach will fill
         playerData.stats = { td: 0, tkl: 0 };
         playerData.number = 0; // Placeholder
@@ -225,10 +230,12 @@ const Roster: React.FC = () => {
         playerData.stats = { td: sanitizeNumber(newPlayer.td, 0, 999), tkl: sanitizeNumber(newPlayer.tkl, 0, 999) };
         playerData.shirtSize = sanitizeText(newPlayer.shirtSize, 20);
         playerData.pantSize = sanitizeText(newPlayer.pantSize, 20);
+        playerData.height = sanitizeText(newPlayer.height, 10);
+        playerData.weight = sanitizeText(newPlayer.weight, 10);
       }
 
       await addDoc(collection(db, 'teams', targetTeamId, 'players'), playerData);
-      setNewPlayer({ name: '', number: '', position: '', td: '0', tkl: '0', dob: '', teamId: '', shirtSize: '', pantSize: '' });
+      setNewPlayer({ name: '', number: '', position: '', td: '0', tkl: '0', dob: '', teamId: '', shirtSize: '', pantSize: '', height: '', weight: '' });
       setIsAddModalOpen(false);
       
       // For parents, reload the AuthContext to pick up the new player
@@ -316,6 +323,107 @@ const Roster: React.FC = () => {
     }
   };
 
+  // Handle player photo upload
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!editingPlayer || !editingPlayer.teamId || !e.target.files || e.target.files.length === 0) return;
+    
+    const file = e.target.files[0];
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file.');
+      return;
+    }
+    
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image must be less than 2MB. Please choose a smaller image.');
+      return;
+    }
+    
+    setUploadingPhoto(true);
+    try {
+      // Resize and compress the image
+      const resizedBase64 = await resizeImage(file, 200, 200); // 200x200 for headshot
+      
+      // Update player with photo
+      const playerRef = doc(db, 'teams', editingPlayer.teamId, 'players', editingPlayer.id);
+      await updateDoc(playerRef, { photoUrl: resizedBase64 });
+      
+      // Update local state
+      setEditingPlayer({ ...editingPlayer, photoUrl: resizedBase64 });
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      alert('Failed to upload photo. Please try again.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+  
+  // Helper function to resize image
+  const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          
+          // Calculate new dimensions maintaining aspect ratio
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Could not get canvas context'));
+            return;
+          }
+          
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Convert to base64 with compression
+          const base64 = canvas.toDataURL('image/jpeg', 0.7);
+          resolve(base64);
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+  
+  // Remove player photo
+  const handleRemovePhoto = async () => {
+    if (!editingPlayer || !editingPlayer.teamId) return;
+    
+    setUploadingPhoto(true);
+    try {
+      const playerRef = doc(db, 'teams', editingPlayer.teamId, 'players', editingPlayer.id);
+      await updateDoc(playerRef, { photoUrl: null });
+      setEditingPlayer({ ...editingPlayer, photoUrl: undefined });
+    } catch (error) {
+      console.error('Error removing photo:', error);
+      alert('Failed to remove photo.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const handleUpdatePlayer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPlayer || !editingPlayer.teamId || savingPlayer) return;
@@ -327,7 +435,9 @@ const Roster: React.FC = () => {
         name: editingPlayer.name,
         dob: editingPlayer.dob,
         shirtSize: editingPlayer.shirtSize || '',
-        pantSize: editingPlayer.pantSize || ''
+        pantSize: editingPlayer.pantSize || '',
+        height: editingPlayer.height || '',
+        weight: editingPlayer.weight || ''
       };
       
       // Coaches can also edit jersey number, position, and designations
@@ -453,35 +563,58 @@ const Roster: React.FC = () => {
                   }`}
                   style={isStarter ? { boxShadow: '0 0 20px rgba(251, 191, 36, 0.3), 0 0 40px rgba(251, 191, 36, 0.1)' } : {}}
                 >
-                    {/* Starter Badge - Top Left Corner */}
+                    {/* Starter Badge - Top Center */}
                     {isStarter && (
-                      <div className="absolute top-2 left-2 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full px-2 py-0.5 shadow-lg flex items-center gap-1">
-                        <Star className="w-3 h-3 text-white fill-white" />
-                        <span className="text-[10px] font-bold text-white uppercase tracking-wide">Starter</span>
+                      <div className="flex justify-center mb-2">
+                        <div className="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full px-3 py-1 shadow-lg flex items-center gap-1.5">
+                          <Star className="w-3.5 h-3.5 text-white fill-white" />
+                          <span className="text-xs font-bold text-white uppercase tracking-wide">Starter</span>
+                        </div>
                       </div>
                     )}
                     
-                    <div className="flex justify-between items-start mb-4 mt-2">
-                        <div className={`rounded-full h-12 w-12 flex items-center justify-center text-xl font-bold border font-mono ${
+                    {/* Player Photo / Jersey Number */}
+                    <div className="flex justify-center mb-3">
+                      {player.photoUrl ? (
+                        <div className={`relative w-20 h-20 rounded-full overflow-hidden border-4 ${
                           isStarter 
-                            ? 'bg-gradient-to-br from-yellow-100 to-amber-100 dark:from-yellow-900/30 dark:to-amber-900/30 border-yellow-400 dark:border-yellow-600 text-yellow-700 dark:text-yellow-400' 
-                            : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white'
+                            ? 'border-yellow-400 dark:border-yellow-500 shadow-lg shadow-yellow-400/30' 
+                            : 'border-zinc-300 dark:border-zinc-700'
                         }`}>
+                          <img 
+                            src={player.photoUrl} 
+                            alt={player.name} 
+                            className="w-full h-full object-cover"
+                          />
+                          {/* Jersey number badge on photo */}
+                          <div className="absolute -bottom-1 -right-1 bg-orange-600 text-white text-xs font-bold rounded-full w-7 h-7 flex items-center justify-center border-2 border-white dark:border-zinc-950">
                             {player.number}
+                          </div>
                         </div>
-                        <div className="flex gap-2">
-                            {/* PRIVACY FIX: Only Coaches/Staff can see the Medical Alert Button */}
-                            {hasMedicalAlert && isStaff && (
-                                <button onClick={() => setViewMedical(player)} className="text-red-500 hover:text-red-400 bg-red-100 dark:bg-red-900/20 p-1.5 rounded-full animate-pulse">
-                                    <AlertCircle className="w-5 h-5" />
-                                </button>
-                            )}
-                            {parent && isStaff && (
-                                <button onClick={() => openContact(player.parentId)} className="text-cyan-500 hover:text-cyan-400 bg-cyan-100 dark:bg-cyan-900/20 p-1.5 rounded-full">
-                                    <Phone className="w-5 h-5" />
-                                </button>
-                            )}
+                      ) : (
+                        <div className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold border-4 font-mono ${
+                          isStarter 
+                            ? 'bg-gradient-to-br from-yellow-100 to-amber-100 dark:from-yellow-900/30 dark:to-amber-900/30 border-yellow-400 dark:border-yellow-500 text-yellow-700 dark:text-yellow-400 shadow-lg shadow-yellow-400/30' 
+                            : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white'
+                        }`}>
+                          {player.number}
                         </div>
+                      )}
+                    </div>
+                    
+                    {/* Action buttons - top right */}
+                    <div className="absolute top-2 right-2 flex gap-1">
+                        {/* PRIVACY FIX: Only Coaches/Staff can see the Medical Alert Button */}
+                        {hasMedicalAlert && isStaff && (
+                            <button onClick={() => setViewMedical(player)} className="text-red-500 hover:text-red-400 bg-red-100 dark:bg-red-900/20 p-1.5 rounded-full animate-pulse">
+                                <AlertCircle className="w-4 h-4" />
+                            </button>
+                        )}
+                        {parent && isStaff && (
+                            <button onClick={() => openContact(player.parentId)} className="text-cyan-500 hover:text-cyan-400 bg-cyan-100 dark:bg-cyan-900/20 p-1.5 rounded-full">
+                                <Phone className="w-4 h-4" />
+                            </button>
+                        )}
                     </div>
 
                     <div className="text-center mb-4">
@@ -501,6 +634,27 @@ const Roster: React.FC = () => {
                             <Shield className="w-3 h-3 text-cyan-500" /> <span className="font-bold">{player.stats.tkl}</span> TKL
                         </div>
                     </div>
+
+                    {/* Height & Weight - Visible to everyone */}
+                    {(player.height || player.weight) && (
+                      <div className="mb-3 bg-cyan-50 dark:bg-cyan-900/10 p-2 rounded border border-cyan-200 dark:border-cyan-900/30">
+                        <p className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wider mb-1">Physical</p>
+                        <div className="flex justify-around text-xs">
+                          {player.height && (
+                            <div>
+                              <span className="text-zinc-500 dark:text-zinc-500">Height:</span>
+                              <span className="ml-1 font-bold text-zinc-900 dark:text-white">{player.height}</span>
+                            </div>
+                          )}
+                          {player.weight && (
+                            <div>
+                              <span className="text-zinc-500 dark:text-zinc-500">Weight:</span>
+                              <span className="ml-1 font-bold text-zinc-900 dark:text-white">{player.weight}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Uniform Sizes - Visible to both Parents and Coaches */}
                     {(player.shirtSize || player.pantSize) && (
@@ -751,6 +905,19 @@ const Roster: React.FC = () => {
               {isParent && (
                 <>
                   <div className="pt-2 border-t border-zinc-300 dark:border-zinc-800">
+                    <p className="text-xs font-bold text-cyan-600 dark:text-cyan-400 mb-3 uppercase tracking-wider">Physical Info</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Height</label>
+                        <input name="height" value={newPlayer.height} onChange={handleInputChange} placeholder="4 ft 6 in" className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Weight</label>
+                        <input name="weight" value={newPlayer.weight} onChange={handleInputChange} placeholder="85 lbs" className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-zinc-300 dark:border-zinc-800">
                     <p className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-3 uppercase tracking-wider">Uniform Sizing</p>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -832,6 +999,17 @@ const Roster: React.FC = () => {
                         <option value="Adult XL">Adult XL</option>
                         <option value="Adult 2XL">Adult 2XL</option>
                       </select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Height</label>
+                      <input name="height" value={newPlayer.height} onChange={handleInputChange} placeholder="4 ft 6 in" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Weight</label>
+                      <input name="weight" value={newPlayer.weight} onChange={handleInputChange} placeholder="85 lbs" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
                     </div>
                   </div>
                 </>
@@ -1117,6 +1295,54 @@ const Roster: React.FC = () => {
               <Edit2 className="w-6 h-6 text-orange-500" /> Edit Player Info
             </h2>
             <form onSubmit={handleUpdatePlayer} className="space-y-4">
+              
+              {/* Player Photo Upload */}
+              <div className="flex flex-col items-center pb-4 border-b border-zinc-200 dark:border-zinc-800">
+                <p className="text-xs font-bold text-zinc-600 dark:text-zinc-400 mb-3 uppercase tracking-wider">Player Photo</p>
+                <div className="relative">
+                  {editingPlayer.photoUrl ? (
+                    <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-orange-500 shadow-lg">
+                      <img src={editingPlayer.photoUrl} alt={editingPlayer.name} className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-24 h-24 rounded-full bg-zinc-200 dark:bg-zinc-800 border-4 border-zinc-300 dark:border-zinc-700 flex items-center justify-center">
+                      <User className="w-10 h-10 text-zinc-400 dark:text-zinc-600" />
+                    </div>
+                  )}
+                  
+                  {/* Upload Button Overlay */}
+                  <label className="absolute bottom-0 right-0 bg-orange-600 hover:bg-orange-500 text-white rounded-full p-2 cursor-pointer shadow-lg transition-colors">
+                    <Camera className="w-4 h-4" />
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handlePhotoUpload} 
+                      className="hidden" 
+                      disabled={uploadingPhoto}
+                    />
+                  </label>
+                </div>
+                
+                {uploadingPhoto && (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-orange-600">
+                    <div className="w-4 h-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin" />
+                    Uploading...
+                  </div>
+                )}
+                
+                {editingPlayer.photoUrl && !uploadingPhoto && (
+                  <button 
+                    type="button"
+                    onClick={handleRemovePhoto}
+                    className="mt-2 text-xs text-red-500 hover:text-red-700 underline"
+                  >
+                    Remove Photo
+                  </button>
+                )}
+                
+                <p className="text-[10px] text-zinc-500 mt-2">Tap camera icon to upload (max 2MB)</p>
+              </div>
+              
               <div>
                 <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Full Name</label>
                 <input 
@@ -1225,6 +1451,33 @@ const Roster: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Height & Weight - Editable by both Parents and Coaches */}
+              <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800">
+                <p className="text-xs font-bold text-cyan-600 dark:text-cyan-400 mb-3 uppercase tracking-wider">Physical Info</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Height</label>
+                    <input 
+                      type="text"
+                      value={editingPlayer.height || ''}
+                      onChange={(e) => setEditingPlayer({...editingPlayer, height: e.target.value})}
+                      placeholder="4 ft 6 in"
+                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Weight</label>
+                    <input 
+                      type="text"
+                      value={editingPlayer.weight || ''}
+                      onChange={(e) => setEditingPlayer({...editingPlayer, weight: e.target.value})}
+                      placeholder="85 lbs"
+                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+              </div>
 
               <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800">
                 <p className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-3 uppercase tracking-wider">Uniform Sizing</p>

@@ -94,8 +94,11 @@ export interface Player {
   pantSize?: string; // e.g. "Youth Small", "Adult L"
   
   // NEW: Starter & Captain status (Coach-set)
-  isStarter?: boolean;  // Shows glowing border on roster
-  isCaptain?: boolean;  // Shows captain crown badge
+  isStarter?: boolean; // Shows glowing border on roster
+  isCaptain?: boolean; // Shows captain crown badge
+  height?: string; // Player height (e.g., "4'6"")
+  weight?: string; // Player weight (e.g., "85 lbs")
+  photoUrl?: string; // Player headshot photo
   
   // Link to Parent
   parentId?: string; 
