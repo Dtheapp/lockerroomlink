@@ -253,9 +253,74 @@ const Playbook: React.FC = () => {
       setPlayName(play.name);
       setCategory(play.category);
       
-      // Load elements and routes as-is (should already be percentages 0-100)
-      setElements(play.elements || []);
-      setRoutes(play.routes || []);
+      // Normalize coordinates if they seem compressed
+      // Check if players are bunched (many players within small x or y range)
+      const els = play.elements || [];
+      const rts = play.routes || [];
+      
+      if (els.length > 0) {
+        const xValues = els.map(e => e.x);
+        const yValues = els.map(e => e.y);
+        const xRange = Math.max(...xValues) - Math.min(...xValues);
+        const yRange = Math.max(...yValues) - Math.min(...yValues);
+        
+        // If players are bunched in a small area (less than 40% of field used)
+        // Spread them out proportionally
+        const needsXSpread = xRange < 40 && els.length > 3;
+        const needsYSpread = yRange < 25 && els.length > 3;
+        
+        if (needsXSpread || needsYSpread) {
+          const xMin = Math.min(...xValues);
+          const xMax = Math.max(...xValues);
+          const yMin = Math.min(...yValues);
+          const yMax = Math.max(...yValues);
+          
+          const normalizedElements = els.map(el => {
+            let newX = el.x;
+            let newY = el.y;
+            
+            // Spread X from 10% to 90% of field
+            if (needsXSpread && xMax !== xMin) {
+              newX = 10 + ((el.x - xMin) / (xMax - xMin)) * 80;
+            }
+            
+            // Spread Y from 20% to 80% of field  
+            if (needsYSpread && yMax !== yMin) {
+              newY = 20 + ((el.y - yMin) / (yMax - yMin)) * 60;
+            }
+            
+            return { ...el, x: newX, y: newY };
+          });
+          
+          // Also adjust route points proportionally
+          const normalizedRoutes = rts.map(route => ({
+            ...route,
+            points: route.points.map(pt => {
+              let newX = pt.x;
+              let newY = pt.y;
+              
+              if (needsXSpread && xMax !== xMin) {
+                newX = 10 + ((pt.x - xMin) / (xMax - xMin)) * 80;
+              }
+              if (needsYSpread && yMax !== yMin) {
+                newY = 20 + ((pt.y - yMin) / (yMax - yMin)) * 60;
+              }
+              
+              return { x: Math.max(5, Math.min(95, newX)), y: Math.max(5, Math.min(95, newY)) };
+            })
+          }));
+          
+          setElements(normalizedElements);
+          setRoutes(normalizedRoutes);
+        } else {
+          setElements(els);
+          setRoutes(rts);
+        }
+      } else {
+        setElements(els);
+        setRoutes(rts);
+      }
+      
       setSelectedPlayId(play.id);
       setSelectedElementId(null);
       setSelectedRouteId(null);
@@ -492,45 +557,45 @@ const Playbook: React.FC = () => {
     if (!selectedElementId && !selectedRouteId) return null;
     
     return (
-      <div className={`${isFullscreen ? 'fixed top-20 left-1/2 -translate-x-1/2 z-40' : 'absolute top-2 left-1/2 -translate-x-1/2 z-40'}`}>
-        <div className="bg-slate-900/95 backdrop-blur-sm rounded-xl shadow-2xl border border-slate-700 p-2 flex items-center gap-2">
+      <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30">
+        <div className="bg-black/90 backdrop-blur-sm rounded-xl shadow-2xl border border-slate-700 p-1.5 flex items-center gap-1.5">
           {selectedElementId && (
             <>
               <button 
                 onClick={handleAddOrExtendRoute} 
-                className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                className="bg-yellow-600 hover:bg-yellow-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
               >
-                <RouteIcon className="w-3.5 h-3.5"/> {hasRoute ? 'Extend' : 'Route'}
+                <RouteIcon className="w-3 h-3"/> {hasRoute ? 'Extend' : 'Route'}
               </button>
               {hasRoute && (
                 <button 
                   onClick={clearPlayerRoute} 
-                  className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
                 >
-                  <Undo2 className="w-3.5 h-3.5"/> Clear
+                  <Undo2 className="w-3 h-3"/> Clear
                 </button>
               )}
               <button 
                 onClick={deleteSelection} 
-                className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
               >
-                <Eraser className="w-3.5 h-3.5"/> Delete
+                <Eraser className="w-3 h-3"/> Del
               </button>
             </>
           )}
           {selectedRouteId && (
             <button 
               onClick={deleteSelection} 
-              className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+              className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
             >
-              <Eraser className="w-3.5 h-3.5"/> Delete Route
+              <Eraser className="w-3 h-3"/> Delete Route
             </button>
           )}
           <button 
             onClick={() => { setSelectedElementId(null); setSelectedRouteId(null); }}
-            className="text-slate-400 hover:text-white p-2 transition-colors"
+            className="text-slate-400 hover:text-white p-1.5 transition-colors"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -553,22 +618,22 @@ const Playbook: React.FC = () => {
     {/* ==================== FULLSCREEN MODE ==================== */}
     {isFullscreen && (
       <div 
-        className="fixed inset-0 z-50 bg-slate-950 flex flex-col"
+        className="fixed inset-0 z-50 bg-black flex flex-col"
         style={{ touchAction: 'none' }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800 shrink-0">
-          <div className="flex items-center gap-3">
+        {/* Floating Header - overlays field */}
+        <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-2 py-2 bg-gradient-to-b from-black/80 to-transparent">
+          <div className="flex items-center gap-2">
             <button 
               onClick={() => { setIsFullscreen(false); setShowAddPlayers(false); }}
-              className="bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-lg transition-colors"
+              className="bg-slate-900/90 hover:bg-slate-800 text-white p-2 rounded-lg transition-colors backdrop-blur-sm"
             >
               <X className="w-5 h-5" />
             </button>
             <input 
               value={playName}
               onChange={(e) => setPlayName(e.target.value)}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-white text-sm font-semibold w-40"
+              className="bg-slate-900/90 backdrop-blur-sm border border-slate-700 rounded-lg px-3 py-1.5 text-white text-sm font-semibold w-32"
               placeholder="Play Name"
               readOnly={isReadOnly}
             />
@@ -579,32 +644,24 @@ const Playbook: React.FC = () => {
               <>
                 <button 
                   onClick={clearBoard}
-                  className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-sm transition-colors"
+                  className="bg-slate-900/90 backdrop-blur-sm hover:bg-slate-800 text-white px-3 py-2 rounded-lg text-xs transition-colors"
                 >
                   New
                 </button>
                 <button 
                   onClick={handleSavePlay}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors"
+                  className="bg-emerald-600/90 backdrop-blur-sm hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
                 >
-                  <Save className="w-4 h-4" /> Save
+                  <Save className="w-3 h-3" /> Save
                 </button>
               </>
             )}
           </div>
         </div>
 
-        {/* Field Container with aspect ratio */}
-        <div className="flex-1 flex items-center justify-center p-2 overflow-hidden relative">
-          <div 
-            className="w-full h-full max-w-full rounded-lg overflow-hidden border-2 border-slate-700 shadow-2xl"
-            style={{ 
-              maxHeight: '100%',
-              aspectRatio: `${FIELD_ASPECT_RATIO}`,
-            }}
-          >
-            {renderField(true)}
-          </div>
+        {/* Field - TRUE FULLSCREEN, fills entire space */}
+        <div className="flex-1 relative overflow-hidden">
+          {renderField(true)}
           {renderSelectionActions()}
         </div>
 
@@ -613,8 +670,8 @@ const Playbook: React.FC = () => {
         
         {/* Drag hint */}
         {elements.length > 0 && !isDragging && !showAddPlayers && !isReadOnly && (
-          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-slate-800/80 text-slate-300 text-xs px-3 py-1.5 rounded-full flex items-center gap-2 pointer-events-none">
-            <Move className="w-3 h-3" /> Drag players to position
+          <div className="absolute bottom-16 left-1/2 -translate-x-1/2 bg-black/60 text-white/70 text-xs px-3 py-1 rounded-full flex items-center gap-2 pointer-events-none">
+            <Move className="w-3 h-3" /> Drag to move
           </div>
         )}
       </div>
