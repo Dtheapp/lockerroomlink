@@ -141,27 +141,31 @@ const Layout: React.FC = () => {
           </div>
         )}
 
-        <nav className="flex-1 space-y-1">
+        <nav className="flex-1 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const hasUnread = item.unreadKey && unread[item.unreadKey];
+            // On mobile, always show full nav items (isSidebarOpen means mobile menu is open)
+            // On desktop, respect isDesktopCollapsed
+            const showLabel = isSidebarOpen || !isDesktopCollapsed;
+            
             return (
               <NavLink
                 key={item.name}
                 to={item.path}
                 onClick={() => setIsSidebarOpen(false)} 
                 className={({ isActive }) => `${navLinkClasses} ${isActive ? activeClasses : inactiveClasses} relative`}
-                title={isDesktopCollapsed ? item.name : ''}
+                title={!showLabel ? item.name : ''}
               >
-                <div className="relative">
-                  <item.icon className="w-5 h-5 flex-shrink-0" />
+                <div className="relative flex-shrink-0">
+                  <item.icon className="w-5 h-5" />
                   {hasUnread && (
                     <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-zinc-950 animate-pulse" />
                   )}
                 </div>
-                <span className={`ml-3 font-medium transition-opacity duration-200 ${isDesktopCollapsed ? 'opacity-0 w-0 hidden md:block' : 'opacity-100'}`}>
-                    {item.name}
-                </span>
-                {hasUnread && !isDesktopCollapsed && (
+                {showLabel && (
+                  <span className="ml-3 font-medium">{item.name}</span>
+                )}
+                {hasUnread && showLabel && (
                   <span className="ml-auto w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                 )}
               </NavLink>
@@ -169,24 +173,36 @@ const Layout: React.FC = () => {
           })}
         </nav>
         
-        <div className="mt-auto pt-4 border-t border-zinc-200 dark:border-zinc-900 space-y-2">
-            <button 
-                onClick={toggleTheme} 
-                className={`${navLinkClasses} ${inactiveClasses} w-full`}
-                title={isDesktopCollapsed ? 'Toggle Theme' : ''}
-            >
-                {theme === 'dark' ? <Sun className="w-5 h-5"/> : <Moon className="w-5 h-5"/>}
-                <span className={`ml-3 font-medium ${isDesktopCollapsed ? 'hidden' : 'block'}`}>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
-            </button>
+        <div className="mt-auto pt-4 border-t border-zinc-200 dark:border-zinc-900 space-y-2 flex-shrink-0">
+            {/* Same logic: show labels on mobile (sidebar open) or desktop expanded */}
+            {(() => {
+              const showLabel = isSidebarOpen || !isDesktopCollapsed;
+              return (
+                <>
+                  <button 
+                      onClick={toggleTheme} 
+                      className={`${navLinkClasses} ${inactiveClasses} w-full`}
+                      title={!showLabel ? 'Toggle Theme' : ''}
+                  >
+                      {theme === 'dark' ? <Sun className="w-5 h-5 flex-shrink-0"/> : <Moon className="w-5 h-5 flex-shrink-0"/>}
+                      {showLabel && (
+                        <span className="ml-3 font-medium">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+                      )}
+                  </button>
 
-            <button 
-                onClick={handleSignOut} 
-                className={`${navLinkClasses} ${inactiveClasses} w-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20`}
-                title={isDesktopCollapsed ? 'Sign Out' : ''}
-            >
-                <LogOut className="w-5 h-5" />
-                <span className={`ml-3 font-medium ${isDesktopCollapsed ? 'hidden' : 'block'}`}>Sign Out</span>
-            </button>
+                  <button 
+                      onClick={handleSignOut} 
+                      className={`${navLinkClasses} ${inactiveClasses} w-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20`}
+                      title={!showLabel ? 'Sign Out' : ''}
+                  >
+                      <LogOut className="w-5 h-5 flex-shrink-0" />
+                      {showLabel && (
+                        <span className="ml-3 font-medium">Sign Out</span>
+                      )}
+                  </button>
+                </>
+              );
+            })()}
         </div>
       </aside>
 
