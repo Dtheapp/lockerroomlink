@@ -109,10 +109,10 @@ const Dashboard: React.FC = () => {
     if (!teamData?.id) return;
     setStatsLoading(true);
     // Load current season stats from the new seasonStats collection
+    // Note: Removed orderBy to avoid needing composite index - we sort in JS anyway
     const statsQuery = query(
       collection(db, 'teams', teamData.id, 'seasonStats'),
-      where('season', '==', currentYear),
-      orderBy('tds', 'desc')
+      where('season', '==', currentYear)
     );
 
     const unsubscribe = onSnapshot(statsQuery, (snapshot) => {
