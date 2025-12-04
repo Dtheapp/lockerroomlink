@@ -7,6 +7,30 @@ import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import type { Message } from '../types';
 import { Send, AlertCircle, VolumeX, Volume2, MoreVertical, X, Trash2, Edit2, Check } from 'lucide-react';
 
+// Activity logging function for moderation actions
+const logModerationActivity = async (
+  action: string,
+  targetType: string,
+  targetId: string,
+  details: string,
+  performedBy: string,
+  performedByName: string
+) => {
+  try {
+    await addDoc(collection(db, 'adminActivityLog'), {
+      action,
+      targetType,
+      targetId,
+      details,
+      performedBy,
+      performedByName,
+      timestamp: serverTimestamp()
+    });
+  } catch (error) {
+    console.error('Failed to log moderation activity:', error);
+  }
+};
+
 interface MutedUser {
   mutedBy: string;
   mutedByName: string;
@@ -31,7 +55,7 @@ const Chat: React.FC = () => {
   const [showMuteModal, setShowMuteModal] = useState<{ oduserId: string; userName: string } | null>(null);
   const [muteReason, setMuteReason] = useState('');
   const [activeMessageMenu, setActiveMessageMenu] = useState<string | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ messageId: string; messageText: string } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ messageId: string; messageText: string; senderName: string; senderId: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   
   // Edit message state
@@ -134,7 +158,7 @@ const Chat: React.FC = () => {
   };
 
   const handleMuteUser = async () => {
-    if (!showMuteModal || !teamData?.id || !userData) return;
+    if (!showMuteModal || !teamData?.id || !userData || !user) return;
     
     try {
       const teamDocRef = doc(db, 'teams', teamData.id);
@@ -146,6 +170,17 @@ const Chat: React.FC = () => {
           reason: muteReason.trim() || 'No reason provided'
         }
       });
+      
+      // Log the mute action to Activity Log
+      await logModerationActivity(
+        'MUTE_USER',
+        'chat_user',
+        showMuteModal.oduserId,
+        `Muted user "${showMuteModal.userName}" in Team Chat. Reason: ${muteReason.trim() || 'No reason provided'}. Team: ${teamData.name || teamData.id}`,
+        user.uid,
+        userData.name || userData.email || 'Unknown Coach'
+      );
+      
       setShowMuteModal(null);
       setMuteReason('');
     } catch (error) {
@@ -153,26 +188,56 @@ const Chat: React.FC = () => {
     }
   };
 
-  const handleUnmuteUser = async (oduserId: string) => {
-    if (!teamData?.id) return;
+  const handleUnmuteUser = async (oduserId: string, userName: string) => {
+    if (!teamData?.id || !user || !userData) return;
     
     try {
       const teamDocRef = doc(db, 'teams', teamData.id);
       await updateDoc(teamDocRef, {
         [`mutedUsers.${oduserId}`]: deleteField()
       });
+      
+      // Log the unmute action to Activity Log
+      await logModerationActivity(
+        'UNMUTE_USER',
+        'chat_user',
+        oduserId,
+        `Unmuted user "${userName}" in Team Chat. Team: ${teamData.name || teamData.id}`,
+        user.uid,
+        userData.name || userData.email || 'Unknown Coach'
+      );
     } catch (error) {
       console.error("Error unmuting user:", error);
     }
   };
 
   const handleDeleteMessage = async () => {
-    if (!showDeleteConfirm || !teamData?.id) return;
+    if (!showDeleteConfirm || !teamData?.id || !user || !userData) return;
+    
+    // Check if deleting own message or someone else's (moderation)
+    const isDeletingOwnMessage = showDeleteConfirm.senderId === user.uid;
     
     setDeleting(true);
     try {
       const messageDocRef = doc(db, 'teams', teamData.id, 'messages', showDeleteConfirm.messageId);
       await deleteDoc(messageDocRef);
+      
+      // Only log to Activity Log if moderating (deleting someone else's message)
+      if (!isDeletingOwnMessage && canModerate) {
+        const truncatedMessage = showDeleteConfirm.messageText.length > 50 
+          ? showDeleteConfirm.messageText.substring(0, 50) + '...' 
+          : showDeleteConfirm.messageText;
+        
+        await logModerationActivity(
+          'DELETE_MESSAGE',
+          'chat_message',
+          showDeleteConfirm.messageId,
+          `Deleted message from "${showDeleteConfirm.senderName}" in Team Chat. Message: "${truncatedMessage}". Team: ${teamData.name || teamData.id}`,
+          user.uid,
+          userData.name || userData.email || 'Unknown Moderator'
+        );
+      }
+      
       setShowDeleteConfirm(null);
     } catch (error) {
       console.error("Error deleting message:", error);
@@ -298,7 +363,7 @@ const Chat: React.FC = () => {
                             {/* Delete Message - Available for all messages from others */}
                             <button
                               onClick={() => {
-                                setShowDeleteConfirm({ messageId: msg.id, messageText: msg.text });
+                                setShowDeleteConfirm({ messageId: msg.id, messageText: msg.text, senderName: msg.sender.name, senderId: msg.sender.uid });
                                 setActiveMessageMenu(null);
                               }}
                               className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
@@ -313,7 +378,7 @@ const Chat: React.FC = () => {
                                 <div className="border-t border-slate-200 dark:border-zinc-700 my-1" />
                                 {isUserMuted ? (
                                   <button
-                                    onClick={() => handleUnmuteUser(msg.sender.uid)}
+                                    onClick={() => handleUnmuteUser(msg.sender.uid, msg.sender.name)}
                                     className="w-full px-3 py-2 text-left text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2"
                                   >
                                     <Volume2 className="w-4 h-4" />
@@ -405,7 +470,7 @@ const Chat: React.FC = () => {
                           <Edit2 className="w-3 h-3" />
                         </button>
                         <button
-                          onClick={() => setShowDeleteConfirm({ messageId: msg.id, messageText: msg.text })}
+                          onClick={() => setShowDeleteConfirm({ messageId: msg.id, messageText: msg.text, senderName: msg.sender.name, senderId: msg.sender.uid })}
                           className="text-orange-200 hover:text-white p-0.5 transition-colors"
                           title="Delete message"
                         >
