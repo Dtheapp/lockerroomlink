@@ -215,6 +215,72 @@ export interface PrivateMessage {
   timestamp: Timestamp;
 }
 
+// --- GAME STATS ENGINE ---
+// Individual game record
+export interface Game {
+  id: string;
+  teamId: string;
+  season: number;        // Year (e.g., 2025)
+  gameNumber: number;    // Game 1, 2, 3... of the season
+  date: string;          // YYYY-MM-DD format
+  opponent: string;      // Opponent team name
+  isHome: boolean;       // Home or Away game
+  teamScore: number;     // Our team's score
+  opponentScore: number; // Opponent's score
+  result: 'W' | 'L' | 'T'; // Win, Loss, Tie (auto-calculated)
+  location?: string;     // Stadium/field name
+  notes?: string;        // Game notes
+  createdAt?: any;
+  updatedAt?: any;
+  createdBy?: string;
+}
+
+// Player stats for a specific game
+export interface GamePlayerStats {
+  id: string;
+  gameId: string;
+  playerId: string;
+  playerName: string;
+  playerNumber: number;
+  teamId: string;
+  season: number;
+  
+  // Offensive Stats
+  tds: number;
+  rushYards: number;
+  rushAttempts: number;
+  passYards: number;
+  passAttempts: number;
+  passCompletions: number;
+  rec: number;
+  recYards: number;
+  
+  // Defensive Stats
+  tackles: number;
+  soloTackles: number;
+  assistTackles: number;
+  sacks: number;
+  int: number;
+  intYards: number;
+  ff: number;
+  fr: number;
+  passDefended: number;
+  
+  // Special Teams
+  kickReturnYards: number;
+  puntReturnYards: number;
+  kickReturnTds: number;
+  puntReturnTds: number;
+  
+  // Sportsmanship
+  spts: number;
+  
+  // Metadata
+  createdAt?: any;
+  updatedAt?: any;
+  updatedBy?: string;
+}
+
 // --- ADVANCED STATS ENGINE ---
 // Current year stats for a player on a team
 export interface PlayerSeasonStats {

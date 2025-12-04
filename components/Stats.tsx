@@ -4,12 +4,17 @@ import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import TeamStatsBoard from './stats/TeamStatsBoard';
 import CoachStatsEntry from './stats/CoachStatsEntry';
+import GameStatsEntry from './stats/GameStatsEntry';
+import GameHistory from './stats/GameHistory';
 import type { Team, PlayerSeasonStats } from '../types';
-import { BarChart3, Users, TrendingUp, ArrowUpDown, ChevronDown, ChevronUp, Trophy, Shield, Sword } from 'lucide-react';
+import { BarChart3, Users, TrendingUp, ArrowUpDown, ChevronDown, ChevronUp, Trophy, Shield, Sword, Calendar, ClipboardList } from 'lucide-react';
 
 const Stats: React.FC = () => {
   const { userData, teamData, players, loading: authLoading } = useAuth();
   const currentYear = new Date().getFullYear();
+  
+  // Tab state for Coach view
+  const [activeTab, setActiveTab] = useState<'games' | 'season'>('games');
   
   // SuperAdmin states
   const [teams, setTeams] = useState<Team[]>([]);
@@ -101,7 +106,7 @@ const Stats: React.FC = () => {
         </div>
       </div>
 
-      {/* Parent View: Read-only Stats with View History */}
+      {/* Parent View: Read-only Stats with Game History */}
       {userData?.role === 'Parent' && (
         <section>
           {authLoading ? (
@@ -122,12 +127,45 @@ const Stats: React.FC = () => {
               </a>
             </div>
           ) : (
-            <TeamStatsBoard />
+            <div className="space-y-6">
+              {/* Tabs for Parent */}
+              <div className="flex gap-2 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                <button
+                  onClick={() => setActiveTab('games')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold transition-all ${
+                    activeTab === 'games'
+                      ? 'bg-orange-600 text-white shadow-lg'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  <Trophy className="w-5 h-5" />
+                  Game History
+                </button>
+                <button
+                  onClick={() => setActiveTab('season')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold transition-all ${
+                    activeTab === 'season'
+                      ? 'bg-orange-600 text-white shadow-lg'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  <ClipboardList className="w-5 h-5" />
+                  Season Stats
+                </button>
+              </div>
+
+              {/* Tab Content */}
+              {activeTab === 'games' ? (
+                <GameHistory />
+              ) : (
+                <TeamStatsBoard />
+              )}
+            </div>
           )}
         </section>
       )}
 
-      {/* Coach View: Editable Stats Entry */}
+      {/* Coach View: Tabs for Game Stats and Season Stats */}
       {userData?.role === 'Coach' && (
         <section>
           {!teamData ? (
@@ -137,7 +175,40 @@ const Stats: React.FC = () => {
               <p className="text-zinc-600 dark:text-zinc-400">Please contact an admin to assign you to a team</p>
             </div>
           ) : (
-            <CoachStatsEntry />
+            <div className="space-y-6">
+              {/* Tabs */}
+              <div className="flex gap-2 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                <button
+                  onClick={() => setActiveTab('games')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold transition-all ${
+                    activeTab === 'games'
+                      ? 'bg-orange-600 text-white shadow-lg'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  <Trophy className="w-5 h-5" />
+                  Game Stats
+                </button>
+                <button
+                  onClick={() => setActiveTab('season')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold transition-all ${
+                    activeTab === 'season'
+                      ? 'bg-orange-600 text-white shadow-lg'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  <ClipboardList className="w-5 h-5" />
+                  Season Totals
+                </button>
+              </div>
+
+              {/* Tab Content */}
+              {activeTab === 'games' ? (
+                <GameStatsEntry />
+              ) : (
+                <CoachStatsEntry />
+              )}
+            </div>
           )}
         </section>
       )}

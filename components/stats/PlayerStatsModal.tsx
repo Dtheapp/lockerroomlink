@@ -1,8 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import type { PlayerSeasonStats, Player } from '../../types';
+import type { PlayerSeasonStats, Player, Game, GamePlayerStats } from '../../types';
 import { X, TrendingUp, Calendar, Trophy, Shield, Sword, Target, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
+
+// Helper: Format date string without timezone issues
+const formatEventDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString('en-US', options || { month: 'short', day: 'numeric' });
+};
+
+interface GameWithStats {
+  game: Game;
+  stats: GamePlayerStats;
+}
 
 interface PlayerStatsModalProps {
   player: Player;
@@ -12,8 +24,10 @@ interface PlayerStatsModalProps {
 
 const PlayerStatsModal: React.FC<PlayerStatsModalProps> = ({ player, teamName, onClose }) => {
   const [seasonStats, setSeasonStats] = useState<PlayerSeasonStats[]>([]);
+  const [gameStats, setGameStats] = useState<GameWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedSeason, setExpandedSeason] = useState<number | null>(null);
+  const [showGameBreakdown, setShowGameBreakdown] = useState(false);
 
   const currentYear = new Date().getFullYear();
 
@@ -21,18 +35,46 @@ const PlayerStatsModal: React.FC<PlayerStatsModalProps> = ({ player, teamName, o
     const fetchPlayerStats = async () => {
       setLoading(true);
       try {
-        // Query stats from the player's current team - filter by playerId only
+        // Query season stats
         const statsQuery = query(
           collection(db, 'teams', player.teamId, 'seasonStats'),
           where('playerId', '==', player.id)
         );
         const snapshot = await getDocs(statsQuery);
         const stats = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as PlayerSeasonStats));
-        // Sort by season descending in JavaScript to avoid Firestore index requirement
         stats.sort((a, b) => (b.season || 0) - (a.season || 0));
         setSeasonStats(stats);
         
-        console.log('Loaded stats for player', player.id, ':', stats); // Debug log
+        // Fetch game-by-game stats for current year
+        const gamesSnapshot = await getDocs(query(
+          collection(db, 'teams', player.teamId, 'games'),
+          where('season', '==', currentYear)
+        ));
+        
+        const gamesWithStats: GameWithStats[] = [];
+        for (const gameDoc of gamesSnapshot.docs) {
+          const game = { id: gameDoc.id, ...gameDoc.data() } as Game;
+          const playerStatsDoc = await getDocs(query(
+            collection(db, 'teams', player.teamId, 'games', game.id, 'playerStats'),
+            where('playerId', '==', player.id)
+          ));
+          
+          if (playerStatsDoc.docs.length > 0) {
+            const playerGameStats = { id: playerStatsDoc.docs[0].id, ...playerStatsDoc.docs[0].data() } as GamePlayerStats;
+            // Only include if player had some stats in this game
+            const hasStats = (playerGameStats.tds || 0) > 0 || (playerGameStats.rushYards || 0) > 0 || 
+              (playerGameStats.recYards || 0) > 0 || (playerGameStats.tackles || 0) > 0 ||
+              (playerGameStats.rec || 0) > 0 || (playerGameStats.sacks || 0) > 0 ||
+              (playerGameStats.int || 0) > 0;
+            if (hasStats) {
+              gamesWithStats.push({ game, stats: playerGameStats });
+            }
+          }
+        }
+        
+        // Sort by date descending
+        gamesWithStats.sort((a, b) => b.game.date.localeCompare(a.game.date));
+        setGameStats(gamesWithStats);
         
         // Auto-expand current year if exists
         if (stats.some(s => s.season === currentYear)) {
@@ -302,6 +344,57 @@ const PlayerStatsModal: React.FC<PlayerStatsModalProps> = ({ player, teamName, o
                   })}
                 </div>
               </div>
+
+              {/* Game-by-Game Breakdown for Current Year */}
+              {gameStats.length > 0 && (
+                <div className="mt-6">
+                  <button
+                    onClick={() => setShowGameBreakdown(!showGameBreakdown)}
+                    className="w-full flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg border border-zinc-700 hover:bg-zinc-800 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Trophy className="w-5 h-5 text-emerald-500" />
+                      <h3 className="text-lg font-bold text-white">Game-by-Game ({currentYear})</h3>
+                      <span className="text-xs text-zinc-500">({gameStats.length} games)</span>
+                    </div>
+                    {showGameBreakdown ? (
+                      <ChevronUp className="w-5 h-5 text-zinc-500" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-zinc-500" />
+                    )}
+                  </button>
+                  
+                  {showGameBreakdown && (
+                    <div className="mt-3 space-y-2">
+                      {gameStats.map(({ game, stats }) => {
+                        const resultColor = game.result === 'W' ? 'text-emerald-400' : game.result === 'L' ? 'text-red-400' : 'text-yellow-400';
+                        const resultBg = game.result === 'W' ? 'bg-emerald-500' : game.result === 'L' ? 'bg-red-500' : 'bg-yellow-500';
+                        
+                        return (
+                          <div key={game.id} className="bg-zinc-800/30 rounded-lg p-3 border border-zinc-800">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className={`${resultBg} text-white text-xs font-bold px-2 py-0.5 rounded`}>{game.result}</span>
+                                <span className="text-sm font-medium text-white">{game.isHome ? 'vs' : '@'} {game.opponent}</span>
+                              </div>
+                              <span className="text-xs text-zinc-500">{formatEventDate(game.date)}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-3 text-xs">
+                              {(stats.tds || 0) > 0 && <span className="text-orange-400"><strong>{stats.tds}</strong> TD</span>}
+                              {(stats.rushYards || 0) > 0 && <span className="text-cyan-400"><strong>{stats.rushYards}</strong> Rush</span>}
+                              {(stats.rec || 0) > 0 && <span className="text-white"><strong>{stats.rec}</strong> Rec</span>}
+                              {(stats.recYards || 0) > 0 && <span className="text-cyan-400"><strong>{stats.recYards}</strong> RecYd</span>}
+                              {(stats.tackles || 0) > 0 && <span className="text-emerald-400"><strong>{stats.tackles}</strong> Tkl</span>}
+                              {(stats.sacks || 0) > 0 && <span className="text-purple-400"><strong>{stats.sacks}</strong> Sack</span>}
+                              {(stats.int || 0) > 0 && <span className="text-red-400"><strong>{stats.int}</strong> INT</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>
