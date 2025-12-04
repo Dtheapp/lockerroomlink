@@ -58,6 +58,10 @@ const Roster: React.FC = () => {
   const [savingContact, setSavingContact] = useState(false);
   const [savingPlayer, setSavingPlayer] = useState(false);
   
+  // Delete confirmation state
+  const [deletePlayerConfirm, setDeletePlayerConfirm] = useState<{ id: string; name: string; number: string } | null>(null);
+  const [deletingPlayer, setDeletingPlayer] = useState(false);
+  
   const [newPlayer, setNewPlayer] = useState({ 
     name: '', 
     number: '', 
@@ -212,9 +216,14 @@ const Roster: React.FC = () => {
       }
   }
 
-  const handleDeletePlayer = async (playerId: string) => {
-    if (!teamData?.id || !window.confirm("Delete player?")) return;
-    try { await deleteDoc(doc(db, 'teams', teamData.id, 'players', playerId)); } catch (error) { console.error(error); }
+  const handleDeletePlayer = async () => {
+    if (!teamData?.id || !deletePlayerConfirm) return;
+    setDeletingPlayer(true);
+    try { 
+      await deleteDoc(doc(db, 'teams', teamData.id, 'players', deletePlayerConfirm.id)); 
+      setDeletePlayerConfirm(null);
+    } catch (error) { console.error(error); }
+    finally { setDeletingPlayer(false); }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -419,7 +428,7 @@ const Roster: React.FC = () => {
                                 ) : (
                                     <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><User className="w-3 h-3"/> {parent?.name || 'Linked'}</span>
                                 )}
-                                <button onClick={() => handleDeletePlayer(player.id)} className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 flex items-center gap-1"><Trash2 className="w-3 h-3" /> Remove</button>
+                                <button onClick={() => setDeletePlayerConfirm({ id: player.id, name: player.name, number: player.number })} className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 flex items-center gap-1"><Trash2 className="w-3 h-3" /> Remove</button>
                             </div>
                             <button 
                               onClick={() => setEditingPlayer(player)} 
@@ -1005,6 +1014,68 @@ const Roster: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE PLAYER CONFIRMATION MODAL */}
+      {deletePlayerConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Remove Player</h3>
+                  <p className="text-sm text-slate-500 dark:text-zinc-400">This action cannot be undone</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setDeletePlayerConfirm(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="bg-slate-100 dark:bg-zinc-800 rounded-lg p-4 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-orange-600 rounded-full flex items-center justify-center text-white font-bold">
+                  #{deletePlayerConfirm.number}
+                </div>
+                <p className="font-bold text-slate-900 dark:text-white">{deletePlayerConfirm.name}</p>
+              </div>
+            </div>
+            
+            <p className="text-sm text-slate-600 dark:text-zinc-400 mb-4">
+              Are you sure you want to remove this player from the roster? Their stats and linked parent connection will also be removed.
+            </p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeletePlayerConfirm(null)}
+                disabled={deletingPlayer}
+                className="flex-1 py-2.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeletePlayer}
+                disabled={deletingPlayer}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              >
+                {deletingPlayer ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Remove
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

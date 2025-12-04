@@ -15,6 +15,10 @@ const VideoLibrary: React.FC = () => {
   
   // Track which video is playing (YouTube ID)
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+  
+  // Delete confirmation state
+  const [deleteVideoConfirm, setDeleteVideoConfirm] = useState<{ id: string; title: string } | null>(null);
+  const [deletingVideo, setDeletingVideo] = useState(false);
 
   useEffect(() => {
     if (!teamData?.id) return;
@@ -60,9 +64,17 @@ const VideoLibrary: React.FC = () => {
     }
   };
 
-  const handleDeleteVideo = async (id: string) => {
-    if (!teamData?.id || !window.confirm("Delete this video?")) return;
-    await deleteDoc(doc(db, 'teams', teamData.id, 'videos', id));
+  const handleDeleteVideo = async () => {
+    if (!teamData?.id || !deleteVideoConfirm) return;
+    setDeletingVideo(true);
+    try {
+      await deleteDoc(doc(db, 'teams', teamData.id, 'videos', deleteVideoConfirm.id));
+      setDeleteVideoConfirm(null);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setDeletingVideo(false);
+    }
   };
 
   return (
@@ -94,7 +106,7 @@ const VideoLibrary: React.FC = () => {
                     <h3 className="font-bold text-zinc-900 dark:text-white line-clamp-2">{video.title}</h3>
                 </div>
                 {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
-                  <button onClick={() => handleDeleteVideo(video.id)} className="text-zinc-600 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>
+                  <button onClick={() => setDeleteVideoConfirm({ id: video.id, title: video.title })} className="text-zinc-600 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>
                 )}
               </div>
             </div>
@@ -164,6 +176,66 @@ const VideoLibrary: React.FC = () => {
                   ></iframe>
               </div>
           </div>
+      )}
+
+      {/* DELETE VIDEO CONFIRMATION MODAL */}
+      {deleteVideoConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Delete Video</h3>
+                  <p className="text-sm text-slate-500 dark:text-zinc-400">This action cannot be undone</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setDeleteVideoConfirm(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="bg-slate-100 dark:bg-zinc-800 rounded-lg p-4 mb-4">
+              <div className="flex items-center gap-3">
+                <VideoIcon className="w-5 h-5 text-orange-500" />
+                <p className="font-bold text-slate-900 dark:text-white line-clamp-2">{deleteVideoConfirm.title}</p>
+              </div>
+            </div>
+            
+            <p className="text-sm text-slate-600 dark:text-zinc-400 mb-4">
+              Are you sure you want to delete this video from the Film Room? Team members will no longer be able to view it.
+            </p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteVideoConfirm(null)}
+                disabled={deletingVideo}
+                className="flex-1 py-2.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteVideo}
+                disabled={deletingVideo}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              >
+                {deletingVideo ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Delete Video
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
