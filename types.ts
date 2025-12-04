@@ -245,6 +245,9 @@ export interface GamePlayerStats {
   teamId: string;
   season: number;
   
+  // Participation - did the player play in this game?
+  played: boolean;
+  
   // Offensive Stats
   tds: number;
   rushYards: number;

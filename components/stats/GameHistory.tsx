@@ -154,6 +154,7 @@ const GameDetailModal: React.FC<GameDetailModalProps> = ({ game, teamName, onClo
                 <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-3">Player Stats</h3>
                 <div className="space-y-2">
                   {playerStats.filter(s => 
+                    s.played ||
                     (s.tds || 0) > 0 || (s.rushYards || 0) > 0 || (s.recYards || 0) > 0 || 
                     (s.passYards || 0) > 0 || (s.tackles || 0) > 0 || (s.sacks || 0) > 0 || 
                     (s.int || 0) > 0 || (s.rec || 0) > 0
@@ -175,6 +176,14 @@ const GameDetailModal: React.FC<GameDetailModalProps> = ({ game, teamName, onClo
                         {(stat.sacks || 0) > 0 && <span className="text-purple-400"><strong>{stat.sacks}</strong> Sack</span>}
                         {(stat.int || 0) > 0 && <span className="text-red-400"><strong>{stat.int}</strong> INT</span>}
                         {(stat.ff || 0) > 0 && <span className="text-orange-400"><strong>{stat.ff}</strong> FF</span>}
+                        {/* Show if player played but no recorded stats */}
+                        {stat.played && 
+                          (stat.tds || 0) === 0 && (stat.rushYards || 0) === 0 && (stat.recYards || 0) === 0 && 
+                          (stat.passYards || 0) === 0 && (stat.tackles || 0) === 0 && (stat.sacks || 0) === 0 && 
+                          (stat.int || 0) === 0 && (stat.rec || 0) === 0 && (stat.ff || 0) === 0 && (
+                            <span className="text-zinc-500 italic">Played (no recorded stats)</span>
+                          )
+                        }
                       </div>
                     </div>
                   ))}
@@ -220,13 +229,15 @@ const GameHistory: React.FC = () => {
       return;
     }
 
+    // No orderBy to avoid index requirement - sort in JS
     const gamesQuery = query(
-      collection(db, 'teams', teamData.id, 'games'),
-      orderBy('date', 'desc')
+      collection(db, 'teams', teamData.id, 'games')
     );
     
     const unsub = onSnapshot(gamesQuery, (snapshot) => {
       const gamesData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Game));
+      // Sort by date descending
+      gamesData.sort((a, b) => b.date.localeCompare(a.date));
       setGames(gamesData);
       setLoading(false);
     });

@@ -3,7 +3,7 @@ import { collection, query, onSnapshot, orderBy, doc, setDoc, deleteDoc, writeBa
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Game, GamePlayerStats, Player, PlayerSeasonStats } from '../../types';
-import { Plus, Trophy, Calendar, MapPin, Users, ChevronDown, ChevronUp, Save, Trash2, X, Sword, Shield, Target, Check, Edit2, TrendingUp } from 'lucide-react';
+import { Plus, Trophy, Calendar, MapPin, Users, ChevronDown, ChevronUp, Save, Trash2, X, Sword, Shield, Target, Check, Edit2, TrendingUp, UserCheck } from 'lucide-react';
 
 // Helper: Format date string without timezone issues
 const formatEventDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
@@ -54,16 +54,18 @@ const StatInput: React.FC<StatInputProps> = ({ label, value, onChange, color = '
   );
 };
 
-// Score Input Component
+// Score Input Component - allows 0 values properly
 const ScoreInput: React.FC<{ label: string; value: number; onChange: (val: number) => void; color?: string }> = ({ label, value, onChange, color = 'text-white' }) => {
-  const [localValue, setLocalValue] = useState(value === 0 ? '' : value.toString());
+  const [localValue, setLocalValue] = useState(value.toString());
   const inputRef = useRef<HTMLInputElement>(null);
+  const [hasUserEdited, setHasUserEdited] = useState(false);
   
   useEffect(() => {
-    if (document.activeElement !== inputRef.current) {
-      setLocalValue(value === 0 ? '' : value.toString());
+    // Only update from props if user hasn't edited or input not focused
+    if (!hasUserEdited && document.activeElement !== inputRef.current) {
+      setLocalValue(value.toString());
     }
-  }, [value]);
+  }, [value, hasUserEdited]);
 
   return (
     <div>
@@ -77,10 +79,21 @@ const ScoreInput: React.FC<{ label: string; value: number; onChange: (val: numbe
         onChange={(e) => {
           const newVal = e.target.value.replace(/[^0-9]/g, '');
           setLocalValue(newVal);
+          setHasUserEdited(true);
+          // Update parent immediately for scores
+          onChange(parseInt(newVal, 10) || 0);
         }}
         onBlur={() => {
           const numVal = parseInt(localValue, 10) || 0;
+          setLocalValue(numVal.toString());
           onChange(numVal);
+          setHasUserEdited(false);
+        }}
+        onFocus={() => {
+          // Select all on focus for easy editing
+          if (inputRef.current) {
+            inputRef.current.select();
+          }
         }}
         placeholder="0"
         className={`w-20 bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-center font-bold text-2xl ${color} focus:ring-2 focus:ring-orange-500 outline-none`}
@@ -138,15 +151,16 @@ const GameStatsEntry: React.FC = () => {
       setPlayers(playersData);
     });
 
-    // Load games for current season
+    // Load games for current season - no orderBy to avoid index requirement
     const gamesQuery = query(
       collection(db, 'teams', teamData.id, 'games'),
-      where('season', '==', currentYear),
-      orderBy('date', 'desc')
+      where('season', '==', currentYear)
     );
     
     const unsubGames = onSnapshot(gamesQuery, (snapshot) => {
       const gamesData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Game));
+      // Sort in JavaScript instead
+      gamesData.sort((a, b) => b.date.localeCompare(a.date));
       setGames(gamesData);
       setLoading(false);
     });
@@ -309,6 +323,7 @@ const GameStatsEntry: React.FC = () => {
   };
 
   const getDefaultStats = (): Partial<GamePlayerStats> => ({
+    played: false,
     tds: 0, rushYards: 0, rushAttempts: 0, passYards: 0, passAttempts: 0,
     passCompletions: 0, rec: 0, recYards: 0, tackles: 0, soloTackles: 0,
     assistTackles: 0, sacks: 0, int: 0, intYards: 0, ff: 0, fr: 0,
@@ -317,7 +332,7 @@ const GameStatsEntry: React.FC = () => {
   });
 
   // Handle stat change for a player in a game
-  const handlePlayerStatChange = (gameId: string, playerId: string, field: keyof GamePlayerStats, value: number) => {
+  const handlePlayerStatChange = (gameId: string, playerId: string, field: keyof GamePlayerStats, value: number | boolean) => {
     const key = `${gameId}_${playerId}`;
     setEditedPlayerStats(prev => {
       const newMap = new Map(prev);
@@ -424,14 +439,17 @@ const GameStatsEntry: React.FC = () => {
             playerNumber: stat.playerNumber,
           };
 
-          // Check if player had any meaningful stats in this game
+          // Count as played if the "played" flag is checked, OR if they have any meaningful stats
           const hasStats = (stat.tds || 0) > 0 || (stat.rushYards || 0) > 0 || 
             (stat.passYards || 0) > 0 || (stat.recYards || 0) > 0 || 
-            (stat.tackles || 0) > 0 || (stat.rec || 0) > 0;
+            (stat.tackles || 0) > 0 || (stat.rec || 0) > 0 ||
+            (stat.sacks || 0) > 0 || (stat.int || 0) > 0 ||
+            (stat.ff || 0) > 0 || (stat.fr || 0) > 0;
+          const playerPlayed = stat.played || hasStats;
 
           playerTotals.set(stat.playerId, {
             ...existing,
-            gp: (existing.gp || 0) + (hasStats ? 1 : 0),
+            gp: (existing.gp || 0) + (playerPlayed ? 1 : 0),
             tds: (existing.tds || 0) + (stat.tds || 0),
             rushYards: (existing.rushYards || 0) + (stat.rushYards || 0),
             rushAttempts: (existing.rushAttempts || 0) + (stat.rushAttempts || 0),
@@ -751,54 +769,72 @@ const GameStatsEntry: React.FC = () => {
                     <div className="space-y-3 max-h-[500px] overflow-y-auto">
                       {players.map(player => {
                         const stats = getPlayerGameStats(game.id, player.id);
+                        const isPlayed = stats.played || false;
                         
                         return (
-                          <div key={player.id} className="bg-zinc-800/50 rounded-lg p-3 space-y-3">
-                            {/* Player Header */}
-                            <div className="flex items-center gap-3">
-                              {player.photoUrl ? (
-                                <img src={player.photoUrl} alt={player.name} className="w-8 h-8 rounded-full object-cover" />
-                              ) : (
-                                <div className="w-8 h-8 bg-zinc-700 rounded-full flex items-center justify-center text-xs font-bold text-zinc-400">
-                                  {player.name.charAt(0)}
+                          <div key={player.id} className={`rounded-lg p-3 space-y-3 transition-colors ${isPlayed ? 'bg-emerald-500/10 border border-emerald-500/30' : 'bg-zinc-800/50'}`}>
+                            {/* Player Header with Played Toggle */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                {player.photoUrl ? (
+                                  <img src={player.photoUrl} alt={player.name} className="w-8 h-8 rounded-full object-cover" />
+                                ) : (
+                                  <div className="w-8 h-8 bg-zinc-700 rounded-full flex items-center justify-center text-xs font-bold text-zinc-400">
+                                    {player.name.charAt(0)}
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="font-bold text-white text-sm">{player.name}</p>
+                                  <p className="text-[10px] text-zinc-500">#{player.number || '?'} • {player.position || 'N/A'}</p>
                                 </div>
-                              )}
-                              <div>
-                                <p className="font-bold text-white text-sm">{player.name}</p>
-                                <p className="text-[10px] text-zinc-500">#{player.number || '?'} • {player.position || 'N/A'}</p>
                               </div>
+                              
+                              {/* Played Toggle */}
+                              <button
+                                onClick={() => handlePlayerStatChange(game.id, player.id, 'played', !isPlayed)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${
+                                  isPlayed 
+                                    ? 'bg-emerald-600 text-white' 
+                                    : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'
+                                }`}
+                              >
+                                <UserCheck className="w-4 h-4" />
+                                {isPlayed ? 'Played' : 'Did Not Play'}
+                              </button>
                             </div>
 
-                            {/* Stats Grid - Compact */}
-                            <div className="grid grid-cols-2 gap-3">
-                              {/* Offense */}
-                              <div>
-                                <div className="flex items-center gap-1 mb-2">
-                                  <Sword className="w-3 h-3 text-orange-500" />
-                                  <span className="text-[9px] font-bold uppercase text-zinc-500">Offense</span>
+                            {/* Stats Grid - Only show if played */}
+                            {isPlayed && (
+                              <div className="grid grid-cols-2 gap-3">
+                                {/* Offense */}
+                                <div>
+                                  <div className="flex items-center gap-1 mb-2">
+                                    <Sword className="w-3 h-3 text-orange-500" />
+                                    <span className="text-[9px] font-bold uppercase text-zinc-500">Offense</span>
+                                  </div>
+                                  <div className="grid grid-cols-4 gap-1">
+                                    <StatInput label="TD" value={stats.tds || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'tds', v)} color="text-orange-400" />
+                                    <StatInput label="RuYd" value={stats.rushYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'rushYards', v)} color="text-cyan-400" />
+                                    <StatInput label="Rec" value={stats.rec || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'rec', v)} />
+                                    <StatInput label="ReYd" value={stats.recYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'recYards', v)} color="text-cyan-400" />
+                                  </div>
                                 </div>
-                                <div className="grid grid-cols-4 gap-1">
-                                  <StatInput label="TD" value={stats.tds || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'tds', v)} color="text-orange-400" />
-                                  <StatInput label="RuYd" value={stats.rushYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'rushYards', v)} color="text-cyan-400" />
-                                  <StatInput label="Rec" value={stats.rec || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'rec', v)} />
-                                  <StatInput label="ReYd" value={stats.recYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'recYards', v)} color="text-cyan-400" />
-                                </div>
-                              </div>
 
-                              {/* Defense */}
-                              <div>
-                                <div className="flex items-center gap-1 mb-2">
-                                  <Shield className="w-3 h-3 text-emerald-500" />
-                                  <span className="text-[9px] font-bold uppercase text-zinc-500">Defense</span>
-                                </div>
-                                <div className="grid grid-cols-4 gap-1">
-                                  <StatInput label="Tkl" value={stats.tackles || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'tackles', v)} color="text-emerald-400" />
-                                  <StatInput label="Sack" value={stats.sacks || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'sacks', v)} color="text-purple-400" />
-                                  <StatInput label="INT" value={stats.int || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'int', v)} color="text-red-400" />
-                                  <StatInput label="FF" value={stats.ff || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'ff', v)} color="text-orange-400" />
+                                {/* Defense */}
+                                <div>
+                                  <div className="flex items-center gap-1 mb-2">
+                                    <Shield className="w-3 h-3 text-emerald-500" />
+                                    <span className="text-[9px] font-bold uppercase text-zinc-500">Defense</span>
+                                  </div>
+                                  <div className="grid grid-cols-4 gap-1">
+                                    <StatInput label="Tkl" value={stats.tackles || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'tackles', v)} color="text-emerald-400" />
+                                    <StatInput label="Sack" value={stats.sacks || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'sacks', v)} color="text-purple-400" />
+                                    <StatInput label="INT" value={stats.int || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'int', v)} color="text-red-400" />
+                                    <StatInput label="FF" value={stats.ff || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'ff', v)} color="text-orange-400" />
+                                  </div>
                                 </div>
                               </div>
-                            </div>
+                            )}
                           </div>
                         );
                       })}
