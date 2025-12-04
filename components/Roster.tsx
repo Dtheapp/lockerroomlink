@@ -690,9 +690,9 @@ const Roster: React.FC = () => {
               />
             </div>
           )}
-          {(isStaff || isParent) && (
+          {isParent && (
             <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-500 transition-colors shadow-lg shadow-orange-900/20 whitespace-nowrap">
-              <Plus className="w-5 h-5" /> {isParent ? 'Add My Player' : 'Add Player'}
+              <Plus className="w-5 h-5" /> Add My Player
             </button>
           )}
         </div>
