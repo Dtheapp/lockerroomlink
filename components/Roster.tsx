@@ -37,6 +37,8 @@ const Roster: React.FC = () => {
   const [availableCoaches, setAvailableCoaches] = useState<UserProfile[]>([]);
   const [searchingCoaches, setSearchingCoaches] = useState(false);
   const [addingCoach, setAddingCoach] = useState(false);
+  const [allCoachesCache, setAllCoachesCache] = useState<UserProfile[]>([]);
+  const [coachesCacheLoaded, setCoachesCacheLoaded] = useState(false);
   
   // Transfer Head Coach state
   const [transferHeadCoachTo, setTransferHeadCoachTo] = useState<{ id: string; name: string } | null>(null);
@@ -512,10 +514,6 @@ const Roster: React.FC = () => {
     }
   };
 
-  // All coaches cache for live search
-  const [allCoachesCache, setAllCoachesCache] = useState<UserProfile[]>([]);
-  const [coachesCacheLoaded, setCoachesCacheLoaded] = useState(false);
-  
   // Load all coaches when modal opens (for instant search)
   useEffect(() => {
     if (isAddCoachModalOpen && !coachesCacheLoaded) {
