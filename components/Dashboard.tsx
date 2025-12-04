@@ -526,7 +526,8 @@ const Dashboard: React.FC = () => {
             {/* Modal Footer */}
             <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 rounded-b-2xl">
               <div className="flex gap-2">
-                {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
+                {/* Only show edit/delete if: SuperAdmin OR the post author */}
+                {(userData?.role === 'SuperAdmin' || (userData?.role === 'Coach' && selectedPost.authorId === userData?.uid)) && (
                   editingPostId === selectedPost.id ? (
                     /* Edit Mode Buttons */
                     <>
@@ -572,7 +573,7 @@ const Dashboard: React.FC = () => {
                 {!(editingPostId === selectedPost.id) && (
                   <button 
                     onClick={() => setSelectedPost(null)}
-                    className={`${(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') ? 'flex-1' : 'w-full'} py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg font-bold transition-colors`}
+                    className={`${(userData?.role === 'SuperAdmin' || (userData?.role === 'Coach' && selectedPost.authorId === userData?.uid)) ? 'flex-1' : 'w-full'} py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg font-bold transition-colors`}
                   >
                     Close
                   </button>
@@ -683,7 +684,8 @@ const Dashboard: React.FC = () => {
                     )}
                     <div className="flex items-center justify-between mt-3">
                         <p className="text-xs text-zinc-500 uppercase font-bold tracking-wider">- {post.author} • {formatDate(post.timestamp)}</p>
-                        {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
+                        {/* Only show edit/delete if: SuperAdmin OR the post author */}
+                        {(userData?.role === 'SuperAdmin' || (userData?.role === 'Coach' && post.authorId === userData?.uid)) && (
                           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                             <button onClick={() => { setSelectedPost(post); setEditingPostId(post.id); setEditingPostText(post.text); }} className="text-zinc-400 hover:text-cyan-400"><Edit2 className="w-3 h-3"/></button>
                             <button onClick={() => setDeletePostConfirm({ id: post.id, text: post.text, author: post.author })} className="text-zinc-400 hover:text-red-400"><Trash2 className="w-3 h-3"/></button>
