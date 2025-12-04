@@ -60,6 +60,13 @@ const App: React.FC = () => {
 const AppContent: React.FC = () => {
   const { user, userData, loading } = useAuth();
 
+  // Debug logging for SuperAdmin issues
+  console.log('AppContent Debug:', { 
+    user: user?.email, 
+    userData: userData ? { role: userData.role, name: userData.name, uid: userData.uid } : null, 
+    loading 
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-white dark:bg-black">
