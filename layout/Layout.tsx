@@ -106,13 +106,10 @@ const Layout: React.FC = () => {
             {!isDesktopCollapsed && (
                 <button onClick={handleLogoClick} className="min-w-0 hover:opacity-80 transition-opacity text-left">
                     {/* FIX: Split Logo Color Logic */}
-                    <div className="text-xl font-black tracking-tighter truncate leading-none">
+                    <div className="text-2xl font-black tracking-tighter truncate leading-none">
                         <span className="text-orange-500">LOCKER</span>
                         <span className="text-zinc-900 dark:text-white">ROOM</span>
                     </div>
-                    <p className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold truncate mt-1">
-                        Digital Link
-                    </p>
                 </button>
             )}
             {isDesktopCollapsed && (

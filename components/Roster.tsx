@@ -100,6 +100,9 @@ const Roster: React.FC = () => {
   const [deletePlayerConfirm, setDeletePlayerConfirm] = useState<{ id: string; name: string; number: string } | null>(null);
   const [deletingPlayer, setDeletingPlayer] = useState(false);
   
+  // Photo popup state
+  const [viewPhotoPlayer, setViewPhotoPlayer] = useState<Player | null>(null);
+  
   const [newPlayer, setNewPlayer] = useState({ 
     name: '', 
     number: '', 
@@ -742,17 +745,19 @@ const Roster: React.FC = () => {
                     {/* Player Photo */}
                     <div className={`flex justify-center ${isStarter ? 'mt-6' : 'mt-2'} mb-3`}>
                       {player.photoUrl ? (
-                        <div className={`w-20 h-20 rounded-full overflow-hidden border-4 ${
+                        <button 
+                          onClick={() => setViewPhotoPlayer(player)}
+                          className={`w-20 h-20 rounded-full overflow-hidden border-4 cursor-pointer hover:scale-105 transition-transform ${
                           isStarter 
                             ? 'border-yellow-400 dark:border-yellow-500 shadow-lg shadow-yellow-400/30' 
-                            : 'border-zinc-300 dark:border-zinc-700'
+                            : 'border-zinc-300 dark:border-zinc-700 hover:border-orange-500'
                         }`}>
                           <img 
                             src={player.photoUrl} 
                             alt={player.name} 
                             className="w-full h-full object-cover"
                           />
-                        </div>
+                        </button>
                       ) : (
                         <div className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold border-4 font-mono ${
                           isStarter 
@@ -1942,6 +1947,47 @@ const Roster: React.FC = () => {
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PLAYER PHOTO POPUP MODAL */}
+      {viewPhotoPlayer && viewPhotoPlayer.photoUrl && (
+        <div 
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          onClick={() => setViewPhotoPlayer(null)}
+        >
+          <div className="relative max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setViewPhotoPlayer(null)}
+              className="absolute -top-12 right-0 text-white/70 hover:text-white transition-colors"
+            >
+              <X className="w-8 h-8" />
+            </button>
+            
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800">
+              <div className="aspect-square">
+                <img 
+                  src={viewPhotoPlayer.photoUrl} 
+                  alt={viewPhotoPlayer.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="p-4 text-center">
+                <h3 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center justify-center gap-2">
+                  {viewPhotoPlayer.name}
+                  {viewPhotoPlayer.isCaptain && <Crown className="w-5 h-5 text-amber-500" />}
+                </h3>
+                <p className="text-orange-500 font-bold text-sm uppercase tracking-wide mt-1">
+                  #{viewPhotoPlayer.number} | {viewPhotoPlayer.position}
+                </p>
+                {viewPhotoPlayer.isStarter && (
+                  <div className="mt-2 inline-flex items-center gap-1 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                    <Star className="w-3 h-3 fill-white" /> Starter
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
