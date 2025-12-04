@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, updateDoc, collection, addDoc, query, where, onSnapshot, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye, Sword, User, Camera, Star, Crown, Ruler, Scale, Users, Trash2 } from 'lucide-react';
+import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye, Sword, User, Camera, Star, Crown, Ruler, Scale, Users, Trash2, AtSign } from 'lucide-react';
 import type { Player, MedicalInfo, Team } from '../types';
 import PlayerStatsModal from './stats/PlayerStatsModal';
 
@@ -35,6 +35,7 @@ const Profile: React.FC = () => {
   const [addingAthlete, setAddingAthlete] = useState(false);
   const [newAthleteForm, setNewAthleteForm] = useState({
     name: '',
+    username: '',
     dob: '',
     teamId: '',
     height: '',
@@ -42,6 +43,10 @@ const Profile: React.FC = () => {
     shirtSize: '',
     pantSize: ''
   });
+  
+  // Username validation state
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [checkingUsername, setCheckingUsername] = useState(false);
   
   // Delete athlete confirmation
   const [deleteAthleteConfirm, setDeleteAthleteConfirm] = useState<Player | null>(null);
@@ -53,6 +58,7 @@ const Profile: React.FC = () => {
   // Full Edit Form State (including medical)
   const [editForm, setEditForm] = useState({
     name: '',
+    username: '',
     dob: '',
     height: '',
     weight: '',
@@ -67,6 +73,10 @@ const Profile: React.FC = () => {
   });
   const [savingPlayer, setSavingPlayer] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  
+  // Edit username validation state
+  const [editUsernameError, setEditUsernameError] = useState<string | null>(null);
+  const [checkingEditUsername, setCheckingEditUsername] = useState(false);
 
   // 1. Load Parent Data
   useEffect(() => {
@@ -107,6 +117,34 @@ const Profile: React.FC = () => {
     }
   }, [userData?.role]);
 
+  // Username validation helper - checks if username is taken across ALL teams
+  const checkUsernameAvailability = async (username: string, excludePlayerId?: string): Promise<boolean> => {
+    if (!username || username.length < 3) return false;
+    
+    const normalizedUsername = username.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    
+    // Check all teams for this username
+    for (const team of allTeams) {
+      const playersSnapshot = await getDocs(collection(db, 'teams', team.id, 'players'));
+      const playerWithUsername = playersSnapshot.docs.find(doc => {
+        const playerData = doc.data();
+        const playerUsername = (playerData.username || '').toLowerCase();
+        return playerUsername === normalizedUsername && doc.id !== excludePlayerId;
+      });
+      
+      if (playerWithUsername) {
+        return false; // Username is taken
+      }
+    }
+    return true; // Username is available
+  };
+
+  // Validate and format username input
+  const formatUsername = (value: string): string => {
+    // Remove @ if typed, lowercase, only alphanumeric and underscore
+    return value.toLowerCase().replace(/^@/, '').replace(/[^a-z0-9_]/g, '').substring(0, 20);
+  };
+
   // --- HANDLERS ---
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -138,6 +176,7 @@ const Profile: React.FC = () => {
       setSelectedAthlete(player);
       setEditForm({
         name: player.name || '',
+        username: player.username || '',
         dob: player.dob || '',
         height: player.height || '',
         weight: player.weight || '',
@@ -149,12 +188,31 @@ const Profile: React.FC = () => {
         medications: player.medical?.medications || '',
         bloodType: player.medical?.bloodType || ''
       });
+      setEditUsernameError(null);
       setIsEditModalOpen(true);
   }
 
   const handleSavePlayer = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!selectedAthlete || !selectedAthlete.teamId || savingPlayer) return;
+
+      // Check if username is changing and validate
+      const usernameChanged = editForm.username !== (selectedAthlete.username || '');
+      if (usernameChanged && editForm.username) {
+        if (editForm.username.length < 3) {
+          setEditUsernameError('Username must be at least 3 characters');
+          return;
+        }
+        
+        setCheckingEditUsername(true);
+        const isAvailable = await checkUsernameAvailability(editForm.username, selectedAthlete.id);
+        setCheckingEditUsername(false);
+        
+        if (!isAvailable) {
+          setEditUsernameError('This username is already taken');
+          return;
+        }
+      }
 
       setSavingPlayer(true);
       try {
@@ -173,6 +231,7 @@ const Profile: React.FC = () => {
             // 1. Create player in new team
             const newPlayerData = {
               name: editForm.name,
+              username: formatUsername(editForm.username),
               dob: editForm.dob,
               height: editForm.height,
               weight: editForm.weight,
@@ -199,6 +258,7 @@ const Profile: React.FC = () => {
             const playerRef = doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id);
             await updateDoc(playerRef, { 
               name: editForm.name,
+              username: formatUsername(editForm.username),
               dob: editForm.dob,
               height: editForm.height,
               weight: editForm.weight,
@@ -228,10 +288,26 @@ const Profile: React.FC = () => {
       return;
     }
     
+    if (!newAthleteForm.username || newAthleteForm.username.length < 3) {
+      setUsernameError('Username must be at least 3 characters');
+      return;
+    }
+    
+    // Check username availability
+    setCheckingUsername(true);
+    const isAvailable = await checkUsernameAvailability(newAthleteForm.username);
+    setCheckingUsername(false);
+    
+    if (!isAvailable) {
+      setUsernameError('This username is already taken');
+      return;
+    }
+    
     setAddingAthlete(true);
     try {
       const playerData = {
         name: newAthleteForm.name,
+        username: formatUsername(newAthleteForm.username),
         dob: newAthleteForm.dob,
         teamId: newAthleteForm.teamId,
         parentId: user.uid,
@@ -248,7 +324,8 @@ const Profile: React.FC = () => {
       await addDoc(collection(db, 'teams', newAthleteForm.teamId, 'players'), playerData);
       
       // Reset form and close modal
-      setNewAthleteForm({ name: '', dob: '', teamId: '', height: '', weight: '', shirtSize: '', pantSize: '' });
+      setNewAthleteForm({ name: '', username: '', dob: '', teamId: '', height: '', weight: '', shirtSize: '', pantSize: '' });
+      setUsernameError(null);
       setIsAddAthleteModalOpen(false);
       
       // Reload to refresh context with new player
@@ -579,6 +656,13 @@ const Profile: React.FC = () => {
                                           {player.name}
                                           {isCaptain && <Crown className="w-5 h-5 text-amber-500 flex-shrink-0" />}
                                         </h3>
+                                        {/* Username */}
+                                        {player.username && (
+                                          <div className="flex items-center gap-1 mt-0.5">
+                                            <AtSign className="w-3 h-3 text-purple-500" />
+                                            <span className="text-sm text-purple-600 dark:text-purple-400 font-medium">{player.username}</span>
+                                          </div>
+                                        )}
                                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                                             <span className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs px-2 py-1 rounded font-bold">#{player.number || '?'}</span>
                                             <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700">{player.position || 'TBD'}</span>
@@ -789,6 +873,39 @@ const Profile: React.FC = () => {
                               />
                           </div>
                         </div>
+                      </div>
+
+                      {/* Username */}
+                      <div>
+                        <p className="text-xs font-bold text-purple-600 dark:text-purple-400 mb-3 uppercase tracking-wider flex items-center gap-1">
+                          <AtSign className="w-3 h-3" /> Athlete Username
+                        </p>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-500 font-medium">@</span>
+                          <input 
+                            value={editForm.username} 
+                            onChange={e => {
+                              const formatted = formatUsername(e.target.value);
+                              setEditForm({...editForm, username: formatted});
+                              setEditUsernameError(null);
+                            }}
+                            placeholder="johnny_smith"
+                            className={`w-full bg-white dark:bg-black border rounded-lg p-3 pl-8 text-slate-900 dark:text-white ${
+                              editUsernameError ? 'border-red-500' : 'border-purple-300 dark:border-purple-700'
+                            }`}
+                            minLength={3}
+                            maxLength={20}
+                          />
+                          {checkingEditUsername && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                          )}
+                        </div>
+                        {editUsernameError && (
+                          <p className="text-xs text-red-500 mt-1">{editUsernameError}</p>
+                        )}
+                        <p className="text-xs text-slate-500 mt-1">Used for tracking stats history. 3-20 characters, lowercase letters, numbers, and underscores only.</p>
                       </div>
 
                       {/* Team Selection */}
@@ -1020,6 +1137,40 @@ const Profile: React.FC = () => {
                   className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
                   required
                 />
+              </div>
+
+              {/* Username */}
+              <div>
+                <label className="block text-xs font-bold text-purple-600 dark:text-purple-400 mb-2 uppercase tracking-wider flex items-center gap-1">
+                  <AtSign className="w-3 h-3" /> Athlete Username *
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-500 font-medium">@</span>
+                  <input 
+                    value={newAthleteForm.username} 
+                    onChange={e => {
+                      const formatted = formatUsername(e.target.value);
+                      setNewAthleteForm({...newAthleteForm, username: formatted});
+                      setUsernameError(null);
+                    }}
+                    placeholder="johnny_smith"
+                    className={`w-full bg-white dark:bg-black border rounded-lg p-3 pl-8 text-slate-900 dark:text-white ${
+                      usernameError ? 'border-red-500' : 'border-purple-300 dark:border-purple-700'
+                    }`}
+                    required
+                    minLength={3}
+                    maxLength={20}
+                  />
+                  {checkingUsername && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+                {usernameError && (
+                  <p className="text-xs text-red-500 mt-1">{usernameError}</p>
+                )}
+                <p className="text-xs text-slate-500 mt-1">3-20 characters, lowercase letters, numbers, and underscores only</p>
               </div>
 
               {/* Physical Info */}

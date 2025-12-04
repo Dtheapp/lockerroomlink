@@ -4,7 +4,7 @@ import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateD
 import { db } from '../services/firebase';
 import { sanitizeText, sanitizeNumber, sanitizeDate } from '../services/sanitize';
 import type { Player, UserProfile, Team } from '../types';
-import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera, UserPlus, ArrowRightLeft, BarChart3, Eye } from 'lucide-react';
+import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera, UserPlus, ArrowRightLeft, BarChart3, Eye, AtSign } from 'lucide-react';
 import PlayerStatsModal from './stats/PlayerStatsModal';
 
 // Pagination settings
@@ -54,6 +54,7 @@ const Roster: React.FC = () => {
       const term = searchFilter.toLowerCase();
       filtered = filtered.filter(player => 
         player.name.toLowerCase().includes(term) ||
+        (player.username || '').toLowerCase().includes(term) ||
         player.position.toLowerCase().includes(term) ||
         player.number.toString().includes(term)
       );
@@ -815,6 +816,13 @@ const Roster: React.FC = () => {
                           {player.name}
                           {isCaptain && <Crown className="w-5 h-5 text-amber-500 flex-shrink-0" />}
                         </h3>
+                        {/* Username */}
+                        {player.username && (
+                          <div className="flex items-center justify-center gap-1 mt-0.5">
+                            <AtSign className="w-3 h-3 text-purple-500" />
+                            <span className="text-sm text-purple-600 dark:text-purple-400 font-medium">{player.username}</span>
+                          </div>
+                        )}
                         <p className="text-orange-500 font-bold text-sm uppercase tracking-wide">
                           {player.photoUrl && <span>#{player.number} <span className="text-zinc-400 dark:text-zinc-500">|</span> </span>}{player.position}
                         </p>

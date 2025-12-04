@@ -88,6 +88,7 @@ export interface Team {
 export interface Player {
   id: string;
   name: string;
+  username?: string; // Unique athlete username for tracking (e.g., @johnny_smith)
   teamId: string; // REQUIRED: Team the player belongs to
   // REMOVED NUMBER/POSITION FROM CORE PARENT INPUT FLOW:
   number?: number; 
