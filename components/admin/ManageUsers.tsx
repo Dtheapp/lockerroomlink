@@ -4,14 +4,26 @@ import { sendPasswordResetEmail } from 'firebase/auth';
 import { db, auth } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UserProfile, Team } from '../../types';
-import { Trash2, Link, User, Shield, AtSign, Key, AlertTriangle, Search, Edit2, X, Check, UserX, ChevronLeft, ChevronRight, Download, CheckSquare, Square, History } from 'lucide-react';
+import { Trash2, Link, User, Shield, AtSign, Key, AlertTriangle, Search, Edit2, X, Check, UserX, ChevronLeft, ChevronRight, Download, CheckSquare, Square, History, Crown, Plus } from 'lucide-react';
 
 const ManageUsers: React.FC = () => {
-  const { user } = useAuth();
+  const { user, userData } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [superAdmins, setSuperAdmins] = useState<UserProfile[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamLookup, setTeamLookup] = useState<{[key: string]: string}>({});
   const [loading, setLoading] = useState(true);
+  
+  // Root Admin check - only Root Admin can manage SuperAdmins
+  const isRootAdmin = (userData as any)?.isRootAdmin === true;
+  
+  // SuperAdmin management modal states
+  const [isCreateSuperAdminModalOpen, setIsCreateSuperAdminModalOpen] = useState(false);
+  const [isDeleteSuperAdminModalOpen, setIsDeleteSuperAdminModalOpen] = useState(false);
+  const [selectedSuperAdmin, setSelectedSuperAdmin] = useState<UserProfile | null>(null);
+  const [newSuperAdminEmail, setNewSuperAdminEmail] = useState('');
+  const [newSuperAdminName, setNewSuperAdminName] = useState('');
+  const [superAdminError, setSuperAdminError] = useState('');
   
   // FILTER & SEARCH STATE
   const [filterRole, setFilterRole] = useState<'All' | 'Coach' | 'Parent'>('All');
@@ -49,8 +61,13 @@ const ManageUsers: React.FC = () => {
 
   useEffect(() => {
     const usersUnsub = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const usersData = snapshot.docs.map(doc => doc.data() as UserProfile).filter(u => u.role !== 'SuperAdmin');
-      setUsers(usersData);
+      const allUsers = snapshot.docs.map(doc => doc.data() as UserProfile);
+      // Regular users (Coaches & Parents)
+      const regularUsers = allUsers.filter(u => u.role !== 'SuperAdmin');
+      setUsers(regularUsers);
+      // SuperAdmins (only visible to Root Admin, exclude Root Admin from list)
+      const superAdminUsers = allUsers.filter(u => u.role === 'SuperAdmin' && !(u as any).isRootAdmin);
+      setSuperAdmins(superAdminUsers);
       setLoading(false);
     });
 
@@ -383,6 +400,87 @@ const ManageUsers: React.FC = () => {
     }
   };
 
+  // --- SUPERADMIN MANAGEMENT (Root Admin Only) ---
+  const handlePromoteToSuperAdmin = async () => {
+    if (!newSuperAdminEmail.trim() || !newSuperAdminName.trim()) {
+      setSuperAdminError('Email and name are required');
+      return;
+    }
+    setSaving(true);
+    setSuperAdminError('');
+    
+    try {
+      // Find user by email
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      const existingUser = usersSnapshot.docs.find(doc => 
+        (doc.data() as UserProfile).email?.toLowerCase() === newSuperAdminEmail.toLowerCase().trim()
+      );
+      
+      if (existingUser) {
+        // Promote existing user to SuperAdmin
+        await updateDoc(doc(db, 'users', existingUser.id), {
+          role: 'SuperAdmin',
+          name: newSuperAdminName.trim(),
+          teamId: null
+        });
+        await logActivity('Promote SuperAdmin', `Promoted ${newSuperAdminEmail} to SuperAdmin`);
+      } else {
+        setSuperAdminError('User not found. They must register first, then you can promote them.');
+        setSaving(false);
+        return;
+      }
+      
+      setIsCreateSuperAdminModalOpen(false);
+      setNewSuperAdminEmail('');
+      setNewSuperAdminName('');
+    } catch (error) {
+      console.error("Error promoting to SuperAdmin:", error);
+      setSuperAdminError('Failed to promote user');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteSuperAdmin = async () => {
+    if (!selectedSuperAdmin) return;
+    
+    // Safety check - cannot delete Root Admin
+    if ((selectedSuperAdmin as any).isRootAdmin) {
+      setIsDeleteSuperAdminModalOpen(false);
+      return;
+    }
+    
+    setSaving(true);
+    try {
+      await deleteDoc(doc(db, 'users', selectedSuperAdmin.uid));
+      await logActivity('Delete SuperAdmin', `Deleted SuperAdmin ${selectedSuperAdmin.name} (${selectedSuperAdmin.email})`);
+      
+      setIsDeleteSuperAdminModalOpen(false);
+      setSelectedSuperAdmin(null);
+    } catch (error) {
+      console.error("Error deleting SuperAdmin:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDemoteSuperAdmin = async (targetUser: UserProfile) => {
+    // Safety check - cannot demote Root Admin
+    if ((targetUser as any).isRootAdmin) return;
+    
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, 'users', targetUser.uid), {
+        role: 'Coach' // Demote to Coach
+      });
+      await logActivity('Demote SuperAdmin', `Demoted ${targetUser.name} from SuperAdmin to Coach`);
+    } catch (error) {
+      console.error("Error demoting SuperAdmin:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // --- HELPER: RENDER ACTIONS ---
   const renderActions = (targetUser: UserProfile, isMobile = false) => (
       <div className={`flex items-center gap-2 ${isMobile ? 'mt-4 pt-4 border-t border-slate-300 dark:border-zinc-800 w-full flex-wrap' : 'justify-end'}`}>
@@ -445,6 +543,65 @@ const ManageUsers: React.FC = () => {
               ))}
           </div>
       </div>
+
+      {/* ROOT ADMIN ONLY: SuperAdmin Management Section */}
+      {isRootAdmin && (
+        <div className="bg-gradient-to-r from-purple-900/20 to-purple-800/10 border border-purple-500/30 rounded-xl p-5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
+                <Crown className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-purple-400">Super Admin Management</h2>
+                <p className="text-sm text-purple-300/70">Root Admin Only - Manage platform administrators</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsCreateSuperAdminModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Add SuperAdmin
+            </button>
+          </div>
+          
+          {superAdmins.length === 0 ? (
+            <p className="text-purple-300/60 text-sm text-center py-4">No other SuperAdmins. You are the only administrator.</p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {superAdmins.map(admin => (
+                <div key={admin.uid} className="bg-black/30 border border-purple-500/20 rounded-lg p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-purple-700 rounded-full flex items-center justify-center text-white font-bold">
+                      {admin.name?.charAt(0)?.toUpperCase() || 'A'}
+                    </div>
+                    <div>
+                      <p className="font-medium text-white">{admin.name}</p>
+                      <p className="text-xs text-purple-300/70">{admin.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleDemoteSuperAdmin(admin)}
+                      className="p-2 text-yellow-400 hover:bg-yellow-900/30 rounded transition-colors"
+                      title="Demote to Coach"
+                    >
+                      <UserX className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => { setSelectedSuperAdmin(admin); setIsDeleteSuperAdminModalOpen(true); }}
+                      className="p-2 text-red-400 hover:bg-red-900/30 rounded transition-colors"
+                      title="Delete SuperAdmin"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* SEARCH BAR */}
       <div className="relative">
@@ -986,6 +1143,93 @@ const ManageUsers: React.FC = () => {
             <div className="flex justify-end mt-4 pt-4 border-t border-slate-200 dark:border-zinc-800">
               <button onClick={() => setIsActivityLogOpen(false)} className="px-6 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold">
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Add SuperAdmin (Root Admin Only) */}
+      {isCreateSuperAdminModalOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm" onClick={() => setIsCreateSuperAdminModalOpen(false)}>
+          <div className="bg-zinc-950 p-6 rounded-xl w-full max-w-md border border-purple-500/30 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center">
+                <Crown className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">Add SuperAdmin</h2>
+                <p className="text-sm text-purple-300/70">Promote an existing user</p>
+              </div>
+            </div>
+            
+            {superAdminError && (
+              <div className="mb-4 bg-red-900/30 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" /> {superAdminError}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-purple-300 mb-1">User Email</label>
+                <input 
+                  value={newSuperAdminEmail} 
+                  onChange={(e) => setNewSuperAdminEmail(e.target.value)} 
+                  className="w-full bg-black p-3 rounded-lg border border-purple-500/30 text-white outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="Enter user's email"
+                />
+                <p className="text-xs text-purple-300/50 mt-1">User must have an existing account</p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-purple-300 mb-1">Display Name</label>
+                <input 
+                  value={newSuperAdminName} 
+                  onChange={(e) => setNewSuperAdminName(e.target.value)} 
+                  className="w-full bg-black p-3 rounded-lg border border-purple-500/30 text-white outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="Admin display name"
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-purple-500/20">
+              <button type="button" onClick={() => { setIsCreateSuperAdminModalOpen(false); setSuperAdminError(''); }} className="px-4 py-2 rounded-lg text-purple-300 hover:bg-purple-900/30 transition-colors">Cancel</button>
+              <button onClick={handlePromoteToSuperAdmin} disabled={saving} className="px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold disabled:opacity-50 flex items-center gap-2">
+                {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Crown className="w-4 h-4" />}
+                Promote
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Delete SuperAdmin Confirmation (Root Admin Only) */}
+      {isDeleteSuperAdminModalOpen && selectedSuperAdmin && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm" onClick={() => setIsDeleteSuperAdminModalOpen(false)}>
+          <div className="bg-zinc-950 p-6 rounded-xl w-full max-w-md border border-red-500/30 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-900/50 rounded-full flex items-center justify-center">
+                <Trash2 className="w-6 h-6 text-red-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-red-400">Delete SuperAdmin</h2>
+                <p className="text-sm text-slate-500">This action cannot be undone</p>
+              </div>
+            </div>
+            
+            <p className="text-slate-300 mb-4">
+              Are you sure you want to permanently delete <span className="font-bold text-white">{selectedSuperAdmin.name}</span>?
+            </p>
+            
+            <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 mb-4">
+              <p className="text-sm text-red-400">⚠️ This will remove all admin privileges and delete their account.</p>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-red-500/20">
+              <button type="button" onClick={() => setIsDeleteSuperAdminModalOpen(false)} className="px-4 py-2 rounded-lg text-slate-400 hover:bg-zinc-800 transition-colors">Cancel</button>
+              <button onClick={handleDeleteSuperAdmin} disabled={saving} className="px-6 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold disabled:opacity-50 flex items-center gap-2">
+                {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Delete
               </button>
             </div>
           </div>

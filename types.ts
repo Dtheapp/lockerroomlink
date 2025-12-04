@@ -50,6 +50,7 @@ export interface UserProfile {
   teamId: string | null; // For Coaches/Admins only - deprecated for Parents
   email?: string;
   username?: string;
+  isRootAdmin?: boolean; // God Mode - only Root Admin can manage other SuperAdmins
   
   // Contact Details
   phone?: string;          
@@ -69,7 +70,6 @@ export interface Team {
   id: string;
   name: string;
   coachId: string | null;
-  headCoachId?: string | null; // Designated head coach who can manage other coaches
   record?: {
       wins: number;
       losses: number;
