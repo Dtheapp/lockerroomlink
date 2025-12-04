@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Home, Download } from 'lucide-react';
 
 interface Props {
   children: React.ReactNode;
@@ -8,6 +8,7 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  isChunkError: boolean;
 }
 
 // Error Boundary component to catch and handle React errors gracefully
@@ -15,11 +16,19 @@ interface State {
 export default class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, isChunkError: false };
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    // Check if this is a chunk load error (stale cache after deployment)
+    const isChunkError = 
+      error?.message?.includes('Failed to fetch dynamically imported module') ||
+      error?.message?.includes('Loading chunk') ||
+      error?.message?.includes('Loading CSS chunk') ||
+      error?.message?.includes('text/html') ||
+      error?.name === 'ChunkLoadError';
+    
+    return { hasError: true, error, isChunkError };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
@@ -27,6 +36,12 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   }
 
   handleReload = () => {
+    // Clear any cached data and force a hard refresh
+    if ('caches' in window) {
+      caches.keys().then(names => {
+        names.forEach(name => caches.delete(name));
+      });
+    }
     window.location.reload();
   };
 
@@ -37,6 +52,36 @@ export default class ErrorBoundary extends React.Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      // Special UI for chunk load errors (usually from stale cache)
+      if (this.state.isChunkError) {
+        return (
+          <div className="min-h-screen bg-zinc-50 dark:bg-black flex items-center justify-center p-4">
+            <div className="max-w-md w-full bg-white dark:bg-zinc-900 rounded-2xl p-8 border border-zinc-200 dark:border-zinc-800 shadow-2xl text-center">
+              <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Download className="w-8 h-8 text-orange-600 dark:text-orange-400" />
+              </div>
+              
+              <h1 className="text-2xl font-bold text-zinc-900 dark:text-white mb-2">
+                App Updated!
+              </h1>
+              
+              <p className="text-zinc-600 dark:text-zinc-400 mb-6">
+                A new version of SidelineSync is available. Please refresh to load the latest version.
+              </p>
+
+              <button
+                onClick={this.handleReload}
+                className="w-full flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white py-3 px-4 rounded-lg font-semibold transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Refresh Now
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      // Default error UI
       return (
         <div className="min-h-screen bg-zinc-50 dark:bg-black flex items-center justify-center p-4">
           <div className="max-w-md w-full bg-white dark:bg-zinc-900 rounded-2xl p-8 border border-zinc-200 dark:border-zinc-800 shadow-2xl text-center">

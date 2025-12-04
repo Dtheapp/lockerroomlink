@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useEffect, ComponentType } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -14,35 +14,69 @@ import AdminLayout from './layout/AdminLayout';
 // Auth Screen (loaded immediately as it's the entry point)
 import AuthScreen from './components/AuthScreen';
 
+// Helper to handle chunk load errors (stale cache after deployments)
+// Automatically retries once with cache-busting, then prompts for refresh
+function lazyWithRetry<T extends ComponentType<any>>(
+  componentImport: () => Promise<{ default: T }>
+): React.LazyExoticComponent<T> {
+  return lazy(async () => {
+    try {
+      return await componentImport();
+    } catch (error: any) {
+      // Check if it's a chunk load error
+      const isChunkError = 
+        error?.message?.includes('Failed to fetch dynamically imported module') ||
+        error?.message?.includes('Loading chunk') ||
+        error?.message?.includes('Loading CSS chunk') ||
+        error?.name === 'ChunkLoadError';
+      
+      if (isChunkError) {
+        console.warn('Chunk load error detected, reloading...', error);
+        // Store flag to prevent infinite reload loop
+        const lastReload = sessionStorage.getItem('lastChunkReload');
+        const now = Date.now();
+        
+        if (!lastReload || now - parseInt(lastReload) > 10000) {
+          // Only reload if we haven't reloaded in the last 10 seconds
+          sessionStorage.setItem('lastChunkReload', now.toString());
+          window.location.reload();
+        }
+      }
+      
+      throw error;
+    }
+  });
+}
+
 // Public Pages (accessible without auth)
-const PublicAthleteProfile = lazy(() => import('./components/public/PublicAthleteProfile'));
-const PublicTeamProfile = lazy(() => import('./components/public/PublicTeamProfile'));
-const PublicCoachProfile = lazy(() => import('./components/public/PublicCoachProfile'));
+const PublicAthleteProfile = lazyWithRetry(() => import('./components/public/PublicAthleteProfile'));
+const PublicTeamProfile = lazyWithRetry(() => import('./components/public/PublicTeamProfile'));
+const PublicCoachProfile = lazyWithRetry(() => import('./components/public/PublicCoachProfile'));
 
 // Lazy-loaded pages for code splitting (reduces initial bundle size)
-const Dashboard = lazy(() => import('./components/Dashboard'));
-const Roster = lazy(() => import('./components/Roster'));
-const Playbook = lazy(() => import('./components/Playbook'));
-const Chat = lazy(() => import('./components/Chat'));
-const Strategies = lazy(() => import('./components/Strategies'));
-const VideoLibrary = lazy(() => import('./components/VideoLibrary'));
-const Profile = lazy(() => import('./components/Profile'));
-const Messenger = lazy(() => import('./components/Messenger'));
-const Stats = lazy(() => import('./components/Stats'));
+const Dashboard = lazyWithRetry(() => import('./components/Dashboard'));
+const Roster = lazyWithRetry(() => import('./components/Roster'));
+const Playbook = lazyWithRetry(() => import('./components/Playbook'));
+const Chat = lazyWithRetry(() => import('./components/Chat'));
+const Strategies = lazyWithRetry(() => import('./components/Strategies'));
+const VideoLibrary = lazyWithRetry(() => import('./components/VideoLibrary'));
+const Profile = lazyWithRetry(() => import('./components/Profile'));
+const Messenger = lazyWithRetry(() => import('./components/Messenger'));
+const Stats = lazyWithRetry(() => import('./components/Stats'));
 
 // Lazy-loaded Admin Pages
-const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard'));
-const AdminMessenger = lazy(() => import('./components/admin/AdminMessenger'));
-const ManageUsers = lazy(() => import('./components/admin/ManageUsers'));
-const ManageTeams = lazy(() => import('./components/admin/ManageTeams'));
-const UserReport = lazy(() => import('./components/admin/UserReport'));
-const Announcements = lazy(() => import('./components/admin/Announcements'));
-const AppSettings = lazy(() => import('./components/admin/AppSettings'));
-const TeamReports = lazy(() => import('./components/admin/TeamReports'));
-const ContentModeration = lazy(() => import('./components/admin/ContentModeration'));
-const DataManagement = lazy(() => import('./components/admin/DataManagement'));
-const EmailCommunication = lazy(() => import('./components/admin/EmailCommunication'));
-const ActivityLog = lazy(() => import('./components/admin/ActivityLog'));
+const AdminDashboard = lazyWithRetry(() => import('./components/admin/AdminDashboard'));
+const AdminMessenger = lazyWithRetry(() => import('./components/admin/AdminMessenger'));
+const ManageUsers = lazyWithRetry(() => import('./components/admin/ManageUsers'));
+const ManageTeams = lazyWithRetry(() => import('./components/admin/ManageTeams'));
+const UserReport = lazyWithRetry(() => import('./components/admin/UserReport'));
+const Announcements = lazyWithRetry(() => import('./components/admin/Announcements'));
+const AppSettings = lazyWithRetry(() => import('./components/admin/AppSettings'));
+const TeamReports = lazyWithRetry(() => import('./components/admin/TeamReports'));
+const ContentModeration = lazyWithRetry(() => import('./components/admin/ContentModeration'));
+const DataManagement = lazyWithRetry(() => import('./components/admin/DataManagement'));
+const EmailCommunication = lazyWithRetry(() => import('./components/admin/EmailCommunication'));
+const ActivityLog = lazyWithRetry(() => import('./components/admin/ActivityLog'));
 
 // Loading fallback for lazy-loaded components
 const PageLoader = () => (
