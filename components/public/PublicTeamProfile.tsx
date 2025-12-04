@@ -242,48 +242,48 @@ const PublicTeamProfile: React.FC = () => {
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Hero Section */}
-        <div className="bg-gradient-to-r from-orange-600/20 to-zinc-900/80 rounded-2xl p-6 md:p-8 border border-orange-500/30 mb-8">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="text-center md:text-left">
-              <h1 className="text-4xl md:text-5xl font-black text-white mb-2">{team.name}</h1>
-              <p className="text-zinc-400 text-lg mb-4">{currentYear} Season</p>
+        <div className="bg-gradient-to-r from-orange-600/20 to-zinc-900/80 rounded-2xl p-4 md:p-8 border border-orange-500/30 mb-8">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6">
+            <div className="text-center md:text-left w-full md:w-auto">
+              <h1 className="text-2xl md:text-5xl font-black text-white mb-1 md:mb-2">{team.name}</h1>
+              <p className="text-zinc-400 text-sm md:text-lg mb-3 md:mb-4">{currentYear} Season</p>
               
               {/* Season Record */}
-              <div className="flex justify-center md:justify-start gap-4">
-                <div className="bg-emerald-500/20 px-4 py-2 rounded-lg border border-emerald-500/30">
-                  <span className="text-2xl font-black text-emerald-400">{seasonRecord.wins}</span>
-                  <span className="text-zinc-400 ml-1">Wins</span>
+              <div className="flex justify-center md:justify-start gap-2 md:gap-4">
+                <div className="bg-emerald-500/20 px-3 md:px-4 py-1.5 md:py-2 rounded-lg border border-emerald-500/30">
+                  <span className="text-xl md:text-2xl font-black text-emerald-400">{seasonRecord.wins}</span>
+                  <span className="text-zinc-400 text-xs md:text-base ml-1">Wins</span>
                 </div>
-                <div className="bg-red-500/20 px-4 py-2 rounded-lg border border-red-500/30">
-                  <span className="text-2xl font-black text-red-400">{seasonRecord.losses}</span>
-                  <span className="text-zinc-400 ml-1">Losses</span>
+                <div className="bg-red-500/20 px-3 md:px-4 py-1.5 md:py-2 rounded-lg border border-red-500/30">
+                  <span className="text-xl md:text-2xl font-black text-red-400">{seasonRecord.losses}</span>
+                  <span className="text-zinc-400 text-xs md:text-base ml-1">Losses</span>
                 </div>
                 {seasonRecord.ties > 0 && (
-                  <div className="bg-yellow-500/20 px-4 py-2 rounded-lg border border-yellow-500/30">
-                    <span className="text-2xl font-black text-yellow-400">{seasonRecord.ties}</span>
-                    <span className="text-zinc-400 ml-1">Ties</span>
+                  <div className="bg-yellow-500/20 px-3 md:px-4 py-1.5 md:py-2 rounded-lg border border-yellow-500/30">
+                    <span className="text-xl md:text-2xl font-black text-yellow-400">{seasonRecord.ties}</span>
+                    <span className="text-zinc-400 text-xs md:text-base ml-1">Ties</span>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Team Stats */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-black/40 rounded-lg p-4 text-center border border-zinc-700 min-w-[100px]">
-                <p className="text-3xl font-black text-orange-400">{seasonStats.totalTds}</p>
-                <p className="text-xs text-zinc-500">Team TDs</p>
+            <div className="grid grid-cols-4 md:grid-cols-2 gap-2 md:gap-3 w-full md:w-auto mt-2 md:mt-0">
+              <div className="bg-black/40 rounded-lg p-2 md:p-4 text-center border border-zinc-700">
+                <p className="text-xl md:text-3xl font-black text-orange-400">{seasonStats.totalTds}</p>
+                <p className="text-[10px] md:text-xs text-zinc-500">Team TDs</p>
               </div>
-              <div className="bg-black/40 rounded-lg p-4 text-center border border-zinc-700 min-w-[100px]">
-                <p className="text-3xl font-black text-cyan-400">{seasonStats.totalRushYards + seasonStats.totalPassYards}</p>
-                <p className="text-xs text-zinc-500">Total Yards</p>
+              <div className="bg-black/40 rounded-lg p-2 md:p-4 text-center border border-zinc-700">
+                <p className="text-xl md:text-3xl font-black text-cyan-400">{seasonStats.totalRushYards + seasonStats.totalPassYards}</p>
+                <p className="text-[10px] md:text-xs text-zinc-500">Total Yards</p>
               </div>
-              <div className="bg-black/40 rounded-lg p-4 text-center border border-zinc-700 min-w-[100px]">
-                <p className="text-3xl font-black text-emerald-400">{seasonStats.totalTackles}</p>
-                <p className="text-xs text-zinc-500">Total Tackles</p>
+              <div className="bg-black/40 rounded-lg p-2 md:p-4 text-center border border-zinc-700">
+                <p className="text-xl md:text-3xl font-black text-emerald-400">{seasonStats.totalTackles}</p>
+                <p className="text-[10px] md:text-xs text-zinc-500">Total Tackles</p>
               </div>
-              <div className="bg-black/40 rounded-lg p-4 text-center border border-zinc-700 min-w-[100px]">
-                <p className="text-3xl font-black text-purple-400">{players.length}</p>
-                <p className="text-xs text-zinc-500">Players</p>
+              <div className="bg-black/40 rounded-lg p-2 md:p-4 text-center border border-zinc-700">
+                <p className="text-xl md:text-3xl font-black text-purple-400">{players.length}</p>
+                <p className="text-[10px] md:text-xs text-zinc-500">Players</p>
               </div>
             </div>
           </div>

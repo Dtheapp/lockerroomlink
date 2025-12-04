@@ -256,23 +256,23 @@ const PublicAthleteProfile: React.FC = () => {
             </div>
 
             {/* Player Info */}
-            <div className="text-center md:text-left flex-1">
-              <h1 className="text-3xl md:text-4xl font-black text-white mb-1">{player.name}</h1>
-              <p className="text-purple-400 font-medium mb-3">@{player.username}</p>
+            <div className="text-center md:text-left flex-1 w-full">
+              <h1 className="text-2xl md:text-4xl font-black text-white mb-1">{player.name}</h1>
+              <p className="text-purple-400 font-medium text-sm md:text-base mb-2 md:mb-3">@{player.username}</p>
               
-              <div className="flex flex-wrap justify-center md:justify-start gap-2 mb-4">
+              <div className="flex flex-wrap justify-center md:justify-start gap-1.5 md:gap-2 mb-3 md:mb-4">
                 {player.number && (
-                  <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-sm font-black">
+                  <span className="bg-orange-500 text-white px-2 md:px-3 py-0.5 md:py-1 rounded-full text-xs md:text-sm font-black">
                     #{player.number}
                   </span>
                 )}
                 {player.position && (
-                  <span className="bg-zinc-700 text-zinc-200 px-3 py-1 rounded-full text-sm font-medium">
+                  <span className="bg-zinc-700 text-zinc-200 px-2 md:px-3 py-0.5 md:py-1 rounded-full text-xs md:text-sm font-medium">
                     {player.position}
                   </span>
                 )}
                 {player.isStarter && (
-                  <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
+                  <span className="bg-emerald-500/20 text-emerald-400 px-2 md:px-3 py-0.5 md:py-1 rounded-full text-xs md:text-sm font-medium flex items-center gap-1">
                     <Star className="w-3 h-3" /> Starter
                   </span>
                 )}
@@ -298,26 +298,26 @@ const PublicAthleteProfile: React.FC = () => {
             </div>
 
             {/* Quick Stats Card */}
-            <div className="bg-black/40 rounded-xl p-4 border border-zinc-700 min-w-[200px]">
+            <div className="bg-black/40 rounded-xl p-4 border border-zinc-700 w-full md:w-auto md:min-w-[200px]">
               <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3 text-center">
                 {currentYear} Season
               </p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-4 md:grid-cols-2 gap-2 md:gap-3">
                 <div className="text-center">
-                  <p className="text-2xl font-black text-orange-400">{seasonStats?.tds || 0}</p>
-                  <p className="text-xs text-zinc-500">Touchdowns</p>
+                  <p className="text-xl md:text-2xl font-black text-orange-400">{seasonStats?.tds || 0}</p>
+                  <p className="text-[10px] md:text-xs text-zinc-500">Touchdowns</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-black text-emerald-400">{seasonStats?.tackles || 0}</p>
-                  <p className="text-xs text-zinc-500">Tackles</p>
+                  <p className="text-xl md:text-2xl font-black text-emerald-400">{seasonStats?.tackles || 0}</p>
+                  <p className="text-[10px] md:text-xs text-zinc-500">Tackles</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-black text-cyan-400">{(seasonStats?.rushYards || 0) + (seasonStats?.recYards || 0)}</p>
-                  <p className="text-xs text-zinc-500">Total Yards</p>
+                  <p className="text-xl md:text-2xl font-black text-cyan-400">{(seasonStats?.rushYards || 0) + (seasonStats?.recYards || 0)}</p>
+                  <p className="text-[10px] md:text-xs text-zinc-500">Total Yards</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-black text-purple-400">{seasonStats?.gp || 0}</p>
-                  <p className="text-xs text-zinc-500">Games</p>
+                  <p className="text-xl md:text-2xl font-black text-purple-400">{seasonStats?.gp || 0}</p>
+                  <p className="text-[10px] md:text-xs text-zinc-500">Games</p>
                 </div>
               </div>
             </div>
