@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, updateDoc, collection, addDoc, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye } from 'lucide-react';
+import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye, Sword, User, Camera, Star, Crown, Ruler, Scale } from 'lucide-react';
 import type { Player, MedicalInfo } from '../types';
 import PlayerStatsModal from './stats/PlayerStatsModal';
 
@@ -25,17 +25,27 @@ const Profile: React.FC = () => {
   // ATHLETE STATES
   const [myAthletes, setMyAthletes] = useState<Player[]>([]);
   const [selectedAthlete, setSelectedAthlete] = useState<Player | null>(null);
-  const [isMedicalOpen, setIsMedicalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
   // Player Stats Modal state
   const [viewStatsPlayer, setViewStatsPlayer] = useState<Player | null>(null);
 
-  // Medical Form
-  const [medAllergies, setMedAllergies] = useState('');
-  const [medConditions, setMedConditions] = useState('');
-  const [medMeds, setMedMeds] = useState('');
-  const [medBlood, setMedBlood] = useState('');
-  const [savingMedical, setSavingMedical] = useState(false);
+  // Full Edit Form State (including medical)
+  const [editForm, setEditForm] = useState({
+    name: '',
+    dob: '',
+    height: '',
+    weight: '',
+    shirtSize: '',
+    pantSize: '',
+    // Medical
+    allergies: '',
+    conditions: '',
+    medications: '',
+    bloodType: ''
+  });
+  const [savingPlayer, setSavingPlayer] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // 1. Load Parent Data
   useEffect(() => {
@@ -86,39 +96,144 @@ const Profile: React.FC = () => {
 
 
 
-  const openMedical = (player: Player) => {
+  const openEditModal = (player: Player) => {
       setSelectedAthlete(player);
-      setMedAllergies(player.medical?.allergies || '');
-      setMedConditions(player.medical?.conditions || '');
-      setMedMeds(player.medical?.medications || '');
-      setMedBlood(player.medical?.bloodType || '');
-      setIsMedicalOpen(true);
+      setEditForm({
+        name: player.name || '',
+        dob: player.dob || '',
+        height: player.height || '',
+        weight: player.weight || '',
+        shirtSize: player.shirtSize || '',
+        pantSize: player.pantSize || '',
+        allergies: player.medical?.allergies || '',
+        conditions: player.medical?.conditions || '',
+        medications: player.medical?.medications || '',
+        bloodType: player.medical?.bloodType || ''
+      });
+      setIsEditModalOpen(true);
   }
 
-  const handleSaveMedical = async (e: React.FormEvent) => {
+  const handleSavePlayer = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!selectedAthlete || !selectedAthlete.teamId || savingMedical) return;
+      if (!selectedAthlete || !selectedAthlete.teamId || savingPlayer) return;
 
-      setSavingMedical(true);
+      setSavingPlayer(true);
       try {
           const playerRef = doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id);
           const medicalData: MedicalInfo = {
-              allergies: medAllergies,
-              conditions: medConditions,
-              medications: medMeds,
-              bloodType: medBlood
+              allergies: editForm.allergies,
+              conditions: editForm.conditions,
+              medications: editForm.medications,
+              bloodType: editForm.bloodType
           };
           
-          await updateDoc(playerRef, { medical: medicalData });
-          setIsMedicalOpen(false);
+          await updateDoc(playerRef, { 
+            name: editForm.name,
+            dob: editForm.dob,
+            height: editForm.height,
+            weight: editForm.weight,
+            shirtSize: editForm.shirtSize,
+            pantSize: editForm.pantSize,
+            medical: medicalData 
+          });
+          setIsEditModalOpen(false);
           setSelectedAthlete(null);
       } catch (error) {
-          console.error("Error saving medical:", error);
-          alert('Failed to save medical information.');
+          console.error("Error saving player:", error);
+          alert('Failed to save player information.');
       } finally {
-          setSavingMedical(false);
+          setSavingPlayer(false);
       }
   }
+
+  // Photo upload handlers
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedAthlete || !selectedAthlete.teamId || !e.target.files || e.target.files.length === 0) return;
+    
+    const file = e.target.files[0];
+    
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file.');
+      return;
+    }
+    
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image must be less than 2MB. Please choose a smaller image.');
+      return;
+    }
+    
+    setUploadingPhoto(true);
+    try {
+      const resizedBase64 = await resizeImage(file, 200, 200);
+      const playerRef = doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id);
+      await updateDoc(playerRef, { photoUrl: resizedBase64 });
+      setSelectedAthlete({ ...selectedAthlete, photoUrl: resizedBase64 });
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      alert('Failed to upload photo. Please try again.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+  
+  const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Could not get canvas context'));
+            return;
+          }
+          
+          ctx.drawImage(img, 0, 0, width, height);
+          const base64 = canvas.toDataURL('image/jpeg', 0.7);
+          resolve(base64);
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+  
+  const handleRemovePhoto = async () => {
+    if (!selectedAthlete || !selectedAthlete.teamId) return;
+    
+    setUploadingPhoto(true);
+    try {
+      const playerRef = doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id);
+      await updateDoc(playerRef, { photoUrl: null });
+      setSelectedAthlete({ ...selectedAthlete, photoUrl: undefined });
+    } catch (error) {
+      console.error('Error removing photo:', error);
+      alert('Failed to remove photo.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   // Helper to check if medical field has data (ignoring default 'None')
   const hasMedicalData = (val?: string) => val && val !== 'None' && val.trim() !== '';
@@ -258,67 +373,152 @@ const Profile: React.FC = () => {
                   <div className="grid md:grid-cols-2 gap-6">
                       {myAthletes.map(player => {
                           const blood = player.medical?.bloodType;
-                          // Robust Logic: Check if value exists AND is not 'None'
                           const allergies = hasMedicalData(player.medical?.allergies);
                           const conditions = hasMedicalData(player.medical?.conditions);
                           const meds = hasMedicalData(player.medical?.medications);
-                          
                           const isHealthy = !allergies && !conditions && !meds;
+                          const isStarter = player.isStarter;
+                          const isCaptain = player.isCaptain;
 
                           return (
                             <div 
                                 key={player.id} 
-                                onClick={() => openMedical(player)} 
-                                className="bg-slate-50 dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-slate-800 p-5 relative group cursor-pointer hover:border-sky-400 dark:hover:border-sky-500 hover:shadow-lg dark:hover:shadow-xl hover:shadow-sky-100 dark:hover:shadow-sky-900/20 transition-all"
+                                className={`bg-slate-50 dark:bg-zinc-950 rounded-xl border p-5 relative overflow-hidden transition-all ${
+                                  isStarter 
+                                    ? 'border-yellow-400 dark:border-yellow-500 ring-2 ring-yellow-400/50 dark:ring-yellow-500/40 shadow-yellow-400/20 dark:shadow-yellow-500/20' 
+                                    : 'border-slate-200 dark:border-slate-800 hover:border-sky-400 dark:hover:border-sky-500'
+                                } shadow-lg hover:shadow-xl`}
+                                style={isStarter ? { boxShadow: '0 0 20px rgba(251, 191, 36, 0.3), 0 0 40px rgba(251, 191, 36, 0.1)' } : {}}
                             >
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <h3 className="text-xl font-bold text-slate-900 dark:text-white group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">{player.name}</h3>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700">#{player.number}</span>
-                                            <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700">{player.position}</span>
+                                {/* Starter Badge */}
+                                {isStarter && (
+                                  <div className="absolute top-2 left-2 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full px-2.5 py-1 shadow-lg flex items-center gap-1 z-10">
+                                    <Star className="w-3 h-3 text-white fill-white" />
+                                    <span className="text-[10px] font-bold text-white uppercase tracking-wide">Starter</span>
+                                  </div>
+                                )}
+
+                                {/* Player Photo & Basic Info */}
+                                <div className={`flex items-start gap-4 ${isStarter ? 'mt-6' : ''}`}>
+                                    {/* Photo */}
+                                    <div className="flex-shrink-0">
+                                      {player.photoUrl ? (
+                                        <div className={`w-20 h-20 rounded-full overflow-hidden border-4 ${
+                                          isStarter 
+                                            ? 'border-yellow-400 dark:border-yellow-500 shadow-lg shadow-yellow-400/30' 
+                                            : 'border-slate-300 dark:border-slate-700'
+                                        }`}>
+                                          <img src={player.photoUrl} alt={player.name} className="w-full h-full object-cover" />
                                         </div>
+                                      ) : (
+                                        <div className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold border-4 font-mono ${
+                                          isStarter 
+                                            ? 'bg-gradient-to-br from-yellow-100 to-amber-100 dark:from-yellow-900/30 dark:to-amber-900/30 border-yellow-400 dark:border-yellow-500 text-yellow-700 dark:text-yellow-400 shadow-lg shadow-yellow-400/30' 
+                                            : 'bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white'
+                                        }`}>
+                                          {player.number || '?'}
+                                        </div>
+                                      )}
                                     </div>
-                                    <div className="text-slate-400 dark:text-slate-600 group-hover:text-sky-500 dark:group-hover:text-sky-400 transition-colors">
+                                    
+                                    {/* Info */}
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="text-xl font-bold text-slate-900 dark:text-white truncate flex items-center gap-1.5">
+                                          {player.name}
+                                          {isCaptain && <Crown className="w-5 h-5 text-amber-500 flex-shrink-0" />}
+                                        </h3>
+                                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                            <span className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs px-2 py-1 rounded font-bold">#{player.number || '?'}</span>
+                                            <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700">{player.position || 'TBD'}</span>
+                                        </div>
+                                        <p className="text-xs text-slate-500 mt-1">DOB: {player.dob || '--'}</p>
+                                    </div>
+                                    
+                                    {/* Edit Button */}
+                                    <button 
+                                      onClick={() => openEditModal(player)}
+                                      className="flex-shrink-0 p-2 text-slate-400 hover:text-orange-500 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+                                    >
                                         <Edit2 className="h-5 w-5" />
-                                    </div>
-                                </div>
-                                
-                                <div className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                                    <p>DOB: {player.dob || '--'}</p>
+                                    </button>
                                 </div>
 
+                                {/* Quick Stats */}
+                                <div className="mt-4 flex justify-center gap-4 bg-slate-100 dark:bg-black p-2 rounded-lg">
+                                    <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-400">
+                                        <Sword className="w-3 h-3 text-orange-500" /> <span className="font-bold">{player.stats?.td || 0}</span> TD
+                                    </div>
+                                    <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-400">
+                                        <Shield className="w-3 h-3 text-cyan-500" /> <span className="font-bold">{player.stats?.tkl || 0}</span> TKL
+                                    </div>
+                                </div>
+
+                                {/* Physical Info */}
+                                {(player.height || player.weight) && (
+                                  <div className="mt-3 bg-cyan-50 dark:bg-cyan-900/10 p-2 rounded border border-cyan-200 dark:border-cyan-900/30">
+                                    <p className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                                      <Ruler className="w-3 h-3" /> Physical
+                                    </p>
+                                    <div className="flex justify-around text-xs">
+                                      {player.height && (
+                                        <div>
+                                          <span className="text-slate-500">Height:</span>
+                                          <span className="ml-1 font-bold text-slate-900 dark:text-white">{player.height}</span>
+                                        </div>
+                                      )}
+                                      {player.weight && (
+                                        <div>
+                                          <span className="text-slate-500">Weight:</span>
+                                          <span className="ml-1 font-bold text-slate-900 dark:text-white">{player.weight}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Uniform Sizes */}
+                                {(player.shirtSize || player.pantSize) && (
+                                  <div className="mt-3 bg-orange-50 dark:bg-orange-900/10 p-2 rounded border border-orange-200 dark:border-orange-900/30">
+                                    <p className="text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider mb-1">Uniform</p>
+                                    <div className="flex justify-around text-xs">
+                                      {player.shirtSize && (
+                                        <div>
+                                          <span className="text-slate-500">Shirt:</span>
+                                          <span className="ml-1 font-bold text-slate-900 dark:text-white">{player.shirtSize}</span>
+                                        </div>
+                                      )}
+                                      {player.pantSize && (
+                                        <div>
+                                          <span className="text-slate-500">Pants:</span>
+                                          <span className="ml-1 font-bold text-slate-900 dark:text-white">{player.pantSize}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
                                 {/* MEDICAL BADGES ROW */}
-                                <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-                                    {/* 1. Blood Type */}
+                                <div className="flex flex-wrap gap-2 pt-3 mt-3 border-t border-slate-200 dark:border-slate-800">
                                     {blood && (
                                         <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-pink-500/10 border border-pink-500/20 text-pink-400 text-xs font-medium">
                                             <Droplet className="w-3 h-3" /> {blood}
                                         </div>
                                     )}
-
-                                    {/* 2. Allergies */}
                                     {allergies && (
                                         <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-medium">
-                                            <Shield className="w-3 h-3" /> Allergies
+                                            <AlertCircle className="w-3 h-3" /> Allergies
                                         </div>
                                     )}
-
-                                    {/* 3. Conditions */}
                                     {conditions && (
                                         <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium">
                                             <Activity className="w-3 h-3" /> Medical
                                         </div>
                                     )}
-
-                                    {/* 4. Meds */}
                                     {meds && (
                                         <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-medium">
                                             <Pill className="w-3 h-3" /> Meds
                                         </div>
                                     )}
-
-                                    {/* 5. Healthy Fallback */}
                                     {isHealthy && (
                                         <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
                                             <CheckCircle className="w-3 h-3" /> Medically Cleared
@@ -328,7 +528,7 @@ const Profile: React.FC = () => {
                                 
                                 {/* VIEW STATS BUTTON */}
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); setViewStatsPlayer(player); }}
+                                  onClick={() => setViewStatsPlayer(player)}
                                   className="w-full mt-3 flex items-center justify-center gap-2 text-sm font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 py-2.5 rounded-lg border border-orange-200 dark:border-orange-900/30 transition-colors"
                                 >
                                   <BarChart3 className="w-4 h-4" /> View Stats History
@@ -350,47 +550,223 @@ const Profile: React.FC = () => {
         />
       )}
 
-      {/* MODAL: MEDICAL INFO */}
-      {isMedicalOpen && selectedAthlete && (
+      {/* FULL EDIT PLAYER MODAL */}
+      {isEditModalOpen && selectedAthlete && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-              <div className="bg-slate-50 dark:bg-zinc-950 w-full max-w-lg rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-lg dark:shadow-xl max-h-[90vh] overflow-y-auto">
-                  <div className="flex items-center gap-3 mb-6 border-b border-slate-200 dark:border-slate-800 pb-4">
-                      <div className="bg-red-100 dark:bg-red-500/20 p-3 rounded-full text-red-600 dark:text-red-500"><Activity className="h-6 w-6" /></div>
-                      <div>
-                          <h3 className="text-xl font-bold text-slate-900 dark:text-white">Medical ID</h3>
-                          <p className="text-slate-600 dark:text-slate-400 text-sm">{selectedAthlete.name}</p>
+              <div className="bg-slate-50 dark:bg-zinc-950 w-full max-w-lg rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl max-h-[90vh] overflow-y-auto">
+                  {/* Header */}
+                  <div className="sticky top-0 bg-slate-50 dark:bg-zinc-950 p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                          <div className="bg-orange-100 dark:bg-orange-500/20 p-2 rounded-full">
+                            <Edit2 className="h-5 w-5 text-orange-600 dark:text-orange-500" />
+                          </div>
+                          <div>
+                              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Edit Player</h3>
+                              <p className="text-slate-500 text-sm">#{selectedAthlete.number || '?'} • {selectedAthlete.position || 'TBD'}</p>
+                          </div>
                       </div>
+                      <button onClick={() => setIsEditModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                        <X className="w-5 h-5" />
+                      </button>
                   </div>
                   
-                  <form onSubmit={handleSaveMedical} className="space-y-4">
-                      {/* BLOOD TYPE ONLY */}
-                      <div>
-                          <label className="block text-xs text-red-600 dark:text-red-400 mb-1 font-bold">Blood Type</label>
-                          <input value={medBlood} onChange={e => setMedBlood(e.target.value)} placeholder="e.g. O+" className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-2 text-slate-900 dark:text-white" />
+                  <form onSubmit={handleSavePlayer} className="p-6 space-y-6">
+                      {/* Photo Upload */}
+                      <div className="flex flex-col items-center pb-4 border-b border-slate-200 dark:border-slate-800">
+                        <p className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-3 uppercase tracking-wider">Player Photo</p>
+                        <div className="relative">
+                          {selectedAthlete.photoUrl ? (
+                            <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-orange-500 shadow-lg">
+                              <img src={selectedAthlete.photoUrl} alt={selectedAthlete.name} className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="w-24 h-24 rounded-full bg-slate-200 dark:bg-slate-800 border-4 border-slate-300 dark:border-slate-700 flex items-center justify-center">
+                              <User className="w-10 h-10 text-slate-400 dark:text-slate-600" />
+                            </div>
+                          )}
+                          <label className="absolute bottom-0 right-0 bg-orange-600 hover:bg-orange-500 text-white rounded-full p-2 cursor-pointer shadow-lg transition-colors">
+                            <Camera className="w-4 h-4" />
+                            <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" disabled={uploadingPhoto} />
+                          </label>
+                        </div>
+                        {uploadingPhoto && (
+                          <div className="mt-2 flex items-center gap-2 text-sm text-orange-600">
+                            <div className="w-4 h-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin" />
+                            Uploading...
+                          </div>
+                        )}
+                        {selectedAthlete.photoUrl && !uploadingPhoto && (
+                          <button type="button" onClick={handleRemovePhoto} className="mt-2 text-xs text-red-500 hover:text-red-700 underline">
+                            Remove Photo
+                          </button>
+                        )}
+                        <p className="text-[10px] text-slate-500 mt-2">Tap camera icon to upload (max 2MB)</p>
                       </div>
 
-                      <div className="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-4">
+                      {/* Basic Info */}
+                      <div>
+                        <p className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-3 uppercase tracking-wider">Basic Information</p>
+                        <div className="space-y-3">
+                          <div>
+                              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Full Name</label>
+                              <input 
+                                value={editForm.name} 
+                                onChange={e => setEditForm({...editForm, name: e.target.value})} 
+                                className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
+                                required
+                              />
+                          </div>
+                          <div>
+                              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Date of Birth</label>
+                              <input 
+                                type="date"
+                                value={editForm.dob} 
+                                onChange={e => setEditForm({...editForm, dob: e.target.value})} 
+                                className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
+                              />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Physical Info */}
+                      <div>
+                        <p className="text-xs font-bold text-cyan-600 dark:text-cyan-400 mb-3 uppercase tracking-wider flex items-center gap-1">
+                          <Ruler className="w-3 h-3" /> Physical Information
+                        </p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Height</label>
+                              <input 
+                                value={editForm.height} 
+                                onChange={e => setEditForm({...editForm, height: e.target.value})} 
+                                placeholder="4 ft 6 in"
+                                className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
+                              />
+                          </div>
+                          <div>
+                              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Weight</label>
+                              <input 
+                                value={editForm.weight} 
+                                onChange={e => setEditForm({...editForm, weight: e.target.value})} 
+                                placeholder="85 lbs"
+                                className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
+                              />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Uniform Sizes */}
+                      <div>
+                        <p className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-3 uppercase tracking-wider">Uniform Sizing</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Shirt Size</label>
+                              <select 
+                                value={editForm.shirtSize} 
+                                onChange={e => setEditForm({...editForm, shirtSize: e.target.value})} 
+                                className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white"
+                              >
+                                <option value="">Select size...</option>
+                                <option value="Youth S">Youth S</option>
+                                <option value="Youth M">Youth M</option>
+                                <option value="Youth L">Youth L</option>
+                                <option value="Youth XL">Youth XL</option>
+                                <option value="Adult S">Adult S</option>
+                                <option value="Adult M">Adult M</option>
+                                <option value="Adult L">Adult L</option>
+                                <option value="Adult XL">Adult XL</option>
+                                <option value="Adult 2XL">Adult 2XL</option>
+                              </select>
+                          </div>
+                          <div>
+                              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Pants Size</label>
+                              <select 
+                                value={editForm.pantSize} 
+                                onChange={e => setEditForm({...editForm, pantSize: e.target.value})} 
+                                className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white"
+                              >
+                                <option value="">Select size...</option>
+                                <option value="Youth S">Youth S</option>
+                                <option value="Youth M">Youth M</option>
+                                <option value="Youth L">Youth L</option>
+                                <option value="Youth XL">Youth XL</option>
+                                <option value="Adult S">Adult S</option>
+                                <option value="Adult M">Adult M</option>
+                                <option value="Adult L">Adult L</option>
+                                <option value="Adult XL">Adult XL</option>
+                                <option value="Adult 2XL">Adult 2XL</option>
+                              </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Medical Information */}
+                      <div className="bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-200 dark:border-red-900/30 p-4">
+                        <p className="text-xs font-bold text-red-600 dark:text-red-400 mb-3 uppercase tracking-wider flex items-center gap-1">
+                          <HeartPulse className="w-3 h-3" /> Medical Information
+                        </p>
+                        <div className="space-y-3">
+                          <div>
+                              <label className="block text-xs text-red-600 dark:text-red-400 mb-1 font-medium">Blood Type</label>
+                              <input 
+                                value={editForm.bloodType} 
+                                onChange={e => setEditForm({...editForm, bloodType: e.target.value})} 
+                                placeholder="e.g. O+"
+                                className="w-full bg-white dark:bg-black border border-red-200 dark:border-red-900/30 rounded-lg p-3 text-slate-900 dark:text-white" 
+                              />
+                          </div>
                           <div>
                               <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Allergies</label>
-                              <textarea rows={2} value={medAllergies} onChange={e => setMedAllergies(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-2 text-slate-900 dark:text-white" placeholder="Peanuts, Penicillin..." />
+                              <textarea 
+                                rows={2} 
+                                value={editForm.allergies} 
+                                onChange={e => setEditForm({...editForm, allergies: e.target.value})} 
+                                placeholder="Peanuts, Penicillin..."
+                                className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
+                              />
                           </div>
                           <div>
                               <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Medical Conditions</label>
-                              <textarea rows={2} value={medConditions} onChange={e => setMedConditions(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-2 text-slate-900 dark:text-white" placeholder="Asthma, Diabetes..." />
+                              <textarea 
+                                rows={2} 
+                                value={editForm.conditions} 
+                                onChange={e => setEditForm({...editForm, conditions: e.target.value})} 
+                                placeholder="Asthma, Diabetes..."
+                                className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
+                              />
                           </div>
                           <div>
                               <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Current Medications</label>
-                              <textarea rows={2} value={medMeds} onChange={e => setMedMeds(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-2 text-slate-900 dark:text-white" placeholder="Inhaler before games..." />
+                              <textarea 
+                                rows={2} 
+                                value={editForm.medications} 
+                                onChange={e => setEditForm({...editForm, medications: e.target.value})} 
+                                placeholder="Inhaler before games..."
+                                className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
+                              />
                           </div>
+                        </div>
                       </div>
 
-                      <div className="flex justify-end gap-3 mt-6">
-                          <button type="button" onClick={() => setIsMedicalOpen(false)} className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white" disabled={savingMedical}>Close</button>
-                          <button type="submit" disabled={savingMedical} className="bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700 text-white px-6 py-2 rounded-lg shadow-lg dark:shadow-lg shadow-red-200 dark:shadow-red-900/20 disabled:opacity-50 flex items-center gap-2">
-                            {savingMedical ? (
+                      {/* Actions */}
+                      <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+                          <button 
+                            type="button" 
+                            onClick={() => setIsEditModalOpen(false)} 
+                            className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                            disabled={savingPlayer}
+                          >
+                            Cancel
+                          </button>
+                          <button 
+                            type="submit" 
+                            disabled={savingPlayer} 
+                            className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg font-bold disabled:opacity-50 flex items-center gap-2"
+                          >
+                            {savingPlayer ? (
                               <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saving...</>
                             ) : (
-                              'Update Medical ID'
+                              <><Save className="w-4 h-4" /> Save Changes</>
                             )}
                           </button>
                       </div>
