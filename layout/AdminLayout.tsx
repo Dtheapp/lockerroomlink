@@ -98,7 +98,7 @@ const AdminLayout: React.FC = () => {
           {sidebarOpen ? (
             <div className="text-2xl font-black tracking-tighter text-zinc-900 dark:text-white min-w-0">
               <div className="truncate">
-                  <span className="text-orange-500">Locker</span> <span className="text-zinc-900 dark:text-white">Room</span>
+                  <span className="text-orange-500">LOCKER</span><span className="text-zinc-900 dark:text-white">ROOM</span>
               </div>
               <p className="text-xs font-bold text-orange-500 mt-1 uppercase tracking-widest">Super Admin</p>
             </div>
@@ -170,7 +170,7 @@ const AdminLayout: React.FC = () => {
             {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
           <h1 className="text-lg font-black text-zinc-900 dark:text-white tracking-tight">
-              <span className="text-orange-500">Locker</span> Room
+              <span className="text-orange-500">LOCKER</span>ROOM
           </h1>
           <div className="w-6"></div>
         </div>
