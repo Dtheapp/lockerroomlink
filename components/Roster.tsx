@@ -563,20 +563,18 @@ const Roster: React.FC = () => {
                   }`}
                   style={isStarter ? { boxShadow: '0 0 20px rgba(251, 191, 36, 0.3), 0 0 40px rgba(251, 191, 36, 0.1)' } : {}}
                 >
-                    {/* Starter Badge - Top Center */}
+                    {/* Starter Badge - Top Left Corner */}
                     {isStarter && (
-                      <div className="flex justify-center mb-2">
-                        <div className="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full px-3 py-1 shadow-lg flex items-center gap-1.5">
-                          <Star className="w-3.5 h-3.5 text-white fill-white" />
-                          <span className="text-xs font-bold text-white uppercase tracking-wide">Starter</span>
-                        </div>
+                      <div className="absolute top-2 left-2 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full px-2.5 py-1 shadow-lg flex items-center gap-1 z-10">
+                        <Star className="w-3 h-3 text-white fill-white" />
+                        <span className="text-[10px] font-bold text-white uppercase tracking-wide">Starter</span>
                       </div>
                     )}
                     
-                    {/* Player Photo / Jersey Number */}
-                    <div className="flex justify-center mb-3">
+                    {/* Player Photo */}
+                    <div className={`flex justify-center ${isStarter ? 'mt-6' : 'mt-2'} mb-3`}>
                       {player.photoUrl ? (
-                        <div className={`relative w-20 h-20 rounded-full overflow-hidden border-4 ${
+                        <div className={`w-20 h-20 rounded-full overflow-hidden border-4 ${
                           isStarter 
                             ? 'border-yellow-400 dark:border-yellow-500 shadow-lg shadow-yellow-400/30' 
                             : 'border-zinc-300 dark:border-zinc-700'
@@ -586,10 +584,6 @@ const Roster: React.FC = () => {
                             alt={player.name} 
                             className="w-full h-full object-cover"
                           />
-                          {/* Jersey number badge on photo */}
-                          <div className="absolute -bottom-1 -right-1 bg-orange-600 text-white text-xs font-bold rounded-full w-7 h-7 flex items-center justify-center border-2 border-white dark:border-zinc-950">
-                            {player.number}
-                          </div>
                         </div>
                       ) : (
                         <div className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold border-4 font-mono ${
@@ -622,7 +616,9 @@ const Roster: React.FC = () => {
                           {player.name}
                           {isCaptain && <Crown className="w-5 h-5 text-amber-500 flex-shrink-0" />}
                         </h3>
-                        <p className="text-orange-500 font-bold text-sm uppercase tracking-wide">{player.position}</p>
+                        <p className="text-orange-500 font-bold text-sm uppercase tracking-wide">
+                          {player.position} {player.photoUrl && <span className="text-zinc-400 dark:text-zinc-500">|</span>} {player.photoUrl && <span className="text-orange-500">#{player.number}</span>}
+                        </p>
                         <p className="text-xs text-zinc-500 mt-1">DOB: {player.dob || '--'}</p>
                     </div>
 
