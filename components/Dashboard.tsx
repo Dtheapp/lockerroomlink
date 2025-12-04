@@ -7,6 +7,24 @@ import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle, Minus } from 'lucide-react';
 import type { BulletinPost, PlayerSeasonStats, TeamEvent } from '../types';
 
+// Helper: Format date string (YYYY-MM-DD) to readable format without timezone issues
+const formatEventDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
+  // Parse as local date by appending time to avoid UTC interpretation
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(year, month - 1, day); // month is 0-indexed
+  return date.toLocaleDateString('en-US', options || { weekday: 'long', month: 'short', day: 'numeric' });
+};
+
+// Helper: Convert 24-hour time (HH:MM) to 12-hour format with AM/PM
+const formatTime12Hour = (time24: string) => {
+  if (!time24) return '';
+  const [hourStr, minute] = time24.split(':');
+  let hour = parseInt(hourStr, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12 || 12; // Convert 0 to 12 for midnight
+  return `${hour}:${minute} ${ampm}`;
+};
+
 const Dashboard: React.FC = () => {
   const { userData, teamData, players, selectedPlayer } = useAuth();
   const currentYear = new Date().getFullYear();
@@ -999,9 +1017,9 @@ const Dashboard: React.FC = () => {
                                 <p className="text-orange-600 dark:text-orange-500 text-[10px] uppercase font-black tracking-wider mt-1">{event.type}</p>
                             </div>
                             <div className="text-right">
-                                <p className="text-zinc-700 dark:text-zinc-300 font-mono text-xs">{new Date(event.date).toLocaleDateString()}</p>
+                                <p className="text-zinc-700 dark:text-zinc-300 font-mono text-xs">{formatEventDate(event.date, { month: 'short', day: 'numeric' })}</p>
                                 <div className="flex items-center justify-end gap-1 text-[10px] text-zinc-500 dark:text-zinc-500 mt-1">
-                                    <Clock className="w-3 h-3" /> {event.time}
+                                    <Clock className="w-3 h-3" /> {formatTime12Hour(event.time)}
                                 </div>
                             </div>
                         </div>
@@ -1116,7 +1134,7 @@ const Dashboard: React.FC = () => {
             <div className="bg-slate-100 dark:bg-zinc-800 rounded-lg p-4 mb-4">
               <p className="font-bold text-slate-900 dark:text-white">{deleteEventConfirm.title}</p>
               <p className="text-sm text-slate-600 dark:text-zinc-400 mt-1">
-                {new Date(deleteEventConfirm.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                {formatEventDate(deleteEventConfirm.date, { weekday: 'long', month: 'long', day: 'numeric' })}
               </p>
             </div>
             

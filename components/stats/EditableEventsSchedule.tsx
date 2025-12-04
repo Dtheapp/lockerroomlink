@@ -5,6 +5,23 @@ import { useAuth } from '../../contexts/AuthContext';
 import type { TeamEvent } from '../../types';
 import { Calendar, Plus, Edit2, Trash2, MapPin, Clock, X } from 'lucide-react';
 
+// Helper: Format date string (YYYY-MM-DD) to readable format without timezone issues
+const formatEventDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString('en-US', options || { weekday: 'long', month: 'short', day: 'numeric' });
+};
+
+// Helper: Convert 24-hour time (HH:MM) to 12-hour format with AM/PM
+const formatTime12Hour = (time24: string) => {
+  if (!time24) return '';
+  const [hourStr, minute] = time24.split(':');
+  let hour = parseInt(hourStr, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12 || 12;
+  return `${hour}:${minute} ${ampm}`;
+};
+
 const EditableEventsSchedule: React.FC = () => {
   const { teamData, userData } = useAuth();
   const [events, setEvents] = useState<TeamEvent[]>([]);
@@ -296,11 +313,11 @@ const EditableEventsSchedule: React.FC = () => {
                 <div className="space-y-1 text-sm">
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
-                    <span>{new Date(event.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+                    <span>{formatEventDate(event.date)}</span>
                     {event.time && (
                       <>
                         <Clock className="w-4 h-4 ml-2" />
-                        <span className="font-mono">{event.time}</span>
+                        <span>{formatTime12Hour(event.time)}</span>
                       </>
                     )}
                   </div>
@@ -339,7 +356,7 @@ const EditableEventsSchedule: React.FC = () => {
                     </span>
                     <h4 className="text-sm font-bold mt-1">{event.title}</h4>
                     <span className="text-xs text-slate-600 dark:text-slate-400">
-                      {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {formatEventDate(event.date, { month: 'short', day: 'numeric' })}
                     </span>
                   </div>
                   <button
@@ -393,7 +410,7 @@ const EditableEventsSchedule: React.FC = () => {
             <div className="bg-slate-100 dark:bg-zinc-800 rounded-lg p-4 mb-4">
               <p className="font-bold text-slate-900 dark:text-white">{deleteConfirm.title}</p>
               <p className="text-sm text-slate-600 dark:text-zinc-400 mt-1">
-                {new Date(deleteConfirm.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                {formatEventDate(deleteConfirm.date, { weekday: 'long', month: 'long', day: 'numeric' })}
               </p>
             </div>
             

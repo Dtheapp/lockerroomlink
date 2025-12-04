@@ -5,6 +5,32 @@ import { useAuth } from '../../contexts/AuthContext';
 import type { TeamEvent } from '../../types';
 import { Calendar, MapPin, Megaphone } from 'lucide-react';
 
+// Helper: Format date string (YYYY-MM-DD) to readable format without timezone issues
+const formatEventDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString('en-US', options || { weekday: 'long', month: 'short', day: 'numeric' });
+};
+
+// Helper: Convert 24-hour time (HH:MM) to 12-hour format with AM/PM
+const formatTime12Hour = (time24: string) => {
+  if (!time24) return '';
+  const [hourStr, minute] = time24.split(':');
+  let hour = parseInt(hourStr, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12 || 12;
+  return `${hour}:${minute} ${ampm}`;
+};
+
+// Helper: Compare date strings without timezone issues
+const compareDateToToday = (dateStr: string) => {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const eventDate = new Date(year, month - 1, day);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return eventDate >= today;
+};
+
 const EventAnnouncements: React.FC = () => {
   const { teamData } = useAuth();
   const [events, setEvents] = useState<TeamEvent[]>([]);
@@ -28,8 +54,8 @@ const EventAnnouncements: React.FC = () => {
     return () => unsubscribe();
   }, [teamData?.id]);
 
-  const upcomingEvents = events.filter(e => new Date(e.date) >= new Date(new Date().toISOString().split('T')[0]));
-  const pastEvents = events.filter(e => new Date(e.date) < new Date(new Date().toISOString().split('T')[0]));
+  const upcomingEvents = events.filter(e => compareDateToToday(e.date));
+  const pastEvents = events.filter(e => !compareDateToToday(e.date));
 
   const getTypeColor = (type: TeamEvent['type']) => {
     switch (type) {
@@ -85,8 +111,8 @@ const EventAnnouncements: React.FC = () => {
                 <div className="space-y-1 ml-0">
                   <div className="flex items-center gap-2 text-sm">
                     <Calendar className="w-4 h-4" />
-                    <span>{new Date(event.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
-                    {event.time && <span className="ml-2 font-mono">{event.time}</span>}
+                    <span>{formatEventDate(event.date)}</span>
+                    {event.time && <span className="ml-2">{formatTime12Hour(event.time)}</span>}
                   </div>
 
                   {event.location && (
@@ -124,7 +150,7 @@ const EventAnnouncements: React.FC = () => {
                     <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-1">{event.title}</h4>
                   </div>
                   <span className="text-xs text-slate-600 dark:text-slate-400">
-                    {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {formatEventDate(event.date, { month: 'short', day: 'numeric' })}
                   </span>
                 </div>
               </div>
