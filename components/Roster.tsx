@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc, getDocs, where } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc, getDocs, where, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { sanitizeText, sanitizeNumber, sanitizeDate } from '../services/sanitize';
 import type { Player, UserProfile, Team } from '../types';
-import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link, User, X, Edit2, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus } from 'lucide-react';
 
 // Pagination settings
 const PLAYERS_PER_PAGE = 12;
@@ -22,6 +22,14 @@ const Roster: React.FC = () => {
   
   const isStaff = userData?.role === 'Coach' || userData?.role === 'SuperAdmin';
   const isParent = userData?.role === 'Parent';
+  
+  // Head Coach check - can manage other coaches
+  const isHeadCoach = userData?.role === 'Coach' && teamData?.headCoachId === userData?.uid;
+  
+  // Coaching staff state
+  const [teamCoaches, setTeamCoaches] = useState<UserProfile[]>([]);
+  const [removeCoachConfirm, setRemoveCoachConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [removingCoach, setRemovingCoach] = useState(false);
 
   // Filter and paginate roster
   const filteredRoster = useMemo(() => {
@@ -132,6 +140,25 @@ const Roster: React.FC = () => {
     }
     if (isStaff) {
       fetchParents();
+    }
+    
+    // Load coaches on this team (for Head Coach management)
+    const fetchTeamCoaches = async () => {
+      try {
+        const coachesQuery = query(
+          collection(db, 'users'),
+          where('role', '==', 'Coach'),
+          where('teamId', '==', teamData?.id)
+        );
+        const snapshot = await getDocs(coachesQuery);
+        const coachesData = snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
+        setTeamCoaches(coachesData);
+      } catch (err) {
+        console.error("Error fetching team coaches:", err);
+      }
+    };
+    if (teamData?.id && isStaff) {
+      fetchTeamCoaches();
     }
 
     return () => unsubRoster();
@@ -303,6 +330,52 @@ const Roster: React.FC = () => {
     }
   };
 
+  // Head Coach: Remove another coach from the team
+  const handleRemoveCoach = async () => {
+    if (!removeCoachConfirm || !teamData?.id || !isHeadCoach || removingCoach) return;
+    
+    // Cannot remove yourself
+    if (removeCoachConfirm.id === userData?.uid) {
+      alert("You cannot remove yourself from the team.");
+      setRemoveCoachConfirm(null);
+      return;
+    }
+    
+    setRemovingCoach(true);
+    try {
+      // Remove coach from team by setting teamId to null
+      await updateDoc(doc(db, 'users', removeCoachConfirm.id), { teamId: null });
+      
+      // Log the action to Activity Log
+      await addDoc(collection(db, 'adminActivityLog'), {
+        action: 'REMOVE_COACH',
+        targetType: 'coach',
+        targetId: removeCoachConfirm.id,
+        details: `Head Coach "${userData?.name}" removed coach "${removeCoachConfirm.name}" from team "${teamData?.name || teamData?.id}"`,
+        performedBy: userData?.uid || 'unknown',
+        performedByName: userData?.name || 'Unknown',
+        timestamp: serverTimestamp()
+      });
+      
+      // Refresh coaches list
+      const coachesQuery = query(
+        collection(db, 'users'),
+        where('role', '==', 'Coach'),
+        where('teamId', '==', teamData.id)
+      );
+      const snapshot = await getDocs(coachesQuery);
+      const coachesData = snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
+      setTeamCoaches(coachesData);
+      
+      setRemoveCoachConfirm(null);
+    } catch (error) {
+      console.error('Error removing coach:', error);
+      alert('Failed to remove coach from team.');
+    } finally {
+      setRemovingCoach(false);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -428,7 +501,7 @@ const Roster: React.FC = () => {
                                 ) : (
                                     <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><User className="w-3 h-3"/> {parent?.name || 'Linked'}</span>
                                 )}
-                                <button onClick={() => setDeletePlayerConfirm({ id: player.id, name: player.name, number: player.number })} className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 flex items-center gap-1"><Trash2 className="w-3 h-3" /> Remove</button>
+                                <button onClick={() => setDeletePlayerConfirm({ id: player.id, name: player.name, number: String(player.number) })} className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 flex items-center gap-1"><Trash2 className="w-3 h-3" /> Remove</button>
                             </div>
                             <button 
                               onClick={() => setEditingPlayer(player)} 
@@ -486,6 +559,112 @@ const Roster: React.FC = () => {
         <p className="text-zinc-500 text-center py-8">No players match your search.</p>
       ) : (
         <p className="text-zinc-500 text-center py-8">No players yet.</p>
+      )}
+
+      {/* COACHING STAFF SECTION - Only visible to coaches */}
+      {isStaff && teamCoaches.length > 0 && (
+        <div className="mt-8 pt-8 border-t border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+              <Users className="w-5 h-5 text-orange-500" />
+              Coaching Staff ({teamCoaches.length})
+            </h2>
+            {isHeadCoach && (
+              <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-1 rounded-full flex items-center gap-1">
+                <Crown className="w-3 h-3" /> Head Coach
+              </span>
+            )}
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {teamCoaches.map(coach => (
+              <div 
+                key={coach.uid} 
+                className={`bg-slate-50 dark:bg-zinc-950 rounded-lg p-4 border ${
+                  teamData?.headCoachId === coach.uid 
+                    ? 'border-purple-500 dark:border-purple-500' 
+                    : 'border-zinc-200 dark:border-zinc-800'
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-700 rounded-full flex items-center justify-center text-white font-bold">
+                      {coach.name?.charAt(0).toUpperCase() || 'C'}
+                    </div>
+                    <div>
+                      <p className="font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                        {coach.name}
+                        {teamData?.headCoachId === coach.uid && (
+                          <Crown className="w-4 h-4 text-purple-500" />
+                        )}
+                      </p>
+                      <p className="text-xs text-zinc-500">@{coach.username || coach.email}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Only Head Coach can remove other coaches (not themselves) */}
+                  {isHeadCoach && coach.uid !== userData?.uid && (
+                    <button
+                      onClick={() => setRemoveCoachConfirm({ id: coach.uid, name: coach.name })}
+                      className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                      title="Remove from team"
+                    >
+                      <UserMinus className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                
+                {coach.phone && (
+                  <p className="text-xs text-zinc-500 mt-2 flex items-center gap-1">
+                    <Phone className="w-3 h-3" /> {coach.phone}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* REMOVE COACH CONFIRMATION MODAL */}
+      {removeCoachConfirm && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl w-full max-w-sm border border-zinc-200 dark:border-zinc-800 shadow-2xl">
+            <h2 className="text-xl font-bold mb-4 text-zinc-900 dark:text-white flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-red-500" />
+              Remove Coach?
+            </h2>
+            <p className="text-zinc-600 dark:text-zinc-400 mb-6">
+              Are you sure you want to remove <strong className="text-zinc-900 dark:text-white">{removeCoachConfirm.name}</strong> from the team? 
+              They will no longer have access to team content.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setRemoveCoachConfirm(null)}
+                disabled={removingCoach}
+                className="flex-1 px-4 py-2 bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRemoveCoach}
+                disabled={removingCoach}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {removingCoach ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Removing...
+                  </>
+                ) : (
+                  <>
+                    <UserMinus className="w-4 h-4" />
+                    Remove
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* MODALS (Styled) */}

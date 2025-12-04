@@ -69,6 +69,7 @@ export interface Team {
   id: string;
   name: string;
   coachId: string | null;
+  headCoachId?: string | null; // Designated head coach who can manage other coaches
   record?: {
       wins: number;
       losses: number;

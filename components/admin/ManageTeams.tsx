@@ -6,7 +6,7 @@ import {
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Team, UserProfile } from '../../types';
-import { Plus, Trash2, Edit2, Users, FileText, MessageCircle, AlertTriangle, Search, X, Check, UserX, UserCheck } from 'lucide-react';
+import { Plus, Trash2, Edit2, Users, FileText, MessageCircle, AlertTriangle, Search, X, Check, UserX, UserCheck, Shield } from 'lucide-react';
 
 type ModalContent = 'roster' | 'posts' | 'chat';
 
@@ -41,6 +41,8 @@ const ManageTeams: React.FC = () => {
     const [newTeamId, setNewTeamId] = useState('');
     const [editTeamName, setEditTeamName] = useState('');
     const [editCoachId, setEditCoachId] = useState<string | null>(null);
+    const [editHeadCoachId, setEditHeadCoachId] = useState<string | null>(null);
+    const [teamCoaches, setTeamCoaches] = useState<CoachOption[]>([]); // Coaches currently on this team
     const [createError, setCreateError] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
@@ -201,11 +203,14 @@ const ManageTeams: React.FC = () => {
         try {
             const oldCoachId = selectedTeam.coachId;
             const newCoachId = editCoachId;
+            const oldHeadCoachId = selectedTeam.headCoachId;
+            const newHeadCoachId = editHeadCoachId;
             
             // Update team document
             await updateDoc(doc(db, 'teams', selectedTeam.id), { 
                 name: editTeamName,
-                coachId: newCoachId 
+                coachId: newCoachId,
+                headCoachId: newHeadCoachId
             });
             
             // If coach changed, update user documents
@@ -249,6 +254,11 @@ const ManageTeams: React.FC = () => {
                 if (!newCoachId) changes.push('coach unassigned');
                 else if (!oldCoachId) changes.push(`coach assigned: ${coachLookup[newCoachId] || newCoachId}`);
                 else changes.push(`coach changed from ${coachLookup[oldCoachId] || oldCoachId} to ${coachLookup[newCoachId] || newCoachId}`);
+            }
+            if (oldHeadCoachId !== newHeadCoachId) {
+                const oldHeadName = oldHeadCoachId ? (coachLookup[oldHeadCoachId] || oldHeadCoachId) : 'none';
+                const newHeadName = newHeadCoachId ? (coachLookup[newHeadCoachId] || newHeadCoachId) : 'none';
+                changes.push(`head coach changed from ${oldHeadName} to ${newHeadName}`);
             }
             if (changes.length > 0) {
                 await logActivity('UPDATE', 'team', selectedTeam.id, `Updated team "${selectedTeam.name}": ${changes.join(', ')}`);
@@ -317,10 +327,31 @@ const ManageTeams: React.FC = () => {
     };
     // --- END CRITICAL DATA INTEGRITY FIX ---
 
-    const openEditModal = (team: Team) => { 
+    const openEditModal = async (team: Team) => { 
         setSelectedTeam(team); 
         setEditTeamName(team.name); 
         setEditCoachId(team.coachId || null);
+        setEditHeadCoachId(team.headCoachId || null);
+        
+        // Load all coaches currently on this team
+        try {
+            const coachesOnTeamQuery = query(
+                collection(db, 'users'), 
+                where('role', '==', 'Coach'),
+                where('teamId', '==', team.id)
+            );
+            const snapshot = await getDocs(coachesOnTeamQuery);
+            const coaches = snapshot.docs.map(docSnap => ({
+                id: docSnap.id,
+                name: (docSnap.data() as UserProfile).username || (docSnap.data() as UserProfile).name,
+                currentTeamId: team.id
+            }));
+            setTeamCoaches(coaches);
+        } catch (error) {
+            console.error("Error loading team coaches:", error);
+            setTeamCoaches([]);
+        }
+        
         setEditModalOpen(true); 
     }
     const openViewModal = (team: Team, contentType: ModalContent) => { setSelectedTeam(team); setModalContent(contentType); setViewModalOpen(true); }
@@ -636,6 +667,40 @@ const ManageTeams: React.FC = () => {
                                               : 'Coach will be assigned to this team'}
                                       </p>
                                   )}
+                              </div>
+                          )}
+                      </div>
+                      
+                      {/* Head Coach Designation */}
+                      <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            Head Coach
+                            <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">(can manage other coaches)</span>
+                          </label>
+                          <select
+                              value={editHeadCoachId || ''}
+                              onChange={(e) => setEditHeadCoachId(e.target.value || null)}
+                              className="w-full bg-slate-50 dark:bg-zinc-900 p-3 rounded border border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500"
+                          >
+                              <option value="">— No Head Coach Designated —</option>
+                              {teamCoaches.map(coach => (
+                                  <option key={coach.id} value={coach.id}>
+                                      {coach.name}
+                                      {selectedTeam.headCoachId === coach.id ? ' (current head coach)' : ''}
+                                  </option>
+                              ))}
+                          </select>
+                          {teamCoaches.length === 0 && (
+                              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                                  No coaches currently assigned to this team. Assign coaches first to designate a head coach.
+                              </p>
+                          )}
+                          {editHeadCoachId !== (selectedTeam.headCoachId || null) && editHeadCoachId && (
+                              <div className="mt-2 p-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/50 rounded text-sm">
+                                  <p className="text-purple-700 dark:text-purple-400 flex items-center gap-2">
+                                      <Shield className="w-4 h-4" /> 
+                                      {teamCoaches.find(c => c.id === editHeadCoachId)?.name} will be designated as Head Coach and can remove other coaches from the team.
+                                  </p>
                               </div>
                           )}
                       </div>
