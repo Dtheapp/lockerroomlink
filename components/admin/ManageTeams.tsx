@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
     collection, onSnapshot, setDoc, doc, deleteDoc, updateDoc, 
-    query, orderBy, getDoc, getDocs, where, writeBatch, limit, addDoc, serverTimestamp
+    query, orderBy, getDoc, getDocs, where, writeBatch, limit, addDoc, serverTimestamp,
+    arrayUnion, arrayRemove
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -244,9 +245,12 @@ const ManageTeams: React.FC = () => {
             
             // If coach changed, update user documents
             if (oldCoachId !== newCoachId) {
-                // Unlink old coach from this team
+                // Unlink old coach from this team (remove from teamIds array)
                 if (oldCoachId) {
-                    await updateDoc(doc(db, 'users', oldCoachId), { teamId: null });
+                    await updateDoc(doc(db, 'users', oldCoachId), { 
+                        teamId: null,
+                        teamIds: arrayRemove(selectedTeam.id)
+                    });
                 }
                 
                 // Link new coach to this team (if not unassigning)
@@ -257,8 +261,11 @@ const ManageTeams: React.FC = () => {
                         // Update their old team to remove this coach
                         await updateDoc(doc(db, 'teams', newCoach.currentTeamId), { coachId: null });
                     }
-                    // Assign new coach to this team
-                    await updateDoc(doc(db, 'users', newCoachId), { teamId: selectedTeam.id });
+                    // Assign new coach to this team - add to teamIds array for multi-team support
+                    await updateDoc(doc(db, 'users', newCoachId), { 
+                        teamId: selectedTeam.id,
+                        teamIds: arrayUnion(selectedTeam.id)
+                    });
                 }
             }
             

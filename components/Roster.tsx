@@ -607,11 +607,17 @@ const Roster: React.FC = () => {
     setAddingCoach(true);
     try {
       // Add team to coach's teamIds array (supports multiple teams)
-      // Also set teamId for backward compatibility
-      await updateDoc(doc(db, 'users', coach.uid), { 
-        teamId: teamData.id,
+      // Only set teamId if coach doesn't have one yet (preserve their primary team)
+      const updateData: any = {
         teamIds: arrayUnion(teamData.id)
-      });
+      };
+      
+      // If coach has no teamId, set this as their primary team
+      if (!coach.teamId) {
+        updateData.teamId = teamData.id;
+      }
+      
+      await updateDoc(doc(db, 'users', coach.uid), updateData);
       
       // Log the action
       await addDoc(collection(db, 'adminActivityLog'), {

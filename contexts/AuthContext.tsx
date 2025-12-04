@@ -62,8 +62,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setTeamData(team);
     if (userData && userData.role === 'Coach') {
       try {
+        // Only update selectedTeamId, NOT teamId (to preserve multi-team assignment)
         await updateDoc(doc(db, 'users', userData.uid), {
-          teamId: team.id,
           selectedTeamId: team.id
         });
       } catch (error) {
@@ -148,36 +148,40 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 else if (profile.role === 'Coach') {
                     try {
                         // Get teams from teamIds array (for coaches on multiple teams)
-                        const teamIds = profile.teamIds || [];
-                        // Also include legacy teamId if not in array
-                        if (profile.teamId && !teamIds.includes(profile.teamId)) {
-                            teamIds.push(profile.teamId);
+                        let teamIdsList: string[] = [];
+                        
+                        // Prioritize teamIds array
+                        if (profile.teamIds && profile.teamIds.length > 0) {
+                            teamIdsList = [...profile.teamIds];
                         }
                         
-                        if (teamIds.length > 0) {
-                            // Load all teams for this coach
-                            const allTeams: Team[] = [];
-                            for (const teamId of teamIds) {
-                                const teamDocRef = doc(db, 'teams', teamId);
-                                const teamSnap = await getDocs(query(collection(db, 'teams'), where('__name__', '==', teamId)));
-                                // Use getDoc pattern instead
-                            }
-                            
+                        // Also include legacy teamId if not already in array
+                        if (profile.teamId && !teamIdsList.includes(profile.teamId)) {
+                            teamIdsList.push(profile.teamId);
+                        }
+                        
+                        console.log('Coach teamIds:', teamIdsList); // Debug log
+                        
+                        if (teamIdsList.length > 0) {
                             // Fetch all teams at once
                             const teamsSnapshot = await getDocs(collection(db, 'teams'));
+                            const allTeams: Team[] = [];
                             teamsSnapshot.docs.forEach(teamDoc => {
-                                if (teamIds.includes(teamDoc.id)) {
+                                if (teamIdsList.includes(teamDoc.id)) {
                                     allTeams.push({ id: teamDoc.id, ...teamDoc.data() } as Team);
                                 }
                             });
                             
+                            console.log('Loaded coach teams:', allTeams.length); // Debug log
+                            
+                            // Always set coach teams - this is the key fix
                             setCoachTeams(allTeams);
                             
                             // Auto-select team
                             if (allTeams.length > 0) {
                                 let teamToSelect = allTeams[0];
                                 
-                                // If user has a saved selectedTeamId or teamId, try to find it
+                                // If user has a saved selectedTeamId, try to find it
                                 const savedTeamId = profile.selectedTeamId || profile.teamId;
                                 if (savedTeamId) {
                                     const saved = allTeams.find(t => t.id === savedTeamId);
