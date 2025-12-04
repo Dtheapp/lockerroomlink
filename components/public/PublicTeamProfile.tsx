@@ -3,13 +3,18 @@ import { useParams, Link } from 'react-router-dom';
 import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import type { Player, Team, PlayerSeasonStats, Game, TeamEvent, UserProfile } from '../../types';
-import { Users, Trophy, Calendar, MapPin, Clock, User, Crown, Star, Shield, Sword, TrendingUp, ChevronRight, Home } from 'lucide-react';
+import { Users, Trophy, Calendar, MapPin, Clock, User, Crown, Star, Shield, Sword, TrendingUp, ChevronRight, Home, X, Heart, Award } from 'lucide-react';
 
 interface TeamCoach {
   id: string;
   name: string;
   email?: string;
   isHeadCoach?: boolean;
+}
+
+interface SportsmanshipLeader {
+  player: Player;
+  sportsmanshipPoints: number;
 }
 
 interface PublicTeamData {
@@ -25,6 +30,7 @@ interface PublicTeamData {
     totalPassYards: number;
     totalTackles: number;
   };
+  sportsmanshipLeader: SportsmanshipLeader | null;
 }
 
 const PublicTeamProfile: React.FC = () => {
@@ -32,6 +38,7 @@ const PublicTeamProfile: React.FC = () => {
   const [data, setData] = useState<PublicTeamData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<TeamEvent | null>(null);
 
   useEffect(() => {
     const fetchTeamData = async () => {
@@ -113,9 +120,11 @@ const PublicTeamProfile: React.FC = () => {
           .sort((a, b) => a.date.localeCompare(b.date))
           .slice(0, 5);
 
-        // Get aggregated season stats
+        // Get aggregated season stats and find sportsmanship leader
         const seasonStatsSnapshot = await getDocs(collection(db, 'teams', teamId, 'seasonStats'));
         let totalTds = 0, totalRushYards = 0, totalPassYards = 0, totalTackles = 0;
+        let topSportsmanshipPoints = 0;
+        let topSportsmanshipPlayerId: string | null = null;
         
         seasonStatsSnapshot.docs.forEach(statDoc => {
           const stats = statDoc.data() as PlayerSeasonStats;
@@ -124,8 +133,27 @@ const PublicTeamProfile: React.FC = () => {
             totalRushYards += stats.rushYards || 0;
             totalPassYards += stats.passYards || 0;
             totalTackles += stats.tackles || 0;
+            
+            // Track sportsmanship leader (spts field)
+            const spts = (stats as any).spts || 0;
+            if (spts > topSportsmanshipPoints) {
+              topSportsmanshipPoints = spts;
+              topSportsmanshipPlayerId = stats.playerId;
+            }
           }
         });
+
+        // Find the sportsmanship leader player data
+        let sportsmanshipLeader: SportsmanshipLeader | null = null;
+        if (topSportsmanshipPlayerId && topSportsmanshipPoints > 0) {
+          const leaderPlayer = players.find(p => p.id === topSportsmanshipPlayerId);
+          if (leaderPlayer) {
+            sportsmanshipLeader = {
+              player: leaderPlayer,
+              sportsmanshipPoints: topSportsmanshipPoints
+            };
+          }
+        }
 
         setData({
           team,
@@ -134,7 +162,8 @@ const PublicTeamProfile: React.FC = () => {
           games,
           upcomingEvents,
           seasonRecord,
-          seasonStats: { totalTds, totalRushYards, totalPassYards, totalTackles }
+          seasonStats: { totalTds, totalRushYards, totalPassYards, totalTackles },
+          sportsmanshipLeader
         });
       } catch (err) {
         console.error('Error fetching team data:', err);
@@ -193,7 +222,7 @@ const PublicTeamProfile: React.FC = () => {
     );
   }
 
-  const { team, coaches, players, games, upcomingEvents, seasonRecord, seasonStats } = data;
+  const { team, coaches, players, games, upcomingEvents, seasonRecord, seasonStats, sportsmanshipLeader } = data;
   const currentYear = new Date().getFullYear();
 
   return (
@@ -389,7 +418,11 @@ const PublicTeamProfile: React.FC = () => {
                     const typeColor = event.type === 'Game' ? 'bg-orange-500' : event.type === 'Practice' ? 'bg-emerald-500' : 'bg-blue-500';
                     
                     return (
-                      <div key={event.id} className="bg-zinc-900/50 rounded-lg p-3 border border-zinc-700">
+                      <div 
+                        key={event.id} 
+                        className="bg-zinc-900/50 rounded-lg p-3 border border-zinc-700 cursor-pointer hover:border-zinc-500 hover:bg-zinc-800/50 transition-all"
+                        onClick={() => setSelectedEvent(event)}
+                      >
                         <div className="flex items-start gap-3">
                           <div className={`w-2 h-2 ${typeColor} rounded-full mt-1.5 flex-shrink-0`} />
                           <div className="flex-1 min-w-0">
@@ -412,6 +445,7 @@ const PublicTeamProfile: React.FC = () => {
                               </p>
                             )}
                           </div>
+                          <ChevronRight className="w-4 h-4 text-zinc-500 flex-shrink-0" />
                         </div>
                       </div>
                     );
@@ -419,6 +453,65 @@ const PublicTeamProfile: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* Sportsmanship Star */}
+            {sportsmanshipLeader && (
+              <div className="bg-gradient-to-br from-amber-900/30 to-orange-900/30 rounded-xl border border-amber-700/50 p-6 relative overflow-hidden">
+                {/* Sparkle decorations */}
+                <div className="absolute top-2 right-2 text-amber-400/30">
+                  <Star className="w-6 h-6" fill="currentColor" />
+                </div>
+                <div className="absolute bottom-2 left-2 text-amber-400/20">
+                  <Star className="w-4 h-4" fill="currentColor" />
+                </div>
+                
+                <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <Award className="w-5 h-5 text-amber-400" />
+                  <span className="bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
+                    Sportsmanship Star
+                  </span>
+                </h2>
+                
+                <div className="flex items-center gap-4">
+                  {/* Player Photo/Avatar */}
+                  <div className="relative">
+                    {sportsmanshipLeader.player.photoUrl ? (
+                      <img 
+                        src={sportsmanshipLeader.player.photoUrl} 
+                        alt={sportsmanshipLeader.player.name}
+                        className="w-16 h-16 rounded-full object-cover border-2 border-amber-400 shadow-lg shadow-amber-500/20"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center border-2 border-amber-400 shadow-lg shadow-amber-500/20">
+                        <span className="text-white font-bold text-xl">
+                          {sportsmanshipLeader.player.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                    <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-amber-400 rounded-full flex items-center justify-center border-2 border-zinc-900">
+                      <Heart className="w-3 h-3 text-zinc-900" fill="currentColor" />
+                    </div>
+                  </div>
+                  
+                  {/* Player Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-white text-lg truncate">{sportsmanshipLeader.player.name}</p>
+                    <p className="text-amber-400/80 text-sm">
+                      #{sportsmanshipLeader.player.number || '--'} • {sportsmanshipLeader.player.position || 'Player'}
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Star className="w-4 h-4 text-amber-400" fill="currentColor" />
+                      <span className="text-amber-300 font-bold text-lg">{sportsmanshipLeader.sportsmanshipPoints}</span>
+                      <span className="text-amber-400/60 text-xs">sportsmanship points</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <p className="mt-4 text-xs text-amber-400/60 italic text-center">
+                  ✨ Leading by example on and off the field ✨
+                </p>
+              </div>
+            )}
 
             {/* Top Performers */}
             <div className="bg-zinc-800/50 rounded-xl border border-zinc-700 p-6">
@@ -460,6 +553,84 @@ const PublicTeamProfile: React.FC = () => {
           <p>Powered by <span className="text-orange-500 font-bold">LockerRoom</span></p>
         </footer>
       </main>
+
+      {/* Event Detail Modal */}
+      {selectedEvent && (
+        <div 
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          onClick={() => setSelectedEvent(null)}
+        >
+          <div 
+            className="bg-zinc-900 rounded-xl border border-zinc-700 max-w-md w-full max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="relative p-6 border-b border-zinc-700">
+              <div className={`absolute top-0 left-0 right-0 h-1 ${
+                selectedEvent.type === 'Game' ? 'bg-orange-500' : 
+                selectedEvent.type === 'Practice' ? 'bg-emerald-500' : 'bg-blue-500'
+              }`} />
+              <button
+                onClick={() => setSelectedEvent(null)}
+                className="absolute top-4 right-4 p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-zinc-400" />
+              </button>
+              <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium mb-2 ${
+                selectedEvent.type === 'Game' ? 'bg-orange-500/20 text-orange-400' : 
+                selectedEvent.type === 'Practice' ? 'bg-emerald-500/20 text-emerald-400' : 
+                'bg-blue-500/20 text-blue-400'
+              }`}>
+                {selectedEvent.type}
+              </span>
+              <h3 className="text-xl font-bold text-white pr-8">{selectedEvent.title}</h3>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              {/* Date & Time */}
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center flex-shrink-0">
+                  <Calendar className="w-5 h-5 text-orange-500" />
+                </div>
+                <div>
+                  <p className="text-white font-medium">
+                    {formatDate(selectedEvent.date, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  </p>
+                  {selectedEvent.time && (
+                    <p className="text-zinc-400 text-sm flex items-center gap-1 mt-1">
+                      <Clock className="w-3 h-3" />
+                      {formatTime(selectedEvent.time)}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Location */}
+              {selectedEvent.location && (
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                    <MapPin className="w-5 h-5 text-emerald-500" />
+                  </div>
+                  <div>
+                    <p className="text-white font-medium">{selectedEvent.location}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Description */}
+              {selectedEvent.description && (
+                <div className="pt-4 border-t border-zinc-700">
+                  <h4 className="text-sm font-medium text-zinc-400 mb-2">Details</h4>
+                  <p className="text-white text-sm leading-relaxed">
+                    {selectedEvent.description}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
