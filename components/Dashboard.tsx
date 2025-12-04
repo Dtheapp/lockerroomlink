@@ -759,6 +759,20 @@ const Dashboard: React.FC = () => {
                     </a>
                   </div>
                 )}
+
+                {/* Public Team Page Link - Parents */}
+                {userData?.role === 'Parent' && teamData?.id && (
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`#/team/${teamData.id}`}
+                      className="flex items-center gap-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 px-3 py-1.5 rounded-lg transition-colors"
+                      title="View public team page"
+                    >
+                      <ExternalLink className="w-3 h-3 text-purple-400" />
+                      <span className="text-xs text-purple-300 font-medium">View Team's Public Page</span>
+                    </a>
+                  </div>
+                )}
               </div>
           </div>
       </div>
