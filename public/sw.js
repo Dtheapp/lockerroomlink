@@ -1,8 +1,13 @@
-const CACHE_NAME = 'lockerroom-v1';
+const CACHE_NAME = 'lockerroom-v2';
+const OFFLINE_URL = '/offline.html';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/offline.html',
+  '/manifest.json',
+  '/icons/icon.svg',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png'
 ];
 
 // Install event - cache static assets
@@ -74,9 +79,11 @@ self.addEventListener('fetch', (event) => {
             return cachedResponse;
           }
           
-          // If it's a navigation request, return the cached index.html
+          // If it's a navigation request, return the offline page
           if (event.request.mode === 'navigate') {
-            return caches.match('/index.html');
+            return caches.match(OFFLINE_URL).then((offlineResponse) => {
+              return offlineResponse || caches.match('/index.html');
+            });
           }
           
           // Return a fallback for other requests

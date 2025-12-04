@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import InstallPrompt from './components/InstallPrompt';
 
 // Layouts (loaded immediately as they're structural)
 import Layout from './layout/Layout';
@@ -48,6 +49,7 @@ const App: React.FC = () => {
       <ThemeProvider>
         <AuthProvider>
           <AppContent />
+          <InstallPrompt />
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>
