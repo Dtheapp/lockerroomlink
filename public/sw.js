@@ -45,8 +45,13 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (event.request.method !== 'GET') return;
   
-  // Skip Firebase and external API requests (always need fresh data)
+  // Skip non-http(s) requests (chrome-extension://, etc.)
   const url = new URL(event.request.url);
+  if (!url.protocol.startsWith('http')) {
+    return;
+  }
+  
+  // Skip Firebase and external API requests (always need fresh data)
   if (
     url.hostname.includes('firebaseio.com') ||
     url.hostname.includes('googleapis.com') ||
