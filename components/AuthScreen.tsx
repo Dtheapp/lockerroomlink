@@ -3,8 +3,13 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswor
 import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import type { UserProfile } from '../types';
-import { Mail, ArrowLeft, CheckCircle, Lock } from 'lucide-react';
+import { Mail, ArrowLeft, CheckCircle, Lock, Download, Share, PlusSquare, Smartphone, X } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
 
 type AuthMode = 'Parent' | 'Coach' | 'Admin';
 const ADMIN_MODE: AuthMode = 'Admin';
@@ -32,6 +37,58 @@ const AuthScreen: React.FC = () => {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState(''); 
   const [loading, setLoading] = useState(false);
+
+  // PWA Install State
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [showIOSInstall, setShowIOSInstall] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [showInstallBanner, setShowInstallBanner] = useState(true);
+
+  // Check if already installed as PWA
+  useEffect(() => {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                         (window.navigator as any).standalone === true;
+    setIsInstalled(isStandalone);
+    
+    // Check if user dismissed banner before (for this session only)
+    const dismissed = sessionStorage.getItem('installBannerDismissed');
+    if (dismissed) setShowInstallBanner(false);
+  }, []);
+
+  // Listen for Android/Chrome install prompt
+  useEffect(() => {
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    };
+    
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+  }, []);
+
+  // Detect iOS
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+  const canShowInstall = !isInstalled && (deferredPrompt || (isIOS && isSafari));
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      // Android/Chrome - trigger native prompt
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+      }
+    } else if (isIOS && isSafari) {
+      // iOS - show instructions
+      setShowIOSInstall(true);
+    }
+  };
+
+  const dismissInstallBanner = () => {
+    setShowInstallBanner(false);
+    sessionStorage.setItem('installBannerDismissed', 'true');
+  };
 
   useEffect(() => {
       const mode = searchParams.get('mode');
@@ -261,7 +318,95 @@ const AuthScreen: React.FC = () => {
 
       {/* MAIN AUTH FORM */}
       {!isConfirmingReset && !isResettingPassword && (
-        <div className="w-full max-w-md bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-800 p-8 relative overflow-hidden my-auto">
+        <div className="w-full max-w-md my-auto">
+          
+          {/* INSTALL APP BANNER */}
+          {canShowInstall && showInstallBanner && (
+            <div className="bg-gradient-to-r from-orange-600 to-orange-500 rounded-xl p-4 mb-4 shadow-lg relative">
+              <button 
+                onClick={dismissInstallBanner}
+                className="absolute top-2 right-2 text-white/60 hover:text-white p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Smartphone className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-white font-bold text-sm">Get the App Experience</h3>
+                  <p className="text-white/80 text-xs">Install LockerRoom for quick access</p>
+                </div>
+                <button
+                  onClick={handleInstallClick}
+                  className="bg-white text-orange-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-orange-50 transition-colors flex items-center gap-1.5 flex-shrink-0"
+                >
+                  <Download className="w-4 h-4" />
+                  Install
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* iOS INSTALL INSTRUCTIONS MODAL */}
+          {showIOSInstall && (
+            <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowIOSInstall(false)}>
+              <div 
+                className="w-full max-w-md bg-zinc-900 rounded-2xl p-6 border border-zinc-800 animate-slide-up"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-white font-bold text-lg">Install LockerRoom</h3>
+                  <button onClick={() => setShowIOSInstall(false)} className="text-zinc-500 hover:text-white">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <p className="text-zinc-400 text-sm mb-4">To install on your iPhone/iPad:</p>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 bg-zinc-800/50 rounded-xl p-3">
+                    <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Share className="w-5 h-5 text-blue-400" />
+                    </div>
+                    <div>
+                      <p className="text-white text-sm font-medium">Step 1</p>
+                      <p className="text-zinc-400 text-xs">Tap the <strong className="text-blue-400">Share</strong> button at the bottom of Safari</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 bg-zinc-800/50 rounded-xl p-3">
+                    <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <PlusSquare className="w-5 h-5 text-green-400" />
+                    </div>
+                    <div>
+                      <p className="text-white text-sm font-medium">Step 2</p>
+                      <p className="text-zinc-400 text-xs">Scroll down and tap <strong className="text-green-400">"Add to Home Screen"</strong></p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 bg-zinc-800/50 rounded-xl p-3">
+                    <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <CheckCircle className="w-5 h-5 text-orange-400" />
+                    </div>
+                    <div>
+                      <p className="text-white text-sm font-medium">Step 3</p>
+                      <p className="text-zinc-400 text-xs">Tap <strong className="text-orange-400">"Add"</strong> to install</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <button 
+                  onClick={() => setShowIOSInstall(false)}
+                  className="w-full mt-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-sm font-medium transition-colors"
+                >
+                  Got it
+                </button>
+              </div>
+            </div>
+          )}
+
+        <div className="bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-800 p-8 relative overflow-hidden">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1 bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-50"></div>
           <h1 className="text-3xl font-black tracking-tighter text-center text-white mb-2">LOCKER<span className="text-orange-500">ROOM</span></h1>
           <p className="text-center text-zinc-500 mb-8 text-sm uppercase tracking-widest font-bold">Digital Locker Room</p>
@@ -291,6 +436,7 @@ const AuthScreen: React.FC = () => {
                 </div>
             )}
           </form>
+        </div>
         </div>
       )}
     </div>
