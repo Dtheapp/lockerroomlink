@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { doc, updateDoc, collection, addDoc, query, where, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, collection, addDoc, query, where, onSnapshot, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye, Sword, User, Camera, Star, Crown, Ruler, Scale } from 'lucide-react';
-import type { Player, MedicalInfo } from '../types';
+import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye, Sword, User, Camera, Star, Crown, Ruler, Scale, Users, Trash2 } from 'lucide-react';
+import type { Player, MedicalInfo, Team } from '../types';
 import PlayerStatsModal from './stats/PlayerStatsModal';
 
 const Profile: React.FC = () => {
@@ -27,6 +27,26 @@ const Profile: React.FC = () => {
   const [selectedAthlete, setSelectedAthlete] = useState<Player | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
+  // All Teams for team selection
+  const [allTeams, setAllTeams] = useState<Team[]>([]);
+  
+  // Add Athlete Modal state
+  const [isAddAthleteModalOpen, setIsAddAthleteModalOpen] = useState(false);
+  const [addingAthlete, setAddingAthlete] = useState(false);
+  const [newAthleteForm, setNewAthleteForm] = useState({
+    name: '',
+    dob: '',
+    teamId: '',
+    height: '',
+    weight: '',
+    shirtSize: '',
+    pantSize: ''
+  });
+  
+  // Delete athlete confirmation
+  const [deleteAthleteConfirm, setDeleteAthleteConfirm] = useState<Player | null>(null);
+  const [deletingAthlete, setDeletingAthlete] = useState(false);
+  
   // Player Stats Modal state
   const [viewStatsPlayer, setViewStatsPlayer] = useState<Player | null>(null);
 
@@ -38,6 +58,7 @@ const Profile: React.FC = () => {
     weight: '',
     shirtSize: '',
     pantSize: '',
+    teamId: '', // NEW: Team selection for changing teams
     // Medical
     allergies: '',
     conditions: '',
@@ -68,6 +89,23 @@ const Profile: React.FC = () => {
           setMyAthletes(contextPlayers);
       }
   }, [userData, contextPlayers]);
+
+  // 3. Load all teams for team selection
+  useEffect(() => {
+    const fetchAllTeams = async () => {
+      try {
+        const teamsSnapshot = await getDocs(collection(db, 'teams'));
+        const teamsData = teamsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
+        setAllTeams(teamsData);
+      } catch (err) {
+        console.error("Error fetching teams:", err);
+      }
+    };
+    
+    if (userData?.role === 'Parent') {
+      fetchAllTeams();
+    }
+  }, [userData?.role]);
 
   // --- HANDLERS ---
 
@@ -105,6 +143,7 @@ const Profile: React.FC = () => {
         weight: player.weight || '',
         shirtSize: player.shirtSize || '',
         pantSize: player.pantSize || '',
+        teamId: player.teamId || '',
         allergies: player.medical?.allergies || '',
         conditions: player.medical?.conditions || '',
         medications: player.medical?.medications || '',
@@ -119,7 +158,6 @@ const Profile: React.FC = () => {
 
       setSavingPlayer(true);
       try {
-          const playerRef = doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id);
           const medicalData: MedicalInfo = {
               allergies: editForm.allergies,
               conditions: editForm.conditions,
@@ -127,15 +165,49 @@ const Profile: React.FC = () => {
               bloodType: editForm.bloodType
           };
           
-          await updateDoc(playerRef, { 
-            name: editForm.name,
-            dob: editForm.dob,
-            height: editForm.height,
-            weight: editForm.weight,
-            shirtSize: editForm.shirtSize,
-            pantSize: editForm.pantSize,
-            medical: medicalData 
-          });
+          // Check if team is changing
+          const isTeamChanging = editForm.teamId && editForm.teamId !== selectedAthlete.teamId;
+          
+          if (isTeamChanging) {
+            // Move player to new team
+            // 1. Create player in new team
+            const newPlayerData = {
+              name: editForm.name,
+              dob: editForm.dob,
+              height: editForm.height,
+              weight: editForm.weight,
+              shirtSize: editForm.shirtSize,
+              pantSize: editForm.pantSize,
+              medical: medicalData,
+              parentId: user?.uid,
+              teamId: editForm.teamId,
+              number: 0, // Reset - coach will assign
+              position: 'TBD',
+              stats: selectedAthlete.stats || { td: 0, tkl: 0 },
+              photoUrl: selectedAthlete.photoUrl || null
+            };
+            
+            await addDoc(collection(db, 'teams', editForm.teamId, 'players'), newPlayerData);
+            
+            // 2. Delete player from old team
+            await deleteDoc(doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id));
+            
+            // Reload page to refresh context
+            window.location.reload();
+          } else {
+            // Same team - just update
+            const playerRef = doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id);
+            await updateDoc(playerRef, { 
+              name: editForm.name,
+              dob: editForm.dob,
+              height: editForm.height,
+              weight: editForm.weight,
+              shirtSize: editForm.shirtSize,
+              pantSize: editForm.pantSize,
+              medical: medicalData 
+            });
+          }
+          
           setIsEditModalOpen(false);
           setSelectedAthlete(null);
       } catch (error) {
@@ -145,6 +217,68 @@ const Profile: React.FC = () => {
           setSavingPlayer(false);
       }
   }
+  
+  // Handle adding a new athlete
+  const handleAddAthlete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (addingAthlete || !user) return;
+    
+    if (!newAthleteForm.teamId) {
+      alert('Please select a team for your athlete');
+      return;
+    }
+    
+    setAddingAthlete(true);
+    try {
+      const playerData = {
+        name: newAthleteForm.name,
+        dob: newAthleteForm.dob,
+        teamId: newAthleteForm.teamId,
+        parentId: user.uid,
+        height: newAthleteForm.height,
+        weight: newAthleteForm.weight,
+        shirtSize: newAthleteForm.shirtSize,
+        pantSize: newAthleteForm.pantSize,
+        number: 0, // Placeholder - coach will assign
+        position: 'TBD', // To be determined by coach
+        stats: { td: 0, tkl: 0 },
+        medical: { allergies: 'None', conditions: 'None', medications: 'None', bloodType: '' }
+      };
+      
+      await addDoc(collection(db, 'teams', newAthleteForm.teamId, 'players'), playerData);
+      
+      // Reset form and close modal
+      setNewAthleteForm({ name: '', dob: '', teamId: '', height: '', weight: '', shirtSize: '', pantSize: '' });
+      setIsAddAthleteModalOpen(false);
+      
+      // Reload to refresh context with new player
+      window.location.reload();
+    } catch (error) {
+      console.error('Error adding athlete:', error);
+      alert('Failed to add athlete. Please try again.');
+    } finally {
+      setAddingAthlete(false);
+    }
+  };
+  
+  // Handle deleting an athlete
+  const handleDeleteAthlete = async () => {
+    if (!deleteAthleteConfirm || deletingAthlete) return;
+    
+    setDeletingAthlete(true);
+    try {
+      await deleteDoc(doc(db, 'teams', deleteAthleteConfirm.teamId, 'players', deleteAthleteConfirm.id));
+      setDeleteAthleteConfirm(null);
+      
+      // Reload to refresh context
+      window.location.reload();
+    } catch (error) {
+      console.error('Error deleting athlete:', error);
+      alert('Failed to remove athlete. Please try again.');
+    } finally {
+      setDeletingAthlete(false);
+    }
+  };
 
   // Photo upload handlers
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -357,17 +491,25 @@ const Profile: React.FC = () => {
           <div className="space-y-6">
               <div className="flex justify-between items-center">
                   <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2"><Shield className="text-sky-500"/> My Athletes</h2>
+                  <button 
+                    onClick={() => setIsAddAthleteModalOpen(true)}
+                    className="flex items-center gap-2 bg-orange-600 hover:bg-orange-500 text-white px-4 py-2 rounded-lg transition-colors shadow-lg shadow-orange-900/20"
+                  >
+                    <Plus className="w-5 h-5" /> Add Athlete
+                  </button>
               </div>
 
               {myAthletes.length === 0 ? (
                   <div className="bg-slate-50 dark:bg-slate-900 p-8 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
-                      <p className="text-slate-600 dark:text-slate-400 mb-3">You haven't added any athletes yet.</p>
-                      <a 
-                        href="#/roster" 
-                        className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                      <Users className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+                      <p className="text-slate-600 dark:text-slate-400 mb-4">You haven't added any athletes yet.</p>
+                      <p className="text-sm text-slate-500 mb-4">Add your athlete to join a team and access all features.</p>
+                      <button 
+                        onClick={() => setIsAddAthleteModalOpen(true)}
+                        className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-lg"
                       >
-                        <Plus className="h-4 w-4" /> Add Your First Player
-                      </a>
+                        <Plus className="h-5 w-5" /> Add Your First Athlete
+                      </button>
                   </div>
               ) : (
                   <div className="grid md:grid-cols-2 gap-6">
@@ -379,6 +521,7 @@ const Profile: React.FC = () => {
                           const isHealthy = !allergies && !conditions && !meds;
                           const isStarter = player.isStarter;
                           const isCaptain = player.isCaptain;
+                          const playerTeam = allTeams.find(t => t.id === player.teamId);
 
                           return (
                             <div 
@@ -397,6 +540,15 @@ const Profile: React.FC = () => {
                                     <span className="text-[10px] font-bold text-white uppercase tracking-wide">Starter</span>
                                   </div>
                                 )}
+                                
+                                {/* Delete Button - Top Right */}
+                                <button 
+                                  onClick={() => setDeleteAthleteConfirm(player)}
+                                  className="absolute top-2 right-2 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors z-10"
+                                  title="Remove Athlete"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
 
                                 {/* Player Photo & Basic Info */}
                                 <div className={`flex items-start gap-4 ${isStarter ? 'mt-6' : ''}`}>
@@ -430,6 +582,11 @@ const Profile: React.FC = () => {
                                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                                             <span className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs px-2 py-1 rounded font-bold">#{player.number || '?'}</span>
                                             <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700">{player.position || 'TBD'}</span>
+                                        </div>
+                                        {/* Team Badge */}
+                                        <div className="flex items-center gap-1 mt-1.5">
+                                          <Users className="w-3 h-3 text-sky-500" />
+                                          <span className="text-xs text-sky-600 dark:text-sky-400 font-medium">{playerTeam?.name || 'Unknown Team'}</span>
                                         </div>
                                         <p className="text-xs text-slate-500 mt-1">DOB: {player.dob || '--'}</p>
                                     </div>
@@ -628,6 +785,27 @@ const Profile: React.FC = () => {
                         </div>
                       </div>
 
+                      {/* Team Selection */}
+                      <div>
+                        <p className="text-xs font-bold text-sky-600 dark:text-sky-400 mb-3 uppercase tracking-wider flex items-center gap-1">
+                          <Users className="w-3 h-3" /> Team Assignment
+                        </p>
+                        <select 
+                          value={editForm.teamId} 
+                          onChange={e => setEditForm({...editForm, teamId: e.target.value})} 
+                          className="w-full bg-white dark:bg-black border border-sky-300 dark:border-sky-700 rounded-lg p-3 text-slate-900 dark:text-white"
+                        >
+                          {allTeams.map(team => (
+                            <option key={team.id} value={team.id}>{team.name}</option>
+                          ))}
+                        </select>
+                        {editForm.teamId !== selectedAthlete?.teamId && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 bg-amber-50 dark:bg-amber-900/20 p-2 rounded">
+                            ⚠️ Changing teams will reset jersey number and position (coach will reassign)
+                          </p>
+                        )}
+                      </div>
+
                       {/* Physical Info */}
                       <div>
                         <p className="text-xs font-bold text-cyan-600 dark:text-cyan-400 mb-3 uppercase tracking-wider flex items-center gap-1">
@@ -773,6 +951,242 @@ const Profile: React.FC = () => {
                   </form>
               </div>
           </div>
+      )}
+
+      {/* ADD ATHLETE MODAL */}
+      {isAddAthleteModalOpen && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-50 dark:bg-zinc-950 w-full max-w-lg rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-slate-50 dark:bg-zinc-950 p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-orange-100 dark:bg-orange-500/20 p-2 rounded-full">
+                  <Plus className="h-5 w-5 text-orange-600 dark:text-orange-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Add Athlete</h3>
+                  <p className="text-slate-500 text-sm">Register your athlete to a team</p>
+                </div>
+              </div>
+              <button onClick={() => setIsAddAthleteModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleAddAthlete} className="p-6 space-y-4">
+              {/* Team Selection */}
+              <div>
+                <label className="block text-xs font-bold text-sky-600 dark:text-sky-400 mb-2 uppercase tracking-wider flex items-center gap-1">
+                  <Users className="w-3 h-3" /> Select Team *
+                </label>
+                <select 
+                  value={newAthleteForm.teamId} 
+                  onChange={e => setNewAthleteForm({...newAthleteForm, teamId: e.target.value})} 
+                  className="w-full bg-white dark:bg-black border border-sky-300 dark:border-sky-700 rounded-lg p-3 text-slate-900 dark:text-white"
+                  required
+                >
+                  <option value="">Choose a team...</option>
+                  {allTeams.map(team => (
+                    <option key={team.id} value={team.id}>{team.name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-500 mt-1">Contact your coach if you don't see your team</p>
+              </div>
+              
+              {/* Basic Info */}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Athlete's Full Name *</label>
+                <input 
+                  value={newAthleteForm.name} 
+                  onChange={e => setNewAthleteForm({...newAthleteForm, name: e.target.value})} 
+                  placeholder="John Smith"
+                  className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Date of Birth *</label>
+                <input 
+                  type="date"
+                  value={newAthleteForm.dob} 
+                  onChange={e => setNewAthleteForm({...newAthleteForm, dob: e.target.value})} 
+                  className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
+                  required
+                />
+              </div>
+
+              {/* Physical Info */}
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
+                <p className="text-xs font-bold text-cyan-600 dark:text-cyan-400 mb-3 uppercase tracking-wider">Physical Information (Optional)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Height</label>
+                    <input 
+                      value={newAthleteForm.height} 
+                      onChange={e => setNewAthleteForm({...newAthleteForm, height: e.target.value})} 
+                      placeholder="4 ft 6 in"
+                      className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Weight</label>
+                    <input 
+                      value={newAthleteForm.weight} 
+                      onChange={e => setNewAthleteForm({...newAthleteForm, weight: e.target.value})} 
+                      placeholder="85 lbs"
+                      className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Uniform Sizes */}
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
+                <p className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-3 uppercase tracking-wider">Uniform Sizing (Optional)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Shirt Size</label>
+                    <select 
+                      value={newAthleteForm.shirtSize} 
+                      onChange={e => setNewAthleteForm({...newAthleteForm, shirtSize: e.target.value})} 
+                      className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white"
+                    >
+                      <option value="">Select size...</option>
+                      <option value="Youth S">Youth S</option>
+                      <option value="Youth M">Youth M</option>
+                      <option value="Youth L">Youth L</option>
+                      <option value="Youth XL">Youth XL</option>
+                      <option value="Adult S">Adult S</option>
+                      <option value="Adult M">Adult M</option>
+                      <option value="Adult L">Adult L</option>
+                      <option value="Adult XL">Adult XL</option>
+                      <option value="Adult 2XL">Adult 2XL</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Pants Size</label>
+                    <select 
+                      value={newAthleteForm.pantSize} 
+                      onChange={e => setNewAthleteForm({...newAthleteForm, pantSize: e.target.value})} 
+                      className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white"
+                    >
+                      <option value="">Select size...</option>
+                      <option value="Youth S">Youth S</option>
+                      <option value="Youth M">Youth M</option>
+                      <option value="Youth L">Youth L</option>
+                      <option value="Youth XL">Youth XL</option>
+                      <option value="Adult S">Adult S</option>
+                      <option value="Adult M">Adult M</option>
+                      <option value="Adult L">Adult L</option>
+                      <option value="Adult XL">Adult XL</option>
+                      <option value="Adult 2XL">Adult 2XL</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Info Note */}
+              <div className="bg-sky-50 dark:bg-sky-900/20 p-3 rounded-lg border border-sky-200 dark:border-sky-900/30">
+                <p className="text-xs text-sky-700 dark:text-sky-400">
+                  💡 Your coach will assign a jersey number and position after reviewing your athlete.
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+                <button 
+                  type="button" 
+                  onClick={() => setIsAddAthleteModalOpen(false)} 
+                  className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  disabled={addingAthlete}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={addingAthlete} 
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg font-bold disabled:opacity-50 flex items-center gap-2"
+                >
+                  {addingAthlete ? (
+                    <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Adding...</>
+                  ) : (
+                    <><Plus className="w-4 h-4" /> Add Athlete</>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE ATHLETE CONFIRMATION MODAL */}
+      {deleteAthleteConfirm && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Remove Athlete</h3>
+                  <p className="text-sm text-slate-500 dark:text-zinc-400">This action cannot be undone</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setDeleteAthleteConfirm(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="bg-slate-100 dark:bg-zinc-800 rounded-lg p-4 mb-4">
+              <div className="flex items-center gap-3">
+                {deleteAthleteConfirm.photoUrl ? (
+                  <img src={deleteAthleteConfirm.photoUrl} alt={deleteAthleteConfirm.name} className="w-12 h-12 rounded-full object-cover" />
+                ) : (
+                  <div className="w-12 h-12 bg-orange-600 rounded-full flex items-center justify-center text-white font-bold">
+                    #{deleteAthleteConfirm.number || '?'}
+                  </div>
+                )}
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-white">{deleteAthleteConfirm.name}</p>
+                  <p className="text-xs text-slate-500">{allTeams.find(t => t.id === deleteAthleteConfirm.teamId)?.name || 'Unknown Team'}</p>
+                </div>
+              </div>
+            </div>
+            
+            <p className="text-sm text-slate-600 dark:text-zinc-400 mb-4">
+              Are you sure you want to remove this athlete? All stats and team data associated with this player will be removed.
+            </p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteAthleteConfirm(null)}
+                disabled={deletingAthlete}
+                className="flex-1 py-2.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAthlete}
+                disabled={deletingAthlete}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              >
+                {deletingAthlete ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Remove
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

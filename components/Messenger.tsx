@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useUnreadMessages } from '../hooks/useUnreadMessages';
 import { Search, Send, MessageSquare, AlertCircle, Edit2, Trash2, X, Check } from 'lucide-react';
 import type { PrivateChat, PrivateMessage, UserProfile } from '../types';
+import NoAthleteBlock from './NoAthleteBlock';
 
 const Messenger: React.FC = () => {
   // ADDED: teamData to scope the search to teammates only
@@ -195,6 +196,7 @@ const Messenger: React.FC = () => {
   };
 
   return (
+    <NoAthleteBlock featureName="Messenger">
     <div className="flex h-[calc(100vh-140px)] gap-6">
       
       {/* LEFT SIDEBAR */}
@@ -397,6 +399,7 @@ const Messenger: React.FC = () => {
           )}
       </div>
     </div>
+    </NoAthleteBlock>
   );
 };
 

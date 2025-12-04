@@ -4,6 +4,7 @@ import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverT
 import { db } from '../services/firebase';
 import type { Video, VideoCategory, Player } from '../types';
 import { Plus, Trash2, Play, Video as VideoIcon, X, AlertCircle, Film, Dumbbell, Trophy, FolderOpen, Edit2, Check, Lock, Users, Filter, User } from 'lucide-react';
+import NoAthleteBlock from './NoAthleteBlock';
 
 const VIDEO_CATEGORIES: { value: VideoCategory; label: string; icon: React.ReactNode; color: string }[] = [
   { value: 'Game Film', label: 'Game Film', icon: <Film className="w-4 h-4" />, color: 'text-red-500 bg-red-500/10 border-red-500/20' },
@@ -254,6 +255,7 @@ const VideoLibrary: React.FC = () => {
   };
 
   return (
+    <NoAthleteBlock featureName="Film Room">
     <div className="space-y-6 pb-20">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -677,6 +679,7 @@ const VideoLibrary: React.FC = () => {
         </div>
       )}
     </div>
+    </NoAthleteBlock>
   );
 };
 

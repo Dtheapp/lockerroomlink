@@ -719,11 +719,6 @@ const Roster: React.FC = () => {
               />
             </div>
           )}
-          {isParent && (
-            <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-500 transition-colors shadow-lg shadow-orange-900/20 whitespace-nowrap">
-              <Plus className="w-5 h-5" /> Add My Player
-            </button>
-          )}
         </div>
       </div>
 
@@ -736,10 +731,15 @@ const Roster: React.FC = () => {
 
       {!teamData && isParent ? (
         <div className="bg-slate-50 dark:bg-zinc-950 rounded-xl p-8 text-center border border-zinc-200 dark:border-zinc-800">
-          <p className="text-zinc-600 dark:text-zinc-400 mb-4">Add your first player to view the team roster</p>
-          <button onClick={() => setIsAddModalOpen(true)} className="inline-flex items-center gap-2 bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-500 transition-colors shadow-lg">
-            <Plus className="w-5 h-5" /> Add My Player
-          </button>
+          <Users className="w-12 h-12 text-zinc-400 mx-auto mb-3" />
+          <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-2">No Team Yet</h3>
+          <p className="text-zinc-600 dark:text-zinc-400 mb-4">Add your athlete in your profile to join a team and view the roster.</p>
+          <a 
+            href="#/profile" 
+            className="inline-flex items-center gap-2 bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-500 transition-colors shadow-lg"
+          >
+            <Plus className="w-5 h-5" /> Go to My Profile
+          </a>
         </div>
       ) : loading ? <p className="text-zinc-500">Loading roster...</p> : filteredRoster.length > 0 ? (
         <>

@@ -299,7 +299,7 @@ const Dashboard: React.FC = () => {
               <Plus className="w-10 h-10 text-orange-600 dark:text-orange-400" />
             </div>
             <h1 className="text-3xl font-black text-zinc-900 dark:text-white mb-2">Welcome to LockerRoom!</h1>
-            <p className="text-zinc-600 dark:text-zinc-400 text-lg">Let's get started by adding your first player</p>
+            <p className="text-zinc-600 dark:text-zinc-400 text-lg">Let's get started by adding your first athlete</p>
           </div>
           
           <div className="bg-slate-50 dark:bg-black p-6 rounded-lg border border-zinc-200 dark:border-zinc-800 mb-6">
@@ -307,15 +307,15 @@ const Dashboard: React.FC = () => {
             <ol className="text-left space-y-2 text-zinc-700 dark:text-zinc-300">
               <li className="flex items-start gap-2">
                 <span className="font-bold text-orange-600 dark:text-orange-400 flex-shrink-0">1.</span>
-                <span>Go to the <strong>Roster</strong> page using the sidebar</span>
+                <span>Go to your <strong>Profile</strong> page using the sidebar</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold text-orange-600 dark:text-orange-400 flex-shrink-0">2.</span>
-                <span>Click <strong>"Add My Player"</strong> button</span>
+                <span>Click <strong>"Add Athlete"</strong> in the My Athletes section</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold text-orange-600 dark:text-orange-400 flex-shrink-0">3.</span>
-                <span>Select the team and enter your player's information</span>
+                <span>Select their team and enter your athlete's information</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold text-orange-600 dark:text-orange-400 flex-shrink-0">4.</span>
@@ -325,11 +325,11 @@ const Dashboard: React.FC = () => {
           </div>
           
           <a 
-            href="#/roster" 
+            href="#/profile" 
             className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-bold transition-colors"
           >
             <Plus className="w-5 h-5" />
-            Add Your First Player
+            Add Your First Athlete
           </a>
         </div>
       </div>

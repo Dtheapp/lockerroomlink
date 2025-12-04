@@ -8,6 +8,7 @@ import GameStatsEntry from './stats/GameStatsEntry';
 import GameHistory from './stats/GameHistory';
 import type { Team, PlayerSeasonStats } from '../types';
 import { BarChart3, Users, TrendingUp, ArrowUpDown, ChevronDown, ChevronUp, Trophy, Shield, Sword, Calendar, ClipboardList } from 'lucide-react';
+import NoAthleteBlock from './NoAthleteBlock';
 
 const Stats: React.FC = () => {
   const { userData, teamData, players, loading: authLoading } = useAuth();
@@ -97,6 +98,7 @@ const Stats: React.FC = () => {
   };
 
   return (
+    <NoAthleteBlock featureName="Stats">
     <div className="space-y-6 pb-20">
       <div className="flex items-center gap-3">
         <BarChart3 className="w-8 h-8 text-orange-500" />
@@ -385,6 +387,7 @@ const Stats: React.FC = () => {
         </section>
       )}
     </div>
+    </NoAthleteBlock>
   );
 };
 

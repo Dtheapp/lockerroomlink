@@ -6,6 +6,7 @@ import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import type { Message } from '../types';
 import { Send, AlertCircle, VolumeX, Volume2, MoreVertical, X, Trash2, Edit2, Check } from 'lucide-react';
+import NoAthleteBlock from './NoAthleteBlock';
 
 // Activity logging function for moderation actions
 const logModerationActivity = async (
@@ -278,6 +279,7 @@ const Chat: React.FC = () => {
   };
 
   return (
+    <NoAthleteBlock featureName="Team Chat">
     <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950 rounded-lg shadow-lg dark:shadow-xl border border-slate-200 dark:border-zinc-800 overflow-hidden">
       
       {/* HEADER */}
@@ -646,6 +648,7 @@ const Chat: React.FC = () => {
         </div>
       )}
     </div>
+    </NoAthleteBlock>
   );
 };
 
