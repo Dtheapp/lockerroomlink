@@ -27,6 +27,17 @@ export interface CalendarEvent {
 }
 
 // --- EVENTS (Schedule Management) ---
+export interface EventAttachment {
+  id: string;
+  name: string;
+  url: string;
+  type: 'image' | 'pdf' | 'document';
+  contentType: string;
+  size: number;
+  uploadedAt: any;
+  uploadedBy: string;
+}
+
 export interface TeamEvent {
   id: string;
   teamId?: string;
@@ -36,6 +47,7 @@ export interface TeamEvent {
   type: 'Practice' | 'Game' | 'Other';
   location: string;
   description: string;
+  attachments?: EventAttachment[];
   createdAt?: any;
   createdBy?: string;
   updatedAt?: any;
