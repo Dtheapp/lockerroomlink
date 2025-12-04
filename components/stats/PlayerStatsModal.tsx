@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import type { PlayerSeasonStats, Player } from '../../types';
 import { X, TrendingUp, Calendar, Trophy, Shield, Sword, Target, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
@@ -21,15 +21,18 @@ const PlayerStatsModal: React.FC<PlayerStatsModalProps> = ({ player, teamName, o
     const fetchPlayerStats = async () => {
       setLoading(true);
       try {
-        // Query stats from the player's current team
+        // Query stats from the player's current team - filter by playerId only
         const statsQuery = query(
           collection(db, 'teams', player.teamId, 'seasonStats'),
-          where('playerId', '==', player.id),
-          orderBy('season', 'desc')
+          where('playerId', '==', player.id)
         );
         const snapshot = await getDocs(statsQuery);
         const stats = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as PlayerSeasonStats));
+        // Sort by season descending in JavaScript to avoid Firestore index requirement
+        stats.sort((a, b) => (b.season || 0) - (a.season || 0));
         setSeasonStats(stats);
+        
+        console.log('Loaded stats for player', player.id, ':', stats); // Debug log
         
         // Auto-expand current year if exists
         if (stats.some(s => s.season === currentYear)) {

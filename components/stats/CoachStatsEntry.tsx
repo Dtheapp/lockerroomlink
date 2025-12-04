@@ -157,7 +157,7 @@ const CoachStatsEntry: React.FC = () => {
     return editedStats.has(playerId);
   };
 
-  // Stat input component
+  // Stat input component - use text input to avoid leading zero issues
   const StatInput = ({ 
     label, 
     value, 
@@ -170,18 +170,45 @@ const CoachStatsEntry: React.FC = () => {
     onChange: (val: string) => void;
     color?: string;
     small?: boolean;
-  }) => (
-    <div className={small ? 'flex-1 min-w-[60px]' : ''}>
-      <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">{label}</label>
-      <input
-        type="number"
-        min="0"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={`w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-center font-bold ${color} focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-sm`}
-      />
-    </div>
-  );
+  }) => {
+    const [localValue, setLocalValue] = useState(value === 0 ? '' : value.toString());
+    const [isFocused, setIsFocused] = useState(false);
+    
+    // Sync local value when external value changes (but not while focused)
+    useEffect(() => {
+      if (!isFocused) {
+        setLocalValue(value === 0 ? '' : value.toString());
+      }
+    }, [value, isFocused]);
+    
+    return (
+      <div className={small ? 'flex-1 min-w-[60px]' : ''}>
+        <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">{label}</label>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={isFocused ? localValue : (value === 0 ? '' : value.toString())}
+          onFocus={() => {
+            setIsFocused(true);
+            setLocalValue(value === 0 ? '' : value.toString());
+          }}
+          onBlur={() => {
+            setIsFocused(false);
+            // Commit value on blur
+            onChange(localValue || '0');
+          }}
+          onChange={(e) => {
+            const newVal = e.target.value.replace(/[^0-9]/g, '');
+            setLocalValue(newVal);
+            onChange(newVal || '0');
+          }}
+          placeholder="0"
+          className={`w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-center font-bold ${color} focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-sm placeholder-zinc-600`}
+        />
+      </div>
+    );
+  };
 
   if (!teamData) {
     return (
@@ -315,13 +342,11 @@ const CoachStatsEntry: React.FC = () => {
                     {/* Games Played */}
                     <div className="flex items-center gap-4">
                       <div className="w-32">
-                        <label className="block text-xs uppercase tracking-wider text-zinc-500 mb-1">Games Played</label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={stats.gp || 0}
-                          onChange={(e) => handleStatChange(player.id, 'gp', e.target.value)}
-                          className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-center font-bold text-white text-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                        <StatInput 
+                          label="Games Played" 
+                          value={stats.gp || 0} 
+                          onChange={(v) => handleStatChange(player.id, 'gp', v)} 
+                          color="text-white" 
                         />
                       </div>
                     </div>
