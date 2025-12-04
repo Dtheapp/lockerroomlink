@@ -617,7 +617,7 @@ const Roster: React.FC = () => {
                           {isCaptain && <Crown className="w-5 h-5 text-amber-500 flex-shrink-0" />}
                         </h3>
                         <p className="text-orange-500 font-bold text-sm uppercase tracking-wide">
-                          {player.position} {player.photoUrl && <span className="text-zinc-400 dark:text-zinc-500">|</span>} {player.photoUrl && <span className="text-orange-500">#{player.number}</span>}
+                          {player.photoUrl && <span>#{player.number} <span className="text-zinc-400 dark:text-zinc-500">|</span> </span>}{player.position}
                         </p>
                         <p className="text-xs text-zinc-500 mt-1">DOB: {player.dob || '--'}</p>
                     </div>
