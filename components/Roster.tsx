@@ -31,15 +31,31 @@ const Roster: React.FC = () => {
   const [removeCoachConfirm, setRemoveCoachConfirm] = useState<{ id: string; name: string } | null>(null);
   const [removingCoach, setRemovingCoach] = useState(false);
 
-  // Filter and paginate roster
+  // Filter, sort (starters first), and paginate roster
   const filteredRoster = useMemo(() => {
-    if (!searchFilter.trim()) return roster;
-    const term = searchFilter.toLowerCase();
-    return roster.filter(player => 
-      player.name.toLowerCase().includes(term) ||
-      player.position.toLowerCase().includes(term) ||
-      player.number.toString().includes(term)
-    );
+    let filtered = roster;
+    
+    // Apply search filter
+    if (searchFilter.trim()) {
+      const term = searchFilter.toLowerCase();
+      filtered = filtered.filter(player => 
+        player.name.toLowerCase().includes(term) ||
+        player.position.toLowerCase().includes(term) ||
+        player.number.toString().includes(term)
+      );
+    }
+    
+    // Sort: Starters first, then captains, then by jersey number
+    return [...filtered].sort((a, b) => {
+      // Starters always come first
+      if (a.isStarter && !b.isStarter) return -1;
+      if (!a.isStarter && b.isStarter) return 1;
+      // Among same starter status, captains come first
+      if (a.isCaptain && !b.isCaptain) return -1;
+      if (!a.isCaptain && b.isCaptain) return 1;
+      // Finally sort by jersey number
+      return (a.number || 0) - (b.number || 0);
+    });
   }, [roster, searchFilter]);
 
   const totalPages = Math.ceil(filteredRoster.length / PLAYERS_PER_PAGE);
@@ -437,13 +453,6 @@ const Roster: React.FC = () => {
                   }`}
                   style={isStarter ? { boxShadow: '0 0 20px rgba(251, 191, 36, 0.3), 0 0 40px rgba(251, 191, 36, 0.1)' } : {}}
                 >
-                    {/* Captain Badge - Top Right Corner */}
-                    {isCaptain && (
-                      <div className="absolute top-2 right-2 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-full p-1.5 shadow-lg animate-pulse">
-                        <Crown className="w-4 h-4 text-white" />
-                      </div>
-                    )}
-                    
                     {/* Starter Badge - Top Left Corner */}
                     {isStarter && (
                       <div className="absolute top-2 left-2 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full px-2 py-0.5 shadow-lg flex items-center gap-1">
@@ -476,9 +485,9 @@ const Roster: React.FC = () => {
                     </div>
 
                     <div className="text-center mb-4">
-                        <h3 className="text-xl font-bold text-zinc-900 dark:text-white truncate flex items-center justify-center gap-2">
+                        <h3 className="text-xl font-bold text-zinc-900 dark:text-white truncate flex items-center justify-center gap-1.5">
                           {player.name}
-                          {isCaptain && <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-medium">C</span>}
+                          {isCaptain && <Crown className="w-5 h-5 text-amber-500 flex-shrink-0" />}
                         </h3>
                         <p className="text-orange-500 font-bold text-sm uppercase tracking-wide">{player.position}</p>
                         <p className="text-xs text-zinc-500 mt-1">DOB: {player.dob || '--'}</p>
