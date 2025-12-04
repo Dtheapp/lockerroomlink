@@ -3,7 +3,7 @@ import { collection, query, onSnapshot, orderBy, doc, setDoc, deleteDoc, writeBa
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Game, GamePlayerStats, Player, PlayerSeasonStats } from '../../types';
-import { Plus, Trophy, Calendar, MapPin, Users, ChevronDown, ChevronUp, Save, Trash2, X, Sword, Shield, Target, Check, Edit2, TrendingUp, UserCheck } from 'lucide-react';
+import { Plus, Trophy, Calendar, MapPin, Users, ChevronDown, ChevronUp, Save, Trash2, X, Sword, Shield, Target, Check, Edit2, TrendingUp, UserCheck, AtSign } from 'lucide-react';
 
 // Helper: Format date string without timezone issues
 const formatEventDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
@@ -785,6 +785,11 @@ const GameStatsEntry: React.FC = () => {
                                 )}
                                 <div>
                                   <p className="font-bold text-white text-sm">{player.name}</p>
+                                  {player.username && (
+                                    <p className="text-[10px] text-purple-400 flex items-center gap-0.5">
+                                      <AtSign className="w-2.5 h-2.5" />{player.username}
+                                    </p>
+                                  )}
                                   <p className="text-[10px] text-zinc-500">#{player.number || '?'} • {player.position || 'N/A'}</p>
                                 </div>
                               </div>

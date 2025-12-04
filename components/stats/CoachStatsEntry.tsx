@@ -3,7 +3,7 @@ import { collection, query, onSnapshot, orderBy, doc, setDoc, getDoc, serverTime
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { PlayerSeasonStats, Player } from '../../types';
-import { Save, TrendingUp, Users, ChevronDown, ChevronUp, Check, Search, Sword, Shield, Target, AlertCircle } from 'lucide-react';
+import { Save, TrendingUp, Users, ChevronDown, ChevronUp, Check, Search, Sword, Shield, Target, AlertCircle, AtSign } from 'lucide-react';
 
 // Stat Input Component - defined OUTSIDE main component to prevent re-renders
 interface StatInputProps {
@@ -293,6 +293,11 @@ const CoachStatsEntry: React.FC = () => {
                         {player.name}
                         {hasChanges && <span className="text-[10px] bg-orange-500 text-white px-1.5 py-0.5 rounded">Unsaved</span>}
                       </h3>
+                      {player.username && (
+                        <p className="text-xs text-purple-400 flex items-center gap-0.5">
+                          <AtSign className="w-3 h-3" />{player.username}
+                        </p>
+                      )}
                       <div className="flex items-center gap-2 text-sm text-zinc-500">
                         <span>#{player.number || '?'}</span>
                         <span>•</span>
