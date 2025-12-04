@@ -148,12 +148,22 @@ const ManageTeams: React.FC = () => {
       // Determine the subcollection path
       const subCol = modalContent === 'roster' ? 'players' : modalContent === 'posts' ? 'bulletin' : 'messages';
       
-      // OPTIMIZATION: Limit chat/posts data for viewing performance
-      const contentQuery = query(
-        collection(db, 'teams', selectedTeam.id, subCol), 
-        orderBy(subCol === 'messages' ? 'timestamp' : subCol === 'bulletin' ? 'timestamp' : 'number', subCol === 'messages' || subCol === 'bulletin' ? 'desc' : 'asc'), 
-        subCol === 'messages' || subCol === 'bulletin' ? limit(50) : undefined // Limit to 50 for performance
-      );
+      // Build query based on content type
+      let contentQuery;
+      if (subCol === 'messages' || subCol === 'bulletin') {
+        // Limit chat/posts data for viewing performance
+        contentQuery = query(
+          collection(db, 'teams', selectedTeam.id, subCol), 
+          orderBy('timestamp', 'desc'), 
+          limit(50)
+        );
+      } else {
+        // Roster - order by number
+        contentQuery = query(
+          collection(db, 'teams', selectedTeam.id, subCol), 
+          orderBy('number', 'asc')
+        );
+      }
       
       unsub = onSnapshot(contentQuery, (snapshot) => {
           setModalData(snapshot.docs.map(docSnap => ({id: docSnap.id, ...docSnap.data()})));
