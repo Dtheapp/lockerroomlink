@@ -41,6 +41,12 @@ const Dashboard: React.FC = () => {
   
   // Rate limit error state
   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
+  
+  // Delete confirmation modals
+  const [deletePostConfirm, setDeletePostConfirm] = useState<{ id: string; text: string; author: string } | null>(null);
+  const [deleteEventConfirm, setDeleteEventConfirm] = useState<{ id: string; title: string; date: string } | null>(null);
+  const [deletingPost, setDeletingPost] = useState(false);
+  const [deletingEvent, setDeletingEvent] = useState(false);
 
   // --- OPTIMIZED STATS CALCULATION (PERFORMANCE FIX) ---
   // Calculates leaders only when playerStats data changes, not on every render
@@ -141,9 +147,15 @@ const Dashboard: React.FC = () => {
     } catch (error) { console.error("Error updating post:", error); }
   };
 
-  const handleDeletePost = async (postId: string) => {
-    if (!teamData?.id) return;
-    try { await deleteDoc(doc(db, 'teams', teamData.id, 'bulletin', postId)); } catch (error) { console.error("Error deleting post:", error); }
+  const handleDeletePost = async () => {
+    if (!teamData?.id || !deletePostConfirm) return;
+    setDeletingPost(true);
+    try { 
+      await deleteDoc(doc(db, 'teams', teamData.id, 'bulletin', deletePostConfirm.id)); 
+      setDeletePostConfirm(null);
+      if (selectedPost?.id === deletePostConfirm.id) setSelectedPost(null);
+    } catch (error) { console.error("Error deleting post:", error); }
+    finally { setDeletingPost(false); }
   };
 
   const handleEditEvent = async (eventId: string) => {
@@ -162,9 +174,15 @@ const Dashboard: React.FC = () => {
     } catch (error) { console.error("Error updating event:", error); }
   };
 
-  const handleDeleteEvent = async (eventId: string) => {
-    if (!teamData?.id) return;
-    try { await deleteDoc(doc(db, 'teams', teamData.id, 'events', eventId)); } catch (error) { console.error("Error deleting event:", error); }
+  const handleDeleteEvent = async () => {
+    if (!teamData?.id || !deleteEventConfirm) return;
+    setDeletingEvent(true);
+    try { 
+      await deleteDoc(doc(db, 'teams', teamData.id, 'events', deleteEventConfirm.id)); 
+      setDeleteEventConfirm(null);
+      if (selectedEvent?.id === deleteEventConfirm.id) setSelectedEvent(null);
+    } catch (error) { console.error("Error deleting event:", error); }
+    finally { setDeletingEvent(false); }
   };
 
   const handleAddEvent = async (e: React.FormEvent) => {
@@ -432,8 +450,7 @@ const Dashboard: React.FC = () => {
                       </button>
                       <button 
                         onClick={() => {
-                          handleDeleteEvent(selectedEvent.id);
-                          setSelectedEvent(null);
+                          setDeleteEventConfirm({ id: selectedEvent.id, title: selectedEvent.title, date: selectedEvent.date });
                         }}
                         className="py-3 px-4 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold transition-colors"
                       >
@@ -543,8 +560,7 @@ const Dashboard: React.FC = () => {
                       </button>
                       <button 
                         onClick={() => {
-                          handleDeletePost(selectedPost.id);
-                          setSelectedPost(null);
+                          setDeletePostConfirm({ id: selectedPost.id, text: selectedPost.text, author: selectedPost.author });
                         }}
                         className="py-3 px-4 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold transition-colors"
                       >
@@ -670,7 +686,7 @@ const Dashboard: React.FC = () => {
                         {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
                           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                             <button onClick={() => { setSelectedPost(post); setEditingPostId(post.id); setEditingPostText(post.text); }} className="text-zinc-400 hover:text-cyan-400"><Edit2 className="w-3 h-3"/></button>
-                            <button onClick={() => handleDeletePost(post.id)} className="text-zinc-400 hover:text-red-400"><Trash2 className="w-3 h-3"/></button>
+                            <button onClick={() => setDeletePostConfirm({ id: post.id, text: post.text, author: post.author })} className="text-zinc-400 hover:text-red-400"><Trash2 className="w-3 h-3"/></button>
                           </div>
                         )}
                     </div>
@@ -769,7 +785,7 @@ const Dashboard: React.FC = () => {
                         {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
                             <div className="absolute bottom-2 right-2 flex gap-2" onClick={(e) => e.stopPropagation()}>
                                 <button onClick={() => { setSelectedEvent(event); setEditingEventId(event.id); setEditingEvent(event); }} className="text-zinc-600 hover:text-cyan-500"><Edit2 className="w-3 h-3"/></button>
-                                <button onClick={() => handleDeleteEvent(event.id)} className="text-zinc-600 hover:text-red-500"><Trash2 className="w-3 h-3"/></button>
+                                <button onClick={() => setDeleteEventConfirm({ id: event.id, title: event.title, date: event.date })} className="text-zinc-600 hover:text-red-500"><Trash2 className="w-3 h-3"/></button>
                             </div>
                         )}
                      </div>
@@ -780,6 +796,126 @@ const Dashboard: React.FC = () => {
 
       </div>
       </div>
+
+      {/* DELETE BULLETIN CONFIRMATION MODAL */}
+      {deletePostConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Delete Announcement</h3>
+                  <p className="text-sm text-slate-500 dark:text-zinc-400">This action cannot be undone</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setDeletePostConfirm(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="bg-slate-100 dark:bg-zinc-800 rounded-lg p-4 mb-4">
+              <p className="text-sm text-slate-700 dark:text-zinc-300 line-clamp-3">
+                "{deletePostConfirm.text}"
+              </p>
+              <p className="text-xs text-slate-500 dark:text-zinc-500 mt-2">— {deletePostConfirm.author}</p>
+            </div>
+            
+            <p className="text-sm text-slate-600 dark:text-zinc-400 mb-4">
+              Are you sure you want to delete this announcement? All team members will no longer see it.
+            </p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeletePostConfirm(null)}
+                disabled={deletingPost}
+                className="flex-1 py-2.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeletePost}
+                disabled={deletingPost}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              >
+                {deletingPost ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE EVENT CONFIRMATION MODAL */}
+      {deleteEventConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Delete Event</h3>
+                  <p className="text-sm text-slate-500 dark:text-zinc-400">This action cannot be undone</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setDeleteEventConfirm(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="bg-slate-100 dark:bg-zinc-800 rounded-lg p-4 mb-4">
+              <p className="font-bold text-slate-900 dark:text-white">{deleteEventConfirm.title}</p>
+              <p className="text-sm text-slate-600 dark:text-zinc-400 mt-1">
+                {new Date(deleteEventConfirm.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              </p>
+            </div>
+            
+            <p className="text-sm text-slate-600 dark:text-zinc-400 mb-4">
+              Are you sure you want to delete this event? All team members will no longer see it on the schedule.
+            </p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteEventConfirm(null)}
+                disabled={deletingEvent}
+                className="flex-1 py-2.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteEvent}
+                disabled={deletingEvent}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              >
+                {deletingEvent ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Delete Event
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
