@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { collection, getDocs, query, onSnapshot, where, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,7 +7,7 @@ import CoachStatsEntry from './stats/CoachStatsEntry';
 import GameStatsEntry from './stats/GameStatsEntry';
 import GameHistory from './stats/GameHistory';
 import type { Team, PlayerSeasonStats } from '../types';
-import { BarChart3, Users, TrendingUp, ArrowUpDown, ChevronDown, ChevronUp, Trophy, Shield, Sword, Calendar, ClipboardList } from 'lucide-react';
+import { BarChart3, Users, TrendingUp, ArrowUpDown, ChevronDown, ChevronUp, Trophy, Shield, Sword, Calendar, ClipboardList, AlertTriangle, Save } from 'lucide-react';
 import NoAthleteBlock from './NoAthleteBlock';
 
 const Stats: React.FC = () => {
@@ -16,6 +16,11 @@ const Stats: React.FC = () => {
   
   // Tab state for Coach view
   const [activeTab, setActiveTab] = useState<'games' | 'season'>('games');
+  
+  // Unsaved changes warning state
+  const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
+  const [pendingTabChange, setPendingTabChange] = useState<'games' | 'season' | null>(null);
+  const gameStatsHasChangesRef = useRef(false);
   
   // SuperAdmin states
   const [teams, setTeams] = useState<Team[]>([]);
@@ -95,6 +100,58 @@ const Stats: React.FC = () => {
   const SortIcon = ({ field }: { field: keyof PlayerSeasonStats }) => {
     if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-zinc-600 opacity-50" />;
     return sortDirection === 'asc' ? <ChevronUp className="w-3 h-3 text-orange-500" /> : <ChevronDown className="w-3 h-3 text-orange-500" />;
+  };
+
+  // Listen for unsaved changes from GameStatsEntry
+  useEffect(() => {
+    const handleUnsavedChanges = (e: CustomEvent) => {
+      gameStatsHasChangesRef.current = e.detail?.hasChanges || false;
+    };
+
+    window.addEventListener('gameStatsUnsavedChanges' as any, handleUnsavedChanges);
+    return () => window.removeEventListener('gameStatsUnsavedChanges' as any, handleUnsavedChanges);
+  }, []);
+
+  // Handle tab change with unsaved changes check
+  const handleTabChange = useCallback((newTab: 'games' | 'season') => {
+    if (newTab === activeTab) return;
+    
+    // If switching FROM games tab and there are unsaved changes, show warning
+    if (activeTab === 'games' && gameStatsHasChangesRef.current) {
+      setPendingTabChange(newTab);
+      setShowUnsavedWarning(true);
+    } else {
+      setActiveTab(newTab);
+    }
+  }, [activeTab]);
+
+  // Handle discard and proceed
+  const handleDiscardAndSwitch = () => {
+    // Dispatch event to clear unsaved changes in GameStatsEntry
+    window.dispatchEvent(new CustomEvent('clearGameStatsChanges'));
+    gameStatsHasChangesRef.current = false;
+    if (pendingTabChange) {
+      setActiveTab(pendingTabChange);
+    }
+    setShowUnsavedWarning(false);
+    setPendingTabChange(null);
+  };
+
+  // Handle save and proceed
+  const handleSaveAndSwitch = () => {
+    // Dispatch event to save changes in GameStatsEntry
+    window.dispatchEvent(new CustomEvent('saveGameStatsChanges', {
+      detail: {
+        onComplete: () => {
+          gameStatsHasChangesRef.current = false;
+          if (pendingTabChange) {
+            setActiveTab(pendingTabChange);
+          }
+          setShowUnsavedWarning(false);
+          setPendingTabChange(null);
+        }
+      }
+    }));
   };
 
   return (
@@ -181,7 +238,7 @@ const Stats: React.FC = () => {
               {/* Tabs */}
               <div className="flex gap-2 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800">
                 <button
-                  onClick={() => setActiveTab('games')}
+                  onClick={() => handleTabChange('games')}
                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold transition-all ${
                     activeTab === 'games'
                       ? 'bg-orange-600 text-white shadow-lg'
@@ -192,7 +249,7 @@ const Stats: React.FC = () => {
                   Game Stats
                 </button>
                 <button
-                  onClick={() => setActiveTab('season')}
+                  onClick={() => handleTabChange('season')}
                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold transition-all ${
                     activeTab === 'season'
                       ? 'bg-orange-600 text-white shadow-lg'
@@ -385,6 +442,49 @@ const Stats: React.FC = () => {
             )}
           </div>
         </section>
+      )}
+
+      {/* Unsaved Changes Warning Modal */}
+      {showUnsavedWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-orange-500/50 shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-orange-500/10 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-orange-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-zinc-900 dark:text-white">Unsaved Changes</h3>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">You have unsaved stat changes</p>
+              </div>
+            </div>
+            
+            <p className="text-zinc-600 dark:text-zinc-300 mb-6">
+              Are you sure you want to switch tabs? Your changes will be lost if you don't save them.
+            </p>
+            
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleSaveAndSwitch}
+                className="w-full py-2.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
+              >
+                <Save className="w-4 h-4" />
+                Save Changes
+              </button>
+              <button
+                onClick={handleDiscardAndSwitch}
+                className="w-full py-2.5 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-white rounded-lg font-medium transition-colors"
+              >
+                Discard Changes
+              </button>
+              <button
+                onClick={() => { setShowUnsavedWarning(false); setPendingTabChange(null); }}
+                className="w-full py-2.5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
     </NoAthleteBlock>

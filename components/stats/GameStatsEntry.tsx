@@ -3,7 +3,7 @@ import { collection, query, onSnapshot, orderBy, doc, setDoc, deleteDoc, writeBa
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Game, GamePlayerStats, Player, PlayerSeasonStats } from '../../types';
-import { Plus, Trophy, Calendar, MapPin, Users, ChevronDown, ChevronUp, Save, Trash2, X, Sword, Shield, Target, Check, Edit2, TrendingUp, UserCheck, AtSign, Zap, Star } from 'lucide-react';
+import { Plus, Trophy, Calendar, MapPin, Users, ChevronDown, ChevronUp, Save, Trash2, X, Sword, Shield, Target, Check, Edit2, TrendingUp, UserCheck, AtSign, Zap, Star, AlertTriangle } from 'lucide-react';
 
 // Helper: Format date string without timezone issues
 const formatEventDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
@@ -132,6 +132,10 @@ const GameStatsEntry: React.FC = () => {
   // Delete confirmation
   const [deleteConfirm, setDeleteConfirm] = useState<Game | null>(null);
   const [deleting, setDeleting] = useState(false);
+  
+  // Unsaved changes warning modal
+  const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
   // Load games and players
   useEffect(() => {
@@ -348,6 +352,102 @@ const GameStatsEntry: React.FC = () => {
       if (key.startsWith(`${gameId}_`)) return true;
     }
     return false;
+  };
+
+  // Check if there are ANY unsaved changes across all games
+  const hasAnyUnsavedChanges = useMemo(() => {
+    return editedPlayerStats.size > 0;
+  }, [editedPlayerStats]);
+
+  // Emit unsaved changes state to parent (Stats.tsx) whenever it changes
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('gameStatsUnsavedChanges', {
+      detail: { hasChanges: editedPlayerStats.size > 0 }
+    }));
+  }, [editedPlayerStats]);
+
+  // Get the game with unsaved changes (for saving from modal)
+  const getGameWithUnsavedChanges = (): Game | null => {
+    if (editedPlayerStats.size === 0) return null;
+    const firstKey = editedPlayerStats.keys().next().value;
+    if (!firstKey) return null;
+    const gameId = firstKey.split('_')[0];
+    return games.find(g => g.id === gameId) || null;
+  };
+
+  // Browser beforeunload warning for unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (editedPlayerStats.size > 0) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [editedPlayerStats]);
+
+  // Listen for clear and save commands from Stats.tsx
+  useEffect(() => {
+    const handleClearChanges = () => {
+      setEditedPlayerStats(new Map());
+    };
+
+    const handleSaveChanges = async (e: CustomEvent) => {
+      const game = getGameWithUnsavedChanges();
+      if (game) {
+        await handleSaveGameStats(game);
+      }
+      if (e.detail?.onComplete) {
+        e.detail.onComplete();
+      }
+    };
+
+    window.addEventListener('clearGameStatsChanges' as any, handleClearChanges);
+    window.addEventListener('saveGameStatsChanges' as any, handleSaveChanges);
+    return () => {
+      window.removeEventListener('clearGameStatsChanges' as any, handleClearChanges);
+      window.removeEventListener('saveGameStatsChanges' as any, handleSaveChanges);
+    };
+  }, [games, editedPlayerStats]);
+
+  // Expose unsaved changes check for parent components via custom event
+  useEffect(() => {
+    const handleNavCheck = (e: CustomEvent) => {
+      if (editedPlayerStats.size > 0) {
+        e.preventDefault();
+        setShowUnsavedWarning(true);
+        setPendingAction(() => e.detail?.proceed);
+      }
+    };
+
+    window.addEventListener('statsNavCheck' as any, handleNavCheck);
+    return () => window.removeEventListener('statsNavCheck' as any, handleNavCheck);
+  }, [editedPlayerStats]);
+
+  // Handle saving from the warning modal
+  const handleSaveAndProceed = async () => {
+    const game = getGameWithUnsavedChanges();
+    if (game) {
+      await handleSaveGameStats(game);
+    }
+    setShowUnsavedWarning(false);
+    if (pendingAction) {
+      pendingAction();
+      setPendingAction(null);
+    }
+  };
+
+  // Handle discarding changes and proceeding
+  const handleDiscardAndProceed = () => {
+    setEditedPlayerStats(new Map());
+    setShowUnsavedWarning(false);
+    if (pendingAction) {
+      pendingAction();
+      setPendingAction(null);
+    }
   };
 
   // Save all player stats for a game
@@ -926,6 +1026,58 @@ const GameStatsEntry: React.FC = () => {
                     Delete
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unsaved Changes Warning Modal */}
+      {showUnsavedWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-zinc-900 rounded-xl border border-orange-500/50 shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-orange-500/10 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-orange-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Unsaved Changes</h3>
+                <p className="text-sm text-zinc-400">You have unsaved stat changes</p>
+              </div>
+            </div>
+            
+            <p className="text-zinc-300 mb-6">
+              Are you sure you want to leave? Your changes will be lost if you don't save them.
+            </p>
+            
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleSaveAndProceed}
+                disabled={saving}
+                className="w-full py-2.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
+              >
+                {saving ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Save Changes
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleDiscardAndProceed}
+                disabled={saving}
+                className="w-full py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Discard Changes
+              </button>
+              <button
+                onClick={() => { setShowUnsavedWarning(false); setPendingAction(null); }}
+                disabled={saving}
+                className="w-full py-2.5 text-zinc-400 hover:text-white transition-colors"
+              >
+                Cancel
               </button>
             </div>
           </div>
