@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
@@ -42,6 +42,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   // Team management for coaches with multiple teams
   const [coachTeams, setCoachTeams] = useState<Team[]>([]);
+  
+  // Track if coach teams have been loaded to prevent re-fetching on every profile update
+  const coachTeamsLoadedRef = useRef<string | null>(null);
 
   // Function to set selected player and persist to Firestore
   const setSelectedPlayer = async (player: Player) => {
@@ -146,70 +149,95 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 }
                 // COACH FLOW: Load all teams they are assigned to
                 else if (profile.role === 'Coach') {
-                    try {
-                        // Get teams from teamIds array (for coaches on multiple teams)
-                        let teamIdsList: string[] = [];
+                    // Build the teamIds list
+                    let teamIdsList: string[] = [];
+                    
+                    // Prioritize teamIds array
+                    if (profile.teamIds && profile.teamIds.length > 0) {
+                        teamIdsList = [...profile.teamIds];
+                    }
+                    
+                    // Also include legacy teamId if not already in array
+                    if (profile.teamId && !teamIdsList.includes(profile.teamId)) {
+                        teamIdsList.push(profile.teamId);
+                    }
+                    
+                    // Create a key to track if we need to reload teams
+                    const teamIdsKey = teamIdsList.sort().join(',');
+                    
+                    // Only reload teams if the teamIds have changed (not just selectedTeamId)
+                    if (coachTeamsLoadedRef.current !== teamIdsKey) {
+                        coachTeamsLoadedRef.current = teamIdsKey;
                         
-                        // Prioritize teamIds array
-                        if (profile.teamIds && profile.teamIds.length > 0) {
-                            teamIdsList = [...profile.teamIds];
-                        }
-                        
-                        // Also include legacy teamId if not already in array
-                        if (profile.teamId && !teamIdsList.includes(profile.teamId)) {
-                            teamIdsList.push(profile.teamId);
-                        }
-                        
-                        console.log('Coach teamIds:', teamIdsList); // Debug log
-                        
-                        if (teamIdsList.length > 0) {
-                            // Fetch all teams at once
-                            const teamsSnapshot = await getDocs(collection(db, 'teams'));
-                            const allTeams: Team[] = [];
-                            teamsSnapshot.docs.forEach(teamDoc => {
-                                if (teamIdsList.includes(teamDoc.id)) {
-                                    allTeams.push({ id: teamDoc.id, ...teamDoc.data() } as Team);
-                                }
-                            });
-                            
-                            console.log('Loaded coach teams:', allTeams.length); // Debug log
-                            
-                            // Always set coach teams - this is the key fix
-                            setCoachTeams(allTeams);
-                            
-                            // Auto-select team
-                            if (allTeams.length > 0) {
-                                let teamToSelect = allTeams[0];
+                        try {
+                            if (teamIdsList.length > 0) {
+                                // Fetch all teams at once
+                                const teamsSnapshot = await getDocs(collection(db, 'teams'));
+                                const allTeams: Team[] = [];
+                                teamsSnapshot.docs.forEach(teamDoc => {
+                                    if (teamIdsList.includes(teamDoc.id)) {
+                                        allTeams.push({ id: teamDoc.id, ...teamDoc.data() } as Team);
+                                    }
+                                });
                                 
-                                // If user has a saved selectedTeamId, try to find it
-                                const savedTeamId = profile.selectedTeamId || profile.teamId;
-                                if (savedTeamId) {
-                                    const saved = allTeams.find(t => t.id === savedTeamId);
-                                    if (saved) teamToSelect = saved;
-                                }
+                                console.log('Loaded coach teams:', allTeams.map(t => t.name)); // Debug log
                                 
-                                // Set up listener for selected team
+                                // Set coach teams
+                                setCoachTeams(allTeams);
+                                
+                                // Auto-select team
+                                if (allTeams.length > 0) {
+                                    let teamToSelect = allTeams[0];
+                                    
+                                    // If user has a saved selectedTeamId, try to find it
+                                    const savedTeamId = profile.selectedTeamId || profile.teamId;
+                                    if (savedTeamId) {
+                                        const saved = allTeams.find(t => t.id === savedTeamId);
+                                        if (saved) teamToSelect = saved;
+                                    }
+                                    
+                                    // Set up listener for selected team
+                                    if (unsubscribeTeamDoc) unsubscribeTeamDoc();
+                                    const teamDocRef = doc(db, 'teams', teamToSelect.id);
+                                    unsubscribeTeamDoc = onSnapshot(teamDocRef, (teamSnap) => {
+                                        if (teamSnap.exists()) {
+                                            setTeamData({ id: teamSnap.id, ...teamSnap.data() } as Team);
+                                        } else {
+                                            setTeamData(null);
+                                        }
+                                        setLoading(false);
+                                    });
+                                } else {
+                                    setTeamData(null);
+                                    setLoading(false);
+                                }
+                            } else {
+                                setCoachTeams([]);
+                                setTeamData(null);
+                                setLoading(false);
+                            }
+                        } catch (error) {
+                            console.error('Error loading coach teams:', error);
+                            setLoading(false);
+                        }
+                    } else {
+                        // Teams already loaded, just update selectedTeamId if changed
+                        const savedTeamId = profile.selectedTeamId || profile.teamId;
+                        if (savedTeamId && coachTeams.length > 0) {
+                            const selectedTeam = coachTeams.find(t => t.id === savedTeamId);
+                            if (selectedTeam && teamData?.id !== savedTeamId) {
+                                // Switch team listener
                                 if (unsubscribeTeamDoc) unsubscribeTeamDoc();
-                                const teamDocRef = doc(db, 'teams', teamToSelect.id);
+                                const teamDocRef = doc(db, 'teams', savedTeamId);
                                 unsubscribeTeamDoc = onSnapshot(teamDocRef, (teamSnap) => {
                                     if (teamSnap.exists()) {
                                         setTeamData({ id: teamSnap.id, ...teamSnap.data() } as Team);
                                     } else {
                                         setTeamData(null);
                                     }
-                                    setLoading(false);
                                 });
-                            } else {
-                                setTeamData(null);
-                                setLoading(false);
                             }
-                        } else {
-                            setCoachTeams([]);
-                            setTeamData(null);
-                            setLoading(false);
                         }
-                    } catch (error) {
-                        console.error('Error loading coach teams:', error);
                         setLoading(false);
                     }
                 }
@@ -249,6 +277,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setPlayers([]);
         setSelectedPlayerState(null);
         setCoachTeams([]);
+        coachTeamsLoadedRef.current = null; // Reset coach teams loaded tracker
         setLoading(false);
         
         // Clean up listeners
