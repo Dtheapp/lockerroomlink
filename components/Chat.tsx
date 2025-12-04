@@ -317,7 +317,7 @@ const Chat: React.FC = () => {
       )}
       
       {/* MESSAGES AREA */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-50 dark:bg-black/20">
+      <div className="flex-1 p-4 overflow-y-auto overflow-x-visible space-y-4 bg-slate-50 dark:bg-black/20">
         {messages.map(msg => {
           const isMe = msg.sender.uid === user?.uid;
           const isUserMuted = !!mutedUsers[msg.sender.uid];
@@ -359,7 +359,7 @@ const Chat: React.FC = () => {
                         </button>
                         
                         {activeMessageMenu === msg.id && (
-                          <div className="absolute right-0 bottom-full mb-1 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-xl z-20 py-1 min-w-[160px]">
+                          <div className="absolute left-full top-0 ml-1 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-xl z-50 py-1 min-w-[160px]">
                             {/* Delete Message - Available for all messages from others */}
                             <button
                               onClick={() => {

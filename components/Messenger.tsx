@@ -283,8 +283,8 @@ const Messenger: React.FC = () => {
                         const isEdited = (msg as any).edited;
                         
                         return (
-                            <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
-                                <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm relative ${isMe ? 'bg-orange-600 text-white rounded-br-none' : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 rounded-bl-none'}`}>
+                            <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${isMe ? 'bg-orange-600 text-white rounded-br-none' : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 rounded-bl-none'}`}>
                                     {isEditing ? (
                                       <div className="flex flex-col gap-2">
                                         <input
@@ -293,6 +293,10 @@ const Messenger: React.FC = () => {
                                           onChange={(e) => setEditingText(e.target.value)}
                                           className="bg-white/20 border border-white/30 rounded px-2 py-1 text-sm text-white focus:outline-none"
                                           autoFocus
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') { e.preventDefault(); handleEditMessage(msg.id); }
+                                            if (e.key === 'Escape') { setEditingMessageId(null); setEditingText(''); }
+                                          }}
                                         />
                                         <div className="flex gap-1 justify-end">
                                           <button
@@ -313,30 +317,29 @@ const Messenger: React.FC = () => {
                                     ) : (
                                       <>
                                         <p>{msg.text}</p>
-                                        {isEdited && (
-                                          <p className={`text-[10px] mt-0.5 ${isMe ? 'text-orange-200' : 'text-zinc-400'}`}>(edited)</p>
-                                        )}
+                                        {/* Footer with timestamp and actions */}
+                                        <div className={`flex items-center justify-between mt-1 gap-2 text-[10px] ${isMe ? 'text-orange-200' : 'text-zinc-400'}`}>
+                                          <span>{isEdited && '(edited)'}</span>
+                                          {isMe && (
+                                            <div className="flex items-center gap-1">
+                                              <button
+                                                onClick={() => { setEditingMessageId(msg.id); setEditingText(msg.text); }}
+                                                className="hover:text-white p-0.5 transition-colors"
+                                                title="Edit"
+                                              >
+                                                <Edit2 className="w-3 h-3" />
+                                              </button>
+                                              <button
+                                                onClick={() => setDeleteConfirm(msg.id)}
+                                                className="hover:text-white p-0.5 transition-colors"
+                                                title="Delete"
+                                              >
+                                                <Trash2 className="w-3 h-3" />
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
                                       </>
-                                    )}
-                                    
-                                    {/* Edit/Delete buttons for own messages */}
-                                    {isMe && !isEditing && (
-                                      <div className="absolute -left-16 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
-                                        <button
-                                          onClick={() => { setEditingMessageId(msg.id); setEditingText(msg.text); }}
-                                          className="text-zinc-400 hover:text-orange-500 p-1 bg-white dark:bg-zinc-900 rounded shadow"
-                                          title="Edit"
-                                        >
-                                          <Edit2 className="w-3 h-3" />
-                                        </button>
-                                        <button
-                                          onClick={() => setDeleteConfirm(msg.id)}
-                                          className="text-zinc-400 hover:text-red-500 p-1 bg-white dark:bg-zinc-900 rounded shadow"
-                                          title="Delete"
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                        </button>
-                                      </div>
                                     )}
                                 </div>
                             </div>
