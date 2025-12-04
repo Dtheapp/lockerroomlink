@@ -6,7 +6,7 @@ import {
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Team, UserProfile } from '../../types';
-import { Plus, Trash2, Edit2, Users, FileText, MessageCircle, AlertTriangle, Search, X, Check, UserX, UserCheck, Shield } from 'lucide-react';
+import { Plus, Trash2, Edit2, Users, FileText, MessageCircle, AlertTriangle, Search, X, Check, UserX, UserCheck, Shield, Crown } from 'lucide-react';
 
 type ModalContent = 'roster' | 'posts' | 'chat';
 
@@ -22,6 +22,7 @@ const ManageTeams: React.FC = () => {
     const [coachLookup, setCoachLookup] = useState<{[key: string]: string}>({});
     const [availableCoaches, setAvailableCoaches] = useState<CoachOption[]>([]);
     const [teamMemberCounts, setTeamMemberCounts] = useState<{[key: string]: { users: number, players: number }}>({});
+    const [teamCoachesMap, setTeamCoachesMap] = useState<{[teamId: string]: CoachOption[]}>({});
     const [loading, setLoading] = useState(true);
     
     // SEARCH STATE
@@ -91,17 +92,30 @@ const ManageTeams: React.FC = () => {
           const snapshot = await getDocs(coachesQuery);
           const lookup: {[key: string]: string} = {};
           const coaches: CoachOption[] = [];
+          const coachesByTeam: {[teamId: string]: CoachOption[]} = {};
+          
           snapshot.docs.forEach(docSnap => {
               const data = docSnap.data() as UserProfile;
               lookup[docSnap.id] = data.username || data.name;
-              coaches.push({
+              const coachData = {
                   id: docSnap.id,
                   name: data.username || data.name,
                   currentTeamId: data.teamId || null
-              });
+              };
+              coaches.push(coachData);
+              
+              // Group coaches by team
+              if (data.teamId) {
+                  if (!coachesByTeam[data.teamId]) {
+                      coachesByTeam[data.teamId] = [];
+                  }
+                  coachesByTeam[data.teamId].push(coachData);
+              }
           });
+          
           setCoachLookup(lookup);
           setAvailableCoaches(coaches);
+          setTeamCoachesMap(coachesByTeam);
           setLoading(false);
       };
       
@@ -533,7 +547,9 @@ const ManageTeams: React.FC = () => {
                               <p className="text-xs text-slate-500 font-mono">ID: {team.id}</p>
                           </div>
                           <div className="bg-slate-300 dark:bg-zinc-900 px-2 py-1 rounded text-xs text-orange-700 dark:text-orange-400 border border-slate-400 dark:border-zinc-700">
-                              {team.coachId ? (coachLookup[team.coachId] || 'Coach') : 'No Coach'}
+                              {teamCoachesMap[team.id]?.length > 0 ? (
+                                  <span>{teamCoachesMap[team.id].length} coach{teamCoachesMap[team.id].length > 1 ? 'es' : ''}</span>
+                              ) : 'No Coach'}
                           </div>
                       </div>
                       
@@ -547,6 +563,25 @@ const ManageTeams: React.FC = () => {
                               👤 {teamMemberCounts[team.id]?.players || 0} players
                           </span>
                       </div>
+                      
+                      {/* Coaches List */}
+                      {teamCoachesMap[team.id]?.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mb-3">
+                              {teamCoachesMap[team.id].map(coach => (
+                                  <span 
+                                      key={coach.id} 
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                                          team.headCoachId === coach.id 
+                                              ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border border-purple-300 dark:border-purple-700' 
+                                              : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-300 dark:border-orange-800/50'
+                                      }`}
+                                  >
+                                      {team.headCoachId === coach.id && <Crown className="w-3 h-3" />}
+                                      {coach.name}
+                                  </span>
+                              ))}
+                          </div>
+                      )}
                       
                       {/* RENDER ACTIONS (Mobile Mode) */}
                       {renderTeamActions(team, true)}
@@ -562,7 +597,7 @@ const ManageTeams: React.FC = () => {
                       <tr>
                           <th className="px-6 py-3">Team Name</th>
                           <th className="px-6 py-3">Team ID</th>
-                          <th className="px-6 py-3 text-orange-600 dark:text-orange-400">Coach</th>
+                          <th className="px-6 py-3 text-orange-600 dark:text-orange-400">Coaches</th>
                           <th className="px-6 py-3 text-center">Members</th>
                           <th className="px-6 py-3 text-right">Actions</th>
                       </tr>
@@ -579,8 +614,26 @@ const ManageTeams: React.FC = () => {
                           <tr key={team.id} className="bg-slate-50 dark:bg-zinc-950 hover:bg-slate-100 dark:hover:bg-black transition-colors">
                               <td className="px-6 py-4 font-medium text-slate-900 dark:text-white whitespace-nowrap">{team.name}</td>
                               <td className="px-6 py-4 font-mono text-slate-700 dark:text-slate-300">{team.id}</td>
-                              <td className="px-6 py-4 font-mono text-orange-600 dark:text-orange-400">
-                                  {team.coachId ? (coachLookup[team.coachId] || team.coachId) : 'Unassigned'}
+                              <td className="px-6 py-4">
+                                  {teamCoachesMap[team.id]?.length > 0 ? (
+                                      <div className="flex flex-wrap gap-1">
+                                          {teamCoachesMap[team.id].map(coach => (
+                                              <span 
+                                                  key={coach.id} 
+                                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                                                      team.headCoachId === coach.id 
+                                                          ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border border-purple-300 dark:border-purple-700' 
+                                                          : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-300 dark:border-orange-800/50'
+                                                  }`}
+                                              >
+                                                  {team.headCoachId === coach.id && <Crown className="w-3 h-3" />}
+                                                  {coach.name}
+                                              </span>
+                                          ))}
+                                      </div>
+                                  ) : (
+                                      <span className="text-slate-400 dark:text-slate-500 text-sm">Unassigned</span>
+                                  )}
                               </td>
                               <td className="px-6 py-4 text-center">
                                   <div className="flex items-center justify-center gap-3 text-xs">
