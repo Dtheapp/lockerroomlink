@@ -359,7 +359,7 @@ const Chat: React.FC = () => {
                         </button>
                         
                         {activeMessageMenu === msg.id && (
-                          <div className="absolute right-0 top-6 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-xl z-20 py-1 min-w-[160px]">
+                          <div className="absolute right-0 bottom-full mb-1 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-xl z-20 py-1 min-w-[160px]">
                             {/* Delete Message - Available for all messages from others */}
                             <button
                               onClick={() => {

@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc, limitToLast } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc, limitToLast, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnreadMessages } from '../hooks/useUnreadMessages';
-import { Search, Send, MessageSquare, AlertCircle } from 'lucide-react';
+import { Search, Send, MessageSquare, AlertCircle, Edit2, Trash2, X, Check } from 'lucide-react';
 import type { PrivateChat, PrivateMessage, UserProfile } from '../types';
 
 const Messenger: React.FC = () => {
@@ -24,6 +24,13 @@ const Messenger: React.FC = () => {
   const [sending, setSending] = useState(false);
   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Edit/Delete message state
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Mark conversation as read when opening it
   useEffect(() => {
@@ -143,6 +150,43 @@ const Messenger: React.FC = () => {
       finally { setSending(false); }
   };
 
+  // Edit own message
+  const handleEditMessage = async (messageId: string) => {
+    if (!activeChat || !editingText.trim()) return;
+    
+    setSavingEdit(true);
+    try {
+      const messageDocRef = doc(db, 'private_chats', activeChat.id, 'messages', messageId);
+      await updateDoc(messageDocRef, {
+        text: sanitizeText(editingText, 2000),
+        edited: true,
+        editedAt: serverTimestamp()
+      });
+      setEditingMessageId(null);
+      setEditingText('');
+    } catch (error) {
+      console.error("Error editing message:", error);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // Delete own message
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!activeChat) return;
+    
+    setDeleting(true);
+    try {
+      const messageDocRef = doc(db, 'private_chats', activeChat.id, 'messages', messageId);
+      await deleteDoc(messageDocRef);
+      setDeleteConfirm(null);
+    } catch (error) {
+      console.error("Error deleting message:", error);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const getOtherParticipant = (chat: PrivateChat) => {
       if (!user) return { username: 'Unknown', role: '' };
       const otherId = chat.participants.find(id => id !== user.uid);
@@ -235,16 +279,93 @@ const Messenger: React.FC = () => {
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-zinc-50 dark:bg-black/20 custom-scrollbar">
                     {messages.map((msg) => {
                         const isMe = msg.senderId === user?.uid;
+                        const isEditing = editingMessageId === msg.id;
+                        const isEdited = (msg as any).edited;
+                        
                         return (
-                            <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${isMe ? 'bg-orange-600 text-white rounded-br-none' : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 rounded-bl-none'}`}>
-                                    <p>{msg.text}</p>
+                            <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
+                                <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm relative ${isMe ? 'bg-orange-600 text-white rounded-br-none' : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 rounded-bl-none'}`}>
+                                    {isEditing ? (
+                                      <div className="flex flex-col gap-2">
+                                        <input
+                                          type="text"
+                                          value={editingText}
+                                          onChange={(e) => setEditingText(e.target.value)}
+                                          className="bg-white/20 border border-white/30 rounded px-2 py-1 text-sm text-white focus:outline-none"
+                                          autoFocus
+                                        />
+                                        <div className="flex gap-1 justify-end">
+                                          <button
+                                            onClick={() => { setEditingMessageId(null); setEditingText(''); }}
+                                            className="text-orange-200 hover:text-white p-1"
+                                          >
+                                            <X className="w-4 h-4" />
+                                          </button>
+                                          <button
+                                            onClick={() => handleEditMessage(msg.id)}
+                                            disabled={savingEdit || !editingText.trim()}
+                                            className="text-orange-200 hover:text-white p-1 disabled:opacity-50"
+                                          >
+                                            {savingEdit ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <p>{msg.text}</p>
+                                        {isEdited && (
+                                          <p className={`text-[10px] mt-0.5 ${isMe ? 'text-orange-200' : 'text-zinc-400'}`}>(edited)</p>
+                                        )}
+                                      </>
+                                    )}
+                                    
+                                    {/* Edit/Delete buttons for own messages */}
+                                    {isMe && !isEditing && (
+                                      <div className="absolute -left-16 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
+                                        <button
+                                          onClick={() => { setEditingMessageId(msg.id); setEditingText(msg.text); }}
+                                          className="text-zinc-400 hover:text-orange-500 p-1 bg-white dark:bg-zinc-900 rounded shadow"
+                                          title="Edit"
+                                        >
+                                          <Edit2 className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                          onClick={() => setDeleteConfirm(msg.id)}
+                                          className="text-zinc-400 hover:text-red-500 p-1 bg-white dark:bg-zinc-900 rounded shadow"
+                                          title="Delete"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    )}
                                 </div>
                             </div>
                         );
                     })}
                     <div ref={scrollRef} />
                 </div>
+
+                {/* Delete Confirmation */}
+                {deleteConfirm && (
+                  <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-900/30 flex items-center justify-between">
+                    <p className="text-sm text-red-600 dark:text-red-400">Delete this message?</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setDeleteConfirm(null)}
+                        className="px-3 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleDeleteMessage(deleteConfirm)}
+                        disabled={deleting}
+                        className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                      >
+                        {deleting ? 'Deleting...' : 'Delete'}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Rate limit warning */}
                 {rateLimitError && (
