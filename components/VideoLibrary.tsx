@@ -398,22 +398,10 @@ const VideoLibrary: React.FC = () => {
     if (!teamData?.id || !deleteVideoConfirm) return;
     setDeletingVideo(true);
     try {
-      // First, get the video to check for tagged players
-      const videoToDelete = videos.find(v => v.id === deleteVideoConfirm.id);
-      
-      // Delete the video from main collection
+      // Delete the video from main collection only
+      // NOTE: We intentionally DO NOT delete from players' film rooms
+      // Tagged videos persist on player profiles for recruitment purposes even after coach deletes
       await deleteDoc(doc(db, 'teams', teamData.id, 'videos', deleteVideoConfirm.id));
-      
-      // Also delete from any tagged players' film rooms
-      if (videoToDelete?.taggedPlayerIds && videoToDelete.taggedPlayerIds.length > 0) {
-        const batch = writeBatch(db);
-        for (const playerId of videoToDelete.taggedPlayerIds) {
-          const filmEntryRef = doc(db, 'teams', teamData.id, 'players', playerId, 'filmRoom', deleteVideoConfirm.id);
-          batch.delete(filmEntryRef);
-        }
-        await batch.commit();
-        console.log('Deleted film room entries for', videoToDelete.taggedPlayerIds.length, 'players');
-      }
       
       setDeleteVideoConfirm(null);
     } catch (error) {

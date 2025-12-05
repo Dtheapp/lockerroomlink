@@ -3,8 +3,8 @@ import { doc, updateDoc, collection, addDoc, query, where, onSnapshot, getDocs, 
 import { db } from '../services/firebase';
 import { uploadFile, deleteFile } from '../services/storage';
 import { useAuth } from '../contexts/AuthContext';
-import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye, Sword, User, Camera, Star, Crown, Ruler, Scale, Users, Trash2, AtSign, Link as LinkIcon, Copy, Check, ExternalLink } from 'lucide-react';
-import type { Player, MedicalInfo, Team } from '../types';
+import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye, Sword, User, Camera, Star, Crown, Ruler, Scale, Users, Trash2, AtSign, Link as LinkIcon, Copy, Check, ExternalLink, Film, Play } from 'lucide-react';
+import type { Player, MedicalInfo, Team, PlayerFilmEntry } from '../types';
 import PlayerStatsModal from './stats/PlayerStatsModal';
 
 const Profile: React.FC = () => {
@@ -59,6 +59,13 @@ const Profile: React.FC = () => {
   // Copy link feedback
   const [copiedPlayerId, setCopiedPlayerId] = useState<string | null>(null);
   const [copiedCoachLink, setCopiedCoachLink] = useState(false);
+
+  // Film Room state for parents
+  const [athleteFilmRooms, setAthleteFilmRooms] = useState<Record<string, PlayerFilmEntry[]>>({});
+  const [showFilmRoomForPlayer, setShowFilmRoomForPlayer] = useState<Player | null>(null);
+  const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+  const [deleteFilmConfirm, setDeleteFilmConfirm] = useState<{ playerId: string; film: PlayerFilmEntry } | null>(null);
+  const [deletingFilm, setDeletingFilm] = useState(false);
 
   // Full Edit Form State (including medical)
   const [editForm, setEditForm] = useState({
@@ -225,6 +232,64 @@ const Profile: React.FC = () => {
       fetchAllTeams();
     }
   }, [userData?.role]);
+
+  // 4. Load film room entries for parent's athletes
+  useEffect(() => {
+    if (userData?.role !== 'Parent' || myAthletes.length === 0) return;
+    
+    const fetchFilmRooms = async () => {
+      const filmRooms: Record<string, PlayerFilmEntry[]> = {};
+      
+      for (const athlete of myAthletes) {
+        if (!athlete.teamId || !athlete.id) continue;
+        
+        try {
+          const filmSnapshot = await getDocs(collection(db, 'teams', athlete.teamId, 'players', athlete.id, 'filmRoom'));
+          const films = filmSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as PlayerFilmEntry));
+          // Sort by taggedAt descending
+          films.sort((a, b) => {
+            const aTime = a.taggedAt?.toMillis?.() || 0;
+            const bTime = b.taggedAt?.toMillis?.() || 0;
+            return bTime - aTime;
+          });
+          filmRooms[athlete.id] = films;
+        } catch (err) {
+          console.error(`Error fetching film room for athlete ${athlete.id}:`, err);
+          filmRooms[athlete.id] = [];
+        }
+      }
+      
+      setAthleteFilmRooms(filmRooms);
+    };
+    
+    fetchFilmRooms();
+  }, [userData?.role, myAthletes]);
+
+  // Delete film room entry handler
+  const handleDeleteFilmEntry = async () => {
+    if (!deleteFilmConfirm) return;
+    
+    const { playerId, film } = deleteFilmConfirm;
+    const athlete = myAthletes.find(a => a.id === playerId);
+    if (!athlete?.teamId) return;
+    
+    setDeletingFilm(true);
+    try {
+      await deleteDoc(doc(db, 'teams', athlete.teamId, 'players', playerId, 'filmRoom', film.id));
+      
+      // Update local state
+      setAthleteFilmRooms(prev => ({
+        ...prev,
+        [playerId]: prev[playerId].filter(f => f.id !== film.id)
+      }));
+      
+      setDeleteFilmConfirm(null);
+    } catch (err) {
+      console.error('Error deleting film entry:', err);
+    } finally {
+      setDeletingFilm(false);
+    }
+  };
 
   // Username validation helper - checks if username is taken across ALL teams
   const checkUsernameAvailability = async (username: string, excludePlayerId?: string): Promise<boolean> => {
@@ -1183,6 +1248,16 @@ const Profile: React.FC = () => {
                                 >
                                   <BarChart3 className="w-4 h-4" /> View Stats History
                                 </button>
+                                
+                                {/* FILM ROOM BUTTON */}
+                                {athleteFilmRooms[player.id]?.length > 0 && (
+                                  <button
+                                    onClick={() => setShowFilmRoomForPlayer(player)}
+                                    className="w-full mt-2 flex items-center justify-center gap-2 text-sm font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 py-2.5 rounded-lg border border-red-200 dark:border-red-900/30 transition-colors"
+                                  >
+                                    <Film className="w-4 h-4" /> Film Room ({athleteFilmRooms[player.id].length})
+                                  </button>
+                                )}
                             </div>
                           );
                       })}
@@ -1768,6 +1843,156 @@ const Profile: React.FC = () => {
               className="max-w-full max-h-[80vh] object-contain rounded-lg"
             />
             <p className="text-center text-white font-bold mt-4">{name}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Film Room Modal for Parent */}
+      {showFilmRoomForPlayer && (
+        <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto">
+          <div className="min-h-full p-4 md:p-8">
+            {/* Header */}
+            <div className="max-w-6xl mx-auto mb-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-red-600 to-orange-600 rounded-xl flex items-center justify-center">
+                    <Film className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">{showFilmRoomForPlayer.name}'s Film Room</h2>
+                    <p className="text-zinc-400">
+                      {athleteFilmRooms[showFilmRoomForPlayer.id]?.length || 0} {(athleteFilmRooms[showFilmRoomForPlayer.id]?.length || 0) === 1 ? 'video' : 'videos'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowFilmRoomForPlayer(null)}
+                  className="p-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Video Grid */}
+            <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {athleteFilmRooms[showFilmRoomForPlayer.id]?.map((video) => (
+                <div 
+                  key={video.id}
+                  className="group bg-zinc-900 rounded-xl border border-zinc-700 overflow-hidden hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/10 transition-all"
+                >
+                  {/* Thumbnail */}
+                  <div 
+                    className="relative aspect-video bg-black cursor-pointer"
+                    onClick={() => setPlayingVideoId(video.youtubeId)}
+                  >
+                    <img 
+                      src={`https://img.youtube.com/vi/${video.youtubeId}/mqdefault.jpg`}
+                      alt={video.title}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/20 transition-colors">
+                      <div className="w-14 h-14 bg-orange-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                        <Play className="w-7 h-7 text-white ml-1" />
+                      </div>
+                    </div>
+                    {/* Category Badge */}
+                    <div className={`absolute top-2 left-2 px-2 py-1 rounded text-xs font-bold ${
+                      video.category === 'Game Film' ? 'bg-red-500/90' : 'bg-yellow-500/90'
+                    } text-white`}>
+                      {video.category}
+                    </div>
+                  </div>
+                  {/* Info */}
+                  <div className="p-4">
+                    <h3 className="font-bold text-white line-clamp-1">{video.title}</h3>
+                    {video.description && (
+                      <p className="text-sm text-zinc-500 mt-1 line-clamp-2">{video.description}</p>
+                    )}
+                    {video.teamName && (
+                      <p className="text-xs text-zinc-600 mt-2 flex items-center gap-1">
+                        <Users className="w-3 h-3" /> {video.teamName}
+                      </p>
+                    )}
+                    {/* Delete Button */}
+                    <button
+                      onClick={() => setDeleteFilmConfirm({ playerId: showFilmRoomForPlayer.id, film: video })}
+                      className="w-full mt-3 flex items-center justify-center gap-2 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-sm font-medium transition-colors border border-red-600/30"
+                    >
+                      <Trash2 className="w-4 h-4" /> Remove from Film Room
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Video Player Modal */}
+      {playingVideoId && (
+        <div className="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-0 md:p-10 animate-in fade-in duration-300">
+          <div className="w-full max-w-6xl relative aspect-video bg-black shadow-2xl rounded-lg overflow-hidden">
+            {/* Close Button */}
+            <button 
+              onClick={() => setPlayingVideoId(null)} 
+              className="absolute top-4 right-4 z-10 bg-black/50 text-white hover:bg-orange-600 p-2 rounded-full transition-colors backdrop-blur-sm"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            
+            {/* YouTube Embed */}
+            <iframe 
+              src={`https://www.youtube.com/embed/${playingVideoId}?autoplay=1&rel=0&modestbranding=1`} 
+              title="YouTube video player" 
+              className="w-full h-full"
+              frameBorder="0" 
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+              allowFullScreen
+            ></iframe>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Film Entry Confirmation Modal */}
+      {deleteFilmConfirm && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[70]">
+          <div className="bg-zinc-900 rounded-xl border border-zinc-700 p-6 max-w-md w-full">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-red-500/20 p-2 rounded-full">
+                <Trash2 className="w-5 h-5 text-red-500" />
+              </div>
+              <h3 className="text-lg font-bold text-white">Remove Video</h3>
+            </div>
+            <p className="text-zinc-400 mb-2">
+              Are you sure you want to remove "<span className="text-white font-medium">{deleteFilmConfirm.film.title}</span>" from your athlete's Film Room?
+            </p>
+            <p className="text-zinc-500 text-sm mb-6">
+              This will remove the video from their public profile. This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteFilmConfirm(null)}
+                disabled={deletingFilm}
+                className="flex-1 py-2.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteFilmEntry}
+                disabled={deletingFilm}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              >
+                {deletingFilm ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Remove
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
