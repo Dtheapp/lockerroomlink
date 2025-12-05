@@ -148,7 +148,7 @@ const AppContent: React.FC = () => {
           {/* Public Routes - Always accessible */}
           <Route path="/athlete/:username" element={<PublicAthleteProfile />} />
           <Route path="/team/:teamId" element={<PublicTeamProfile />} />
-          <Route path="/coach/:coachId" element={<PublicCoachProfile />} />
+          <Route path="/coach/:username" element={<PublicCoachProfile />} />
           
           {!user ? (
             <>

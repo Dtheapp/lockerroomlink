@@ -7,6 +7,7 @@ import { Users, Trophy, Calendar, MapPin, Clock, User, Crown, Star, Shield, Swor
 
 interface TeamCoach {
   id: string;
+  username?: string;
   name: string;
   email?: string;
   isHeadCoach?: boolean;
@@ -78,6 +79,7 @@ const PublicTeamProfile: React.FC = () => {
           if (belongsToTeam) {
             coaches.push({
               id: coachDoc.id,
+              username: coachData.username,
               name: coachData.name,
               email: coachData.email,
               isHeadCoach: team.headCoachId === coachDoc.id || team.coachId === coachDoc.id,
@@ -303,7 +305,7 @@ const PublicTeamProfile: React.FC = () => {
                   {coaches.map((coach) => (
                     <Link 
                       key={coach.id}
-                      to={`/coach/${coach.id}`}
+                      to={`/coach/${coach.username}`}
                       className={`flex items-center gap-3 p-3 rounded-lg transition-all hover:scale-[1.02] ${
                         coach.isHeadCoach 
                           ? 'bg-amber-500/10 border border-amber-500/30 hover:border-amber-400' 

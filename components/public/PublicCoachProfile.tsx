@@ -15,7 +15,7 @@ interface CoachData {
 }
 
 const PublicCoachProfile: React.FC = () => {
-  const { coachId } = useParams<{ coachId: string }>();
+  const { username } = useParams<{ username: string }>();
   const { user, userData } = useAuth();
   const [data, setData] = useState<CoachData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,29 +31,30 @@ const PublicCoachProfile: React.FC = () => {
 
   useEffect(() => {
     const fetchCoachData = async () => {
-      if (!coachId) {
-        setError('No coach ID provided');
+      if (!username) {
+        setError('No coach username provided');
         setLoading(false);
         return;
       }
 
       try {
-        // Get coach document
-        const coachDoc = await getDoc(doc(db, 'users', coachId));
-        if (!coachDoc.exists()) {
+        // Query coach by username
+        const coachQuery = query(
+          collection(db, 'users'),
+          where('username', '==', username),
+          where('role', '==', 'Coach')
+        );
+        const coachSnapshot = await getDocs(coachQuery);
+        
+        if (coachSnapshot.empty) {
           setError('Coach not found');
           setLoading(false);
           return;
         }
 
+        const coachDoc = coachSnapshot.docs[0];
         const coach = { uid: coachDoc.id, ...coachDoc.data() } as UserProfile;
-        
-        // Verify this is a coach
-        if (coach.role !== 'Coach') {
-          setError('Profile not found');
-          setLoading(false);
-          return;
-        }
+        const coachId = coachDoc.id;
 
         // Get teams this coach belongs to - check both teamIds and query all teams
         const processedTeamIds = new Set<string>();
@@ -118,7 +119,7 @@ const PublicCoachProfile: React.FC = () => {
     };
 
     fetchCoachData();
-  }, [coachId, user]);
+  }, [username, user]);
 
   // Handle giving kudos
   const handleGiveKudos = async () => {
@@ -131,7 +132,7 @@ const PublicCoachProfile: React.FC = () => {
       const teamMatch = data.teams.find(t => t.id === parentTeamId);
       
       await addDoc(collection(db, 'coachKudos'), {
-        coachId: coachId,
+        coachId: data.coach.uid,
         parentId: user.uid,
         parentName: userData.name,
         teamId: parentTeamId,
@@ -165,7 +166,7 @@ const PublicCoachProfile: React.FC = () => {
       const teamMatch = data.teams.find(t => t.id === parentTeamId);
       
       await addDoc(collection(db, 'coachFeedback'), {
-        coachId: coachId,
+        coachId: data.coach.uid,
         coachName: data.coach.name,
         parentId: user.uid,
         parentName: userData.name,

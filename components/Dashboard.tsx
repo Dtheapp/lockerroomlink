@@ -1374,7 +1374,7 @@ const Dashboard: React.FC = () => {
               {coaches.map(coach => (
                 <Link
                   key={coach.uid}
-                  to={`/coach/${coach.uid}`}
+                  to={`/coach/${coach.username}`}
                   className="group bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 text-center hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10 transition-all"
                 >
                   {/* Coach Photo */}
