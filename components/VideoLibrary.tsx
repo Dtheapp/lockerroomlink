@@ -200,9 +200,15 @@ const VideoLibrary: React.FC = () => {
 
       // Save to tagged players' film room (for persistence on their public profiles)
       if (playerIdsToTag.length > 0) {
+        console.log('Attempting to save film room for players:', playerIdsToTag);
+        console.log('Team ID:', teamData.id);
+        console.log('Video ID:', videoRef.id);
+        
         try {
           const batch = writeBatch(db);
           for (const playerId of playerIdsToTag) {
+            const filmPath = `teams/${teamData.id}/players/${playerId}/filmRoom/${videoRef.id}`;
+            console.log('Writing to path:', filmPath);
             const filmEntryRef = doc(db, 'teams', teamData.id, 'players', playerId, 'filmRoom', videoRef.id);
             const filmEntry: Omit<PlayerFilmEntry, 'id'> = {
               videoId: videoRef.id,
@@ -217,7 +223,7 @@ const VideoLibrary: React.FC = () => {
             batch.set(filmEntryRef, filmEntry);
           }
           await batch.commit();
-          console.log('Successfully saved film room entries for', playerIdsToTag.length, 'players');
+          console.log('SUCCESS: Saved film room entries for', playerIdsToTag.length, 'players');
         } catch (filmError) {
           console.error('Error saving to player film rooms:', filmError);
           // Video was saved, but film room entries failed - try individual writes as fallback
