@@ -28,6 +28,10 @@ const TracePlayModal: React.FC<TracePlayModalProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   
+  // Image dragging state
+  const [isDraggingImage, setIsDraggingImage] = useState(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number; imgX: number; imgY: number } | null>(null);
+  
   // Image settings for positioning
   const [imageSettings, setImageSettings] = useState<ImageSettings>({
     x: 0,
@@ -360,7 +364,9 @@ const TracePlayModal: React.FC<TracePlayModalProps> = ({
               {/* Preview canvas */}
               <div 
                 ref={previewRef}
-                className="relative w-full aspect-video bg-slate-900 rounded-lg overflow-hidden border border-gray-700"
+                className={`relative w-full aspect-video bg-slate-900 rounded-lg overflow-hidden border border-gray-700 ${
+                  !imageSettings.locked && imageSettings.visible ? 'cursor-move' : ''
+                }`}
                 style={{
                   backgroundImage: `
                     repeating-linear-gradient(
@@ -372,13 +378,74 @@ const TracePlayModal: React.FC<TracePlayModalProps> = ({
                     )
                   `
                 }}
+                onMouseDown={(e) => {
+                  if (imageSettings.locked || !imageSettings.visible) return;
+                  const rect = previewRef.current?.getBoundingClientRect();
+                  if (!rect) return;
+                  setIsDraggingImage(true);
+                  setDragStart({
+                    x: e.clientX,
+                    y: e.clientY,
+                    imgX: imageSettings.x,
+                    imgY: imageSettings.y
+                  });
+                }}
+                onMouseMove={(e) => {
+                  if (!isDraggingImage || !dragStart || !previewRef.current) return;
+                  const rect = previewRef.current.getBoundingClientRect();
+                  const deltaX = ((e.clientX - dragStart.x) / rect.width) * 100;
+                  const deltaY = ((e.clientY - dragStart.y) / rect.height) * 100;
+                  setImageSettings(prev => ({
+                    ...prev,
+                    x: Math.max(-50, Math.min(100, dragStart.imgX + deltaX)),
+                    y: Math.max(-50, Math.min(100, dragStart.imgY + deltaY))
+                  }));
+                }}
+                onMouseUp={() => {
+                  setIsDraggingImage(false);
+                  setDragStart(null);
+                }}
+                onMouseLeave={() => {
+                  setIsDraggingImage(false);
+                  setDragStart(null);
+                }}
+                onTouchStart={(e) => {
+                  if (imageSettings.locked || !imageSettings.visible) return;
+                  const touch = e.touches[0];
+                  const rect = previewRef.current?.getBoundingClientRect();
+                  if (!rect) return;
+                  setIsDraggingImage(true);
+                  setDragStart({
+                    x: touch.clientX,
+                    y: touch.clientY,
+                    imgX: imageSettings.x,
+                    imgY: imageSettings.y
+                  });
+                }}
+                onTouchMove={(e) => {
+                  if (!isDraggingImage || !dragStart || !previewRef.current) return;
+                  const touch = e.touches[0];
+                  const rect = previewRef.current.getBoundingClientRect();
+                  const deltaX = ((touch.clientX - dragStart.x) / rect.width) * 100;
+                  const deltaY = ((touch.clientY - dragStart.y) / rect.height) * 100;
+                  setImageSettings(prev => ({
+                    ...prev,
+                    x: Math.max(-50, Math.min(100, dragStart.imgX + deltaX)),
+                    y: Math.max(-50, Math.min(100, dragStart.imgY + deltaY))
+                  }));
+                }}
+                onTouchEnd={() => {
+                  setIsDraggingImage(false);
+                  setDragStart(null);
+                }}
               >
                 {/* Background image */}
                 {imageSettings.visible && (
                   <img
                     src={imagePreview}
                     alt="Trace background"
-                    className="absolute pointer-events-none"
+                    className="absolute pointer-events-none select-none"
+                    draggable={false}
                     style={{
                       left: `${imageSettings.x}%`,
                       top: `${imageSettings.y}%`,
@@ -390,11 +457,39 @@ const TracePlayModal: React.FC<TracePlayModalProps> = ({
                   />
                 )}
                 
+                {/* Drag hint */}
+                {!imageSettings.locked && imageSettings.visible && !isDraggingImage && (
+                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/70 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-2">
+                    <Move className="w-3 h-3" />
+                    Drag to position image
+                  </div>
+                )}
+                
+                {/* Dragging indicator */}
+                {isDraggingImage && (
+                  <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-cyan-600 text-white text-xs px-3 py-1.5 rounded-full">
+                    Moving...
+                  </div>
+                )}
+                
                 {/* Lock indicator */}
                 {imageSettings.locked && (
                   <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
                     <Lock className="w-3 h-3" />
                     Locked
+                  </div>
+                )}
+                
+                {/* Position display */}
+                <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded font-mono">
+                  X: {Math.round(imageSettings.x)} Y: {Math.round(imageSettings.y)}
+                </div>
+                
+                {/* Drag hint - only show when not locked and not dragging */}
+                {!imageSettings.locked && !isDraggingImage && (
+                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/60 text-gray-300 text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                    <Move className="w-3 h-3" />
+                    Drag to position
                   </div>
                 )}
                 
