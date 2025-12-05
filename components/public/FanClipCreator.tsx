@@ -307,7 +307,7 @@ const FanClipCreator: React.FC<FanClipCreatorProps> = ({
     setError(null);
     
     try {
-      const clipData: Omit<FanClip, 'id'> = {
+      const clipData: Record<string, any> = {
         sourceVideoId: selectedVideo.id,
         sourceVideoTitle: selectedVideo.title,
         sourceTeamId: selectedVideo.teamId,
@@ -316,10 +316,8 @@ const FanClipCreator: React.FC<FanClipCreatorProps> = ({
         startTime,
         endTime,
         title: clipTitle.trim(),
-        description: clipDescription.trim() || undefined,
         creatorId: user.uid,
         creatorName: userData.name || 'Anonymous Fan',
-        creatorUsername: userData.username || undefined,
         athleteId: playerId,
         athleteName: playerName,
         createdAt: serverTimestamp(),
@@ -328,6 +326,14 @@ const FanClipCreator: React.FC<FanClipCreatorProps> = ({
         viewCount: 0,
         isApproved: false, // Needs parent approval
       };
+      
+      // Only add optional fields if they have values (Firestore doesn't accept undefined)
+      if (clipDescription.trim()) {
+        clipData.description = clipDescription.trim();
+      }
+      if (userData.username) {
+        clipData.creatorUsername = userData.username;
+      }
       
       const docRef = await addDoc(
         collection(db, 'teams', teamId, 'players', playerId, 'fanClips'),
