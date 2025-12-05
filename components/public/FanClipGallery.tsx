@@ -40,31 +40,33 @@ const FanClipGallery: React.FC<FanClipGalleryProps> = ({
       try {
         const clipsRef = collection(db, 'teams', teamId, 'players', playerId, 'fanClips');
         
-        // Get approved clips
-        const approvedSnap = await getDocs(
-          query(clipsRef, where('isApproved', '==', true), orderBy('createdAt', 'desc'))
-        );
+        // Get all clips and filter client-side to avoid composite index requirement
+        const allClipsSnap = await getDocs(clipsRef);
         
         const approvedClips: FanClip[] = [];
-        approvedSnap.forEach((doc) => {
-          approvedClips.push({ id: doc.id, ...doc.data() } as FanClip);
+        const pendingClipsList: FanClip[] = [];
+        
+        allClipsSnap.forEach((doc) => {
+          const clip = { id: doc.id, ...doc.data() } as FanClip;
+          if (clip.isApproved) {
+            approvedClips.push(clip);
+          } else if (!clip.isHidden) {
+            pendingClipsList.push(clip);
+          }
         });
+        
+        // Sort by createdAt descending
+        approvedClips.sort((a, b) => {
+          const aTime = a.createdAt?.toMillis?.() || 0;
+          const bTime = b.createdAt?.toMillis?.() || 0;
+          return bTime - aTime;
+        });
+        
         setClips(approvedClips);
         
-        // If parent, also get pending clips
+        // If parent, show pending clips
         if (isParent) {
-          const pendingSnap = await getDocs(
-            query(clipsRef, where('isApproved', '==', false), where('isHidden', '!=', true))
-          );
-          
-          const pending: FanClip[] = [];
-          pendingSnap.forEach((doc) => {
-            const data = doc.data();
-            if (!data.isHidden) {
-              pending.push({ id: doc.id, ...data } as FanClip);
-            }
-          });
-          setPendingClips(pending);
+          setPendingClips(pendingClipsList);
         }
         
       } catch (err) {

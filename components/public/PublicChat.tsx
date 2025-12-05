@@ -52,7 +52,7 @@ const PublicChat: React.FC<PublicChatProps> = ({ teamId, playerId, playerName, p
 
   // Load chat settings
   useEffect(() => {
-    const settingsRef = doc(db, 'teams', teamId, 'players', playerId, 'publicChatSettings');
+    const settingsRef = doc(db, 'teams', teamId, 'players', playerId, 'config', 'chatSettings');
     const unsubSettings = onSnapshot(settingsRef, (snap) => {
       if (snap.exists()) {
         const settings = snap.data() as PublicChatSettings;
@@ -294,7 +294,7 @@ const PublicChat: React.FC<PublicChatProps> = ({ teamId, playerId, playerName, p
     if (!isParentModerator) return;
     
     try {
-      const settingsRef = doc(db, 'teams', teamId, 'players', playerId, 'publicChatSettings');
+      const settingsRef = doc(db, 'teams', teamId, 'players', playerId, 'config', 'chatSettings');
       await setDoc(settingsRef, tempSettings);
       setChatSettings(tempSettings);
       setShowSettingsModal(false);
