@@ -346,8 +346,8 @@ const Dashboard: React.FC = () => {
     finally { setDeletingEvent(false); }
   };
 
-  const handleAddEvent = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddEvent = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!newEvent.title?.trim() || !newEvent.date || !teamData?.id || !userData?.uid || addingEvent) return;
     setAddingEvent(true);
     try {
@@ -534,7 +534,7 @@ const Dashboard: React.FC = () => {
                     type="date" 
                     value={newEvent.date || ''} 
                     onChange={e => setNewEvent({...newEvent, date: e.target.value})} 
-                    className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg"
+                    className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg [&::-webkit-calendar-picker-indicator]:dark:invert"
                   />
                 </div>
                 <div>
@@ -543,7 +543,7 @@ const Dashboard: React.FC = () => {
                     type="time" 
                     value={newEvent.time || ''} 
                     onChange={e => setNewEvent({...newEvent, time: e.target.value})} 
-                    className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg"
+                    className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg [&::-webkit-calendar-picker-indicator]:dark:invert"
                   />
                 </div>
               </div>
@@ -604,7 +604,7 @@ const Dashboard: React.FC = () => {
             <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 rounded-b-2xl">
               <div className="flex gap-2">
                 <button 
-                  onClick={(e) => handleAddEvent(e as any)}
+                  onClick={() => handleAddEvent()}
                   disabled={addingEvent || !newEvent.title?.trim() || !newEvent.date}
                   className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -671,7 +671,7 @@ const Dashboard: React.FC = () => {
                         type="date" 
                         value={editingEvent.date || ''} 
                         onChange={e => setEditingEvent({...editingEvent, date: e.target.value})} 
-                        className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg"
+                        className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg [&::-webkit-calendar-picker-indicator]:dark:invert"
                       />
                     </div>
                     <div>
@@ -680,7 +680,7 @@ const Dashboard: React.FC = () => {
                         type="time" 
                         value={editingEvent.time || ''} 
                         onChange={e => setEditingEvent({...editingEvent, time: e.target.value})} 
-                        className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg"
+                        className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg [&::-webkit-calendar-picker-indicator]:dark:invert"
                       />
                     </div>
                   </div>
