@@ -342,6 +342,17 @@ const PublicAthleteProfile: React.FC = () => {
           </div>
         </div>
 
+        {/* Bio Section */}
+        {player.bio && (
+          <div className="bg-zinc-800/50 rounded-xl border border-zinc-700 p-6 mb-8">
+            <h2 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
+              <User className="w-5 h-5 text-purple-500" />
+              About {player.name.split(' ')[0]}
+            </h2>
+            <p className="text-zinc-300 whitespace-pre-wrap leading-relaxed">{player.bio}</p>
+          </div>
+        )}
+
         {/* Film Room Button */}
         {filmRoom.length > 0 && (
           <button

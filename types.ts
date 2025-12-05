@@ -129,6 +129,9 @@ export interface Player {
   number?: number; 
   position?: string;
   
+  // Bio - parent can add a description about their athlete
+  bio?: string;
+  
   // NEW: Uniform Sizes
   shirtSize?: string; // e.g. "Youth Large", "Adult M"
   pantSize?: string; // e.g. "Youth Small", "Adult L"

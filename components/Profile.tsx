@@ -77,6 +77,7 @@ const Profile: React.FC = () => {
     shirtSize: '',
     pantSize: '',
     teamId: '', // NEW: Team selection for changing teams
+    bio: '', // Bio about the athlete
     // Medical
     allergies: '',
     conditions: '',
@@ -451,6 +452,7 @@ const Profile: React.FC = () => {
         shirtSize: player.shirtSize || '',
         pantSize: player.pantSize || '',
         teamId: player.teamId || '',
+        bio: player.bio || '',
         allergies: player.medical?.allergies || '',
         conditions: player.medical?.conditions || '',
         medications: player.medical?.medications || '',
@@ -505,6 +507,7 @@ const Profile: React.FC = () => {
               weight: editForm.weight,
               shirtSize: editForm.shirtSize,
               pantSize: editForm.pantSize,
+              bio: editForm.bio || '',
               medical: medicalData,
               parentId: user?.uid,
               teamId: editForm.teamId,
@@ -532,6 +535,7 @@ const Profile: React.FC = () => {
               weight: editForm.weight,
               shirtSize: editForm.shirtSize,
               pantSize: editForm.pantSize,
+              bio: editForm.bio || '',
               medical: medicalData 
             });
           }
@@ -1168,6 +1172,23 @@ const Profile: React.FC = () => {
                                   </div>
                                 )}
 
+                                {/* Bio Preview */}
+                                {player.bio ? (
+                                  <div className="mt-3 bg-purple-50 dark:bg-purple-900/10 p-2 rounded border border-purple-200 dark:border-purple-900/30">
+                                    <p className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                                      <User className="w-3 h-3" /> Bio
+                                    </p>
+                                    <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">{player.bio}</p>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); openEditModal(player); }}
+                                    className="mt-3 w-full bg-purple-50 dark:bg-purple-900/10 p-2 rounded border border-dashed border-purple-300 dark:border-purple-800 text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/20 transition-colors flex items-center justify-center gap-1"
+                                  >
+                                    <Plus className="w-3 h-3" /> Add bio for public profile
+                                  </button>
+                                )}
+
                                 {/* Physical Info */}
                                 {(player.height || player.weight) && (
                                   <div className="mt-3 bg-cyan-50 dark:bg-cyan-900/10 p-2 rounded border border-cyan-200 dark:border-cyan-900/30">
@@ -1477,6 +1498,22 @@ const Profile: React.FC = () => {
                               </select>
                           </div>
                         </div>
+                      </div>
+
+                      {/* Bio Section */}
+                      <div>
+                        <p className="text-xs font-bold text-purple-600 dark:text-purple-400 mb-3 uppercase tracking-wider flex items-center gap-1">
+                          <User className="w-3 h-3" /> About (Public Bio)
+                        </p>
+                        <textarea
+                          rows={4}
+                          value={editForm.bio}
+                          onChange={e => setEditForm({...editForm, bio: e.target.value})}
+                          placeholder="Tell scouts and recruiters about your athlete... Achievements, personality, goals, etc."
+                          className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white placeholder-slate-400"
+                          maxLength={500}
+                        />
+                        <p className="text-[10px] text-slate-500 mt-1">{editForm.bio.length}/500 characters • Shown on public profile</p>
                       </div>
 
                       {/* Medical Information */}
