@@ -184,7 +184,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
   
   // DRAGGING
   const [isDragging, setIsDragging] = useState(false);
-  const [dragTarget, setDragTarget] = useState<{ type: 'element' | 'route_point' | 'line_point' | 'shape', id: string, index?: number } | null>(null);
+  const [dragTarget, setDragTarget] = useState<{ type: 'element' | 'route_point' | 'line_point' | 'shape' | 'line', id: string, index?: number } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const formationCanvasRef = useRef<HTMLDivElement>(null);
 
