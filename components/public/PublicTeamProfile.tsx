@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import type { Player, Team, PlayerSeasonStats, Game, TeamEvent, UserProfile } from '../../types';
-import { Users, Trophy, Calendar, MapPin, Clock, User, Crown, Star, Shield, Sword, TrendingUp, ChevronRight, Home, X, Heart, Award } from 'lucide-react';
+import type { Player, Team, PlayerSeasonStats, Game, TeamEvent, UserProfile, Video } from '../../types';
+import { Users, Trophy, Calendar, MapPin, Clock, User, Crown, Star, Shield, Sword, TrendingUp, ChevronRight, Home, X, Heart, Award, Film, Play } from 'lucide-react';
 
 interface TeamCoach {
   id: string;
@@ -25,6 +25,7 @@ interface PublicTeamData {
   players: Player[];
   games: Game[];
   upcomingEvents: TeamEvent[];
+  publicVideos: Video[];
   seasonRecord: { wins: number; losses: number; ties: number };
   seasonStats: {
     totalTds: number;
@@ -41,6 +42,7 @@ const PublicTeamProfile: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<TeamEvent | null>(null);
+  const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchTeamData = async () => {
@@ -159,12 +161,24 @@ const PublicTeamProfile: React.FC = () => {
           }
         }
 
+        // Get public videos (only videos marked as public and NOT private player videos)
+        const videosQuery = query(
+          collection(db, 'teams', teamId, 'videos'),
+          where('isPublic', '==', true),
+          orderBy('createdAt', 'desc')
+        );
+        const videosSnapshot = await getDocs(videosQuery);
+        const publicVideos = videosSnapshot.docs
+          .map(d => ({ id: d.id, ...d.data() } as Video))
+          .filter(v => !v.playerId); // Extra safety: exclude any private player videos
+
         setData({
           team,
           coaches,
           players,
           games,
           upcomingEvents,
+          publicVideos,
           seasonRecord,
           seasonStats: { totalTds, totalRushYards, totalPassYards, totalTackles },
           sportsmanshipLeader
@@ -226,7 +240,7 @@ const PublicTeamProfile: React.FC = () => {
     );
   }
 
-  const { team, coaches, players, games, upcomingEvents, seasonRecord, seasonStats, sportsmanshipLeader } = data;
+  const { team, coaches, players, games, upcomingEvents, publicVideos, seasonRecord, seasonStats, sportsmanshipLeader } = data;
   const currentYear = new Date().getFullYear();
 
   return (
@@ -416,6 +430,50 @@ const PublicTeamProfile: React.FC = () => {
                 ))}
               </div>
             </div>
+
+            {/* Public Videos / Film Room */}
+            {publicVideos.length > 0 && (
+              <div className="bg-zinc-800/50 rounded-xl border border-zinc-700 p-6">
+                <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                  <Film className="w-5 h-5 text-red-500" />
+                  Game Film
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {publicVideos.map((video) => (
+                    <div 
+                      key={video.id}
+                      className="group bg-zinc-900/50 rounded-lg border border-zinc-700 overflow-hidden hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/10 transition-all cursor-pointer"
+                      onClick={() => setPlayingVideoId(video.youtubeId)}
+                    >
+                      {/* Thumbnail */}
+                      <div className="relative aspect-video bg-black">
+                        <img 
+                          src={`https://img.youtube.com/vi/${video.youtubeId}/mqdefault.jpg`}
+                          alt={video.title}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/20 transition-colors">
+                          <div className="w-14 h-14 bg-orange-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                            <Play className="w-7 h-7 text-white ml-1" />
+                          </div>
+                        </div>
+                        {/* Category Badge */}
+                        <div className="absolute top-2 left-2 px-2 py-1 rounded text-xs font-bold bg-red-500/90 text-white">
+                          {video.category}
+                        </div>
+                      </div>
+                      {/* Info */}
+                      <div className="p-3">
+                        <h3 className="font-bold text-white line-clamp-1">{video.title}</h3>
+                        {video.description && (
+                          <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{video.description}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Sidebar */}
@@ -659,6 +717,31 @@ const PublicTeamProfile: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Video Player Modal */}
+      {playingVideoId && (
+        <div className="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-0 md:p-10 animate-in fade-in duration-300">
+          <div className="w-full max-w-6xl relative aspect-video bg-black shadow-2xl rounded-lg overflow-hidden">
+            {/* Close Button */}
+            <button 
+              onClick={() => setPlayingVideoId(null)} 
+              className="absolute top-4 right-4 z-10 bg-black/50 text-white hover:bg-orange-600 p-2 rounded-full transition-colors backdrop-blur-sm"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            
+            {/* YouTube Embed */}
+            <iframe 
+              src={`https://www.youtube.com/embed/${playingVideoId}?autoplay=1&rel=0&modestbranding=1`} 
+              title="YouTube video player" 
+              className="w-full h-full"
+              frameBorder="0" 
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+              allowFullScreen
+            ></iframe>
           </div>
         </div>
       )}

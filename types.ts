@@ -194,6 +194,8 @@ export interface Video {
   // For private player-specific videos
   playerId?: string | null;  // If set, only visible to that player's parent
   playerName?: string | null; // Store name for display
+  // For public visibility on team's public page
+  isPublic?: boolean; // If true, show on team's public page (only for team videos, not private player videos)
   // Metadata
   createdAt?: any;
   createdBy?: string;

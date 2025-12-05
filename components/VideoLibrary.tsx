@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import type { Video, VideoCategory, Player } from '../types';
-import { Plus, Trash2, Play, Video as VideoIcon, X, AlertCircle, Film, Dumbbell, Trophy, FolderOpen, Edit2, Check, Lock, Users, Filter, User } from 'lucide-react';
+import { Plus, Trash2, Play, Video as VideoIcon, X, AlertCircle, Film, Dumbbell, Trophy, FolderOpen, Edit2, Check, Lock, Users, Filter, User, Globe } from 'lucide-react';
 import NoAthleteBlock from './NoAthleteBlock';
 
 const VIDEO_CATEGORIES: { value: VideoCategory; label: string; icon: React.ReactNode; color: string }[] = [
@@ -26,7 +26,8 @@ const VideoLibrary: React.FC = () => {
     category: VideoCategory;
     playerId: string;
     description: string;
-  }>({ title: '', url: '', category: 'Game Film', playerId: '', description: '' });
+    isPublic: boolean;
+  }>({ title: '', url: '', category: 'Game Film', playerId: '', description: '', isPublic: false });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -115,7 +116,7 @@ const VideoLibrary: React.FC = () => {
   };
 
   const resetForm = () => {
-    setNewVideo({ title: '', url: '', category: 'Game Film', playerId: '', description: '' });
+    setNewVideo({ title: '', url: '', category: 'Game Film', playerId: '', description: '', isPublic: false });
     setIsEditMode(false);
     setEditingVideo(null);
     setError('');
@@ -133,7 +134,8 @@ const VideoLibrary: React.FC = () => {
       url: video.url,
       category: video.category || 'Other',
       playerId: video.playerId || '',
-      description: video.description || ''
+      description: video.description || '',
+      isPublic: video.isPublic || false
     });
     setIsEditMode(true);
     setIsModalOpen(true);
@@ -170,6 +172,8 @@ const VideoLibrary: React.FC = () => {
         playerId: newVideo.playerId || null,
         playerName: playerName,
         description: newVideo.description || null,
+        // Only allow public if NOT a private player video
+        isPublic: newVideo.playerId ? false : newVideo.isPublic,
         createdAt: serverTimestamp(),
         createdBy: userData?.uid
       });
@@ -219,6 +223,8 @@ const VideoLibrary: React.FC = () => {
         playerId: newVideo.playerId || null,
         playerName: playerName,
         description: newVideo.description || null,
+        // Only allow public if NOT a private player video
+        isPublic: newVideo.playerId ? false : newVideo.isPublic,
       });
       
       resetForm();
@@ -394,9 +400,18 @@ const VideoLibrary: React.FC = () => {
                     
                     {/* Visibility indicator */}
                     {!video.playerId && (userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
-                      <div className="flex items-center gap-1.5 mt-2 text-xs text-zinc-500">
-                        <Users className="w-3 h-3" />
-                        <span>Visible to all team</span>
+                      <div className="flex items-center gap-1.5 mt-2 text-xs">
+                        {video.isPublic ? (
+                          <>
+                            <Globe className="w-3 h-3 text-purple-500" />
+                            <span className="text-purple-500">Public</span>
+                          </>
+                        ) : (
+                          <>
+                            <Users className="w-3 h-3 text-zinc-500" />
+                            <span className="text-zinc-500">Team Only</span>
+                          </>
+                        )}
                       </div>
                     )}
                     
@@ -537,7 +552,7 @@ const VideoLibrary: React.FC = () => {
                 </label>
                 <select
                   value={newVideo.playerId}
-                  onChange={e => setNewVideo({...newVideo, playerId: e.target.value})}
+                  onChange={e => setNewVideo({...newVideo, playerId: e.target.value, isPublic: e.target.value ? false : newVideo.isPublic})}
                   className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-lg p-3 text-zinc-900 dark:text-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none"
                 >
                   <option value="">Visible to entire team</option>
@@ -554,6 +569,29 @@ const VideoLibrary: React.FC = () => {
                   }
                 </p>
               </div>
+
+              {/* Show on Public Page (only for team videos, not private) */}
+              {!newVideo.playerId && (
+                <div className="bg-purple-50 dark:bg-purple-900/10 p-4 rounded-lg border border-purple-200 dark:border-purple-900/30">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newVideo.isPublic}
+                      onChange={e => setNewVideo({...newVideo, isPublic: e.target.checked})}
+                      className="w-5 h-5 rounded border-purple-300 dark:border-purple-700 text-purple-600 focus:ring-purple-500 bg-white dark:bg-zinc-900"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 text-sm font-bold text-purple-700 dark:text-purple-400">
+                        <Globe className="w-4 h-4" />
+                        Show on Team's Public Page
+                      </div>
+                      <p className="text-xs text-purple-600/70 dark:text-purple-400/70 mt-0.5">
+                        Anyone with the team's public link can view this video
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              )}
 
               {/* Description */}
               <div>
