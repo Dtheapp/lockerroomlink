@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc, limitToLast } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc, limitToLast, deleteDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { sanitizeText } from '../../services/sanitize';
 import { useAuth } from '../../contexts/AuthContext';
-import { Search, Send, MessageSquare, Users, Shield, UserCheck } from 'lucide-react';
+import { Search, Send, MessageSquare, Users, Shield, UserCheck, Trash2 } from 'lucide-react';
 import { uploadFile } from '../../services/storage';
 import type { PrivateChat, PrivateMessage, UserProfile } from '../../types';
 
@@ -24,6 +24,10 @@ const AdminMessenger: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [roleFilter, setRoleFilter] = useState<'all' | 'Coach' | 'Parent'>('all');
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Delete chat state
+  const [deleteChatConfirm, setDeleteChatConfirm] = useState<string | null>(null);
+  const [deletingChat, setDeletingChat] = useState(false);
 
   // 1. LOAD CHATS - All chats where SuperAdmin is a participant
   useEffect(() => {
@@ -218,6 +222,34 @@ const AdminMessenger: React.FC = () => {
       setAttachments(prev => prev.filter((_, i) => i !== index));
     };
 
+  // Delete entire chat conversation
+  const handleDeleteChat = async (chatId: string) => {
+    if (!chatId) return;
+    
+    setDeletingChat(true);
+    try {
+      // First delete all messages in the chat
+      const messagesRef = collection(db, 'private_chats', chatId, 'messages');
+      const messagesSnapshot = await getDocs(messagesRef);
+      const deletePromises = messagesSnapshot.docs.map(msgDoc => deleteDoc(msgDoc.ref));
+      await Promise.all(deletePromises);
+      
+      // Then delete the chat document itself
+      await deleteDoc(doc(db, 'private_chats', chatId));
+      
+      // Clear active chat if it was the deleted one
+      if (activeChat?.id === chatId) {
+        setActiveChat(null);
+      }
+      
+      setDeleteChatConfirm(null);
+    } catch (error) {
+      console.error("Error deleting chat:", error);
+    } finally {
+      setDeletingChat(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -317,17 +349,48 @@ const AdminMessenger: React.FC = () => {
                 return (
                   <div 
                     key={chat.id} 
-                    onClick={() => setActiveChat(chat)} 
                     className={`p-4 border-b border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors ${activeChat?.id === chat.id ? 'bg-zinc-100 dark:bg-zinc-900 border-l-4 border-l-orange-500' : ''}`}
                   >
-                    <div className="flex justify-between items-start mb-1">
-                      <h3 className="font-bold text-zinc-900 dark:text-white text-sm truncate">{other.username}</h3>
-                      <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded flex items-center gap-1 ${getRoleBadgeStyle(other.role)}`}>
-                        {getRoleIcon(other.role)}
-                        {other.role}
-                      </span>
-                    </div>
-                    <p className="text-zinc-500 text-xs truncate">{chat.lastMessage}</p>
+                    {deleteChatConfirm === chat.id ? (
+                      <div className="flex flex-col gap-2">
+                        <p className="text-xs text-red-600 dark:text-red-400">Delete this conversation?</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setDeleteChatConfirm(null); }}
+                            className="flex-1 px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400 bg-zinc-200 dark:bg-zinc-800 rounded hover:bg-zinc-300 dark:hover:bg-zinc-700"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteChat(chat.id); }}
+                            disabled={deletingChat}
+                            className="flex-1 px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                          >
+                            {deletingChat ? '...' : 'Delete'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div onClick={() => setActiveChat(chat)}>
+                        <div className="flex justify-between items-start mb-1">
+                          <h3 className="font-bold text-zinc-900 dark:text-white text-sm truncate">{other.username}</h3>
+                          <div className="flex items-center gap-1">
+                            <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded flex items-center gap-1 ${getRoleBadgeStyle(other.role)}`}>
+                              {getRoleIcon(other.role)}
+                              {other.role}
+                            </span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setDeleteChatConfirm(chat.id); }}
+                              className="p-1 text-zinc-400 hover:text-red-500 transition-colors"
+                              title="Delete conversation"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-zinc-500 text-xs truncate">{chat.lastMessage}</p>
+                      </div>
+                    )}
                   </div>
                 );
               })

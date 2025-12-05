@@ -43,6 +43,10 @@ const Messenger: React.FC = () => {
   const [savingEdit, setSavingEdit] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  
+  // Delete chat state
+  const [deleteChatConfirm, setDeleteChatConfirm] = useState<string | null>(null);
+  const [deletingChat, setDeletingChat] = useState(false);
 
   // Combine regular chats + grievance chats
   const allChats = [...chats, ...grievanceChats].sort((a, b) => {
@@ -289,6 +293,36 @@ const Messenger: React.FC = () => {
     }
   };
 
+  // Delete entire chat conversation
+  const handleDeleteChat = async (chatId: string, isGrievance?: boolean) => {
+    if (!chatId) return;
+    
+    setDeletingChat(true);
+    try {
+      const chatCollection = isGrievance ? 'grievance_chats' : 'private_chats';
+      
+      // First delete all messages in the chat
+      const messagesRef = collection(db, chatCollection, chatId, 'messages');
+      const messagesSnapshot = await getDocs(messagesRef);
+      const deletePromises = messagesSnapshot.docs.map(msgDoc => deleteDoc(msgDoc.ref));
+      await Promise.all(deletePromises);
+      
+      // Then delete the chat document itself
+      await deleteDoc(doc(db, chatCollection, chatId));
+      
+      // Clear active chat if it was the deleted one
+      if (activeChat?.id === chatId) {
+        setActiveChat(null);
+      }
+      
+      setDeleteChatConfirm(null);
+    } catch (error) {
+      console.error("Error deleting chat:", error);
+    } finally {
+      setDeletingChat(false);
+    }
+  };
+
   const getOtherParticipant = (chat: ExtendedChat) => {
       if (!user) return { username: 'Unknown', role: '' };
       
@@ -370,15 +404,47 @@ const Messenger: React.FC = () => {
                   allChats.map(chat => {
                       const other = getOtherParticipant(chat);
                       return (
-                        <div key={chat.id} onClick={() => setActiveChat(chat)} className={`p-4 border-b border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors ${activeChat?.id === chat.id ? 'bg-zinc-100 dark:bg-zinc-900 border-l-4 border-l-orange-500' : ''} ${chat.isGrievance ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
-                            <div className="flex justify-between items-start mb-1">
-                                <div className="flex items-center gap-2">
-                                    {chat.isGrievance && <AlertTriangle className="w-4 h-4 text-amber-500" />}
-                                    <h3 className="font-bold text-zinc-900 dark:text-white text-sm">{other.username}</h3>
+                        <div key={chat.id} className={`p-4 border-b border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors ${activeChat?.id === chat.id ? 'bg-zinc-100 dark:bg-zinc-900 border-l-4 border-l-orange-500' : ''} ${chat.isGrievance ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
+                            {deleteChatConfirm === chat.id ? (
+                              <div className="flex flex-col gap-2">
+                                <p className="text-xs text-red-600 dark:text-red-400">Delete this conversation?</p>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setDeleteChatConfirm(null); }}
+                                    className="flex-1 px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400 bg-zinc-200 dark:bg-zinc-800 rounded hover:bg-zinc-300 dark:hover:bg-zinc-700"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteChat(chat.id, chat.isGrievance); }}
+                                    disabled={deletingChat}
+                                    className="flex-1 px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                                  >
+                                    {deletingChat ? '...' : 'Delete'}
+                                  </button>
                                 </div>
-                                <span className={`text-[10px] uppercase px-1.5 rounded ${chat.isGrievance ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400' : 'bg-zinc-200 dark:bg-black text-zinc-500'}`}>{other.role}</span>
-                            </div>
-                            <p className="text-zinc-500 text-xs truncate">{chat.lastMessage}</p>
+                              </div>
+                            ) : (
+                              <div onClick={() => setActiveChat(chat)}>
+                                <div className="flex justify-between items-start mb-1">
+                                    <div className="flex items-center gap-2">
+                                        {chat.isGrievance && <AlertTriangle className="w-4 h-4 text-amber-500" />}
+                                        <h3 className="font-bold text-zinc-900 dark:text-white text-sm">{other.username}</h3>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <span className={`text-[10px] uppercase px-1.5 rounded ${chat.isGrievance ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400' : 'bg-zinc-200 dark:bg-black text-zinc-500'}`}>{other.role}</span>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setDeleteChatConfirm(chat.id); }}
+                                        className="p-1 text-zinc-400 hover:text-red-500 transition-colors"
+                                        title="Delete conversation"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                </div>
+                                <p className="text-zinc-500 text-xs truncate">{chat.lastMessage}</p>
+                              </div>
+                            )}
                         </div>
                       );
                   })
