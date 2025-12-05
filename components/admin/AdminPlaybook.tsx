@@ -4,7 +4,8 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { collection, addDoc, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp, query, orderBy, where, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import type { SystemPlay, SystemFormation, SystemPlaybook, PlayElement, PlayRoute, OffensePlayType, DefensePlayType, DrawingLine, PlayShape, LineType, ShapeType } from '../../types';
-import { Save, Trash2, Eraser, Plus, Route as RouteIcon, Undo2, BookOpen, PenTool, X, ChevronDown, Users, Move, FolderOpen, Layers, ChevronRight, AlertTriangle, Search, CheckCircle, AlertCircle, Package, Eye, EyeOff, Copy, FileStack, MousePointer, Minus, Square } from 'lucide-react';
+import { Save, Trash2, Eraser, Plus, Route as RouteIcon, Undo2, BookOpen, PenTool, X, ChevronDown, Users, Move, FolderOpen, Layers, ChevronRight, AlertTriangle, Search, CheckCircle, AlertCircle, Package, Eye, EyeOff, Copy, FileStack, MousePointer, Minus, Square, Image as ImageIcon, Settings2 } from 'lucide-react';
+import TracePlayModal, { ImageSettings } from '../TracePlayModal';
 
 const ROUTE_COLORS = [
   '#FACC15', '#06b6d4', '#ec4899', '#a3e635', '#f87171', '#ffffff', '#a855f7', '#ea580c', '#3b82f6', '#14b8a6', '#8b5cf6'
@@ -85,6 +86,13 @@ const AdminPlaybook: React.FC = () => {
   const [isPlaybookEditMode, setIsPlaybookEditMode] = useState(false);
   const [deletePlaybookConfirm, setDeletePlaybookConfirm] = useState<{ id: string; name: string } | null>(null);
   const [deletingPlaybook, setDeletingPlaybook] = useState(false);
+
+  // TRACE MODE STATE
+  const [showTraceModal, setShowTraceModal] = useState(false);
+  const [showFormationTraceModal, setShowFormationTraceModal] = useState(false);
+  const [traceBackground, setTraceBackground] = useState<{ imageUrl: string; settings: ImageSettings } | null>(null);
+  const [formationTraceBackground, setFormationTraceBackground] = useState<{ imageUrl: string; settings: ImageSettings } | null>(null);
+  const [showImageAdjust, setShowImageAdjust] = useState(false);
 
   // Toast
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -464,6 +472,7 @@ const AdminPlaybook: React.FC = () => {
     setEditingFormation(null);
     setIsFormationDesignMode(false);
     setSelectedElementId(null);
+    setFormationTraceBackground(null);
   };
 
   const loadFormationForEdit = (formation: SystemFormation) => {
@@ -753,6 +762,55 @@ const AdminPlaybook: React.FC = () => {
     setIsPlacingShape(false);
     setCurrentShape(null);
     setShapeStartPos(null);
+    // Clear trace backgrounds
+    setTraceBackground(null);
+    setShowImageAdjust(false);
+  };
+
+  // Handle starting trace mode for plays
+  const handleStartTracing = (imageUrl: string, settings: ImageSettings) => {
+    // Preserve current elements and formation info
+    const currentElements = [...elements];
+    const currentFormationId = playFormationId;
+    const currentFormationName = playFormationName;
+    
+    // Set the trace background
+    setTraceBackground({ imageUrl, settings });
+    
+    // Restore elements and formation if they were set
+    if (currentElements.length > 0) {
+      setElements(currentElements);
+      setPlayFormationId(currentFormationId);
+      setPlayFormationName(currentFormationName);
+    }
+    
+    // Switch to editor tab
+    setActiveTab('editor');
+    
+    // Set play name if not already set
+    if (playName === 'New Play' || !playName) {
+      setPlayName('Traced Play');
+    }
+    if (!playNotes) {
+      setPlayNotes('Play traced from image.');
+    }
+    
+    // Reset drawing mode
+    setDrawingMode('select');
+    
+    showToast('Trace mode active! Draw routes and shapes over the image.');
+  };
+
+  // Handle starting trace mode for formations
+  const handleStartFormationTracing = (imageUrl: string, settings: ImageSettings) => {
+    setFormationTraceBackground({ imageUrl, settings });
+    setIsFormationDesignMode(true);
+    
+    if (!formationName) {
+      setFormationName('Traced Formation');
+    }
+    
+    showToast('Trace mode active! Place players over the image.');
   };
 
   // --- SELECTION ACTIONS POPUP (floating delete buttons) ---
@@ -842,6 +900,24 @@ const AdminPlaybook: React.FC = () => {
       {/* End zones - subtle */}
       <div className={`absolute top-0 left-0 right-0 h-[8%] pointer-events-none ${isDarkMode ? 'bg-orange-600/20' : 'bg-orange-500/15'}`}></div>
       <div className={`absolute bottom-0 left-0 right-0 h-[8%] pointer-events-none ${isDarkMode ? 'bg-orange-600/20' : 'bg-orange-500/15'}`}></div>
+
+      {/* Trace Background Image */}
+      {traceBackground && traceBackground.settings.visible && (
+        <img 
+          src={traceBackground.imageUrl}
+          alt="Trace"
+          className="absolute pointer-events-none"
+          style={{
+            left: `${traceBackground.settings.x}%`,
+            top: `${traceBackground.settings.y}%`,
+            width: `${traceBackground.settings.width}%`,
+            height: `${traceBackground.settings.height}%`,
+            opacity: traceBackground.settings.opacity / 100,
+            objectFit: 'fill',
+            zIndex: 5
+          }}
+        />
+      )}
 
       {/* Routes and Lines SVG */}
       <svg className="absolute inset-0 w-full h-full" style={{ zIndex: 10, pointerEvents: drawingMode === 'select' ? 'auto' : 'none' }} viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -1012,6 +1088,24 @@ const AdminPlaybook: React.FC = () => {
       <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: `repeating-linear-gradient(to bottom, transparent 0%, transparent 9%, rgba(255,255,255,0.3) 9%, rgba(255,255,255,0.3) 10%)`, backgroundSize: '100% 10%' }}></div>
       <div className="absolute top-0 left-0 right-0 h-[8%] bg-orange-600/40 pointer-events-none"></div>
       <div className="absolute bottom-0 left-0 right-0 h-[8%] bg-orange-600/40 pointer-events-none"></div>
+      
+      {/* Trace Background Image for Formation */}
+      {formationTraceBackground && formationTraceBackground.settings.visible && (
+        <img 
+          src={formationTraceBackground.imageUrl}
+          alt="Formation Trace"
+          className="absolute pointer-events-none"
+          style={{
+            left: `${formationTraceBackground.settings.x}%`,
+            top: `${formationTraceBackground.settings.y}%`,
+            width: `${formationTraceBackground.settings.width}%`,
+            height: `${formationTraceBackground.settings.height}%`,
+            opacity: formationTraceBackground.settings.opacity / 100,
+            objectFit: 'fill',
+            zIndex: 5
+          }}
+        />
+      )}
 
       {formationElements.map(el => (
         <div
@@ -1131,6 +1225,24 @@ const AdminPlaybook: React.FC = () => {
                         </button>
                       )}
 
+                      {/* Trace Formation Image Button */}
+                      <button
+                        onClick={() => setShowFormationTraceModal(true)}
+                        className="w-full py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-1"
+                      >
+                        <ImageIcon className="w-4 h-4" /> Load Image to Trace
+                      </button>
+
+                      {/* Clear Formation Trace Button */}
+                      {formationTraceBackground && (
+                        <button
+                          onClick={() => setFormationTraceBackground(null)}
+                          className="w-full py-2 bg-slate-500 hover:bg-slate-600 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-1"
+                        >
+                          <X className="w-4 h-4" /> Clear Trace Image
+                        </button>
+                      )}
+
                       <div className="flex gap-2">
                         <button onClick={clearFormationDesigner} className="flex-1 py-2 bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-bold">Cancel</button>
                         <button onClick={handleSaveFormation} className="flex-1 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2">
@@ -1140,9 +1252,18 @@ const AdminPlaybook: React.FC = () => {
                     </>
                   ) : (
                     <>
-                      <button onClick={() => setIsFormationDesignMode(true)} className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-bold flex items-center justify-center gap-2">
-                        <Plus className="w-5 h-5" /> New Formation
-                      </button>
+                      <div className="flex gap-2">
+                        <button onClick={() => setIsFormationDesignMode(true)} className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-bold flex items-center justify-center gap-2">
+                          <Plus className="w-5 h-5" /> New Formation
+                        </button>
+                        <button 
+                          onClick={() => setShowFormationTraceModal(true)} 
+                          className="py-3 px-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-bold flex items-center justify-center"
+                          title="Trace Formation from Image"
+                        >
+                          <ImageIcon className="w-5 h-5" />
+                        </button>
+                      </div>
 
                       {formations.length === 0 ? (
                         <div className="text-center py-8 text-slate-500">
@@ -1377,6 +1498,24 @@ const AdminPlaybook: React.FC = () => {
                           className="w-full py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-1"
                         >
                           <Eraser className="w-4 h-4" /> Remove Line
+                        </button>
+                      )}
+
+                      {/* Trace Play Button */}
+                      <button
+                        onClick={() => setShowTraceModal(true)}
+                        className="w-full py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-1"
+                      >
+                        <ImageIcon className="w-4 h-4" /> Load Image to Trace
+                      </button>
+
+                      {/* Clear Trace Button */}
+                      {traceBackground && (
+                        <button
+                          onClick={() => setTraceBackground(null)}
+                          className="w-full py-2 bg-slate-500 hover:bg-slate-600 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-1"
+                        >
+                          <X className="w-4 h-4" /> Clear Trace Image
                         </button>
                       )}
                     </div>
@@ -1652,6 +1791,28 @@ const AdminPlaybook: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Trace Play Modal */}
+      {showTraceModal && (
+        <TracePlayModal
+          isOpen={showTraceModal}
+          onClose={() => setShowTraceModal(false)}
+          onStartTracing={handleStartTracing}
+          formationElements={elements}
+          formationName={playFormationName}
+        />
+      )}
+
+      {/* Trace Formation Modal */}
+      {showFormationTraceModal && (
+        <TracePlayModal
+          isOpen={showFormationTraceModal}
+          onClose={() => setShowFormationTraceModal(false)}
+          onStartTracing={handleStartFormationTracing}
+          formationElements={formationElements}
+          formationName={formationName}
+        />
       )}
 
       {/* Toast */}

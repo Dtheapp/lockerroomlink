@@ -1774,7 +1774,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                 <button
                   onClick={() => setTraceBackground(prev => prev ? {
                     ...prev,
-                    settings: { ...prev.settings, width: Math.max(20, prev.settings.width - 10), height: Math.max(20, prev.settings.height - 10) }
+                    settings: { ...prev.settings, width: Math.max(20, prev.settings.width - 1), height: Math.max(20, prev.settings.height - 1) }
                   } : null)}
                   className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded text-white"
                   title="Zoom out"
@@ -1798,7 +1798,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                 <button
                   onClick={() => setTraceBackground(prev => prev ? {
                     ...prev,
-                    settings: { ...prev.settings, width: Math.min(200, prev.settings.width + 10), height: Math.min(200, prev.settings.height + 10) }
+                    settings: { ...prev.settings, width: Math.min(200, prev.settings.width + 1), height: Math.min(200, prev.settings.height + 1) }
                   } : null)}
                   className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded text-white"
                   title="Zoom in"
@@ -1846,7 +1846,11 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                 <button
                   onClick={() => setTraceBackground(prev => prev ? {
                     ...prev,
-                    settings: { ...prev.settings, x: 0, y: 0 }
+                    settings: { 
+                      ...prev.settings, 
+                      x: (100 - prev.settings.width) / 2, 
+                      y: (100 - prev.settings.height) / 2 
+                    }
                   } : null)}
                   className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white"
                 >
@@ -1855,7 +1859,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                 <button
                   onClick={() => setTraceBackground(prev => prev ? {
                     ...prev,
-                    settings: { ...prev.settings, width: 100, height: 100 }
+                    settings: { ...prev.settings, width: 100, height: 100, x: 0, y: 0 }
                   } : null)}
                   className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white"
                 >
@@ -1914,27 +1918,21 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
     >
       {/* TRACE FORMATION BACKGROUND IMAGE */}
       {formationTraceBackground && formationTraceBackground.settings.visible && (
-        <div 
-          className="absolute inset-0 pointer-events-none z-10"
+        <img
+          src={formationTraceBackground.imageUrl}
+          alt="Trace background"
+          className="absolute pointer-events-none"
           style={{
+            left: `${formationTraceBackground.settings.x}%`,
+            top: `${formationTraceBackground.settings.y}%`,
+            width: `${formationTraceBackground.settings.width}%`,
+            height: `${formationTraceBackground.settings.height}%`,
             opacity: formationTraceBackground.settings.opacity / 100,
+            objectFit: 'fill',
+            zIndex: 5,
           }}
-        >
-          <img
-            src={formationTraceBackground.imageUrl}
-            alt="Trace background"
-            className="absolute"
-            style={{
-              left: `${50 + formationTraceBackground.settings.x}%`,
-              top: `${50 + formationTraceBackground.settings.y}%`,
-              transform: 'translate(-50%, -50%)',
-              width: `${formationTraceBackground.settings.width}%`,
-              height: `${formationTraceBackground.settings.height}%`,
-              objectFit: 'contain',
-            }}
-            draggable={false}
-          />
-        </div>
+          draggable={false}
+        />
       )}
       
       {/* FIELD MARKINGS */}
@@ -2055,7 +2053,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                 <button
                   onClick={() => setFormationTraceBackground(prev => prev ? {
                     ...prev,
-                    settings: { ...prev.settings, width: Math.max(20, prev.settings.width - 10), height: Math.max(20, prev.settings.height - 10) }
+                    settings: { ...prev.settings, width: Math.max(20, prev.settings.width - 1), height: Math.max(20, prev.settings.height - 1) }
                   } : null)}
                   className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded text-white"
                   title="Zoom out"
@@ -2079,7 +2077,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                 <button
                   onClick={() => setFormationTraceBackground(prev => prev ? {
                     ...prev,
-                    settings: { ...prev.settings, width: Math.min(200, prev.settings.width + 10), height: Math.min(200, prev.settings.height + 10) }
+                    settings: { ...prev.settings, width: Math.min(200, prev.settings.width + 1), height: Math.min(200, prev.settings.height + 1) }
                   } : null)}
                   className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded text-white"
                   title="Zoom in"
@@ -2127,7 +2125,11 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                 <button
                   onClick={() => setFormationTraceBackground(prev => prev ? {
                     ...prev,
-                    settings: { ...prev.settings, x: 0, y: 0 }
+                    settings: { 
+                      ...prev.settings, 
+                      x: (100 - prev.settings.width) / 2, 
+                      y: (100 - prev.settings.height) / 2 
+                    }
                   } : null)}
                   className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white"
                 >
@@ -2136,7 +2138,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                 <button
                   onClick={() => setFormationTraceBackground(prev => prev ? {
                     ...prev,
-                    settings: { ...prev.settings, width: 100, height: 100 }
+                    settings: { ...prev.settings, width: 100, height: 100, x: 0, y: 0 }
                   } : null)}
                   className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white"
                 >

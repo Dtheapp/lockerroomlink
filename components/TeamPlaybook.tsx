@@ -362,19 +362,23 @@ const TeamPlaybook: React.FC = () => {
       return;
     }
     
+    // Capture current values before any async operations
+    const currentElementId = selectedElementId;
+    const currentAssignmentId = viewingAssignmentId;
+    
     setSavingAssignment(true);
     try {
       const primaryPlayer = normalizedPrimaryId ? roster.find(p => p.id === normalizedPrimaryId) : null;
       const secondaryPlayer = normalizedSecondaryId ? roster.find(p => p.id === normalizedSecondaryId) : null;
       
       // Get the element label
-      const element = viewingPlay.elements?.find(e => e.id === selectedElementId);
+      const element = viewingPlay.elements?.find(e => e.id === currentElementId);
       const elementLabel = element?.label || element?.type || 'Unknown';
       
       // Build position data - only include fields that have values
       // Firestore doesn't accept undefined values, so we need to be explicit
       const positionData: Record<string, any> = {
-        id: selectedElementId,
+        id: currentElementId,
         elementLabel,
         updatedAt: serverTimestamp(),
         updatedBy: user.uid
@@ -405,19 +409,23 @@ const TeamPlaybook: React.FC = () => {
       }
       
       await setDoc(
-        doc(db, 'teams', teamData.id, 'assignedPlays', viewingAssignmentId, 'positionAssignments', selectedElementId),
+        doc(db, 'teams', teamData.id, 'assignedPlays', currentAssignmentId, 'positionAssignments', currentElementId),
         positionData
       );
       
-      // Update local state for modal view
-      setPositionAssignments(prev => new Map(prev).set(selectedElementId, positionData as PositionAssignment));
+      // Update local state for modal view - use captured values
+      setPositionAssignments(prev => {
+        const newMap = new Map(prev);
+        newMap.set(currentElementId, positionData as PositionAssignment);
+        return newMap;
+      });
       
       // Also update preview assignments so the card updates immediately
       setPreviewAssignments(prev => {
         const newMap = new Map(prev);
-        const playAssignments = new Map(newMap.get(viewingAssignmentId) || new Map());
-        playAssignments.set(selectedElementId, positionData as PositionAssignment);
-        newMap.set(viewingAssignmentId, playAssignments);
+        const playAssignments = new Map(newMap.get(currentAssignmentId) || new Map());
+        playAssignments.set(currentElementId, positionData as PositionAssignment);
+        newMap.set(currentAssignmentId, playAssignments);
         return newMap;
       });
       
