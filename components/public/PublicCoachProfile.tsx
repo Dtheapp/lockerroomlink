@@ -4,12 +4,14 @@ import { doc, getDoc, collection, getDocs, query, where, addDoc, serverTimestamp
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UserProfile, Team, CoachKudos, CoachFeedback } from '../../types';
-import { User, Crown, Users, Mail, Trophy, Calendar, MapPin, Home, X, Award, Shield, ThumbsUp, Heart, MessageSquare, Send, CheckCircle, AlertTriangle } from 'lucide-react';
+import { User, Crown, Users, Mail, Trophy, Calendar, MapPin, Home, X, Award, Shield, ThumbsUp, Heart, MessageSquare, Send, CheckCircle, AlertTriangle, Sword } from 'lucide-react';
 
 interface CoachData {
   coach: UserProfile;
   teams: Team[];
   isHeadCoach: boolean[];
+  isOC: boolean[]; // Offensive Coordinator for each team
+  isDC: boolean[]; // Defensive Coordinator for each team
   kudosCount: number;
   hasGivenKudos: boolean;
 }
@@ -68,6 +70,8 @@ const PublicCoachProfile: React.FC = () => {
         const processedTeamIds = new Set<string>();
         const teams: Team[] = [];
         const isHeadCoach: boolean[] = [];
+        const isOC: boolean[] = [];
+        const isDC: boolean[] = [];
         
         // Method 1: Get teams from coach's teamIds array
         const teamIds = coach.teamIds || [];
@@ -84,6 +88,8 @@ const PublicCoachProfile: React.FC = () => {
             const team = { id: teamDoc.id, ...teamDoc.data() } as Team;
             teams.push(team);
             isHeadCoach.push(team.headCoachId === coachId || team.coachId === coachId);
+            isOC.push(team.offensiveCoordinatorId === coachId);
+            isDC.push(team.defensiveCoordinatorId === coachId);
           }
         }
         
@@ -102,6 +108,8 @@ const PublicCoachProfile: React.FC = () => {
             const team = { id: teamId, ...teamData } as Team;
             teams.push(team);
             isHeadCoach.push(isHeadOrMain);
+            isOC.push(teamData.offensiveCoordinatorId === coachId);
+            isDC.push(teamData.defensiveCoordinatorId === coachId);
           }
         });
 
@@ -120,7 +128,7 @@ const PublicCoachProfile: React.FC = () => {
           });
         }
 
-        setData({ coach, teams, isHeadCoach, kudosCount, hasGivenKudos });
+        setData({ coach, teams, isHeadCoach, isOC, isDC, kudosCount, hasGivenKudos });
       } catch (err) {
         console.error('Error fetching coach data:', err);
         setError('Failed to load coach profile');
@@ -374,7 +382,7 @@ You will receive updates in this chat as your grievance is reviewed.
     );
   }
 
-  const { coach, teams, isHeadCoach, kudosCount, hasGivenKudos } = data;
+  const { coach, teams, isHeadCoach, isOC, isDC, kudosCount, hasGivenKudos } = data;
   const isParent = userData?.role === 'Parent';
 
   return (
@@ -429,11 +437,22 @@ You will receive updates in this chat as your grievance is reviewed.
               <h1 className="text-3xl md:text-4xl font-black text-white mb-2">{coach.name}</h1>
               
               <div className="flex flex-wrap justify-center md:justify-start gap-2 mb-4">
-                {isHeadCoach.some(Boolean) ? (
+                {isHeadCoach.some(Boolean) && (
                   <span className="bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1">
                     <Crown className="w-4 h-4" /> Head Coach
                   </span>
-                ) : (
+                )}
+                {isOC.some(Boolean) && (
+                  <span className="bg-red-500/20 text-red-400 px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1">
+                    <Sword className="w-4 h-4" /> Offensive Coordinator
+                  </span>
+                )}
+                {isDC.some(Boolean) && (
+                  <span className="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1">
+                    <Shield className="w-4 h-4" /> Defensive Coordinator
+                  </span>
+                )}
+                {!isHeadCoach.some(Boolean) && !isOC.some(Boolean) && !isDC.some(Boolean) && (
                   <span className="bg-zinc-700 text-zinc-300 px-3 py-1 rounded-full text-sm font-medium">
                     Coach
                   </span>
@@ -452,7 +471,9 @@ You will receive updates in this chat as your grievance is reviewed.
                   >
                     <Shield className="w-4 h-4" />
                     <span className="font-medium text-sm">{team.name}</span>
-                    {isHeadCoach[index] && <Crown className="w-3 h-3 text-amber-400" />}
+                    {isHeadCoach[index] && <Crown className="w-3 h-3 text-amber-400" title="Head Coach" />}
+                    {isOC[index] && <Sword className="w-3 h-3 text-red-400" title="Offensive Coordinator" />}
+                    {isDC[index] && <Shield className="w-3 h-3 text-blue-400" title="Defensive Coordinator" />}
                   </a>
                 ))}
               </div>
@@ -538,7 +559,15 @@ You will receive updates in this chat as your grievance is reviewed.
               Teams
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {teams.map((team, index) => (
+              {teams.map((team, index) => {
+                // Build role display
+                const roles: string[] = [];
+                if (isHeadCoach[index]) roles.push('HC');
+                if (isOC[index]) roles.push('OC');
+                if (isDC[index]) roles.push('DC');
+                const roleText = roles.length > 0 ? roles.join(' / ') : 'Coach';
+                
+                return (
                 <a
                   key={team.id}
                   href={`#/team/${team.id}`}
@@ -548,15 +577,26 @@ You will receive updates in this chat as your grievance is reviewed.
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                      isHeadCoach[index] ? 'bg-amber-500' : 'bg-zinc-700'
+                      isHeadCoach[index] ? 'bg-amber-500' : (isOC[index] || isDC[index]) ? 'bg-purple-600' : 'bg-zinc-700'
                     }`}>
                       <Shield className="w-6 h-6 text-white" />
                     </div>
                     <div>
                       <p className="font-bold text-white">{team.name}</p>
-                      <p className="text-xs text-zinc-500">
-                        {isHeadCoach[index] ? 'Head Coach' : 'Coach'}
-                      </p>
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {isHeadCoach[index] && (
+                          <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">HC</span>
+                        )}
+                        {isOC[index] && (
+                          <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">OC</span>
+                        )}
+                        {isDC[index] && (
+                          <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded">DC</span>
+                        )}
+                        {!isHeadCoach[index] && !isOC[index] && !isDC[index] && (
+                          <span className="text-[10px] text-zinc-500">Coach</span>
+                        )}
+                      </div>
                       {team.record && (
                         <p className="text-xs text-zinc-400 mt-1">
                           Record: {team.record.wins}-{team.record.losses}-{team.record.ties}
@@ -565,7 +605,8 @@ You will receive updates in this chat as your grievance is reviewed.
                     </div>
                   </div>
                 </a>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

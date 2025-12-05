@@ -45,6 +45,10 @@ const Roster: React.FC = () => {
   // Transfer Head Coach state
   const [transferHeadCoachTo, setTransferHeadCoachTo] = useState<{ id: string; name: string } | null>(null);
   const [transferringHeadCoach, setTransferringHeadCoach] = useState(false);
+  
+  // Coordinator assignment state (Head Coach only)
+  const [assignCoordinatorModal, setAssignCoordinatorModal] = useState<{ type: 'OC' | 'DC'; currentId?: string | null } | null>(null);
+  const [assigningCoordinator, setAssigningCoordinator] = useState(false);
 
   // Filter, sort (starters first), and paginate roster
   const filteredRoster = useMemo(() => {
@@ -716,6 +720,43 @@ const Roster: React.FC = () => {
     }
   };
 
+  // Assign/Remove Coordinator (Head Coach only)
+  const handleAssignCoordinator = async (coachId: string | null) => {
+    if (!teamData?.id || !isHeadCoach || !assignCoordinatorModal) return;
+    
+    setAssigningCoordinator(true);
+    try {
+      const updateData: any = {};
+      const fieldName = assignCoordinatorModal.type === 'OC' ? 'offensiveCoordinatorId' : 'defensiveCoordinatorId';
+      updateData[fieldName] = coachId;
+      
+      await updateDoc(doc(db, 'teams', teamData.id), updateData);
+      
+      const coachName = coachId ? teamCoaches.find(c => c.uid === coachId)?.name || 'Unknown' : 'None';
+      const positionName = assignCoordinatorModal.type === 'OC' ? 'Offensive Coordinator' : 'Defensive Coordinator';
+      
+      // Log the action
+      await addDoc(collection(db, 'adminActivityLog'), {
+        action: coachId ? 'ASSIGN_COORDINATOR' : 'REMOVE_COORDINATOR',
+        targetType: 'team',
+        targetId: teamData.id,
+        details: coachId 
+          ? `"${userData?.name}" assigned "${coachName}" as ${positionName} for team "${teamData?.name || teamData?.id}"`
+          : `"${userData?.name}" removed ${positionName} from team "${teamData?.name || teamData?.id}"`,
+        performedBy: userData?.uid || 'unknown',
+        performedByName: userData?.name || 'Unknown',
+        timestamp: serverTimestamp()
+      });
+      
+      setAssignCoordinatorModal(null);
+    } catch (error) {
+      console.error('Error assigning coordinator:', error);
+      alert('Failed to assign coordinator.');
+    } finally {
+      setAssigningCoordinator(false);
+    }
+  };
+
   // Copy team public link
   const copyTeamLink = async () => {
     if (!teamData?.id) return;
@@ -1097,13 +1138,20 @@ const Roster: React.FC = () => {
             </div>
           ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {teamCoaches.map(coach => (
+            {teamCoaches.map(coach => {
+              const isOC = teamData?.offensiveCoordinatorId === coach.uid;
+              const isDC = teamData?.defensiveCoordinatorId === coach.uid;
+              const isHC = teamData?.headCoachId === coach.uid;
+              
+              return (
               <div 
                 key={coach.uid} 
                 className={`bg-slate-50 dark:bg-zinc-950 rounded-lg p-4 border ${
-                  teamData?.headCoachId === coach.uid 
+                  isHC 
                     ? 'border-purple-500 dark:border-purple-500' 
-                    : 'border-zinc-200 dark:border-zinc-800'
+                    : (isOC || isDC)
+                      ? 'border-orange-400 dark:border-orange-500'
+                      : 'border-zinc-200 dark:border-zinc-800'
                 }`}
               >
                 <div className="flex items-start justify-between">
@@ -1114,31 +1162,77 @@ const Roster: React.FC = () => {
                     <div>
                       <p className="font-bold text-zinc-900 dark:text-white flex items-center gap-2">
                         {coach.name}
-                        {teamData?.headCoachId === coach.uid && (
-                          <Crown className="w-4 h-4 text-purple-500" />
+                        {isHC && (
+                          <Crown className="w-4 h-4 text-purple-500" title="Head Coach" />
                         )}
                       </p>
                       <p className="text-xs text-zinc-500">@{coach.username || coach.email}</p>
+                      {/* Coordinator badges */}
+                      <div className="flex gap-1 mt-1">
+                        {isOC && (
+                          <span className="text-[10px] bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                            <Sword className="w-2.5 h-2.5" /> OC
+                          </span>
+                        )}
+                        {isDC && (
+                          <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                            <Shield className="w-2.5 h-2.5" /> DC
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   
-                  {/* Head Coach actions for other coaches */}
-                  {isHeadCoach && coach.uid !== userData?.uid && (
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setTransferHeadCoachTo({ id: coach.uid, name: coach.name })}
-                        className="text-purple-500 hover:text-purple-700 p-1 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
-                        title="Transfer Head Coach title"
-                      >
-                        <ArrowRightLeft className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setRemoveCoachConfirm({ id: coach.uid, name: coach.name })}
-                        className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                        title="Remove from team"
-                      >
-                        <UserMinus className="w-4 h-4" />
-                      </button>
+                  {/* Head Coach actions for coaches */}
+                  {isHeadCoach && (
+                    <div className="flex flex-col items-end gap-1">
+                      {/* Coordinator quick-assign buttons */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            setAssignCoordinatorModal({ type: 'OC', currentId: isOC ? null : coach.uid });
+                          }}
+                          className={`p-1 rounded transition-colors ${
+                            isOC 
+                              ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' 
+                              : 'text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'
+                          }`}
+                          title={isOC ? 'Remove Offensive Coordinator' : 'Set as Offensive Coordinator'}
+                        >
+                          <Sword className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setAssignCoordinatorModal({ type: 'DC', currentId: isDC ? null : coach.uid });
+                          }}
+                          className={`p-1 rounded transition-colors ${
+                            isDC 
+                              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' 
+                              : 'text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                          }`}
+                          title={isDC ? 'Remove Defensive Coordinator' : 'Set as Defensive Coordinator'}
+                        >
+                          <Shield className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {coach.uid !== userData?.uid && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setTransferHeadCoachTo({ id: coach.uid, name: coach.name })}
+                            className="text-purple-500 hover:text-purple-700 p-1 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
+                            title="Transfer Head Coach title"
+                          >
+                            <ArrowRightLeft className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setRemoveCoachConfirm({ id: coach.uid, name: coach.name })}
+                            className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                            title="Remove from team"
+                          >
+                            <UserMinus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1153,7 +1247,8 @@ const Roster: React.FC = () => {
                   </a>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
           )}
         </div>
@@ -1335,6 +1430,74 @@ const Roster: React.FC = () => {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ASSIGN COORDINATOR CONFIRMATION MODAL */}
+      {assignCoordinatorModal && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl w-full max-w-sm border border-zinc-200 dark:border-zinc-800 shadow-2xl">
+            {(() => {
+              const isOC = assignCoordinatorModal.type === 'OC';
+              const currentCoordId = isOC ? teamData?.offensiveCoordinatorId : teamData?.defensiveCoordinatorId;
+              const selectedCoach = teamCoaches.find(c => c.uid === assignCoordinatorModal.currentId);
+              const currentCoach = teamCoaches.find(c => c.uid === currentCoordId);
+              const isRemoving = !assignCoordinatorModal.currentId || (currentCoordId === assignCoordinatorModal.currentId);
+              
+              return (
+                <>
+                  <h2 className="text-xl font-bold mb-4 text-zinc-900 dark:text-white flex items-center gap-2">
+                    {isOC ? <Sword className="w-5 h-5 text-red-500" /> : <Shield className="w-5 h-5 text-blue-500" />}
+                    {isRemoving ? 'Remove' : 'Assign'} {isOC ? 'Offensive' : 'Defensive'} Coordinator
+                  </h2>
+                  
+                  {isRemoving && currentCoach ? (
+                    <p className="text-zinc-600 dark:text-zinc-400 mb-6">
+                      Remove <strong className="text-zinc-900 dark:text-white">{currentCoach.name}</strong> as {isOC ? 'Offensive' : 'Defensive'} Coordinator?
+                    </p>
+                  ) : selectedCoach ? (
+                    <p className="text-zinc-600 dark:text-zinc-400 mb-6">
+                      {currentCoach && (
+                        <span className="block mb-2 text-sm">
+                          Current {isOC ? 'OC' : 'DC'}: <span className="text-zinc-500">{currentCoach.name}</span>
+                        </span>
+                      )}
+                      Assign <strong className={isOC ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{selectedCoach.name}</strong> as {isOC ? 'Offensive' : 'Defensive'} Coordinator?
+                    </p>
+                  ) : null}
+                  
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setAssignCoordinatorModal(null)}
+                      disabled={assigningCoordinator}
+                      className="flex-1 px-4 py-2 bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => handleAssignCoordinator(isRemoving ? null : assignCoordinatorModal.currentId!)}
+                      disabled={assigningCoordinator}
+                      className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${
+                        isRemoving ? 'bg-zinc-600 hover:bg-zinc-700' : (isOC ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700')
+                      }`}
+                    >
+                      {assigningCoordinator ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          {isRemoving ? 'Removing...' : 'Assigning...'}
+                        </>
+                      ) : (
+                        <>
+                          {isOC ? <Sword className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
+                          {isRemoving ? 'Remove' : 'Assign'}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

@@ -81,6 +81,9 @@ export interface Team {
   coachId: string | null;
   headCoachId?: string | null; // Designated head coach who can manage other coaches
   coachIds?: string[]; // All coaches assigned to this team (head + assistants)
+  // Coordinator positions (can be same person as head coach or each other)
+  offensiveCoordinatorId?: string | null; // OC - runs the offense
+  defensiveCoordinatorId?: string | null; // DC - runs the defense
   record?: {
       wins: number;
       losses: number;

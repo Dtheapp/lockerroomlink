@@ -82,8 +82,8 @@ const Dashboard: React.FC = () => {
   const [editRecord, setEditRecord] = useState({ wins: 0, losses: 0, ties: 0 });
   const [savingRecord, setSavingRecord] = useState(false);
 
-  // Coaching Staff state
-  const [coaches, setCoaches] = useState<(UserProfile & { isHeadCoach: boolean })[]>([]);
+  // Coaching Staff state with coordinator info
+  const [coaches, setCoaches] = useState<(UserProfile & { isHeadCoach: boolean; isOC: boolean; isDC: boolean })[]>([]);
   const [coachesLoading, setCoachesLoading] = useState(true);
 
   // --- OPTIMIZED STATS CALCULATION (PERFORMANCE FIX) ---
@@ -158,7 +158,7 @@ const Dashboard: React.FC = () => {
       
       try {
         const usersRef = collection(db, 'users');
-        const coachesMap = new Map<string, UserProfile & { isHeadCoach: boolean }>();
+        const coachesMap = new Map<string, UserProfile & { isHeadCoach: boolean; isOC: boolean; isDC: boolean }>();
         
         // Query 1: Coaches who have this team in their teamIds array
         const teamIdsQuery = query(
@@ -170,7 +170,9 @@ const Dashboard: React.FC = () => {
         teamIdsSnapshot.forEach(docSnap => {
           const coachData = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
           const isHeadCoach = teamData.headCoachId === docSnap.id || teamData.coachId === docSnap.id;
-          coachesMap.set(docSnap.id, { ...coachData, isHeadCoach });
+          const isOC = teamData.offensiveCoordinatorId === docSnap.id;
+          const isDC = teamData.defensiveCoordinatorId === docSnap.id;
+          coachesMap.set(docSnap.id, { ...coachData, isHeadCoach, isOC, isDC });
         });
         
         // Query 2: Coaches with legacy teamId field (who might not have teamIds yet)
@@ -185,14 +187,21 @@ const Dashboard: React.FC = () => {
           if (!coachesMap.has(docSnap.id)) {
             const coachData = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
             const isHeadCoach = teamData.headCoachId === docSnap.id || teamData.coachId === docSnap.id;
-            coachesMap.set(docSnap.id, { ...coachData, isHeadCoach });
+            const isOC = teamData.offensiveCoordinatorId === docSnap.id;
+            const isDC = teamData.defensiveCoordinatorId === docSnap.id;
+            coachesMap.set(docSnap.id, { ...coachData, isHeadCoach, isOC, isDC });
           }
         });
         
-        // Convert map to array and sort: head coach first, then alphabetically
+        // Convert map to array and sort: head coach first, then coordinators, then alphabetically
         const teamCoaches = Array.from(coachesMap.values()).sort((a, b) => {
           if (a.isHeadCoach && !b.isHeadCoach) return -1;
           if (!a.isHeadCoach && b.isHeadCoach) return 1;
+          // Coordinators next
+          const aCoord = a.isOC || a.isDC;
+          const bCoord = b.isOC || b.isDC;
+          if (aCoord && !bCoord) return -1;
+          if (!aCoord && bCoord) return 1;
           return a.name.localeCompare(b.name);
         });
         
@@ -205,7 +214,7 @@ const Dashboard: React.FC = () => {
     };
     
     fetchCoaches();
-  }, [teamData?.id, teamData?.headCoachId, teamData?.coachId]);
+  }, [teamData?.id, teamData?.headCoachId, teamData?.coachId, teamData?.offensiveCoordinatorId, teamData?.defensiveCoordinatorId]);
 
   // Event attachments handlers
   const handleNewEventFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1371,7 +1380,18 @@ const Dashboard: React.FC = () => {
             <p className="text-zinc-500">Loading coaches...</p>
           ) : coaches.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {coaches.map(coach => (
+              {coaches.map(coach => {
+                // Build the role title based on positions
+                const getRoleTitle = () => {
+                  const titles: string[] = [];
+                  if (coach.isHeadCoach) titles.push('HC');
+                  if (coach.isOC) titles.push('OC');
+                  if (coach.isDC) titles.push('DC');
+                  if (titles.length === 0) return 'Coach';
+                  return titles.join(' / ');
+                };
+                
+                return (
                 <a
                   key={coach.uid}
                   href={`#/coach/${coach.username}`}
@@ -1386,19 +1406,32 @@ const Dashboard: React.FC = () => {
                         src={coach.photoUrl} 
                         alt={coach.name}
                         className={`w-16 h-16 rounded-full object-cover mx-auto ${
-                          coach.isHeadCoach ? 'ring-2 ring-amber-500 ring-offset-2 ring-offset-white dark:ring-offset-black' : ''
+                          coach.isHeadCoach ? 'ring-2 ring-amber-500 ring-offset-2 ring-offset-white dark:ring-offset-black' : 
+                          (coach.isOC || coach.isDC) ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-white dark:ring-offset-black' : ''
                         }`}
                       />
                     ) : (
                       <div className={`w-16 h-16 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center mx-auto ${
-                        coach.isHeadCoach ? 'ring-2 ring-amber-500 ring-offset-2 ring-offset-white dark:ring-offset-black' : ''
+                        coach.isHeadCoach ? 'ring-2 ring-amber-500 ring-offset-2 ring-offset-white dark:ring-offset-black' : 
+                        (coach.isOC || coach.isDC) ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-white dark:ring-offset-black' : ''
                       }`}>
                         <User className="w-8 h-8 text-white" />
                       </div>
                     )}
+                    {/* Position badges */}
                     {coach.isHeadCoach && (
-                      <div className="absolute -top-1 -right-1 w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center shadow-lg">
+                      <div className="absolute -top-1 -right-1 w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center shadow-lg" title="Head Coach">
                         <Crown className="w-3 h-3 text-white" />
+                      </div>
+                    )}
+                    {coach.isOC && !coach.isHeadCoach && (
+                      <div className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center shadow-lg" title="Offensive Coordinator">
+                        <Sword className="w-3 h-3 text-white" />
+                      </div>
+                    )}
+                    {coach.isDC && !coach.isHeadCoach && !coach.isOC && (
+                      <div className="absolute -top-1 -right-1 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center shadow-lg" title="Defensive Coordinator">
+                        <Shield className="w-3 h-3 text-white" />
                       </div>
                     )}
                   </div>
@@ -1407,11 +1440,24 @@ const Dashboard: React.FC = () => {
                   <p className="font-bold text-zinc-900 dark:text-white text-sm truncate group-hover:text-amber-500 transition-colors">
                     {coach.name}
                   </p>
-                  <p className="text-xs text-zinc-500 mt-1">
-                    {coach.isHeadCoach ? 'Head Coach' : 'Coach'}
-                  </p>
+                  {/* Role badges */}
+                  <div className="flex flex-wrap justify-center gap-1 mt-1">
+                    {coach.isHeadCoach && (
+                      <span className="text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded">HC</span>
+                    )}
+                    {coach.isOC && (
+                      <span className="text-[10px] bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-1.5 py-0.5 rounded">OC</span>
+                    )}
+                    {coach.isDC && (
+                      <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded">DC</span>
+                    )}
+                    {!coach.isHeadCoach && !coach.isOC && !coach.isDC && (
+                      <span className="text-[10px] text-zinc-500">Coach</span>
+                    )}
+                  </div>
                 </a>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p className="text-zinc-500 italic text-sm text-center py-8">No coaches assigned yet.</p>
