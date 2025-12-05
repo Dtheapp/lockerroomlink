@@ -129,10 +129,47 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
   const [isAdjustingImage, setIsAdjustingImage] = useState(false);
   const [adjustDragStart, setAdjustDragStart] = useState<{ x: number; y: number; imgX: number; imgY: number } | null>(null);
   
+  // Tab switching warning state
+  const [pendingTabSwitch, setPendingTabSwitch] = useState<'formations' | 'editor' | 'library' | 'import' | null>(null);
+  
   // Show toast helper
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000); // Auto-dismiss after 3 seconds
+  };
+  
+  // Check if there are unsaved changes (elements on canvas or trace background)
+  const hasUnsavedWork = () => {
+    return (elements.length > 0 || lines.length > 0 || shapes.length > 0 || traceBackground !== null);
+  };
+  
+  // Handle tab switching with unsaved changes warning
+  const handleTabSwitch = (newTab: 'formations' | 'editor' | 'library' | 'import') => {
+    if (newTab === activeTab) return;
+    
+    // If there's unsaved work and we're leaving editor/formations tab, show warning
+    if (hasUnsavedWork() && (activeTab === 'editor' || activeTab === 'formations')) {
+      setPendingTabSwitch(newTab);
+    } else {
+      setActiveTab(newTab);
+    }
+  };
+  
+  // Confirm tab switch (discard changes)
+  const confirmTabSwitch = () => {
+    if (pendingTabSwitch) {
+      // Clear the canvas and trace background
+      clearBoard();
+      setTraceBackground(null);
+      setShowImageAdjust(false);
+      setActiveTab(pendingTabSwitch);
+      setPendingTabSwitch(null);
+    }
+  };
+  
+  // Cancel tab switch
+  const cancelTabSwitch = () => {
+    setPendingTabSwitch(null);
   };
   
   // DRAGGING
@@ -1541,7 +1578,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
 
       {/* Trace background controls */}
       {traceBackground && (
-        <div className="absolute top-2 right-2 z-40">
+        <div className="absolute top-2 right-2 z-40" onClick={(e) => e.stopPropagation()}>
           {/* Main controls bar */}
           <div className="bg-slate-900/90 backdrop-blur-sm rounded-lg p-2 flex items-center gap-2">
             <span className="text-xs text-cyan-400 font-medium px-2">Trace Mode</span>
@@ -1561,24 +1598,25 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
               <span className="text-xs text-slate-400 w-8">{traceBackground.settings.opacity}%</span>
             </div>
             <button
-              onClick={() => setShowImageAdjust(!showImageAdjust)}
+              onClick={(e) => { e.stopPropagation(); setShowImageAdjust(!showImageAdjust); }}
               className={`p-1.5 rounded transition-colors ${showImageAdjust ? 'bg-cyan-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
               title="Adjust image position & size"
             >
               <Settings2 className="w-4 h-4" />
             </button>
             <button
-              onClick={() => setTraceBackground(prev => prev ? {
+              onClick={(e) => { e.stopPropagation(); setTraceBackground(prev => prev ? {
                 ...prev,
                 settings: { ...prev.settings, visible: !prev.settings.visible }
-              } : null)}
+              } : null); }}
               className={`p-1.5 rounded transition-colors ${traceBackground.settings.visible ? 'bg-slate-700 text-white' : 'bg-purple-600 text-white'}`}
               title={traceBackground.settings.visible ? 'Hide background' : 'Show background'}
             >
               {traceBackground.settings.visible ? <Eye className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
             <button
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setTraceBackground(null);
                 setShowImageAdjust(false);
               }}
@@ -2092,11 +2130,11 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
     if (!hasSelection) return null;
     
     return (
-      <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30">
+      <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30" onClick={(e) => e.stopPropagation()}>
         <div className="bg-black/90 backdrop-blur-sm rounded-xl shadow-2xl border border-slate-700 p-1.5 flex items-center gap-1.5">
           {selectedElementId && (
             <button 
-              onClick={deleteSelection} 
+              onClick={(e) => { e.stopPropagation(); deleteSelection(); }} 
               className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
             >
               <Eraser className="w-3 h-3"/> Delete Player
@@ -2104,7 +2142,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
           )}
           {selectedRouteId && (
             <button 
-              onClick={deleteSelection} 
+              onClick={(e) => { e.stopPropagation(); deleteSelection(); }} 
               className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
             >
               <Eraser className="w-3 h-3"/> Delete Route
@@ -2112,7 +2150,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
           )}
           {selectedLineId && (
             <button 
-              onClick={deleteSelectedDrawing} 
+              onClick={(e) => { e.stopPropagation(); deleteSelectedDrawing(); }} 
               className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
             >
               <Eraser className="w-3 h-3"/> Delete Line
@@ -2120,15 +2158,16 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
           )}
           {selectedShapeId && (
             <button 
-              onClick={deleteSelectedDrawing} 
+              onClick={(e) => { e.stopPropagation(); deleteSelectedDrawing(); }} 
               className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
             >
               <Eraser className="w-3 h-3"/> Delete Shape
             </button>
           )}
           <button 
-            onClick={() => { setSelectedElementId(null); setSelectedRouteId(null); setSelectedLineId(null); setSelectedShapeId(null); }}
+            onClick={(e) => { e.stopPropagation(); setSelectedElementId(null); setSelectedRouteId(null); setSelectedLineId(null); setSelectedShapeId(null); }}
             className="text-slate-400 hover:text-white p-1.5 transition-colors"
+            title="Close"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -2261,25 +2300,25 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
               {/* TABS */}
               <div className="flex border-b border-slate-200 dark:border-slate-800 shrink-0">
                   <button 
-                    onClick={() => setActiveTab('formations')}
+                    onClick={() => handleTabSwitch('formations')}
                     className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1 transition-colors ${activeTab === 'formations' ? 'bg-white dark:bg-slate-800 text-orange-600 dark:text-orange-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
                   >
                       <Layers className="w-4 h-4"/> Forms
                   </button>
                   <button 
-                    onClick={() => setActiveTab('editor')}
+                    onClick={() => handleTabSwitch('editor')}
                     className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1 transition-colors ${activeTab === 'editor' ? 'bg-white dark:bg-slate-800 text-orange-600 dark:text-orange-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
                   >
                       <PenTool className="w-4 h-4"/> Design
                   </button>
                   <button 
-                    onClick={() => setActiveTab('library')}
+                    onClick={() => handleTabSwitch('library')}
                     className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1 transition-colors ${activeTab === 'library' ? 'bg-white dark:bg-slate-800 text-orange-600 dark:text-orange-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
                   >
                       <FolderOpen className="w-4 h-4"/> Plays
                   </button>
                   <button 
-                    onClick={() => setActiveTab('import')}
+                    onClick={() => handleTabSwitch('import')}
                     className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1 transition-colors ${activeTab === 'import' ? 'bg-white dark:bg-slate-800 text-orange-600 dark:text-orange-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
                   >
                       <Download className="w-4 h-4"/> Import
@@ -3125,6 +3164,53 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
               {/* Selection actions overlay - only for play design */}
               {!isFormationDesignMode && renderSelectionActions()}
             </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* UNSAVED CHANGES WARNING MODAL */}
+    {pendingTabSwitch && (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-2xl w-full max-w-md p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-yellow-500/10 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-yellow-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Unsaved Changes</h3>
+                <p className="text-sm text-slate-500 dark:text-zinc-400">You have unsaved work on the canvas</p>
+              </div>
+            </div>
+            <button 
+              onClick={cancelTabSwitch}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <p className="text-slate-600 dark:text-zinc-400 mb-6">
+            {traceBackground 
+              ? "Your trace background and any elements on the canvas will be lost if you switch tabs without saving."
+              : "Your current play design will be lost if you switch tabs without saving."
+            }
+          </p>
+          
+          <div className="flex gap-3">
+            <button
+              onClick={cancelTabSwitch}
+              className="flex-1 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-900 dark:text-white py-2.5 rounded-lg font-semibold transition-colors"
+            >
+              Stay Here
+            </button>
+            <button
+              onClick={confirmTabSwitch}
+              className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-2.5 rounded-lg font-semibold transition-colors"
+            >
+              Discard & Switch
+            </button>
           </div>
         </div>
       </div>
