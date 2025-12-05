@@ -3,8 +3,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { collection, addDoc, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp, query, orderBy, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import type { CoachPlay, PlayElement, PlayRoute, OffensePlayType, DefensePlayType, Formation, SystemPlaybook, SystemPlay, SystemFormation, ImportedPlaybook, DrawingLine, PlayShape, LineType, ShapeType } from '../types';
-import { Save, Trash2, Eraser, Plus, Undo2, BookOpen, PenTool, Maximize2, X, ChevronDown, Users, FolderOpen, Layers, ChevronRight, AlertTriangle, Search, CheckCircle, AlertCircle, Download, Package, Lock, RefreshCw, Eye, Edit2, Circle, Square, Triangle, Minus, MousePointer, Move, Sparkles } from 'lucide-react';
+import { Save, Trash2, Eraser, Plus, Undo2, BookOpen, PenTool, Maximize2, X, ChevronDown, Users, FolderOpen, Layers, ChevronRight, AlertTriangle, Search, CheckCircle, AlertCircle, Download, Package, Lock, RefreshCw, Eye, Edit2, Circle, Square, Triangle, Minus, MousePointer, Move, Sparkles, Image as ImageIcon } from 'lucide-react';
 import ClonePlayModal from './ClonePlayModal';
+import TracePlayModal, { ImageSettings } from './TracePlayModal';
 
 // Line colors for drawing
 const LINE_COLORS = [
@@ -118,6 +119,10 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
   // Clone Play Modal state
   const [showCloneModal, setShowCloneModal] = useState(false);
   const cloneCredits = userData?.cloneCredits ?? 10; // Default to 10 credits for new users
+  
+  // Trace Play Modal state
+  const [showTraceModal, setShowTraceModal] = useState(false);
+  const [traceBackground, setTraceBackground] = useState<{ imageUrl: string; settings: ImageSettings } | null>(null);
   
   // Show toast helper
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -902,6 +907,25 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
     showToast('Play cloned! Select a formation and adjust as needed.');
   };
 
+  // Handle starting trace mode
+  const handleStartTracing = (imageUrl: string, settings: ImageSettings) => {
+    // Clear the board
+    clearBoard();
+    
+    // Set the trace background
+    setTraceBackground({ imageUrl, settings });
+    
+    // Switch to editor tab
+    setActiveTab('editor');
+    
+    // Set play name
+    setPlayName('Traced Play');
+    setPlayNotes('Play traced from image.');
+    
+    // Show success message
+    showToast('Trace mode active! Place players and draw routes over the image.');
+  };
+
   const deletePlay = async () => {
       if (!deletePlayConfirm || !user?.uid) return;
       setDeletingPlay(true);
@@ -1268,6 +1292,24 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
         touchAction: 'none'
       }}
     >
+      {/* TRACE BACKGROUND IMAGE - for tracing mode */}
+      {traceBackground && traceBackground.settings.visible && (
+        <img
+          src={traceBackground.imageUrl}
+          alt="Trace background"
+          className="absolute pointer-events-none"
+          style={{
+            left: `${traceBackground.settings.x}%`,
+            top: `${traceBackground.settings.y}%`,
+            width: `${traceBackground.settings.width}%`,
+            height: `${traceBackground.settings.height}%`,
+            opacity: traceBackground.settings.opacity / 100,
+            objectFit: 'fill',
+            zIndex: 5
+          }}
+        />
+      )}
+      
       {/* FIELD MARKINGS - subtle grid lines */}
       <div className="absolute inset-0 pointer-events-none" style={{ 
         backgroundImage: isDarkMode 
@@ -1477,6 +1519,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
             width: isFullscreenMode ? '44px' : '36px',
             height: isFullscreenMode ? '44px' : '36px',
             fontSize: isFullscreenMode ? '12px' : '10px',
+            opacity: traceBackground && traceBackground.settings.visible ? 0.75 : 1,
             ...(el.type === 'X' ? { clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)', borderRadius: '0', paddingTop: isFullscreenMode ? '14px' : '12px' } : {})
           }}
         >
@@ -1488,6 +1531,45 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
       {(isDrawingLine || isPlacingShape) && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-black/80 text-white px-3 py-1 rounded-full text-xs z-40">
           {isDrawingLine ? 'Drag to draw line' : 'Drag to size shape'}
+        </div>
+      )}
+
+      {/* Trace background controls */}
+      {traceBackground && (
+        <div className="absolute top-2 right-2 bg-slate-900/90 backdrop-blur-sm rounded-lg p-2 z-40 flex items-center gap-2">
+          <span className="text-xs text-cyan-400 font-medium px-2">Trace Mode</span>
+          <div className="flex items-center gap-1 border-l border-slate-700 pl-2">
+            <label className="text-xs text-slate-400">Opacity:</label>
+            <input
+              type="range"
+              min="10"
+              max="100"
+              value={traceBackground.settings.opacity}
+              onChange={(e) => setTraceBackground(prev => prev ? {
+                ...prev,
+                settings: { ...prev.settings, opacity: Number(e.target.value) }
+              } : null)}
+              className="w-16 accent-cyan-500"
+            />
+            <span className="text-xs text-slate-400 w-8">{traceBackground.settings.opacity}%</span>
+          </div>
+          <button
+            onClick={() => setTraceBackground(prev => prev ? {
+              ...prev,
+              settings: { ...prev.settings, visible: !prev.settings.visible }
+            } : null)}
+            className={`p-1.5 rounded transition-colors ${traceBackground.settings.visible ? 'bg-slate-700 text-white' : 'bg-purple-600 text-white'}`}
+            title={traceBackground.settings.visible ? 'Hide background' : 'Show background'}
+          >
+            {traceBackground.settings.visible ? <Eye className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={() => setTraceBackground(null)}
+            className="p-1.5 bg-red-600 hover:bg-red-500 rounded text-white transition-colors"
+            title="Remove trace background"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
@@ -2321,7 +2403,14 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                               onClick={() => setShowCloneModal(true)} 
                               className="underline font-medium text-purple-600 dark:text-purple-400 inline-flex items-center gap-1"
                             >
-                              <Sparkles className="w-3 h-3" /> clone from image
+                              <Sparkles className="w-3 h-3" /> clone from image (AI)
+                            </button>
+                            {' '} | {' '}
+                            <button 
+                              onClick={() => setShowTraceModal(true)} 
+                              className="underline font-medium text-cyan-600 dark:text-cyan-400 inline-flex items-center gap-1"
+                            >
+                              <ImageIcon className="w-3 h-3" /> trace from image (free)
                             </button>
                           </p>
                         </div>
@@ -3753,6 +3842,13 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
       onClose={() => setShowCloneModal(false)}
       onPlayCloned={handlePlayCloned}
       currentCredits={cloneCredits}
+    />
+    
+    {/* Trace Play Modal */}
+    <TracePlayModal
+      isOpen={showTraceModal}
+      onClose={() => setShowTraceModal(false)}
+      onStartTracing={handleStartTracing}
     />
     </>
   );
