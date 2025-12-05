@@ -1137,9 +1137,13 @@ const Roster: React.FC = () => {
                 </div>
                 
                 {coach.phone && (
-                  <p className="text-xs text-zinc-500 mt-2 flex items-center gap-1">
+                  <a 
+                    href={`tel:${coach.phone.replace(/[^0-9+]/g, '')}`}
+                    className="text-xs text-cyan-500 hover:text-cyan-400 hover:underline mt-2 flex items-center gap-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <Phone className="w-3 h-3" /> {coach.phone}
-                  </p>
+                  </a>
                 )}
               </div>
             ))}
@@ -1611,8 +1615,12 @@ const Roster: React.FC = () => {
                     placeholder="(555) 123-4567"
                     className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded p-2 text-zinc-900 dark:text-white text-sm"
                   />
+                ) : viewContact.phone ? (
+                  <a href={`tel:${viewContact.phone.replace(/[^0-9+]/g, '')}`} className="text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1">
+                    {viewContact.phone}
+                  </a>
                 ) : (
-                  <p className="text-zinc-900 dark:text-white">{viewContact.phone || 'Not provided'}</p>
+                  <p className="text-zinc-500">Not provided</p>
                 )}
               </div>
 
@@ -1627,8 +1635,12 @@ const Roster: React.FC = () => {
                     placeholder="(555) 987-6543"
                     className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded p-2 text-zinc-900 dark:text-white text-sm"
                   />
+                ) : viewContact.secondaryPhone ? (
+                  <a href={`tel:${viewContact.secondaryPhone.replace(/[^0-9+]/g, '')}`} className="text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1">
+                    {viewContact.secondaryPhone}
+                  </a>
                 ) : (
-                  <p className="text-zinc-900 dark:text-white">{viewContact.secondaryPhone || 'Not provided'}</p>
+                  <p className="text-zinc-500">Not provided</p>
                 )}
               </div>
 
@@ -1696,7 +1708,13 @@ const Roster: React.FC = () => {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-400">Phone</p>
-                      <p className="text-zinc-900 dark:text-white">{viewContact.emergencyContact.phone}</p>
+                      {viewContact.emergencyContact.phone ? (
+                        <a href={`tel:${viewContact.emergencyContact.phone.replace(/[^0-9+]/g, '')}`} className="text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1">
+                          {viewContact.emergencyContact.phone}
+                        </a>
+                      ) : (
+                        <p className="text-zinc-500">Not provided</p>
+                      )}
                     </div>
                   </div>
                 ) : (

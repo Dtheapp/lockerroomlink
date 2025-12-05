@@ -778,11 +778,23 @@ const Profile: React.FC = () => {
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Mobile</label>
-                                {isEditing ? <input value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-2 text-slate-900 dark:text-white" /> : <p className="text-slate-900 dark:text-white">{phone || '--'}</p>}
+                                {isEditing ? <input value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-2 text-slate-900 dark:text-white" /> : (
+                                  phone ? (
+                                    <a href={`tel:${phone.replace(/[^0-9+]/g, '')}`} className="text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1">
+                                      {phone}
+                                    </a>
+                                  ) : <p className="text-slate-900 dark:text-white">--</p>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Secondary</label>
-                                {isEditing ? <input value={secondaryPhone} onChange={e => setSecondaryPhone(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-2 text-slate-900 dark:text-white" /> : <p className="text-slate-900 dark:text-white">{secondaryPhone || '--'}</p>}
+                                {isEditing ? <input value={secondaryPhone} onChange={e => setSecondaryPhone(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-2 text-slate-900 dark:text-white" /> : (
+                                  secondaryPhone ? (
+                                    <a href={`tel:${secondaryPhone.replace(/[^0-9+]/g, '')}`} className="text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1">
+                                      {secondaryPhone}
+                                    </a>
+                                  ) : <p className="text-slate-900 dark:text-white">--</p>
+                                )}
                             </div>
                         </div>
                         <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 rounded p-4">
@@ -815,7 +827,11 @@ const Profile: React.FC = () => {
                                                 </div>
                                                 <div>
                                                     <p className="text-sm font-semibold text-slate-700 dark:text-slate-400">Phone</p>
-                                                    <p className="text-slate-900 dark:text-white">{emergPhone}</p>
+                                                    {emergPhone ? (
+                                                      <a href={`tel:${emergPhone.replace(/[^0-9+]/g, '')}`} className="text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1">
+                                                        {emergPhone}
+                                                      </a>
+                                                    ) : <p className="text-slate-900 dark:text-white">--</p>}
                                                 </div>
                                             </>
                                         ) : (
