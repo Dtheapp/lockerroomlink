@@ -25,6 +25,7 @@ interface AppConfig {
     playbookEnabled: boolean;
     statsEnabled: boolean;
     messengerEnabled: boolean;
+    clonePlayEnabled: boolean;
     
     // Content Settings
     maxBulletinPosts: number;
@@ -51,6 +52,7 @@ const defaultConfig: AppConfig = {
     playbookEnabled: true,
     statsEnabled: true,
     messengerEnabled: true,
+    clonePlayEnabled: true,
     maxBulletinPosts: 100,
     maxChatMessages: 500,
     maintenanceMode: false,
@@ -416,6 +418,13 @@ const AppSettings: React.FC = () => {
                         label="Stats & Analytics"
                         description="Player and team statistics"
                         icon={<Database className="w-5 h-5" />}
+                    />
+                    <ToggleSwitch
+                        enabled={config.clonePlayEnabled}
+                        onChange={(val) => updateConfig('clonePlayEnabled', val)}
+                        label="Clone Play Feature"
+                        description="Allow coaches to clone system plays"
+                        icon={<FileText className="w-5 h-5" />}
                     />
                 </div>
             </div>

@@ -4,7 +4,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { collection, addDoc, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp, query, orderBy, where, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import type { SystemPlay, SystemFormation, SystemPlaybook, PlayElement, PlayRoute, OffensePlayType, DefensePlayType, DrawingLine, PlayShape, LineType, ShapeType } from '../../types';
-import { Save, Trash2, Eraser, Plus, Route as RouteIcon, Undo2, BookOpen, PenTool, X, ChevronDown, Users, Move, FolderOpen, Layers, ChevronRight, AlertTriangle, Search, CheckCircle, AlertCircle, Package, Eye, EyeOff, Copy, FileStack, MousePointer, Minus, Square, Image as ImageIcon, Settings2 } from 'lucide-react';
+import { Save, Trash2, Eraser, Plus, Route as RouteIcon, Undo2, BookOpen, PenTool, X, ChevronDown, Users, Move, FolderOpen, Layers, ChevronRight, AlertTriangle, Search, CheckCircle, AlertCircle, Package, Eye, EyeOff, Copy, FileStack, MousePointer, Minus, Square, Image as ImageIcon, Settings2, ZoomIn, ZoomOut } from 'lucide-react';
 import TracePlayModal, { ImageSettings } from '../TracePlayModal';
 
 const ROUTE_COLORS = [
@@ -93,6 +93,11 @@ const AdminPlaybook: React.FC = () => {
   const [traceBackground, setTraceBackground] = useState<{ imageUrl: string; settings: ImageSettings } | null>(null);
   const [formationTraceBackground, setFormationTraceBackground] = useState<{ imageUrl: string; settings: ImageSettings } | null>(null);
   const [showImageAdjust, setShowImageAdjust] = useState(false);
+  const [showFormationImageAdjust, setShowFormationImageAdjust] = useState(false);
+
+  // MOBILE MOVE MODE STATE
+  const [mobileMoveModeFor, setMobileMoveModeFor] = useState<string | null>(null);
+  const [lineDragStart, setLineDragStart] = useState<{ x: number; y: number } | null>(null);
 
   // Toast
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -1070,6 +1075,174 @@ const AdminPlaybook: React.FC = () => {
           {el.label || el.type}
         </div>
       ))}
+
+      {/* Trace background controls */}
+      {traceBackground && (
+        <div className="absolute top-2 right-2 z-40" onClick={(e) => e.stopPropagation()}>
+          {/* Main controls bar */}
+          <div className="bg-slate-900/90 backdrop-blur-sm rounded-lg p-2 flex items-center gap-2">
+            <span className="text-xs text-cyan-400 font-medium px-2">Trace Mode</span>
+            <div className="flex items-center gap-1 border-l border-slate-700 pl-2">
+              <label className="text-xs text-slate-400">Opacity:</label>
+              <input
+                type="range"
+                min="10"
+                max="100"
+                value={traceBackground.settings.opacity}
+                onChange={(e) => setTraceBackground(prev => prev ? {
+                  ...prev,
+                  settings: { ...prev.settings, opacity: Number(e.target.value) }
+                } : null)}
+                className="w-16 accent-cyan-500"
+              />
+              <span className="text-xs text-slate-400 w-8">{traceBackground.settings.opacity}%</span>
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowImageAdjust(!showImageAdjust); }}
+              className={`p-1.5 rounded transition-colors ${showImageAdjust ? 'bg-cyan-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
+              title="Adjust image position & size"
+            >
+              <Settings2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setTraceBackground(prev => prev ? {
+                ...prev,
+                settings: { ...prev.settings, visible: !prev.settings.visible }
+              } : null); }}
+              className={`p-1.5 rounded transition-colors ${traceBackground.settings.visible ? 'bg-slate-700 text-white' : 'bg-purple-600 text-white'}`}
+              title={traceBackground.settings.visible ? 'Hide background' : 'Show background'}
+            >
+              {traceBackground.settings.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setTraceBackground(null);
+                setShowImageAdjust(false);
+              }}
+              className="p-1.5 bg-red-600 hover:bg-red-500 rounded text-white transition-colors"
+              title="Remove trace background"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          
+          {/* Image adjustment panel */}
+          {showImageAdjust && (
+            <div className="mt-2 bg-slate-900/90 backdrop-blur-sm rounded-lg p-3 min-w-[280px]">
+              <div className="text-xs text-slate-400 mb-2 font-medium">Adjust Image Position & Size</div>
+              
+              {/* Size controls */}
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-xs text-slate-400 w-12">Size:</label>
+                <button
+                  onClick={() => setTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, width: Math.max(20, prev.settings.width - 1), height: Math.max(20, prev.settings.height - 1) }
+                  } : null)}
+                  className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded text-white"
+                  title="Zoom out"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <input
+                  type="range"
+                  min="20"
+                  max="200"
+                  value={traceBackground.settings.width}
+                  onChange={(e) => {
+                    const newSize = Number(e.target.value);
+                    setTraceBackground(prev => prev ? {
+                      ...prev,
+                      settings: { ...prev.settings, width: newSize, height: newSize }
+                    } : null);
+                  }}
+                  className="flex-1 accent-cyan-500"
+                />
+                <button
+                  onClick={() => setTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, width: Math.min(200, prev.settings.width + 1), height: Math.min(200, prev.settings.height + 1) }
+                  } : null)}
+                  className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded text-white"
+                  title="Zoom in"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <span className="text-xs text-slate-400 w-10">{Math.round(traceBackground.settings.width)}%</span>
+              </div>
+              
+              {/* Position controls */}
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-xs text-slate-400 w-12">X:</label>
+                <input
+                  type="range"
+                  min="-50"
+                  max="100"
+                  value={traceBackground.settings.x}
+                  onChange={(e) => setTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, x: Number(e.target.value) }
+                  } : null)}
+                  className="flex-1 accent-cyan-500"
+                />
+                <span className="text-xs text-slate-400 w-10">{Math.round(traceBackground.settings.x)}</span>
+              </div>
+              
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-xs text-slate-400 w-12">Y:</label>
+                <input
+                  type="range"
+                  min="-50"
+                  max="100"
+                  value={traceBackground.settings.y}
+                  onChange={(e) => setTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, y: Number(e.target.value) }
+                  } : null)}
+                  className="flex-1 accent-cyan-500"
+                />
+                <span className="text-xs text-slate-400 w-10">{Math.round(traceBackground.settings.y)}</span>
+              </div>
+              
+              {/* Quick actions */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { 
+                      ...prev.settings, 
+                      x: (100 - prev.settings.width) / 2, 
+                      y: (100 - prev.settings.height) / 2 
+                    }
+                  } : null)}
+                  className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white"
+                >
+                  Center
+                </button>
+                <button
+                  onClick={() => setTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, width: 100, height: 100, x: 0, y: 0 }
+                  } : null)}
+                  className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white"
+                >
+                  Fit 100%
+                </button>
+                <button
+                  onClick={() => setTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, x: 0, y: 0, width: 100, height: 100 }
+                  } : null)}
+                  className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white"
+                >
+                  Reset All
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -1139,6 +1312,174 @@ const AdminPlaybook: React.FC = () => {
       <div className="absolute top-2 left-2 bg-black/60 text-white px-2 py-1 rounded text-xs font-bold z-40">
         FORMATION: {formationName || 'Untitled'}
       </div>
+
+      {/* Formation Trace Background Controls */}
+      {formationTraceBackground && (
+        <div className="absolute top-2 right-2 z-40" onClick={(e) => e.stopPropagation()}>
+          {/* Main controls bar */}
+          <div className="bg-slate-900/90 backdrop-blur-sm rounded-lg p-2 flex items-center gap-2">
+            <span className="text-xs text-cyan-400 font-medium px-2">Trace Mode</span>
+            <div className="flex items-center gap-1 border-l border-slate-700 pl-2">
+              <label className="text-xs text-slate-400">Opacity:</label>
+              <input
+                type="range"
+                min="10"
+                max="100"
+                value={formationTraceBackground.settings.opacity}
+                onChange={(e) => setFormationTraceBackground(prev => prev ? {
+                  ...prev,
+                  settings: { ...prev.settings, opacity: Number(e.target.value) }
+                } : null)}
+                className="w-16 accent-cyan-500"
+              />
+              <span className="text-xs text-slate-400 w-8">{formationTraceBackground.settings.opacity}%</span>
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowFormationImageAdjust(!showFormationImageAdjust); }}
+              className={`p-1.5 rounded transition-colors ${showFormationImageAdjust ? 'bg-cyan-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
+              title="Adjust image position & size"
+            >
+              <Settings2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setFormationTraceBackground(prev => prev ? {
+                ...prev,
+                settings: { ...prev.settings, visible: !prev.settings.visible }
+              } : null); }}
+              className={`p-1.5 rounded transition-colors ${formationTraceBackground.settings.visible ? 'bg-slate-700 text-white' : 'bg-purple-600 text-white'}`}
+              title={formationTraceBackground.settings.visible ? 'Hide background' : 'Show background'}
+            >
+              {formationTraceBackground.settings.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setFormationTraceBackground(null);
+                setShowFormationImageAdjust(false);
+              }}
+              className="p-1.5 bg-red-600 hover:bg-red-500 rounded text-white transition-colors"
+              title="Remove trace background"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          
+          {/* Image adjustment panel */}
+          {showFormationImageAdjust && (
+            <div className="mt-2 bg-slate-900/90 backdrop-blur-sm rounded-lg p-3 min-w-[280px]">
+              <div className="text-xs text-slate-400 mb-2 font-medium">Adjust Image Position & Size</div>
+              
+              {/* Size controls */}
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-xs text-slate-400 w-12">Size:</label>
+                <button
+                  onClick={() => setFormationTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, width: Math.max(20, prev.settings.width - 1), height: Math.max(20, prev.settings.height - 1) }
+                  } : null)}
+                  className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded text-white"
+                  title="Zoom out"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <input
+                  type="range"
+                  min="20"
+                  max="200"
+                  value={formationTraceBackground.settings.width}
+                  onChange={(e) => {
+                    const newSize = Number(e.target.value);
+                    setFormationTraceBackground(prev => prev ? {
+                      ...prev,
+                      settings: { ...prev.settings, width: newSize, height: newSize }
+                    } : null);
+                  }}
+                  className="flex-1 accent-cyan-500"
+                />
+                <button
+                  onClick={() => setFormationTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, width: Math.min(200, prev.settings.width + 1), height: Math.min(200, prev.settings.height + 1) }
+                  } : null)}
+                  className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded text-white"
+                  title="Zoom in"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <span className="text-xs text-slate-400 w-10">{Math.round(formationTraceBackground.settings.width)}%</span>
+              </div>
+              
+              {/* Position controls */}
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-xs text-slate-400 w-12">X:</label>
+                <input
+                  type="range"
+                  min="-50"
+                  max="100"
+                  value={formationTraceBackground.settings.x}
+                  onChange={(e) => setFormationTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, x: Number(e.target.value) }
+                  } : null)}
+                  className="flex-1 accent-cyan-500"
+                />
+                <span className="text-xs text-slate-400 w-10">{Math.round(formationTraceBackground.settings.x)}</span>
+              </div>
+              
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-xs text-slate-400 w-12">Y:</label>
+                <input
+                  type="range"
+                  min="-50"
+                  max="100"
+                  value={formationTraceBackground.settings.y}
+                  onChange={(e) => setFormationTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, y: Number(e.target.value) }
+                  } : null)}
+                  className="flex-1 accent-cyan-500"
+                />
+                <span className="text-xs text-slate-400 w-10">{Math.round(formationTraceBackground.settings.y)}</span>
+              </div>
+              
+              {/* Quick actions */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setFormationTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { 
+                      ...prev.settings, 
+                      x: (100 - prev.settings.width) / 2, 
+                      y: (100 - prev.settings.height) / 2 
+                    }
+                  } : null)}
+                  className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white"
+                >
+                  Center
+                </button>
+                <button
+                  onClick={() => setFormationTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, width: 100, height: 100, x: 0, y: 0 }
+                  } : null)}
+                  className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white"
+                >
+                  Fit 100%
+                </button>
+                <button
+                  onClick={() => setFormationTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, x: 0, y: 0, width: 100, height: 100 }
+                  } : null)}
+                  className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white"
+                >
+                  Reset All
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 

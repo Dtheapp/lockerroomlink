@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, addDoc, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp, query, orderBy, where, getDocs } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp, query, orderBy, where, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import type { CoachPlay, PlayElement, PlayRoute, OffensePlayType, DefensePlayType, Formation, SystemPlaybook, SystemPlay, SystemFormation, ImportedPlaybook, DrawingLine, PlayShape, LineType, ShapeType } from '../types';
 import { Save, Trash2, Eraser, Plus, Undo2, BookOpen, PenTool, Maximize2, X, ChevronDown, Users, FolderOpen, Layers, ChevronRight, AlertTriangle, Search, CheckCircle, AlertCircle, Download, Package, Lock, RefreshCw, Eye, Edit2, Circle, Square, Triangle, Minus, MousePointer, Move, Sparkles, Image as ImageIcon, Settings2, ZoomIn, ZoomOut } from 'lucide-react';
@@ -123,6 +123,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
   
   // Clone Play Modal state
   const [showCloneModal, setShowCloneModal] = useState(false);
+  const [cloneEnabled, setCloneEnabled] = useState(true); // Default to true, will be updated from config
   const cloneCredits = userData?.cloneCredits ?? 10; // Default to 10 credits for new users
   
   // Trace Play Modal state
@@ -190,6 +191,22 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
 
   // Check for dark mode
   const isDarkMode = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+
+  // Load clone enabled config
+  useEffect(() => {
+    const loadCloneConfig = async () => {
+      try {
+        const configDoc = await getDoc(doc(db, 'appConfig', 'settings'));
+        if (configDoc.exists()) {
+          const data = configDoc.data();
+          setCloneEnabled(data.cloneEnabled ?? true);
+        }
+      } catch (err) {
+        console.error('Error loading clone config:', err);
+      }
+    };
+    loadCloneConfig();
+  }, []);
 
   // Load coach's formations
   useEffect(() => {
@@ -2950,13 +2967,17 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                           </select>
                           <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
                             Or <button onClick={() => setActiveTab('formations')} className="underline font-medium">create a new formation</button>
-                            {' '} | {' '}
-                            <button 
-                              onClick={() => setShowCloneModal(true)} 
-                              className="underline font-medium text-purple-600 dark:text-purple-400 inline-flex items-center gap-1"
-                            >
-                              <Sparkles className="w-3 h-3" /> clone from image (AI)
-                            </button>
+                            {cloneEnabled && (
+                              <>
+                                {' '} | {' '}
+                                <button 
+                                  onClick={() => setShowCloneModal(true)} 
+                                  className="underline font-medium text-purple-600 dark:text-purple-400 inline-flex items-center gap-1"
+                                >
+                                  <Sparkles className="w-3 h-3" /> clone from image (AI)
+                                </button>
+                              </>
+                            )}
                           </p>
                         </div>
                       ) : (
