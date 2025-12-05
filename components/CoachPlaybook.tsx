@@ -2559,8 +2559,8 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                         </div>
                       )}
 
-                      {/* Drawing Tools - Always Visible */}
-                      {!isCurrentPlayReadOnly && playFormationId && (
+                      {/* Drawing Tools - Always Visible (show even without formation for cloned/traced plays) */}
+                      {!isCurrentPlayReadOnly && (playFormationId || elements.length > 0 || traceBackground) && (
                         <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3">
                           <p className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase">Drawing Tools</p>
                           

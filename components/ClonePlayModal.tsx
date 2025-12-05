@@ -199,24 +199,39 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
       }
       
       // Call the Netlify function
-      const response = await fetch('/.netlify/functions/clone-play', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          imageBase64: base64Data,
-          userId: user.uid,
-          hints: hints || undefined
-        })
-      });
+      let response: Response;
+      try {
+        response = await fetch('/.netlify/functions/clone-play', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            imageBase64: base64Data,
+            userId: user.uid,
+            hints: hints || undefined
+          })
+        });
+      } catch (fetchError) {
+        console.error('Fetch error:', fetchError);
+        throw new Error('Network error - please check your connection and try again.');
+      }
       
       // Check if response is HTML (error page) instead of JSON
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         const text = await response.text();
-        console.error('Non-JSON response:', text.substring(0, 200));
-        throw new Error('Server returned an error page. The clone feature may still be deploying - please try again in 1-2 minutes.');
+        console.error('Non-JSON response:', text.substring(0, 500));
+        
+        // Check for specific error patterns
+        if (text.includes('504') || text.includes('timeout')) {
+          throw new Error('Request timed out. The image may be too large - try a smaller image.');
+        } else if (text.includes('502') || text.includes('Bad Gateway')) {
+          throw new Error('Server error. Please wait a moment and try again.');
+        } else if (response.status === 404) {
+          throw new Error('Clone function not found. Please wait 1-2 minutes for deployment.');
+        }
+        throw new Error(`Server error (${response.status}). Please try again in a moment.`);
       }
       
       const data = await response.json();
