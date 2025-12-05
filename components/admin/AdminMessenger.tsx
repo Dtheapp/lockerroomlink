@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc, limitToLast, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc, limitToLast, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { sanitizeText } from '../../services/sanitize';
 import { useAuth } from '../../contexts/AuthContext';
-import { Search, Send, MessageSquare, Users, Shield, UserCheck, Trash2 } from 'lucide-react';
+import { Search, Send, MessageSquare, Users, Shield, UserCheck, Trash2, Check, CheckCheck } from 'lucide-react';
 import { uploadFile } from '../../services/storage';
 import type { PrivateChat, PrivateMessage, UserProfile } from '../../types';
 
@@ -58,6 +58,41 @@ const AdminMessenger: React.FC = () => {
     });
     return () => unsubscribe();
   }, [activeChat]);
+
+  // 2b. MARK MESSAGES AS READ when viewing a chat
+  useEffect(() => {
+    if (!activeChat || !user) return;
+    
+    const markMessagesAsRead = async () => {
+      // Find unread messages from other participants
+      const unreadMessages = messages.filter(msg => {
+        const readBy = (msg as any).readBy || [];
+        return msg.senderId !== user.uid && !readBy.includes(user.uid);
+      });
+      
+      if (unreadMessages.length === 0) return;
+      
+      // Batch update to mark as read
+      try {
+        const batch = writeBatch(db);
+        unreadMessages.forEach(msg => {
+          const msgRef = doc(db, 'private_chats', activeChat.id, 'messages', msg.id);
+          const currentReadBy = (msg as any).readBy || [];
+          batch.update(msgRef, {
+            readBy: [...currentReadBy, user.uid],
+            [`readAt.${user.uid}`]: serverTimestamp()
+          });
+        });
+        await batch.commit();
+      } catch (error) {
+        console.error("Error marking messages as read:", error);
+      }
+    };
+    
+    // Small delay to prevent marking as read during initial load
+    const timer = setTimeout(markMessagesAsRead, 500);
+    return () => clearTimeout(timer);
+  }, [activeChat?.id, messages, user]);
 
   // 3. LOAD ALL USERS (SuperAdmin can message anyone)
   useEffect(() => {
@@ -424,6 +459,12 @@ const AdminMessenger: React.FC = () => {
                 ) : (
                   messages.map((msg) => {
                     const isMe = msg.senderId === user?.uid;
+                    
+                    // Read receipt logic - check if other participant(s) have read this message
+                    const readBy = (msg as any).readBy || [];
+                    const otherParticipants = activeChat?.participants.filter(p => p !== user?.uid) || [];
+                    const isRead = otherParticipants.some(p => readBy.includes(p));
+                    
                     return (
                       <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${isMe ? 'bg-orange-600 text-white rounded-br-none' : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 rounded-bl-none'}`}>
@@ -440,6 +481,18 @@ const AdminMessenger: React.FC = () => {
                                   )}
                                 </div>
                               ))}
+                            </div>
+                          )}
+                          {/* Read receipt for sender's messages */}
+                          {isMe && (
+                            <div className="flex justify-end mt-1">
+                              <span className="flex items-center text-[10px]" title={isRead ? 'Read' : 'Delivered'}>
+                                {isRead ? (
+                                  <CheckCheck className="w-3.5 h-3.5 text-sky-300" />
+                                ) : (
+                                  <Check className="w-3 h-3 text-orange-200" />
+                                )}
+                              </span>
                             </div>
                           )}
                         </div>

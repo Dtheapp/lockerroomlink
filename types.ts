@@ -237,6 +237,9 @@ export interface PrivateMessage {
   text: string;
   senderId: string;
   timestamp: Timestamp;
+  // Read receipts - WhatsApp/Telegram style
+  readBy?: string[];    // Array of user IDs who have read this message
+  readAt?: { [uid: string]: Timestamp };  // When each user read it
 }
 
 export interface Attachment {

@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc, limitToLast, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc, limitToLast, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { uploadFile } from '../services/storage';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnreadMessages } from '../hooks/useUnreadMessages';
-import { Search, Send, MessageSquare, AlertCircle, Edit2, Trash2, X, Check, AlertTriangle } from 'lucide-react';
+import { Search, Send, MessageSquare, AlertCircle, Edit2, Trash2, X, Check, AlertTriangle, CheckCheck } from 'lucide-react';
 import type { PrivateChat, PrivateMessage, UserProfile } from '../types';
 import NoAthleteBlock from './NoAthleteBlock';
 
@@ -126,6 +126,43 @@ const Messenger: React.FC = () => {
       });
       return () => unsubscribe();
   }, [activeChat]);
+
+  // 2b. MARK MESSAGES AS READ when viewing a chat
+  useEffect(() => {
+    if (!activeChat || !user) return;
+    
+    const markMessagesAsRead = async () => {
+      const chatCollection = activeChat.isGrievance ? 'grievance_chats' : 'private_chats';
+      
+      // Find unread messages from other participants
+      const unreadMessages = messages.filter(msg => {
+        const readBy = (msg as any).readBy || [];
+        return msg.senderId !== user.uid && !readBy.includes(user.uid);
+      });
+      
+      if (unreadMessages.length === 0) return;
+      
+      // Batch update to mark as read
+      try {
+        const batch = writeBatch(db);
+        unreadMessages.forEach(msg => {
+          const msgRef = doc(db, chatCollection, activeChat.id, 'messages', msg.id);
+          const currentReadBy = (msg as any).readBy || [];
+          batch.update(msgRef, {
+            readBy: [...currentReadBy, user.uid],
+            [`readAt.${user.uid}`]: serverTimestamp()
+          });
+        });
+        await batch.commit();
+      } catch (error) {
+        console.error("Error marking messages as read:", error);
+      }
+    };
+    
+    // Small delay to prevent marking as read during initial load
+    const timer = setTimeout(markMessagesAsRead, 500);
+    return () => clearTimeout(timer);
+  }, [activeChat?.id, messages, user]);
 
   // 3. LOAD USERS FOR SEARCH (Security Fix: Scope to Team)
   useEffect(() => {
@@ -475,6 +512,11 @@ const Messenger: React.FC = () => {
                         
                         const isSystemMessage = (msg as any).isSystemMessage;
                         
+                        // Read receipt logic - check if other participant(s) have read this message
+                        const readBy = (msg as any).readBy || [];
+                        const otherParticipants = activeChat?.participants.filter(p => p !== user?.uid) || [];
+                        const isRead = otherParticipants.some(p => readBy.includes(p));
+                        
                         return (
                             <div key={msg.id} className={`flex ${isSystemMessage ? 'justify-center' : isMe ? 'justify-end' : 'justify-start'}`}>
                                 <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${
@@ -530,27 +572,39 @@ const Messenger: React.FC = () => {
                                             ))}
                                           </div>
                                         )}
-                                        {/* Footer with timestamp and actions */}
+                                        {/* Footer with timestamp, read receipts, and actions */}
                                         <div className={`flex items-center justify-between mt-1 gap-2 text-[10px] ${isMe ? 'text-orange-200' : 'text-zinc-400'}`}>
                                           <span>{isEdited && '(edited)'}</span>
-                                          {isMe && (
-                                            <div className="flex items-center gap-1">
-                                              <button
-                                                onClick={() => { setEditingMessageId(msg.id); setEditingText(msg.text); }}
-                                                className="hover:text-white p-0.5 transition-colors"
-                                                title="Edit"
-                                              >
-                                                <Edit2 className="w-3 h-3" />
-                                              </button>
-                                              <button
-                                                onClick={() => setDeleteConfirm(msg.id)}
-                                                className="hover:text-white p-0.5 transition-colors"
-                                                title="Delete"
-                                              >
-                                                <Trash2 className="w-3 h-3" />
-                                              </button>
-                                            </div>
-                                          )}
+                                          <div className="flex items-center gap-1">
+                                            {/* Read receipt checkmarks for sender's own messages */}
+                                            {isMe && !isSystemMessage && (
+                                              <span className="flex items-center" title={isRead ? 'Read' : 'Delivered'}>
+                                                {isRead ? (
+                                                  <CheckCheck className="w-3.5 h-3.5 text-sky-300" />
+                                                ) : (
+                                                  <Check className="w-3 h-3" />
+                                                )}
+                                              </span>
+                                            )}
+                                            {isMe && (
+                                              <>
+                                                <button
+                                                  onClick={() => { setEditingMessageId(msg.id); setEditingText(msg.text); }}
+                                                  className="hover:text-white p-0.5 transition-colors"
+                                                  title="Edit"
+                                                >
+                                                  <Edit2 className="w-3 h-3" />
+                                                </button>
+                                                <button
+                                                  onClick={() => setDeleteConfirm(msg.id)}
+                                                  className="hover:text-white p-0.5 transition-colors"
+                                                  title="Delete"
+                                                >
+                                                  <Trash2 className="w-3 h-3" />
+                                                </button>
+                                              </>
+                                            )}
+                                          </div>
                                         </div>
                                       </>
                                     )}
