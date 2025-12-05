@@ -196,22 +196,46 @@ const VideoLibrary: React.FC = () => {
 
       // Save to tagged players' film room (for persistence on their public profiles)
       if (playerIdsToTag.length > 0) {
-        const batch = writeBatch(db);
-        for (const playerId of playerIdsToTag) {
-          const filmEntryRef = doc(db, 'teams', teamData.id, 'players', playerId, 'filmRoom', videoRef.id);
-          const filmEntry: Omit<PlayerFilmEntry, 'id'> = {
-            videoId: videoRef.id,
-            teamId: teamData.id,
-            title: newVideo.title,
-            youtubeId,
-            category: newVideo.category,
-            description: newVideo.description || undefined,
-            taggedAt: serverTimestamp(),
-            teamName: teamData.name
-          };
-          batch.set(filmEntryRef, filmEntry);
+        try {
+          const batch = writeBatch(db);
+          for (const playerId of playerIdsToTag) {
+            const filmEntryRef = doc(db, 'teams', teamData.id, 'players', playerId, 'filmRoom', videoRef.id);
+            const filmEntry: Omit<PlayerFilmEntry, 'id'> = {
+              videoId: videoRef.id,
+              teamId: teamData.id,
+              title: newVideo.title,
+              youtubeId,
+              category: newVideo.category,
+              description: newVideo.description || undefined,
+              taggedAt: serverTimestamp(),
+              teamName: teamData.name
+            };
+            batch.set(filmEntryRef, filmEntry);
+          }
+          await batch.commit();
+          console.log('Successfully saved film room entries for', playerIdsToTag.length, 'players');
+        } catch (filmError) {
+          console.error('Error saving to player film rooms:', filmError);
+          // Video was saved, but film room entries failed - try individual writes as fallback
+          for (const playerId of playerIdsToTag) {
+            try {
+              const filmEntryRef = doc(db, 'teams', teamData.id, 'players', playerId, 'filmRoom', videoRef.id);
+              await setDoc(filmEntryRef, {
+                videoId: videoRef.id,
+                teamId: teamData.id,
+                title: newVideo.title,
+                youtubeId,
+                category: newVideo.category,
+                description: newVideo.description || null,
+                taggedAt: serverTimestamp(),
+                teamName: teamData.name
+              });
+              console.log('Fallback: saved film room entry for player', playerId);
+            } catch (individualError) {
+              console.error('Failed to save film room for player', playerId, individualError);
+            }
+          }
         }
-        await batch.commit();
       }
       
       resetForm();
@@ -260,9 +284,10 @@ const VideoLibrary: React.FC = () => {
       // Get previously tagged players
       const previouslyTagged = editingVideo.taggedPlayerIds || [];
       
-      // Find players to add and remove
+      // Find players to add, remove, and update
       const playersToAdd = playerIdsToTag.filter(id => !previouslyTagged.includes(id));
       const playersToRemove = previouslyTagged.filter(id => !playerIdsToTag.includes(id));
+      const playersToUpdate = playerIdsToTag.filter(id => previouslyTagged.includes(id));
 
       // Update the video
       await updateDoc(doc(db, 'teams', teamData.id, 'videos', editingVideo.id), {
@@ -279,44 +304,71 @@ const VideoLibrary: React.FC = () => {
       });
 
       // Update players' film rooms
-      const batch = writeBatch(db);
-      
-      // Add to newly tagged players
-      for (const playerId of playersToAdd) {
-        const filmEntryRef = doc(db, 'teams', teamData.id, 'players', playerId, 'filmRoom', editingVideo.id);
-        const filmEntry: Omit<PlayerFilmEntry, 'id'> = {
-          videoId: editingVideo.id,
-          teamId: teamData.id,
-          title: newVideo.title,
-          youtubeId,
-          category: newVideo.category,
-          description: newVideo.description || undefined,
-          taggedAt: serverTimestamp(),
-          teamName: teamData.name
-        };
-        batch.set(filmEntryRef, filmEntry);
+      if (playersToAdd.length > 0 || playersToRemove.length > 0 || playersToUpdate.length > 0) {
+        try {
+          const batch = writeBatch(db);
+          
+          // Add to newly tagged players
+          for (const playerId of playersToAdd) {
+            const filmEntryRef = doc(db, 'teams', teamData.id, 'players', playerId, 'filmRoom', editingVideo.id);
+            const filmEntry: Omit<PlayerFilmEntry, 'id'> = {
+              videoId: editingVideo.id,
+              teamId: teamData.id,
+              title: newVideo.title,
+              youtubeId,
+              category: newVideo.category,
+              description: newVideo.description || undefined,
+              taggedAt: serverTimestamp(),
+              teamName: teamData.name
+            };
+            batch.set(filmEntryRef, filmEntry);
+          }
+          
+          // Remove from untagged players
+          for (const playerId of playersToRemove) {
+            const filmEntryRef = doc(db, 'teams', teamData.id, 'players', playerId, 'filmRoom', editingVideo.id);
+            batch.delete(filmEntryRef);
+          }
+          
+          // Update existing tagged players with new video info
+          for (const playerId of playersToUpdate) {
+            const filmEntryRef = doc(db, 'teams', teamData.id, 'players', playerId, 'filmRoom', editingVideo.id);
+            // Use set with merge instead of update to handle case where doc doesn't exist
+            batch.set(filmEntryRef, {
+              videoId: editingVideo.id,
+              teamId: teamData.id,
+              title: newVideo.title,
+              youtubeId,
+              category: newVideo.category,
+              description: newVideo.description || null,
+              taggedAt: serverTimestamp(),
+              teamName: teamData.name
+            }, { merge: true });
+          }
+          
+          await batch.commit();
+          console.log('Successfully updated film room entries');
+        } catch (filmError) {
+          console.error('Error updating player film rooms:', filmError);
+          // Try individual writes as fallback
+          for (const playerId of playersToAdd) {
+            try {
+              await setDoc(doc(db, 'teams', teamData.id, 'players', playerId, 'filmRoom', editingVideo.id), {
+                videoId: editingVideo.id,
+                teamId: teamData.id,
+                title: newVideo.title,
+                youtubeId,
+                category: newVideo.category,
+                description: newVideo.description || null,
+                taggedAt: serverTimestamp(),
+                teamName: teamData.name
+              });
+            } catch (e) {
+              console.error('Fallback failed for player', playerId, e);
+            }
+          }
+        }
       }
-      
-      // Remove from untagged players
-      for (const playerId of playersToRemove) {
-        const filmEntryRef = doc(db, 'teams', teamData.id, 'players', playerId, 'filmRoom', editingVideo.id);
-        batch.delete(filmEntryRef);
-      }
-      
-      // Update existing tagged players with new video info
-      const playersToUpdate = playerIdsToTag.filter(id => previouslyTagged.includes(id));
-      for (const playerId of playersToUpdate) {
-        const filmEntryRef = doc(db, 'teams', teamData.id, 'players', playerId, 'filmRoom', editingVideo.id);
-        batch.update(filmEntryRef, {
-          title: newVideo.title,
-          youtubeId,
-          category: newVideo.category,
-          description: newVideo.description || null,
-          teamName: teamData.name
-        });
-      }
-      
-      await batch.commit();
       
       resetForm();
       setIsModalOpen(false);
