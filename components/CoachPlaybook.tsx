@@ -79,6 +79,8 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
   const [shapeStartPos, setShapeStartPos] = useState<{ x: number; y: number } | null>(null);
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
+  const [mobileMoveModeFor, setMobileMoveModeFor] = useState<'line' | 'shape' | null>(null); // Mobile: tap to move
+  const [lineDragStart, setLineDragStart] = useState<{ x: number; y: number } | null>(null); // For moving entire line
   
   // SELECTION
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
@@ -392,7 +394,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
       };
   };
 
-  const startDrag = (e: React.MouseEvent | React.TouchEvent, type: 'element' | 'route_point' | 'line_point' | 'shape', id: string, index?: number) => {
+  const startDrag = (e: React.MouseEvent | React.TouchEvent, type: 'element' | 'route_point' | 'line_point' | 'shape' | 'line', id: string, index?: number) => {
       e.stopPropagation();
       e.preventDefault();
       
@@ -415,6 +417,14 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
           setSelectedElementId(null);
           setSelectedRouteId(null);
           setSelectedShapeId(null);
+      } else if (type === 'line') {
+          // Moving entire line
+          setSelectedLineId(id);
+          setSelectedElementId(null);
+          setSelectedRouteId(null);
+          setSelectedShapeId(null);
+          const { x, y } = getPointerPos(e);
+          setLineDragStart({ x, y });
       } else if (type === 'shape') {
           setSelectedShapeId(id);
           setSelectedElementId(null);
@@ -493,6 +503,21 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
               }
               return l;
           }));
+      } else if (dragTarget.type === 'line' && lineDragStart) {
+          // Moving entire line - calculate delta from start position
+          const dx = x - lineDragStart.x;
+          const dy = y - lineDragStart.y;
+          setLines(prev => prev.map(l => {
+              if (l.id === dragTarget.id) {
+                  const newPoints = l.points.map(pt => ({
+                      x: pt.x + dx,
+                      y: pt.y + dy
+                  }));
+                  return { ...l, points: newPoints };
+              }
+              return l;
+          }));
+          setLineDragStart({ x, y }); // Update start for next move delta
       } else if (dragTarget.type === 'shape') {
           setShapes(prev => prev.map(s => s.id === dragTarget.id ? { ...s, x, y } : s));
       }
@@ -530,6 +555,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
       
       setIsDragging(false);
       setDragTarget(null);
+      setLineDragStart(null); // Clear line drag start position
   };
 
   const handleCanvasClick = (e: React.MouseEvent | React.TouchEvent) => {
@@ -593,12 +619,43 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
       return;
     }
     
+    // Mobile tap-to-move mode for lines and shapes
+    if (mobileMoveModeFor === 'line' && selectedLineId) {
+      // Move the entire line to center on tap position
+      const line = lines.find(l => l.id === selectedLineId);
+      if (line && line.points.length > 0) {
+        // Calculate current center of the line
+        const centerX = line.points.reduce((sum, pt) => sum + pt.x, 0) / line.points.length;
+        const centerY = line.points.reduce((sum, pt) => sum + pt.y, 0) / line.points.length;
+        const dx = x - centerX;
+        const dy = y - centerY;
+        // Move all points by the delta
+        setLines(prev => prev.map(l => {
+          if (l.id === selectedLineId) {
+            return {
+              ...l,
+              points: l.points.map(pt => ({ x: pt.x + dx, y: pt.y + dy }))
+            };
+          }
+          return l;
+        }));
+      }
+      return;
+    }
+    
+    if (mobileMoveModeFor === 'shape' && selectedShapeId) {
+      // Move the shape to tap position
+      setShapes(prev => prev.map(s => s.id === selectedShapeId ? { ...s, x, y } : s));
+      return;
+    }
+    
     // Default select mode - deselect when clicking empty area
     if (e.target === e.currentTarget) {
       setSelectedElementId(null);
       setSelectedRouteId(null);
       setSelectedLineId(null);
       setSelectedShapeId(null);
+      setMobileMoveModeFor(null);
     }
   };
   
@@ -625,10 +682,12 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
     if (selectedLineId) {
       setLines(prev => prev.filter(l => l.id !== selectedLineId));
       setSelectedLineId(null);
+      setMobileMoveModeFor(null);
     }
     if (selectedShapeId) {
       setShapes(prev => prev.filter(s => s.id !== selectedShapeId));
       setSelectedShapeId(null);
+      setMobileMoveModeFor(null);
     }
   };
 
@@ -937,6 +996,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
       setSelectedRouteId(null);
       setSelectedLineId(null);
       setSelectedShapeId(null);
+      setMobileMoveModeFor(null);
       setDrawingMode('select');
       cancelDrawing();
       // Clear trace background completely
@@ -1522,6 +1582,36 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
 
       {/* LINE POINTS - hidden for clean lines, only show when selected for editing */}
       {/* Points are not rendered - lines are freehand drawn and shown as clean paths */}
+      
+      {/* LINE DRAG HANDLES (for moving entire line on desktop) */}
+      {lines.map(line => {
+        if (line.points.length < 2) return null;
+        // Calculate bounding box of the line
+        const xs = line.points.map(p => p.x);
+        const ys = line.points.map(p => p.y);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+        const padding = 1; // 1% padding for easier click
+        return (
+          <div
+            key={`line-handle-${line.id}`}
+            onMouseDown={(e) => startDrag(e, 'line', line.id)}
+            onTouchStart={(e) => startDrag(e, 'line', line.id)}
+            className={`absolute cursor-move z-14 ${
+              selectedLineId === line.id ? 'ring-2 ring-yellow-400 ring-offset-1 bg-yellow-400/10' : ''
+            }`}
+            style={{
+              left: `${minX - padding}%`,
+              top: `${minY - padding}%`,
+              width: `${Math.max(maxX - minX + padding * 2, 3)}%`,
+              height: `${Math.max(maxY - minY + padding * 2, 3)}%`,
+              pointerEvents: drawingMode === 'select' ? 'auto' : 'none'
+            }}
+          />
+        );
+      })}
       
       {/* SHAPE HANDLES (draggable) */}
       {shapes.map(shape => (
@@ -2359,29 +2449,65 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
             </button>
           )}
           {selectedLineId && (
-            <button 
-              onClick={(e) => { e.stopPropagation(); deleteSelectedDrawing(); }} 
-              className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
-            >
-              <Eraser className="w-3 h-3"/> Delete Line
-            </button>
+            <>
+              {/* Move button - mobile shows toggle, desktop hint */}
+              <button 
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  if (isMobileOrTablet) {
+                    setMobileMoveModeFor(mobileMoveModeFor === 'line' ? null : 'line');
+                  }
+                }} 
+                className={`${mobileMoveModeFor === 'line' ? 'bg-blue-600' : 'bg-slate-700 hover:bg-slate-600'} text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors`}
+                title={isMobileOrTablet ? "Tap to enable move mode" : "Drag the line to move it"}
+              >
+                <Move className="w-3 h-3"/> {mobileMoveModeFor === 'line' ? 'Moving...' : 'Move'}
+              </button>
+              <button 
+                onClick={(e) => { e.stopPropagation(); deleteSelectedDrawing(); }} 
+                className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+              >
+                <Eraser className="w-3 h-3"/> Delete
+              </button>
+            </>
           )}
           {selectedShapeId && (
-            <button 
-              onClick={(e) => { e.stopPropagation(); deleteSelectedDrawing(); }} 
-              className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
-            >
-              <Eraser className="w-3 h-3"/> Delete Shape
-            </button>
+            <>
+              {/* Move button - mobile shows toggle, desktop hint */}
+              <button 
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  if (isMobileOrTablet) {
+                    setMobileMoveModeFor(mobileMoveModeFor === 'shape' ? null : 'shape');
+                  }
+                }} 
+                className={`${mobileMoveModeFor === 'shape' ? 'bg-blue-600' : 'bg-slate-700 hover:bg-slate-600'} text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors`}
+                title={isMobileOrTablet ? "Tap to enable move mode" : "Drag the shape to move it"}
+              >
+                <Move className="w-3 h-3"/> {mobileMoveModeFor === 'shape' ? 'Moving...' : 'Move'}
+              </button>
+              <button 
+                onClick={(e) => { e.stopPropagation(); deleteSelectedDrawing(); }} 
+                className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+              >
+                <Eraser className="w-3 h-3"/> Delete
+              </button>
+            </>
           )}
           <button 
-            onClick={(e) => { e.stopPropagation(); setSelectedElementId(null); setSelectedRouteId(null); setSelectedLineId(null); setSelectedShapeId(null); }}
+            onClick={(e) => { e.stopPropagation(); setSelectedElementId(null); setSelectedRouteId(null); setSelectedLineId(null); setSelectedShapeId(null); setMobileMoveModeFor(null); }}
             className="text-slate-400 hover:text-white p-1.5 transition-colors"
             title="Close"
           >
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
+        {/* Mobile move mode instruction */}
+        {mobileMoveModeFor && (
+          <div className="mt-2 bg-blue-600/90 text-white px-3 py-1.5 rounded-lg text-xs text-center">
+            Tap anywhere on the field to move the {mobileMoveModeFor}
+          </div>
+        )}
       </div>
     );
   };
