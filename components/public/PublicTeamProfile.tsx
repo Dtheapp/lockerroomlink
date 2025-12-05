@@ -317,6 +317,28 @@ const PublicTeamProfile: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-8">
+            {/* Film Room Button - at the top, only shows if videos exist */}
+            {publicVideos.length > 0 && (
+              <button
+                onClick={() => setShowFilmRoom(true)}
+                className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 rounded-xl border border-red-500/30 p-6 flex items-center justify-between group transition-all hover:shadow-lg hover:shadow-orange-500/20"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-black/30 rounded-xl flex items-center justify-center">
+                    <Film className="w-7 h-7 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <h2 className="text-xl font-bold text-white">Film Room</h2>
+                    <p className="text-white/80 text-sm">{publicVideos.length} {publicVideos.length === 1 ? 'video' : 'videos'} available</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-white/80 text-sm font-medium group-hover:text-white transition-colors">View All</span>
+                  <ChevronRight className="w-5 h-5 text-white group-hover:translate-x-1 transition-transform" />
+                </div>
+              </button>
+            )}
+
             {/* Coaching Staff */}
             {coaches.length > 0 && (
               <div className="bg-zinc-800/50 rounded-xl border border-zinc-700 p-6">
@@ -439,82 +461,10 @@ const PublicTeamProfile: React.FC = () => {
                 ))}
               </div>
             </div>
-
-            {/* Film Room Button */}
-            {publicVideos.length > 0 && (
-              <button
-                onClick={() => setShowFilmRoom(true)}
-                className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 rounded-xl border border-red-500/30 p-6 flex items-center justify-between group transition-all hover:shadow-lg hover:shadow-orange-500/20"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-black/30 rounded-xl flex items-center justify-center">
-                    <Film className="w-7 h-7 text-white" />
-                  </div>
-                  <div className="text-left">
-                    <h2 className="text-xl font-bold text-white">Film Room</h2>
-                    <p className="text-white/80 text-sm">{publicVideos.length} {publicVideos.length === 1 ? 'video' : 'videos'} available</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-white/80 text-sm font-medium group-hover:text-white transition-colors">View All</span>
-                  <ChevronRight className="w-5 h-5 text-white group-hover:translate-x-1 transition-transform" />
-                </div>
-              </button>
-            )}
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Upcoming Events */}
-            <div className="bg-zinc-800/50 rounded-xl border border-zinc-700 p-6">
-              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-orange-500" />
-                Upcoming Events
-              </h2>
-              {upcomingEvents.length === 0 ? (
-                <p className="text-zinc-500 text-sm">No upcoming events scheduled.</p>
-              ) : (
-                <div className="space-y-3">
-                  {upcomingEvents.map((event) => {
-                    const typeColor = event.type === 'Game' ? 'bg-orange-500' : event.type === 'Practice' ? 'bg-emerald-500' : 'bg-blue-500';
-                    
-                    return (
-                      <div 
-                        key={event.id} 
-                        className="bg-zinc-900/50 rounded-lg p-3 border border-zinc-700 cursor-pointer hover:border-zinc-500 hover:bg-zinc-800/50 transition-all"
-                        onClick={() => setSelectedEvent(event)}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className={`w-2 h-2 ${typeColor} rounded-full mt-1.5 flex-shrink-0`} />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-white text-sm truncate">{event.title}</p>
-                            <p className="text-xs text-zinc-500 flex items-center gap-1 mt-1">
-                              <Calendar className="w-3 h-3" />
-                              {formatDate(event.date)}
-                              {event.time && (
-                                <>
-                                  <span className="mx-1">•</span>
-                                  <Clock className="w-3 h-3" />
-                                  {formatTime(event.time)}
-                                </>
-                              )}
-                            </p>
-                            {event.location && (
-                              <p className="text-xs text-zinc-500 flex items-center gap-1 mt-0.5">
-                                <MapPin className="w-3 h-3" />
-                                {event.location}
-                              </p>
-                            )}
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-zinc-500 flex-shrink-0" />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
             {/* Sportsmanship Star */}
             {sportsmanshipLeader && sportsmanshipLeader.player.username && (
               <Link 
@@ -620,6 +570,56 @@ const PublicTeamProfile: React.FC = () => {
                   <p className="text-zinc-500 text-sm">No stats recorded yet.</p>
                 )}
               </div>
+            </div>
+
+            {/* Upcoming Events - moved below Top Performers */}
+            <div className="bg-zinc-800/50 rounded-xl border border-zinc-700 p-6">
+              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-orange-500" />
+                Upcoming Events
+              </h2>
+              {upcomingEvents.length === 0 ? (
+                <p className="text-zinc-500 text-sm">No upcoming events scheduled.</p>
+              ) : (
+                <div className="space-y-3">
+                  {upcomingEvents.map((event) => {
+                    const typeColor = event.type === 'Game' ? 'bg-orange-500' : event.type === 'Practice' ? 'bg-emerald-500' : 'bg-blue-500';
+                    
+                    return (
+                      <div 
+                        key={event.id} 
+                        className="bg-zinc-900/50 rounded-lg p-3 border border-zinc-700 cursor-pointer hover:border-zinc-500 hover:bg-zinc-800/50 transition-all"
+                        onClick={() => setSelectedEvent(event)}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`w-2 h-2 ${typeColor} rounded-full mt-1.5 flex-shrink-0`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-white text-sm truncate">{event.title}</p>
+                            <p className="text-xs text-zinc-500 flex items-center gap-1 mt-1">
+                              <Calendar className="w-3 h-3" />
+                              {formatDate(event.date)}
+                              {event.time && (
+                                <>
+                                  <span className="mx-1">•</span>
+                                  <Clock className="w-3 h-3" />
+                                  {formatTime(event.time)}
+                                </>
+                              )}
+                            </p>
+                            {event.location && (
+                              <p className="text-xs text-zinc-500 flex items-center gap-1 mt-0.5">
+                                <MapPin className="w-3 h-3" />
+                                {event.location}
+                              </p>
+                            )}
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-zinc-500 flex-shrink-0" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
