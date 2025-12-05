@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, getDocs } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, getDocs, setDoc, writeBatch, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import type { Video, VideoCategory, Player } from '../types';
-import { Plus, Trash2, Play, Video as VideoIcon, X, AlertCircle, Film, Dumbbell, Trophy, FolderOpen, Edit2, Check, Lock, Users, Filter, User, Globe } from 'lucide-react';
+import type { Video, VideoCategory, Player, PlayerFilmEntry, Team } from '../types';
+import { Plus, Trash2, Play, Video as VideoIcon, X, AlertCircle, Film, Dumbbell, Trophy, FolderOpen, Edit2, Check, Lock, Users, Filter, User, Globe, UserCheck } from 'lucide-react';
 import NoAthleteBlock from './NoAthleteBlock';
 
 const VIDEO_CATEGORIES: { value: VideoCategory; label: string; icon: React.ReactNode; color: string }[] = [
@@ -27,10 +27,12 @@ const VideoLibrary: React.FC = () => {
     playerId: string;
     description: string;
     isPublic: boolean;
-  }>({ title: '', url: '', category: 'Game Film', playerId: '', description: '', isPublic: false });
+    taggedPlayerIds: string[];
+  }>({ title: '', url: '', category: 'Game Film', playerId: '', description: '', isPublic: false, taggedPlayerIds: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [tagAllPlayers, setTagAllPlayers] = useState(false);
   
   // Filter state
   const [filterCategory, setFilterCategory] = useState<VideoCategory | 'All' | 'My Videos'>('All');
@@ -116,7 +118,8 @@ const VideoLibrary: React.FC = () => {
   };
 
   const resetForm = () => {
-    setNewVideo({ title: '', url: '', category: 'Game Film', playerId: '', description: '', isPublic: false });
+    setNewVideo({ title: '', url: '', category: 'Game Film', playerId: '', description: '', isPublic: false, taggedPlayerIds: [] });
+    setTagAllPlayers(false);
     setIsEditMode(false);
     setEditingVideo(null);
     setError('');
@@ -129,13 +132,18 @@ const VideoLibrary: React.FC = () => {
 
   const openEditModal = (video: Video) => {
     setEditingVideo(video);
+    const existingTags = video.taggedPlayerIds || [];
+    // Check if all current players are tagged
+    const allTagged = teamPlayers.length > 0 && teamPlayers.every(p => existingTags.includes(p.id));
+    setTagAllPlayers(allTagged);
     setNewVideo({
       title: video.title,
       url: video.url,
       category: video.category || 'Other',
       playerId: video.playerId || '',
       description: video.description || '',
-      isPublic: video.isPublic || false
+      isPublic: video.isPublic || false,
+      taggedPlayerIds: existingTags
     });
     setIsEditMode(true);
     setIsModalOpen(true);
@@ -164,7 +172,14 @@ const VideoLibrary: React.FC = () => {
         playerName = player?.name || null;
       }
 
-      await addDoc(collection(db, 'teams', teamData.id, 'videos'), {
+      // Determine which players to tag (only for Game Film and Highlights)
+      const canTagPlayers = (newVideo.category === 'Game Film' || newVideo.category === 'Highlights') && !newVideo.playerId;
+      const playerIdsToTag = canTagPlayers 
+        ? (tagAllPlayers ? teamPlayers.map(p => p.id) : newVideo.taggedPlayerIds)
+        : [];
+
+      // Add the video
+      const videoRef = await addDoc(collection(db, 'teams', teamData.id, 'videos'), {
         title: newVideo.title,
         url: newVideo.url,
         youtubeId,
@@ -172,11 +187,32 @@ const VideoLibrary: React.FC = () => {
         playerId: newVideo.playerId || null,
         playerName: playerName,
         description: newVideo.description || null,
+        taggedPlayerIds: playerIdsToTag,
         // Only allow public if NOT a private player video
         isPublic: newVideo.playerId ? false : newVideo.isPublic,
         createdAt: serverTimestamp(),
         createdBy: userData?.uid
       });
+
+      // Save to tagged players' film room (for persistence on their public profiles)
+      if (playerIdsToTag.length > 0) {
+        const batch = writeBatch(db);
+        for (const playerId of playerIdsToTag) {
+          const filmEntryRef = doc(db, 'teams', teamData.id, 'players', playerId, 'filmRoom', videoRef.id);
+          const filmEntry: Omit<PlayerFilmEntry, 'id'> = {
+            videoId: videoRef.id,
+            teamId: teamData.id,
+            title: newVideo.title,
+            youtubeId,
+            category: newVideo.category,
+            description: newVideo.description || undefined,
+            taggedAt: serverTimestamp(),
+            teamName: teamData.name
+          };
+          batch.set(filmEntryRef, filmEntry);
+        }
+        await batch.commit();
+      }
       
       resetForm();
       setIsModalOpen(false);
@@ -215,6 +251,20 @@ const VideoLibrary: React.FC = () => {
         playerName = player?.name || null;
       }
 
+      // Determine which players to tag (only for Game Film and Highlights)
+      const canTagPlayers = (newVideo.category === 'Game Film' || newVideo.category === 'Highlights') && !newVideo.playerId;
+      const playerIdsToTag = canTagPlayers 
+        ? (tagAllPlayers ? teamPlayers.map(p => p.id) : newVideo.taggedPlayerIds)
+        : [];
+
+      // Get previously tagged players
+      const previouslyTagged = editingVideo.taggedPlayerIds || [];
+      
+      // Find players to add and remove
+      const playersToAdd = playerIdsToTag.filter(id => !previouslyTagged.includes(id));
+      const playersToRemove = previouslyTagged.filter(id => !playerIdsToTag.includes(id));
+
+      // Update the video
       await updateDoc(doc(db, 'teams', teamData.id, 'videos', editingVideo.id), {
         title: newVideo.title,
         url: newVideo.url,
@@ -223,9 +273,50 @@ const VideoLibrary: React.FC = () => {
         playerId: newVideo.playerId || null,
         playerName: playerName,
         description: newVideo.description || null,
+        taggedPlayerIds: playerIdsToTag,
         // Only allow public if NOT a private player video
         isPublic: newVideo.playerId ? false : newVideo.isPublic,
       });
+
+      // Update players' film rooms
+      const batch = writeBatch(db);
+      
+      // Add to newly tagged players
+      for (const playerId of playersToAdd) {
+        const filmEntryRef = doc(db, 'teams', teamData.id, 'players', playerId, 'filmRoom', editingVideo.id);
+        const filmEntry: Omit<PlayerFilmEntry, 'id'> = {
+          videoId: editingVideo.id,
+          teamId: teamData.id,
+          title: newVideo.title,
+          youtubeId,
+          category: newVideo.category,
+          description: newVideo.description || undefined,
+          taggedAt: serverTimestamp(),
+          teamName: teamData.name
+        };
+        batch.set(filmEntryRef, filmEntry);
+      }
+      
+      // Remove from untagged players
+      for (const playerId of playersToRemove) {
+        const filmEntryRef = doc(db, 'teams', teamData.id, 'players', playerId, 'filmRoom', editingVideo.id);
+        batch.delete(filmEntryRef);
+      }
+      
+      // Update existing tagged players with new video info
+      const playersToUpdate = playerIdsToTag.filter(id => previouslyTagged.includes(id));
+      for (const playerId of playersToUpdate) {
+        const filmEntryRef = doc(db, 'teams', teamData.id, 'players', playerId, 'filmRoom', editingVideo.id);
+        batch.update(filmEntryRef, {
+          title: newVideo.title,
+          youtubeId,
+          category: newVideo.category,
+          description: newVideo.description || null,
+          teamName: teamData.name
+        });
+      }
+      
+      await batch.commit();
       
       resetForm();
       setIsModalOpen(false);
@@ -400,17 +491,24 @@ const VideoLibrary: React.FC = () => {
                     
                     {/* Visibility indicator */}
                     {!video.playerId && (userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
-                      <div className="flex items-center gap-1.5 mt-2 text-xs">
+                      <div className="flex items-center gap-3 mt-2 text-xs">
                         {video.isPublic ? (
-                          <>
+                          <div className="flex items-center gap-1">
                             <Globe className="w-3 h-3 text-purple-500" />
                             <span className="text-purple-500">Public</span>
-                          </>
+                          </div>
                         ) : (
-                          <>
+                          <div className="flex items-center gap-1">
                             <Users className="w-3 h-3 text-zinc-500" />
                             <span className="text-zinc-500">Team Only</span>
-                          </>
+                          </div>
+                        )}
+                        {/* Tagged athletes indicator */}
+                        {video.taggedPlayerIds && video.taggedPlayerIds.length > 0 && (
+                          <div className="flex items-center gap-1 text-emerald-500">
+                            <UserCheck className="w-3 h-3" />
+                            <span>{video.taggedPlayerIds.length} tagged</span>
+                          </div>
                         )}
                       </div>
                     )}
@@ -590,6 +688,75 @@ const VideoLibrary: React.FC = () => {
                       </p>
                     </div>
                   </label>
+                </div>
+              )}
+
+              {/* Tag Athletes (only for Game Film & Highlights, and not private videos) */}
+              {(newVideo.category === 'Game Film' || newVideo.category === 'Highlights') && !newVideo.playerId && (
+                <div className="bg-emerald-50 dark:bg-emerald-900/10 p-4 rounded-lg border border-emerald-200 dark:border-emerald-900/30">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2 text-sm font-bold text-emerald-700 dark:text-emerald-400">
+                      <UserCheck className="w-4 h-4" />
+                      Tag Athletes for Recruitment
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={tagAllPlayers}
+                        onChange={e => {
+                          setTagAllPlayers(e.target.checked);
+                          if (e.target.checked) {
+                            setNewVideo({...newVideo, taggedPlayerIds: teamPlayers.map(p => p.id)});
+                          } else {
+                            setNewVideo({...newVideo, taggedPlayerIds: []});
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-emerald-300 dark:border-emerald-700 text-emerald-600 focus:ring-emerald-500 bg-white dark:bg-zinc-900"
+                      />
+                      <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Tag All</span>
+                    </label>
+                  </div>
+                  <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70 mb-3">
+                    Tagged athletes will have this video on their public profile for recruitment visibility
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                    {teamPlayers.map(player => {
+                      const isTagged = newVideo.taggedPlayerIds.includes(player.id);
+                      return (
+                        <button
+                          key={player.id}
+                          type="button"
+                          onClick={() => {
+                            if (isTagged) {
+                              setNewVideo({...newVideo, taggedPlayerIds: newVideo.taggedPlayerIds.filter(id => id !== player.id)});
+                              setTagAllPlayers(false);
+                            } else {
+                              const newTagged = [...newVideo.taggedPlayerIds, player.id];
+                              setNewVideo({...newVideo, taggedPlayerIds: newTagged});
+                              // Check if all players are now tagged
+                              if (newTagged.length === teamPlayers.length) {
+                                setTagAllPlayers(true);
+                              }
+                            }
+                          }}
+                          className={`flex items-center gap-2 p-2 rounded-lg text-xs transition-all ${
+                            isTagged
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border border-emerald-200 dark:border-emerald-800 hover:border-emerald-400'
+                          }`}
+                        >
+                          <User className="w-3 h-3" />
+                          <span className="truncate">{player.name}</span>
+                          {player.number && <span className="text-[10px] opacity-70">#{player.number}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {newVideo.taggedPlayerIds.length > 0 && (
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2 font-medium">
+                      {newVideo.taggedPlayerIds.length} athlete{newVideo.taggedPlayerIds.length !== 1 ? 's' : ''} tagged
+                    </p>
+                  )}
                 </div>
               )}
 

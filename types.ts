@@ -194,12 +194,27 @@ export interface Video {
   // For private player-specific videos
   playerId?: string | null;  // If set, only visible to that player's parent
   playerName?: string | null; // Store name for display
+  // For tagging players in Game Film & Highlights (shows on their public profile)
+  taggedPlayerIds?: string[]; // Array of player IDs tagged in this video
   // For public visibility on team's public page
   isPublic?: boolean; // If true, show on team's public page (only for team videos, not private player videos)
   // Metadata
   createdAt?: any;
   createdBy?: string;
   description?: string;
+}
+
+// Player Film Room entry - stored in player profile for persistence
+export interface PlayerFilmEntry {
+  id: string; // Unique ID for this entry
+  videoId: string; // Original video ID in team's videos collection
+  teamId: string; // Team ID where video originated
+  title: string;
+  youtubeId: string;
+  category: VideoCategory;
+  description?: string;
+  taggedAt: any; // When the player was tagged in this video
+  teamName?: string; // Store team name for display
 }
 
 // --- PRIVATE MESSAGING ---

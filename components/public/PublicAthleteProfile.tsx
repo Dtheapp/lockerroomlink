@@ -2,17 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import type { Player, Team, PlayerSeasonStats, Game, GamePlayerStats } from '../../types';
-import { User, Trophy, Sword, Shield, Target, Activity, Calendar, MapPin, TrendingUp, Star, Zap, Crown, Users, ArrowLeft, Home, Award, Heart } from 'lucide-react';
+import type { Player, Team, PlayerSeasonStats, Game, GamePlayerStats, PlayerFilmEntry } from '../../types';
+import { User, Trophy, Sword, Shield, Target, Activity, Calendar, MapPin, TrendingUp, Star, Zap, Crown, Users, ArrowLeft, Home, Award, Heart, Film, Play, X, ChevronRight } from 'lucide-react';
 
 interface PublicAthleteData {
   player: Player;
   team: Team | null;
+  teamId: string;
   seasonStats: PlayerSeasonStats | null;
   recentGames: { game: Game; stats: GamePlayerStats }[];
   careerStats: { season: number; teamName: string; stats: PlayerSeasonStats }[];
   isSportsmanshipLeader: boolean;
   sportsmanshipPoints: number;
+  filmRoom: PlayerFilmEntry[];
 }
 
 const PublicAthleteProfile: React.FC = () => {
@@ -20,6 +22,8 @@ const PublicAthleteProfile: React.FC = () => {
   const [data, setData] = useState<PublicAthleteData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showFilmRoom, setShowFilmRoom] = useState(false);
+  const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchAthleteData = async () => {
@@ -130,14 +134,26 @@ const PublicAthleteProfile: React.FC = () => {
           isSportsmanshipLeader = true;
         }
 
+        // Fetch player's film room (tagged videos)
+        const filmRoomSnapshot = await getDocs(collection(db, 'teams', foundTeamId, 'players', foundPlayer.id, 'filmRoom'));
+        const filmRoom = filmRoomSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as PlayerFilmEntry));
+        // Sort by taggedAt descending
+        filmRoom.sort((a, b) => {
+          const aTime = a.taggedAt?.toMillis?.() || 0;
+          const bTime = b.taggedAt?.toMillis?.() || 0;
+          return bTime - aTime;
+        });
+
         setData({
           player: foundPlayer,
           team,
+          teamId: foundTeamId,
           seasonStats,
           recentGames,
           careerStats,
           isSportsmanshipLeader,
-          sportsmanshipPoints: playerSportsmanshipPoints
+          sportsmanshipPoints: playerSportsmanshipPoints,
+          filmRoom
         });
       } catch (err) {
         console.error('Error fetching athlete data:', err);
@@ -186,7 +202,7 @@ const PublicAthleteProfile: React.FC = () => {
     );
   }
 
-  const { player, team, seasonStats, recentGames, careerStats, isSportsmanshipLeader, sportsmanshipPoints } = data;
+  const { player, team, teamId, seasonStats, recentGames, careerStats, isSportsmanshipLeader, sportsmanshipPoints, filmRoom } = data;
   const currentYear = new Date().getFullYear();
 
   return (
@@ -323,6 +339,28 @@ const PublicAthleteProfile: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Film Room Button */}
+        {filmRoom.length > 0 && (
+          <button
+            onClick={() => setShowFilmRoom(true)}
+            className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 rounded-xl border border-red-500/30 p-5 flex items-center justify-between group transition-all hover:shadow-lg hover:shadow-orange-500/20 mb-8"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-black/30 rounded-xl flex items-center justify-center">
+                <Film className="w-6 h-6 text-white" />
+              </div>
+              <div className="text-left">
+                <h2 className="text-lg font-bold text-white">Film Room</h2>
+                <p className="text-white/80 text-sm">{filmRoom.length} {filmRoom.length === 1 ? 'video' : 'videos'} • Game Film & Highlights</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-white/80 text-sm font-medium group-hover:text-white transition-colors hidden sm:inline">View All</span>
+              <ChevronRight className="w-5 h-5 text-white group-hover:translate-x-1 transition-transform" />
+            </div>
+          </button>
+        )}
 
         {/* Season Stats */}
         {seasonStats && (
@@ -585,6 +623,102 @@ const PublicAthleteProfile: React.FC = () => {
           <p>Powered by <span className="text-orange-500 font-bold">LockerRoom</span></p>
         </footer>
       </main>
+
+      {/* Film Room Modal */}
+      {showFilmRoom && filmRoom.length > 0 && (
+        <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto">
+          <div className="min-h-full p-4 md:p-8">
+            {/* Header */}
+            <div className="max-w-6xl mx-auto mb-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-red-600 to-orange-600 rounded-xl flex items-center justify-center">
+                    <Film className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">{player.name}'s Film Room</h2>
+                    <p className="text-zinc-400">{filmRoom.length} {filmRoom.length === 1 ? 'video' : 'videos'}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowFilmRoom(false)}
+                  className="p-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Video Grid */}
+            <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filmRoom.map((video) => (
+                <div 
+                  key={video.id}
+                  className="group bg-zinc-900 rounded-xl border border-zinc-700 overflow-hidden hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/10 transition-all cursor-pointer"
+                  onClick={() => setPlayingVideoId(video.youtubeId)}
+                >
+                  {/* Thumbnail */}
+                  <div className="relative aspect-video bg-black">
+                    <img 
+                      src={`https://img.youtube.com/vi/${video.youtubeId}/mqdefault.jpg`}
+                      alt={video.title}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/20 transition-colors">
+                      <div className="w-14 h-14 bg-orange-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                        <Play className="w-7 h-7 text-white ml-1" />
+                      </div>
+                    </div>
+                    {/* Category Badge */}
+                    <div className={`absolute top-2 left-2 px-2 py-1 rounded text-xs font-bold ${
+                      video.category === 'Game Film' ? 'bg-red-500/90' : 'bg-yellow-500/90'
+                    } text-white`}>
+                      {video.category}
+                    </div>
+                  </div>
+                  {/* Info */}
+                  <div className="p-4">
+                    <h3 className="font-bold text-white line-clamp-1">{video.title}</h3>
+                    {video.description && (
+                      <p className="text-sm text-zinc-500 mt-1 line-clamp-2">{video.description}</p>
+                    )}
+                    {video.teamName && (
+                      <p className="text-xs text-zinc-600 mt-2 flex items-center gap-1">
+                        <Users className="w-3 h-3" /> {video.teamName}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Video Player Modal */}
+      {playingVideoId && (
+        <div className="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-0 md:p-10 animate-in fade-in duration-300">
+          <div className="w-full max-w-6xl relative aspect-video bg-black shadow-2xl rounded-lg overflow-hidden">
+            {/* Close Button */}
+            <button 
+              onClick={() => setPlayingVideoId(null)} 
+              className="absolute top-4 right-4 z-10 bg-black/50 text-white hover:bg-orange-600 p-2 rounded-full transition-colors backdrop-blur-sm"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            
+            {/* YouTube Embed */}
+            <iframe 
+              src={`https://www.youtube.com/embed/${playingVideoId}?autoplay=1&rel=0&modestbranding=1`} 
+              title="YouTube video player" 
+              className="w-full h-full"
+              frameBorder="0" 
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+              allowFullScreen
+            ></iframe>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
