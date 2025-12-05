@@ -43,6 +43,7 @@ const PublicTeamProfile: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<TeamEvent | null>(null);
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+  const [showFilmRoom, setShowFilmRoom] = useState(false);
 
   useEffect(() => {
     const fetchTeamData = async () => {
@@ -439,48 +440,26 @@ const PublicTeamProfile: React.FC = () => {
               </div>
             </div>
 
-            {/* Public Videos / Film Room */}
+            {/* Film Room Button */}
             {publicVideos.length > 0 && (
-              <div className="bg-zinc-800/50 rounded-xl border border-zinc-700 p-6">
-                <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                  <Film className="w-5 h-5 text-red-500" />
-                  Game Film
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {publicVideos.map((video) => (
-                    <div 
-                      key={video.id}
-                      className="group bg-zinc-900/50 rounded-lg border border-zinc-700 overflow-hidden hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/10 transition-all cursor-pointer"
-                      onClick={() => setPlayingVideoId(video.youtubeId)}
-                    >
-                      {/* Thumbnail */}
-                      <div className="relative aspect-video bg-black">
-                        <img 
-                          src={`https://img.youtube.com/vi/${video.youtubeId}/mqdefault.jpg`}
-                          alt={video.title}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/20 transition-colors">
-                          <div className="w-14 h-14 bg-orange-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                            <Play className="w-7 h-7 text-white ml-1" />
-                          </div>
-                        </div>
-                        {/* Category Badge */}
-                        <div className="absolute top-2 left-2 px-2 py-1 rounded text-xs font-bold bg-red-500/90 text-white">
-                          {video.category}
-                        </div>
-                      </div>
-                      {/* Info */}
-                      <div className="p-3">
-                        <h3 className="font-bold text-white line-clamp-1">{video.title}</h3>
-                        {video.description && (
-                          <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{video.description}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+              <button
+                onClick={() => setShowFilmRoom(true)}
+                className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 rounded-xl border border-red-500/30 p-6 flex items-center justify-between group transition-all hover:shadow-lg hover:shadow-orange-500/20"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-black/30 rounded-xl flex items-center justify-center">
+                    <Film className="w-7 h-7 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <h2 className="text-xl font-bold text-white">Film Room</h2>
+                    <p className="text-white/80 text-sm">{publicVideos.length} {publicVideos.length === 1 ? 'video' : 'videos'} available</p>
+                  </div>
                 </div>
-              </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-white/80 text-sm font-medium group-hover:text-white transition-colors">View All</span>
+                  <ChevronRight className="w-5 h-5 text-white group-hover:translate-x-1 transition-transform" />
+                </div>
+              </button>
             )}
           </div>
 
@@ -724,6 +703,72 @@ const PublicTeamProfile: React.FC = () => {
                   </p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Film Room Modal */}
+      {showFilmRoom && publicVideos.length > 0 && (
+        <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto">
+          <div className="min-h-full p-4 md:p-8">
+            {/* Header */}
+            <div className="max-w-6xl mx-auto mb-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-red-600 to-orange-600 rounded-xl flex items-center justify-center">
+                    <Film className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">Film Room</h2>
+                    <p className="text-zinc-400">{publicVideos.length} {publicVideos.length === 1 ? 'video' : 'videos'}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowFilmRoom(false)}
+                  className="p-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Video Grid */}
+            <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {publicVideos.map((video) => (
+                <div 
+                  key={video.id}
+                  className="group bg-zinc-900 rounded-xl border border-zinc-700 overflow-hidden hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/10 transition-all cursor-pointer"
+                  onClick={() => {
+                    setPlayingVideoId(video.youtubeId);
+                  }}
+                >
+                  {/* Thumbnail */}
+                  <div className="relative aspect-video bg-black">
+                    <img 
+                      src={`https://img.youtube.com/vi/${video.youtubeId}/mqdefault.jpg`}
+                      alt={video.title}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/20 transition-colors">
+                      <div className="w-14 h-14 bg-orange-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                        <Play className="w-7 h-7 text-white ml-1" />
+                      </div>
+                    </div>
+                    {/* Category Badge */}
+                    <div className="absolute top-2 left-2 px-2 py-1 rounded text-xs font-bold bg-red-500/90 text-white">
+                      {video.category}
+                    </div>
+                  </div>
+                  {/* Info */}
+                  <div className="p-4">
+                    <h3 className="font-bold text-white line-clamp-1">{video.title}</h3>
+                    {video.description && (
+                      <p className="text-sm text-zinc-500 mt-1 line-clamp-2">{video.description}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
