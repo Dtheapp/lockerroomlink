@@ -122,10 +122,10 @@ const CoachFeedback: React.FC = () => {
       <div>
         <h1 className="text-3xl font-black text-zinc-900 dark:text-white flex items-center gap-3">
           <MessageSquare className="w-8 h-8 text-orange-500" />
-          Coach Feedback
+          Grievances
         </h1>
         <p className="text-zinc-600 dark:text-zinc-400 mt-1">
-          Private feedback from parents about coaches
+          Grievances filed by parents about coaches
         </p>
       </div>
 
@@ -178,7 +178,7 @@ const CoachFeedback: React.FC = () => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search feedback..."
+                placeholder="Search grievances..."
                 className="w-full pl-10 pr-4 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-zinc-900 dark:text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500"
               />
             </div>
@@ -210,11 +210,11 @@ const CoachFeedback: React.FC = () => {
         </div>
       </div>
 
-      {/* Feedback List */}
+      {/* Grievances List */}
       {filteredFeedback.length === 0 ? (
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center">
           <MessageSquare className="w-12 h-12 text-zinc-400 mx-auto mb-3" />
-          <p className="text-zinc-600 dark:text-zinc-400">No feedback found</p>
+          <p className="text-zinc-600 dark:text-zinc-400">No grievances found</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -313,7 +313,7 @@ const CoachFeedback: React.FC = () => {
               </div>
 
               <div>
-                <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-2">Feedback Message</p>
+                <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-2">Grievance Details</p>
                 <div className="bg-zinc-100 dark:bg-zinc-800 rounded-lg p-4">
                   <p className="text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">{selectedFeedback.message}</p>
                 </div>

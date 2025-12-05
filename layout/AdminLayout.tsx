@@ -14,7 +14,7 @@ const adminNavItems = [
   { name: 'Announcements', path: '/admin/announcements', icon: Megaphone },
   { name: 'Email', path: '/admin/email', icon: Mail },
   { name: 'Moderation', path: '/admin/moderation', icon: ShieldAlert },
-  { name: 'Coach Feedback', path: '/admin/coach-feedback', icon: Heart },
+  { name: 'Grievances', path: '/admin/coach-feedback', icon: Heart },
   { name: 'Team Reports', path: '/admin/team-reports', icon: PieChart },
   { name: 'User Reports', path: '/admin/reports', icon: FileText },
   { name: 'Activity Log', path: '/admin/activity', icon: History },
