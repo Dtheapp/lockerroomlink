@@ -6,7 +6,7 @@ import { uploadFile, deleteFile } from '../services/storage';
 import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
-import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle, Minus, ExternalLink, Copy, Link as LinkIcon, Users, Crown, User, Image, FileText, Paperclip } from 'lucide-react';
+import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle, Minus, ExternalLink, Copy, Link as LinkIcon, Users, Crown, User, Image, FileText, Paperclip, Zap } from 'lucide-react';
 import type { BulletinPost, PlayerSeasonStats, TeamEvent, UserProfile } from '../types';
 
 // Helper: Format date string (YYYY-MM-DD) to readable format without timezone issues
@@ -83,7 +83,7 @@ const Dashboard: React.FC = () => {
   const [savingRecord, setSavingRecord] = useState(false);
 
   // Coaching Staff state with coordinator info
-  const [coaches, setCoaches] = useState<(UserProfile & { isHeadCoach: boolean; isOC: boolean; isDC: boolean })[]>([]);
+  const [coaches, setCoaches] = useState<(UserProfile & { isHeadCoach: boolean; isOC: boolean; isDC: boolean; isSTC: boolean })[]>([]);
   const [coachesLoading, setCoachesLoading] = useState(true);
 
   // --- OPTIMIZED STATS CALCULATION (PERFORMANCE FIX) ---
@@ -158,7 +158,7 @@ const Dashboard: React.FC = () => {
       
       try {
         const usersRef = collection(db, 'users');
-        const coachesMap = new Map<string, UserProfile & { isHeadCoach: boolean; isOC: boolean; isDC: boolean }>();
+        const coachesMap = new Map<string, UserProfile & { isHeadCoach: boolean; isOC: boolean; isDC: boolean; isSTC: boolean }>();
         
         // Query 1: Coaches who have this team in their teamIds array
         const teamIdsQuery = query(
@@ -172,7 +172,8 @@ const Dashboard: React.FC = () => {
           const isHeadCoach = teamData.headCoachId === docSnap.id || teamData.coachId === docSnap.id;
           const isOC = teamData.offensiveCoordinatorId === docSnap.id;
           const isDC = teamData.defensiveCoordinatorId === docSnap.id;
-          coachesMap.set(docSnap.id, { ...coachData, isHeadCoach, isOC, isDC });
+          const isSTC = teamData.specialTeamsCoordinatorId === docSnap.id;
+          coachesMap.set(docSnap.id, { ...coachData, isHeadCoach, isOC, isDC, isSTC });
         });
         
         // Query 2: Coaches with legacy teamId field (who might not have teamIds yet)
@@ -189,7 +190,8 @@ const Dashboard: React.FC = () => {
             const isHeadCoach = teamData.headCoachId === docSnap.id || teamData.coachId === docSnap.id;
             const isOC = teamData.offensiveCoordinatorId === docSnap.id;
             const isDC = teamData.defensiveCoordinatorId === docSnap.id;
-            coachesMap.set(docSnap.id, { ...coachData, isHeadCoach, isOC, isDC });
+            const isSTC = teamData.specialTeamsCoordinatorId === docSnap.id;
+            coachesMap.set(docSnap.id, { ...coachData, isHeadCoach, isOC, isDC, isSTC });
           }
         });
         
@@ -198,8 +200,8 @@ const Dashboard: React.FC = () => {
           if (a.isHeadCoach && !b.isHeadCoach) return -1;
           if (!a.isHeadCoach && b.isHeadCoach) return 1;
           // Coordinators next
-          const aCoord = a.isOC || a.isDC;
-          const bCoord = b.isOC || b.isDC;
+          const aCoord = a.isOC || a.isDC || a.isSTC;
+          const bCoord = b.isOC || b.isDC || b.isSTC;
           if (aCoord && !bCoord) return -1;
           if (!aCoord && bCoord) return 1;
           return a.name.localeCompare(b.name);
@@ -214,7 +216,7 @@ const Dashboard: React.FC = () => {
     };
     
     fetchCoaches();
-  }, [teamData?.id, teamData?.headCoachId, teamData?.coachId, teamData?.offensiveCoordinatorId, teamData?.defensiveCoordinatorId]);
+  }, [teamData?.id, teamData?.headCoachId, teamData?.coachId, teamData?.offensiveCoordinatorId, teamData?.defensiveCoordinatorId, teamData?.specialTeamsCoordinatorId]);
 
   // Event attachments handlers
   const handleNewEventFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1387,6 +1389,7 @@ const Dashboard: React.FC = () => {
                   if (coach.isHeadCoach) titles.push('HC');
                   if (coach.isOC) titles.push('OC');
                   if (coach.isDC) titles.push('DC');
+                  if (coach.isSTC) titles.push('STC');
                   if (titles.length === 0) return 'Coach';
                   return titles.join(' / ');
                 };
@@ -1407,13 +1410,13 @@ const Dashboard: React.FC = () => {
                         alt={coach.name}
                         className={`w-16 h-16 rounded-full object-cover mx-auto ${
                           coach.isHeadCoach ? 'ring-2 ring-amber-500 ring-offset-2 ring-offset-white dark:ring-offset-black' : 
-                          (coach.isOC || coach.isDC) ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-white dark:ring-offset-black' : ''
+                          (coach.isOC || coach.isDC || coach.isSTC) ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-white dark:ring-offset-black' : ''
                         }`}
                       />
                     ) : (
                       <div className={`w-16 h-16 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center mx-auto ${
                         coach.isHeadCoach ? 'ring-2 ring-amber-500 ring-offset-2 ring-offset-white dark:ring-offset-black' : 
-                        (coach.isOC || coach.isDC) ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-white dark:ring-offset-black' : ''
+                        (coach.isOC || coach.isDC || coach.isSTC) ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-white dark:ring-offset-black' : ''
                       }`}>
                         <User className="w-8 h-8 text-white" />
                       </div>
@@ -1434,6 +1437,11 @@ const Dashboard: React.FC = () => {
                         <Shield className="w-3 h-3 text-white" />
                       </div>
                     )}
+                    {coach.isSTC && !coach.isHeadCoach && !coach.isOC && !coach.isDC && (
+                      <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center shadow-lg" title="Special Teams Coordinator">
+                        <Zap className="w-3 h-3 text-white" />
+                      </div>
+                    )}
                   </div>
                   
                   {/* Coach Name */}
@@ -1451,7 +1459,10 @@ const Dashboard: React.FC = () => {
                     {coach.isDC && (
                       <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded">DC</span>
                     )}
-                    {!coach.isHeadCoach && !coach.isOC && !coach.isDC && (
+                    {coach.isSTC && (
+                      <span className="text-[10px] bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 px-1.5 py-0.5 rounded">STC</span>
+                    )}
+                    {!coach.isHeadCoach && !coach.isOC && !coach.isDC && !coach.isSTC && (
                       <span className="text-[10px] text-zinc-500">Coach</span>
                     )}
                   </div>

@@ -1,12 +1,32 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp, limitToLast, doc, updateDoc, deleteField, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp, limitToLast, doc, updateDoc, deleteField, deleteDoc, arrayUnion, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import type { Message } from '../types';
-import { Send, AlertCircle, VolumeX, Volume2, MoreVertical, X, Trash2, Edit2, Check } from 'lucide-react';
+import { Send, AlertCircle, VolumeX, Volume2, MoreVertical, X, Trash2, Edit2, Check, CheckCheck, Reply, Pin, PinOff, Clock, Image, ChevronDown, ChevronUp } from 'lucide-react';
 import NoAthleteBlock from './NoAthleteBlock';
+import { uploadFile } from '../services/storage';
+
+// Extended message type with reply and read receipt support
+interface ExtendedMessage extends Message {
+  readBy?: string[];
+  replyTo?: {
+    id: string;
+    text: string;
+    senderId: string;
+    senderName?: string;
+  };
+  edited?: boolean;
+  editedAt?: Timestamp;
+  isPinned?: boolean;
+  pinnedBy?: string;
+  pinnedByName?: string;
+  pinnedAt?: Timestamp;
+  imageUrl?: string;
+  imagePath?: string;
+}
 
 // Activity logging function for moderation actions
 const logModerationActivity = async (
@@ -37,6 +57,7 @@ interface MutedUser {
   mutedByName: string;
   mutedAt: Timestamp;
   reason?: string;
+  muteExpiresAt?: Timestamp; // Optional: if not set, mute is unlimited
 }
 
 interface MutedUsers {
@@ -45,7 +66,7 @@ interface MutedUsers {
 
 const Chat: React.FC = () => {
   const { user, userData, teamData } = useAuth();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ExtendedMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
@@ -55,6 +76,8 @@ const Chat: React.FC = () => {
   const [mutedUsers, setMutedUsers] = useState<MutedUsers>({});
   const [showMuteModal, setShowMuteModal] = useState<{ oduserId: string; userName: string } | null>(null);
   const [muteReason, setMuteReason] = useState('');
+  const [muteDurationHours, setMuteDurationHours] = useState<string>(''); // Empty = unlimited
+  const [muteCountdown, setMuteCountdown] = useState<string>('');
   const [activeMessageMenu, setActiveMessageMenu] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ messageId: string; messageText: string; senderName: string; senderId: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -63,13 +86,69 @@ const Chat: React.FC = () => {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+  
+  // Reply state
+  const [replyingTo, setReplyingTo] = useState<ExtendedMessage | null>(null);
+  
+  // Pinned messages expansion state (collapsed by default)
+  const [showPinnedMessages, setShowPinnedMessages] = useState(false);
+  
+  // Image upload state
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  
+  // Multi-select delete state
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   // Check if current user can moderate (Coach or SuperAdmin)
   const canModerate = userData?.role === 'Coach' || userData?.role === 'SuperAdmin';
   
-  // Check if current user is muted
-  const isMuted = user?.uid ? !!mutedUsers[user.uid] : false;
+  // Check if current user is muted (considering expiration)
   const myMuteInfo = user?.uid ? mutedUsers[user.uid] : null;
+  const isMuteExpired = myMuteInfo?.muteExpiresAt 
+    ? myMuteInfo.muteExpiresAt.toDate() < new Date() 
+    : false;
+  const isMuted = user?.uid ? (!!mutedUsers[user.uid] && !isMuteExpired) : false;
+
+  // Countdown timer for muted users
+  useEffect(() => {
+    if (!isMuted || !myMuteInfo?.muteExpiresAt) {
+      setMuteCountdown('');
+      return;
+    }
+
+    const updateCountdown = () => {
+      const now = new Date();
+      const expiresAt = myMuteInfo.muteExpiresAt!.toDate();
+      const diff = expiresAt.getTime() - now.getTime();
+      
+      if (diff <= 0) {
+        setMuteCountdown('');
+        return;
+      }
+      
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      
+      if (hours > 0) {
+        setMuteCountdown(`${hours}h ${minutes}m ${seconds}s`);
+      } else if (minutes > 0) {
+        setMuteCountdown(`${minutes}m ${seconds}s`);
+      } else {
+        setMuteCountdown(`${seconds}s`);
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [isMuted, myMuteInfo?.muteExpiresAt]);
 
   // Load messages
   useEffect(() => {
@@ -78,7 +157,7 @@ const Chat: React.FC = () => {
     const messagesQuery = query(messagesCollection, orderBy('timestamp'), limitToLast(50));
 
     const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
-      const messagesData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Message));
+      const messagesData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as ExtendedMessage));
       setMessages(messagesData);
     }, (error) => {
       console.error("Error loading chat:", error);
@@ -86,6 +165,36 @@ const Chat: React.FC = () => {
 
     return () => unsubscribe();
   }, [teamData?.id]);
+
+  // Mark messages as read when viewing the chat
+  useEffect(() => {
+    if (!teamData?.id || !user || messages.length === 0) return;
+    
+    const markMessagesAsRead = async () => {
+      const unreadMessages = messages.filter(msg => {
+        const readBy = msg.readBy || [];
+        return msg.sender.uid !== user.uid && !readBy.includes(user.uid);
+      });
+      
+      if (unreadMessages.length === 0) return;
+      
+      try {
+        const batch = writeBatch(db);
+        unreadMessages.forEach(msg => {
+          const msgRef = doc(db, 'teams', teamData.id, 'messages', msg.id);
+          batch.update(msgRef, {
+            readBy: arrayUnion(user.uid)
+          });
+        });
+        await batch.commit();
+      } catch (error) {
+        console.error("Error marking messages as read:", error);
+      }
+    };
+    
+    const timer = setTimeout(markMessagesAsRead, 500);
+    return () => clearTimeout(timer);
+  }, [teamData?.id, messages, user]);
 
   // Load muted users from team document
   useEffect(() => {
@@ -118,7 +227,7 @@ const Chat: React.FC = () => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !user || !userData || !teamData?.id || sending) return;
+    if ((!newMessage.trim() && !selectedImage) || !user || !userData || !teamData?.id || sending) return;
 
     // Check if user is muted
     if (isMuted) {
@@ -141,7 +250,31 @@ const Chat: React.FC = () => {
     setSending(true);
     setRateLimitError(null);
     try {
-      await addDoc(collection(db, 'teams', teamData.id, 'messages'), {
+      let imageUrl: string | undefined;
+      let imagePath: string | undefined;
+      
+      // Upload image if selected
+      if (selectedImage) {
+        setUploadingImage(true);
+        try {
+          const timestamp = Date.now();
+          imagePath = `teams/${teamData.id}/chat-images/${user.uid}_${timestamp}_${selectedImage.name}`;
+          const uploadedFile = await uploadFile(selectedImage, imagePath, (progress) => {
+            setUploadProgress(progress);
+          });
+          imageUrl = uploadedFile.url;
+        } catch (uploadError: any) {
+          console.error("Error uploading image:", uploadError);
+          setRateLimitError(`Failed to upload image: ${uploadError.message || 'Unknown error'}`);
+          setTimeout(() => setRateLimitError(null), 5000);
+          setUploadingImage(false);
+          setSending(false);
+          return;
+        }
+        setUploadingImage(false);
+      }
+      
+      const messagePayload: any = {
         text: sanitizeText(newMessage, 2000),
         sender: {
           uid: user.uid,
@@ -149,13 +282,104 @@ const Chat: React.FC = () => {
           role: userData.role
         },
         timestamp: serverTimestamp(),
-      });
+        readBy: [user.uid] // Sender has "read" their own message
+      };
+      
+      // Add image URL if uploaded
+      if (imageUrl) {
+        messagePayload.imageUrl = imageUrl;
+        messagePayload.imagePath = imagePath;
+      }
+      
+      // Add reply reference if replying
+      if (replyingTo) {
+        messagePayload.replyTo = {
+          id: replyingTo.id,
+          text: replyingTo.text.substring(0, 100),
+          senderId: replyingTo.sender.uid,
+          senderName: replyingTo.sender.name
+        };
+      }
+      
+      await addDoc(collection(db, 'teams', teamData.id, 'messages'), messagePayload);
       setNewMessage('');
-    } catch (error) {
+      setReplyingTo(null);
+      setSelectedImage(null);
+      setImagePreview(null);
+      setUploadProgress(0);
+    } catch (error: any) {
       console.error("Error sending message:", error);
+      setRateLimitError(`Failed to send message: ${error.message || 'Unknown error'}`);
+      setTimeout(() => setRateLimitError(null), 5000);
+      setUploadingImage(false);
     } finally {
       setSending(false);
     }
+  };
+  
+  // Handle image selection
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        setRateLimitError("Image must be less than 10MB");
+        setTimeout(() => setRateLimitError(null), 3000);
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        setRateLimitError("Only image files are allowed");
+        setTimeout(() => setRateLimitError(null), 3000);
+        return;
+      }
+      setSelectedImage(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+  
+  // Handle multi-select delete
+  const handleMultiDelete = async () => {
+    if (selectedMessages.size === 0 || !teamData?.id || !user) return;
+    
+    setDeleting(true);
+    setShowBulkDeleteConfirm(false);
+    try {
+      const batch = writeBatch(db);
+      selectedMessages.forEach(msgId => {
+        const msgRef = doc(db, 'teams', teamData.id, 'messages', msgId);
+        batch.delete(msgRef);
+      });
+      await batch.commit();
+      
+      // Log if moderator deleting others' messages
+      if (canModerate) {
+        await logModerationActivity(
+          'BULK_DELETE_MESSAGES',
+          'chat_messages',
+          Array.from(selectedMessages).join(','),
+          `Bulk deleted ${selectedMessages.size} message(s) in Team Chat. Team: ${teamData.name || teamData.id}`,
+          user.uid,
+          userData?.name || userData?.email || 'Unknown Moderator'
+        );
+      }
+      
+      setSelectedMessages(new Set());
+      setMultiSelectMode(false);
+    } catch (error) {
+      console.error("Error deleting messages:", error);
+    } finally {
+      setDeleting(false);
+    }
+  };
+  
+  // Toggle message selection
+  const toggleMessageSelection = (msgId: string) => {
+    const newSelection = new Set(selectedMessages);
+    if (newSelection.has(msgId)) {
+      newSelection.delete(msgId);
+    } else {
+      newSelection.add(msgId);
+    }
+    setSelectedMessages(newSelection);
   };
 
   const handleMuteUser = async () => {
@@ -163,27 +387,42 @@ const Chat: React.FC = () => {
     
     try {
       const teamDocRef = doc(db, 'teams', teamData.id);
+      
+      // Calculate expiration time if duration is provided
+      let muteData: any = {
+        mutedBy: user?.uid,
+        mutedByName: userData.name,
+        mutedAt: serverTimestamp(),
+        reason: muteReason.trim() || 'No reason provided'
+      };
+      
+      const durationHours = parseInt(muteDurationHours);
+      if (durationHours && durationHours > 0) {
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + durationHours);
+        muteData.muteExpiresAt = Timestamp.fromDate(expiresAt);
+      }
+      
       await updateDoc(teamDocRef, {
-        [`mutedUsers.${showMuteModal.oduserId}`]: {
-          mutedBy: user?.uid,
-          mutedByName: userData.name,
-          mutedAt: serverTimestamp(),
-          reason: muteReason.trim() || 'No reason provided'
-        }
+        [`mutedUsers.${showMuteModal.oduserId}`]: muteData
       });
       
       // Log the mute action to Activity Log
+      const durationText = durationHours && durationHours > 0 
+        ? `for ${durationHours} hour${durationHours > 1 ? 's' : ''}`
+        : 'indefinitely';
       await logModerationActivity(
         'MUTE_USER',
         'chat_user',
         showMuteModal.oduserId,
-        `Muted user "${showMuteModal.userName}" in Team Chat. Reason: ${muteReason.trim() || 'No reason provided'}. Team: ${teamData.name || teamData.id}`,
+        `Muted user "${showMuteModal.userName}" ${durationText} in Team Chat. Reason: ${muteReason.trim() || 'No reason provided'}. Team: ${teamData.name || teamData.id}`,
         user.uid,
         userData.name || userData.email || 'Unknown Coach'
       );
       
       setShowMuteModal(null);
       setMuteReason('');
+      setMuteDurationHours('');
     } catch (error) {
       console.error("Error muting user:", error);
     }
@@ -267,10 +506,46 @@ const Chat: React.FC = () => {
     }
   };
 
-  const startEditing = (msg: Message) => {
+  const startEditing = (msg: ExtendedMessage) => {
     setEditingMessageId(msg.id);
     setEditingText(msg.text);
     setActiveMessageMenu(null);
+  };
+
+  // Pin message function
+  const handlePinMessage = async (msg: ExtendedMessage) => {
+    if (!teamData?.id || !user || !userData || !canModerate) return;
+    
+    try {
+      const messageDocRef = doc(db, 'teams', teamData.id, 'messages', msg.id);
+      await updateDoc(messageDocRef, {
+        isPinned: true,
+        pinnedBy: user.uid,
+        pinnedByName: userData.name,
+        pinnedAt: serverTimestamp()
+      });
+      setActiveMessageMenu(null);
+    } catch (error) {
+      console.error("Error pinning message:", error);
+    }
+  };
+
+  // Unpin message function
+  const handleUnpinMessage = async (msg: ExtendedMessage) => {
+    if (!teamData?.id || !canModerate) return;
+    
+    try {
+      const messageDocRef = doc(db, 'teams', teamData.id, 'messages', msg.id);
+      await updateDoc(messageDocRef, {
+        isPinned: deleteField(),
+        pinnedBy: deleteField(),
+        pinnedByName: deleteField(),
+        pinnedAt: deleteField()
+      });
+      setActiveMessageMenu(null);
+    } catch (error) {
+      console.error("Error unpinning message:", error);
+    }
   };
   
   const formatDate = (timestamp: Timestamp | null) => {
@@ -304,7 +579,7 @@ const Chat: React.FC = () => {
         <div className="mx-4 mt-4 bg-red-500/10 border border-red-500/30 rounded-lg p-4">
           <div className="flex items-start gap-3">
             <VolumeX className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-            <div>
+            <div className="flex-1">
               <p className="text-red-500 font-semibold text-sm">You are muted</p>
               <p className="text-red-400/80 text-xs mt-1">
                 You can read messages but cannot send new ones.
@@ -313,28 +588,215 @@ const Chat: React.FC = () => {
               <p className="text-red-400/60 text-xs mt-2">
                 Muted by {myMuteInfo.mutedByName}
               </p>
+              
+              {/* Countdown timer for timed mutes */}
+              {muteCountdown && (
+                <div className="mt-3 flex items-center gap-2 bg-red-500/20 rounded-lg px-3 py-2">
+                  <Clock className="w-4 h-4 text-red-400 animate-pulse" />
+                  <div>
+                    <p className="text-red-300 text-[10px] uppercase tracking-wider">Unmuted in</p>
+                    <p className="text-red-400 font-mono font-bold text-sm">{muteCountdown}</p>
+                  </div>
+                </div>
+              )}
+              
+              {/* No expiration notice */}
+              {!myMuteInfo.muteExpiresAt && (
+                <p className="text-red-400/50 text-[10px] mt-2 italic">
+                  This mute has no expiration. Contact a coach to be unmuted.
+                </p>
+              )}
             </div>
           </div>
         </div>
       )}
       
+      {/* PINNED MESSAGES SECTION */}
+      {(() => {
+        // Sort pinned messages by pinnedAt timestamp (most recent first)
+        const pinnedMessages = messages
+          .filter(m => m.isPinned)
+          .sort((a, b) => {
+            const aTime = a.pinnedAt?.seconds || 0;
+            const bTime = b.pinnedAt?.seconds || 0;
+            return bTime - aTime; // Most recent first
+          });
+        const pinnedCount = pinnedMessages.length;
+        
+        if (pinnedCount === 0) return null;
+        
+        const scrollToPinnedMessage = (msgId: string) => {
+          const element = document.getElementById(`chat-msg-${msgId}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            element.classList.add('ring-2', 'ring-amber-500');
+            setTimeout(() => element.classList.remove('ring-2', 'ring-amber-500'), 2000);
+          }
+        };
+        
+        return (
+          <div className="mx-4 mt-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-lg overflow-hidden">
+            {/* Collapsed header - always visible */}
+            <button
+              onClick={() => setShowPinnedMessages(!showPinnedMessages)}
+              className="w-full px-3 py-2 bg-amber-100 dark:bg-amber-900/40 flex items-center justify-between hover:bg-amber-200/50 dark:hover:bg-amber-900/60 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Pin className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                  Pinned ({pinnedCount})
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-amber-600 dark:text-amber-400">
+                  {showPinnedMessages ? 'Hide' : 'View'}
+                </span>
+                {showPinnedMessages ? (
+                  <ChevronUp className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                )}
+              </div>
+            </button>
+            
+            {/* Expanded pinned messages list */}
+            {showPinnedMessages && (
+              <div className="max-h-60 overflow-y-auto divide-y divide-amber-200 dark:divide-amber-800/50 border-t border-amber-200 dark:border-amber-800/50">
+                {pinnedMessages.map(msg => (
+                  <div 
+                    key={`pinned-${msg.id}`} 
+                    className="px-3 py-2 flex items-start justify-between gap-2 hover:bg-amber-100/50 dark:hover:bg-amber-900/30 cursor-pointer"
+                    onClick={() => scrollToPinnedMessage(msg.id)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-amber-800 dark:text-amber-200">{msg.sender.name}</p>
+                      <p className="text-sm text-amber-900 dark:text-amber-100 truncate">{msg.text || (msg.imageUrl ? '📷 Image' : '')}</p>
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                        Pinned by {msg.pinnedByName} • Click to view
+                      </p>
+                    </div>
+                    {canModerate && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUnpinMessage(msg);
+                        }}
+                        className="p-1 text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 flex-shrink-0"
+                        title="Unpin message"
+                      >
+                        <PinOff className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+      
       {/* MESSAGES AREA */}
       <div className="flex-1 p-4 overflow-y-auto overflow-x-visible space-y-4 bg-slate-50 dark:bg-black/20">
+        {/* Multi-select controls */}
+        {multiSelectMode && (
+          <div className="sticky top-0 z-10 bg-orange-50 dark:bg-orange-950 border border-orange-500/30 rounded-lg p-3 flex items-center justify-between mb-2 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-orange-600 dark:text-orange-400">
+                {selectedMessages.size} selected
+              </span>
+              <button
+                onClick={() => {
+                  // Select all own messages (or all if moderator)
+                  const selectableIds = messages
+                    .filter(m => canModerate || m.sender.uid === user?.uid)
+                    .map(m => m.id);
+                  setSelectedMessages(new Set(selectableIds));
+                }}
+                className="text-xs text-orange-500 hover:text-orange-700 underline"
+              >
+                Select all
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setMultiSelectMode(false); setSelectedMessages(new Set()); }}
+                className="px-3 py-1.5 text-xs bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 rounded-lg hover:bg-slate-300 dark:hover:bg-zinc-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setShowBulkDeleteConfirm(true)}
+                disabled={selectedMessages.size === 0 || deleting}
+                className="px-3 py-1.5 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 flex items-center gap-1"
+              >
+                {deleting ? (
+                  <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Trash2 className="w-3 h-3" />
+                )}
+                Delete ({selectedMessages.size})
+              </button>
+            </div>
+          </div>
+        )}
+        
         {messages.map(msg => {
           const isMe = msg.sender.uid === user?.uid;
           const isUserMuted = !!mutedUsers[msg.sender.uid];
           const senderRole = (msg.sender as any).role;
           const isParent = senderRole === 'Parent' || (!senderRole && !isMe); // Assume parent if no role
           const isEditing = editingMessageId === msg.id;
-          const isEdited = (msg as any).edited;
+          const isEdited = msg.edited;
+          const canSelectMessage = multiSelectMode && (canModerate || isMe);
+          const isSelected = selectedMessages.has(msg.id);
+          
+          // Read receipt: count how many people have read this message (excluding sender)
+          const readBy = msg.readBy || [];
+          const readCount = readBy.filter(uid => uid !== msg.sender.uid).length;
+          const hasBeenRead = readCount > 0;
           
           return (
-            <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
+            <div 
+              key={msg.id} 
+              id={`chat-msg-${msg.id}`} 
+              className={`flex ${isMe ? 'justify-end' : 'justify-start'} group ${canSelectMessage ? 'cursor-pointer' : ''}`}
+              onClick={() => canSelectMessage && toggleMessageSelection(msg.id)}
+            >
+              {/* Multi-select checkbox */}
+              {multiSelectMode && canSelectMessage && (
+                <div className={`self-center mr-2 ${isMe ? 'order-first' : ''}`}>
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                    isSelected 
+                      ? 'bg-orange-500 border-orange-500' 
+                      : 'border-zinc-400 dark:border-zinc-500'
+                  }`}>
+                    {isSelected && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                </div>
+              )}
+              
+              {/* Reply button for received messages */}
+              {!isMe && !isMuted && !multiSelectMode && (
+                <button
+                  onClick={() => setReplyingTo(msg)}
+                  className="opacity-0 group-hover:opacity-100 self-center mr-1 p-1 text-zinc-400 hover:text-orange-500 transition-all"
+                  title="Reply"
+                >
+                  <Reply className="w-4 h-4" />
+                </button>
+              )}
               <div className={`max-w-xs lg:max-w-md p-3 rounded-2xl shadow-sm relative ${
                 isMe 
                   ? 'bg-orange-600 text-white rounded-br-none'
                   : 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-zinc-700'
-              }`}>
+              } ${msg.isPinned ? 'ring-2 ring-amber-400' : ''} ${isSelected ? 'ring-2 ring-orange-500' : ''}`}>
+                {/* Pinned indicator */}
+                {msg.isPinned && (
+                  <div className={`absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center ${isMe ? 'bg-amber-400' : 'bg-amber-500'}`}>
+                    <Pin className="w-3 h-3 text-white" />
+                  </div>
+                )}
+                
                 {/* Header for OTHER users' messages */}
                 {!isMe && (
                   <div className="flex items-center justify-between gap-2 mb-1">
@@ -348,7 +810,7 @@ const Chat: React.FC = () => {
                     </p>
                     
                     {/* Moderation Menu - Only for moderators on other users' messages */}
-                    {canModerate && (
+                    {canModerate && !multiSelectMode && (
                       <div className="relative">
                         <button
                           onClick={(e) => {
@@ -400,10 +862,56 @@ const Chat: React.FC = () => {
                                 )}
                               </>
                             )}
+                            
+                            {/* Pin/Unpin Message */}
+                            <div className="border-t border-slate-200 dark:border-zinc-700 my-1" />
+                            {msg.isPinned ? (
+                              <button
+                                onClick={() => handleUnpinMessage(msg)}
+                                className="w-full px-3 py-2 text-left text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 flex items-center gap-2"
+                              >
+                                <PinOff className="w-4 h-4" />
+                                Unpin Message
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handlePinMessage(msg)}
+                                className="w-full px-3 py-2 text-left text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 flex items-center gap-2"
+                              >
+                                <Pin className="w-4 h-4" />
+                                Pin Message
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
                     )}
+                  </div>
+                )}
+                
+                {/* Reply preview - shows what message this is replying to */}
+                {msg.replyTo?.id && msg.replyTo?.text && (
+                  <div 
+                    className={`mb-2 p-2 rounded cursor-pointer border-l-2 ${
+                      isMe 
+                        ? 'bg-orange-700/50 border-orange-300' 
+                        : 'bg-zinc-100 dark:bg-zinc-700/50 border-orange-500'
+                    }`}
+                    onClick={() => {
+                      const replyElement = document.getElementById(`chat-msg-${msg.replyTo?.id}`);
+                      if (replyElement) {
+                        replyElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        replyElement.classList.add('ring-2', 'ring-orange-500');
+                        setTimeout(() => replyElement.classList.remove('ring-2', 'ring-orange-500'), 2000);
+                      }
+                    }}
+                  >
+                    <p className={`text-[10px] font-semibold ${isMe ? 'text-orange-200' : 'text-orange-600 dark:text-orange-400'}`}>
+                      {msg.replyTo.senderName || 'Unknown'}
+                    </p>
+                    <p className={`text-xs truncate ${isMe ? 'text-orange-100/80' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                      {msg.replyTo.text}
+                    </p>
                   </div>
                 )}
                 
@@ -450,10 +958,26 @@ const Chat: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm leading-relaxed">{msg.text}</p>
+                  <>
+                    {/* Image display */}
+                    {msg.imageUrl && (
+                      <div className="mb-2">
+                        <img 
+                          src={msg.imageUrl} 
+                          alt="Shared image"
+                          className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(msg.imageUrl, '_blank');
+                          }}
+                        />
+                      </div>
+                    )}
+                    {msg.text && <p className="text-sm leading-relaxed">{msg.text}</p>}
+                  </>
                 )}
                 
-                {/* Footer - timestamp and actions */}
+                {/* Footer - timestamp, read receipts, and actions */}
                 {!isEditing && (
                   <div className="flex items-center justify-between mt-1 gap-2">
                     <p className={`text-[10px] ${isMe ? 'text-orange-200' : 'text-slate-400'}`}>
@@ -461,18 +985,26 @@ const Chat: React.FC = () => {
                       {isEdited && <span className="ml-1 italic">(edited)</span>}
                     </p>
                     
-                    {/* Actions for OWN messages - everyone can edit/delete their own */}
-                    {isMe && (
+                    {/* Actions for OWN messages - everyone can edit/delete their own + read receipts */}
+                    {isMe && !multiSelectMode && (
                       <div className="flex items-center gap-1">
+                        {/* Read receipt checkmarks */}
+                        <span className="flex items-center" title={hasBeenRead ? `Read by ${readCount}` : 'Delivered'}>
+                          {hasBeenRead ? (
+                            <CheckCheck className="w-3.5 h-3.5 text-sky-300" />
+                          ) : (
+                            <Check className="w-3 h-3 text-orange-200" />
+                          )}
+                        </span>
                         <button
-                          onClick={() => startEditing(msg)}
+                          onClick={(e) => { e.stopPropagation(); startEditing(msg); }}
                           className="text-orange-200 hover:text-white p-0.5 transition-colors"
                           title="Edit message"
                         >
                           <Edit2 className="w-3 h-3" />
                         </button>
                         <button
-                          onClick={() => setShowDeleteConfirm({ messageId: msg.id, messageText: msg.text, senderName: msg.sender.name, senderId: msg.sender.uid })}
+                          onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm({ messageId: msg.id, messageText: msg.text, senderName: msg.sender.name, senderId: msg.sender.uid }); }}
                           className="text-orange-200 hover:text-white p-0.5 transition-colors"
                           title="Delete message"
                         >
@@ -483,6 +1015,16 @@ const Chat: React.FC = () => {
                   </div>
                 )}
               </div>
+              {/* Reply button for own messages */}
+              {isMe && !isMuted && !multiSelectMode && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setReplyingTo(msg); }}
+                  className="opacity-0 group-hover:opacity-100 self-center ml-1 p-1 text-zinc-400 hover:text-orange-500 transition-all"
+                  title="Reply"
+                >
+                  <Reply className="w-4 h-4" />
+                </button>
+              )}
             </div>
           );
         })}
@@ -491,6 +1033,56 @@ const Chat: React.FC = () => {
 
       {/* INPUT AREA */}
       <div className="p-4 border-t border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+        {/* Reply preview bar */}
+        {replyingTo && (
+          <div className="mb-3 p-2 bg-orange-50 dark:bg-orange-900/20 border-l-4 border-orange-500 rounded flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+                Replying to {replyingTo.sender.uid === user?.uid ? 'yourself' : replyingTo.sender.name}
+              </p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                {replyingTo.text || (replyingTo.imageUrl ? '📷 Image' : '')}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReplyingTo(null)}
+              className="ml-2 p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        
+        {/* Image preview bar */}
+        {imagePreview && (
+          <div className="mb-3 p-2 bg-slate-100 dark:bg-zinc-800 rounded-lg flex items-center gap-3">
+            <img src={imagePreview} alt="Preview" className="w-16 h-16 object-cover rounded-lg" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-700 dark:text-zinc-300 truncate">{selectedImage?.name}</p>
+              <p className="text-xs text-slate-500 dark:text-zinc-500">
+                {selectedImage && (selectedImage.size / 1024).toFixed(1)} KB
+              </p>
+              {uploadingImage && (
+                <div className="mt-1 h-1.5 bg-slate-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-orange-500 transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => { setSelectedImage(null); setImagePreview(null); }}
+              className="p-1 text-zinc-400 hover:text-red-500"
+              disabled={uploadingImage}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+        
         {/* Rate limit / mute warning */}
         {rateLimitError && (
           <div className="mb-3 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg">
@@ -499,12 +1091,50 @@ const Chat: React.FC = () => {
           </div>
         )}
         
-        <form onSubmit={handleSendMessage} className="flex items-center gap-3">
+        <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+          {/* Multi-select button */}
+          {!isMuted && (
+            <button
+              type="button"
+              onClick={() => setMultiSelectMode(!multiSelectMode)}
+              className={`p-2.5 rounded-full transition-colors ${
+                multiSelectMode 
+                  ? 'bg-orange-500 text-white' 
+                  : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700'
+              }`}
+              title="Select multiple messages to delete"
+            >
+              <Check className="w-5 h-5" />
+            </button>
+          )}
+          
+          {/* Image upload button */}
+          {!isMuted && (
+            <>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageSelect}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={uploadingImage}
+                className="p-2.5 bg-slate-100 dark:bg-zinc-800 rounded-full text-slate-500 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                title="Attach image"
+              >
+                <Image className="w-5 h-5" />
+              </button>
+            </>
+          )}
+          
           <input
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            placeholder={isMuted ? "You are muted..." : "Type your message..."}
+            placeholder={isMuted ? "You are muted..." : replyingTo ? "Type your reply..." : selectedImage ? "Add a caption..." : "Type your message..."}
             disabled={isMuted}
             className={`flex-1 bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 rounded-full shadow-inner py-3 px-5 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all ${
               isMuted ? 'opacity-50 cursor-not-allowed' : ''
@@ -517,10 +1147,10 @@ const Chat: React.FC = () => {
                 ? 'bg-zinc-500 cursor-not-allowed' 
                 : 'bg-orange-600 hover:bg-orange-500'
             }`}
-            disabled={!newMessage.trim() || sending || isMuted}
+            disabled={(!newMessage.trim() && !selectedImage) || sending || isMuted || uploadingImage}
             aria-label="Send message"
           >
-            {sending ? (
+            {sending || uploadingImage ? (
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             ) : isMuted ? (
               <VolumeX className="w-5 h-5 text-white" />
@@ -546,7 +1176,7 @@ const Chat: React.FC = () => {
                 </div>
               </div>
               <button 
-                onClick={() => { setShowMuteModal(null); setMuteReason(''); }}
+                onClick={() => { setShowMuteModal(null); setMuteReason(''); setMuteDurationHours(''); }}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
               >
                 <X className="w-5 h-5" />
@@ -554,8 +1184,45 @@ const Chat: React.FC = () => {
             </div>
             
             <p className="text-sm text-slate-600 dark:text-zinc-400 mb-4">
-              This user will be able to read messages but cannot send new ones until unmuted.
+              This user will be able to read messages but cannot send new ones until unmuted or the timer expires.
             </p>
+            
+            {/* Duration Input */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                Duration (hours)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  max="720"
+                  value={muteDurationHours}
+                  onChange={(e) => setMuteDurationHours(e.target.value)}
+                  placeholder="Leave empty for unlimited"
+                  className="flex-1 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg p-3 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                />
+                <div className="flex gap-1">
+                  {[1, 6, 24].map(h => (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => setMuteDurationHours(h.toString())}
+                      className={`px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
+                        muteDurationHours === h.toString()
+                          ? 'bg-red-500 text-white'
+                          : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-300 dark:hover:bg-zinc-600'
+                      }`}
+                    >
+                      {h}h
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1">
+                {muteDurationHours ? `User will be unmuted in ${muteDurationHours} hour${parseInt(muteDurationHours) > 1 ? 's' : ''}` : 'No time limit - manual unmute required'}
+              </p>
+            </div>
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
@@ -572,7 +1239,7 @@ const Chat: React.FC = () => {
             
             <div className="flex gap-3">
               <button
-                onClick={() => { setShowMuteModal(null); setMuteReason(''); }}
+                onClick={() => { setShowMuteModal(null); setMuteReason(''); setMuteDurationHours(''); }}
                 className="flex-1 py-2.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 rounded-lg font-medium transition-colors"
               >
                 Cancel
@@ -583,6 +1250,65 @@ const Chat: React.FC = () => {
               >
                 <VolumeX className="w-4 h-4" />
                 Mute User
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BULK DELETE CONFIRMATION MODAL */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Delete {selectedMessages.size} Messages</h3>
+                  <p className="text-sm text-slate-500 dark:text-zinc-400">This action cannot be undone</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowBulkDeleteConfirm(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-lg p-3 mb-4">
+              <p className="text-sm text-red-700 dark:text-red-300 font-medium">
+                ⚠️ You are about to permanently delete {selectedMessages.size} message{selectedMessages.size > 1 ? 's' : ''}.
+              </p>
+            </div>
+            
+            <p className="text-sm text-slate-600 dark:text-zinc-400 mb-4">
+              Are you sure you want to delete these messages? This will remove them for all team members and cannot be undone.
+            </p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowBulkDeleteConfirm(false)}
+                disabled={deleting}
+                className="flex-1 py-2.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMultiDelete}
+                disabled={deleting}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              >
+                {deleting ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Delete All
+                  </>
+                )}
               </button>
             </div>
           </div>

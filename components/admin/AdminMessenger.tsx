@@ -3,16 +3,27 @@ import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp,
 import { db } from '../../services/firebase';
 import { sanitizeText } from '../../services/sanitize';
 import { useAuth } from '../../contexts/AuthContext';
-import { Search, Send, MessageSquare, Users, Shield, UserCheck, Trash2, Check, CheckCheck } from 'lucide-react';
+import { Search, Send, MessageSquare, Users, Shield, UserCheck, Trash2, Check, CheckCheck, Reply, X } from 'lucide-react';
 import { uploadFile } from '../../services/storage';
 import type { PrivateChat, PrivateMessage, UserProfile } from '../../types';
+
+// Extended message type with reply support
+interface ExtendedMessage extends PrivateMessage {
+  readBy?: string[];
+  replyTo?: {
+    id: string;
+    text: string;
+    senderId: string;
+    senderName?: string;
+  };
+}
 
 const AdminMessenger: React.FC = () => {
   const { user, userData } = useAuth();
   
   const [chats, setChats] = useState<PrivateChat[]>([]);
   const [activeChat, setActiveChat] = useState<PrivateChat | null>(null);
-  const [messages, setMessages] = useState<PrivateMessage[]>([]);
+  const [messages, setMessages] = useState<ExtendedMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
@@ -24,6 +35,9 @@ const AdminMessenger: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [roleFilter, setRoleFilter] = useState<'all' | 'Coach' | 'Parent'>('all');
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Reply to message state
+  const [replyingTo, setReplyingTo] = useState<ExtendedMessage | null>(null);
   
   // Delete chat state
   const [deleteChatConfirm, setDeleteChatConfirm] = useState<string | null>(null);
@@ -53,7 +67,7 @@ const AdminMessenger: React.FC = () => {
     );
     
     const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
-      setMessages(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as PrivateMessage)));
+      setMessages(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as ExtendedMessage)));
       setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     });
     return () => unsubscribe();
@@ -203,8 +217,26 @@ const AdminMessenger: React.FC = () => {
         setAttachments([]);
       }
 
-      const payload: any = { text, senderId: user.uid, timestamp: serverTimestamp() };
+      const payload: any = { 
+        text, 
+        senderId: user.uid, 
+        timestamp: serverTimestamp(),
+        readBy: [user.uid] // Initialize with sender as having "read" it
+      };
       if (uploadedAttachments && uploadedAttachments.length > 0) payload.attachments = uploadedAttachments;
+      
+      // Add reply reference if replying to a message
+      if (replyingTo) {
+        const replyingSenderName = replyingTo.senderId === user.uid 
+          ? 'You' 
+          : (activeChat.participantData[replyingTo.senderId]?.username || 'Unknown');
+        payload.replyTo = {
+          id: replyingTo.id,
+          text: replyingTo.text.substring(0, 100), // Truncate for storage
+          senderId: replyingTo.senderId,
+          senderName: replyingSenderName
+        };
+      }
 
       await addDoc(collection(db, 'private_chats', activeChat.id, 'messages'), payload);
       await updateDoc(doc(db, 'private_chats', activeChat.id), {
@@ -213,6 +245,9 @@ const AdminMessenger: React.FC = () => {
         lastMessageTime: serverTimestamp(),
         lastSenderId: user.uid
       });
+      
+      // Clear reply state after sending
+      setReplyingTo(null);
     } catch (error) {
       console.error(error);
       alert('Failed to send message or upload attachments.');
@@ -461,13 +496,48 @@ const AdminMessenger: React.FC = () => {
                     const isMe = msg.senderId === user?.uid;
                     
                     // Read receipt logic - check if other participant(s) have read this message
-                    const readBy = (msg as any).readBy || [];
+                    const readBy = msg.readBy || [];
                     const otherParticipants = activeChat?.participants.filter(p => p !== user?.uid) || [];
                     const isRead = otherParticipants.some(p => readBy.includes(p));
                     
                     return (
-                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <div key={msg.id} id={`msg-${msg.id}`} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
+                        {/* Reply button - shows on hover for received messages */}
+                        {!isMe && (
+                          <button
+                            onClick={() => setReplyingTo(msg)}
+                            className="opacity-0 group-hover:opacity-100 self-center mr-1 p-1 text-zinc-400 hover:text-orange-500 transition-all"
+                            title="Reply"
+                          >
+                            <Reply className="w-4 h-4" />
+                          </button>
+                        )}
                         <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${isMe ? 'bg-orange-600 text-white rounded-br-none' : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 rounded-bl-none'}`}>
+                          {/* Reply preview - shows what message this is replying to */}
+                          {msg.replyTo?.id && msg.replyTo?.text && (
+                            <div 
+                              className={`mb-2 p-2 rounded cursor-pointer border-l-2 ${
+                                isMe 
+                                  ? 'bg-orange-700/50 border-orange-300' 
+                                  : 'bg-zinc-100 dark:bg-zinc-700/50 border-orange-500'
+                              }`}
+                              onClick={() => {
+                                const replyElement = document.getElementById(`msg-${msg.replyTo?.id}`);
+                                if (replyElement) {
+                                  replyElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                  replyElement.classList.add('ring-2', 'ring-orange-500');
+                                  setTimeout(() => replyElement.classList.remove('ring-2', 'ring-orange-500'), 2000);
+                                }
+                              }}
+                            >
+                              <p className={`text-[10px] font-semibold ${isMe ? 'text-orange-200' : 'text-orange-600 dark:text-orange-400'}`}>
+                                {msg.replyTo.senderName || 'Unknown'}
+                              </p>
+                              <p className={`text-xs truncate ${isMe ? 'text-orange-100/80' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                                {msg.replyTo.text}
+                              </p>
+                            </div>
+                          )}
                           <p className="break-words">{msg.text}</p>
                           {/* Attachments */}
                           {((msg as any).attachments || []).length > 0 && (
@@ -496,6 +566,16 @@ const AdminMessenger: React.FC = () => {
                             </div>
                           )}
                         </div>
+                        {/* Reply button - shows on hover for sent messages */}
+                        {isMe && (
+                          <button
+                            onClick={() => setReplyingTo(msg)}
+                            className="opacity-0 group-hover:opacity-100 self-center ml-1 p-1 text-zinc-400 hover:text-orange-500 transition-all"
+                            title="Reply"
+                          >
+                            <Reply className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     );
                   })
@@ -504,6 +584,27 @@ const AdminMessenger: React.FC = () => {
               </div>
 
               <form onSubmit={sendMessage} className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+                {/* Reply preview - shows what message you're replying to */}
+                {replyingTo && (
+                  <div className="mb-2 p-2 bg-orange-50 dark:bg-orange-900/20 border-l-4 border-orange-500 rounded flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+                        Replying to {replyingTo.senderId === user?.uid ? 'yourself' : (allUsers.find(u => u.uid === replyingTo.senderId)?.name || 'Unknown')}
+                      </p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                        {replyingTo.text}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReplyingTo(null)}
+                      className="ml-2 p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+                
                 {attachments.length > 0 && (
                   <div className="mb-2 flex gap-2 items-center overflow-x-auto">
                     {attachments.map((f, idx) => (

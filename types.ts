@@ -73,6 +73,11 @@ export interface UserProfile {
   
   // For Coaches: Track currently selected team (when coaching multiple teams)
   selectedTeamId?: string;
+  
+  // Clone Play Credits System
+  cloneCredits?: number; // Number of remaining clone credits (default: 10 for new coaches)
+  totalClonesUsed?: number; // Total clones ever used (for analytics)
+  purchasedCredits?: number; // Credits purchased (for future monetization)
 }
 
 export interface Team {
@@ -84,6 +89,7 @@ export interface Team {
   // Coordinator positions (can be same person as head coach or each other)
   offensiveCoordinatorId?: string | null; // OC - runs the offense
   defensiveCoordinatorId?: string | null; // DC - runs the defense
+  specialTeamsCoordinatorId?: string | null; // STC - runs special teams
   record?: {
       wins: number;
       losses: number;
@@ -158,6 +164,38 @@ export interface PlayElement {
   color: string;
 }
 
+// Line types for play designer
+// zigzag: zigzag pattern with arrow (motion route)
+// curved: smooth curved line with arrow (passing route)
+// route: solid line with arrow end
+// block: solid line with perpendicular block end (blocking assignment)
+// solid: plain solid line, no end marker
+// dashed: dashed line, no end marker
+export type LineType = 'zigzag' | 'curved' | 'route' | 'block' | 'solid' | 'dashed';
+
+// Standalone drawing line (not attached to a player)
+export interface DrawingLine {
+  id: string;
+  points: { x: number; y: number }[];
+  color: string;
+  lineType: LineType;
+}
+
+// Shape types for play designer annotations
+export type ShapeType = 'triangle' | 'circle' | 'square' | 'x' | 'diamond' | 'oval' | 'rectangle' | 'smallCircle';
+
+// Shape for zone/coverage annotations
+export interface PlayShape {
+  id: string;
+  shapeType: ShapeType;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+  filled: boolean;
+}
+
 export interface PlayRoute {
   id: string;
   startElementId: string;
@@ -165,8 +203,82 @@ export interface PlayRoute {
   color: string;
   style: 'solid' | 'dashed' | 'dotted';
   arrow: boolean;
+  lineType?: LineType; // Optional: for new line type support
 }
 
+// Offensive play type - Run or Pass
+export type OffensePlayType = 'Run' | 'Pass';
+
+// Defensive play type - Normal or Blitz
+export type DefensePlayType = 'Normal' | 'Blitz';
+
+// Formation - base player positions that plays are built from
+// Stored in users/{coachId}/formations
+export interface Formation {
+  id: string;
+  name: string;
+  category: 'Offense' | 'Defense' | 'Special Teams';
+  elements: PlayElement[]; // Base player positions for this formation
+  notes?: string;
+  coachId: string;
+  coachName?: string;
+  systemFormationId?: string; // If imported from system playbook
+  isSystemFormation?: boolean; // True if imported from system
+  createdAt: any;
+  updatedAt?: any;
+}
+
+// Coach's personal play (stored in users/{coachId}/plays)
+export interface CoachPlay {
+  id: string;
+  name: string;
+  category: 'Offense' | 'Defense' | 'Special Teams';
+  offenseType?: OffensePlayType; // Only for Offense plays - Run or Pass
+  defenseType?: DefensePlayType; // Only for Defense plays - Normal or Blitz
+  formationId: string; // Reference to formation this play is built from
+  formationName?: string; // Denormalized for display
+  elements: PlayElement[]; // Final player positions (may be moved from formation)
+  routes: PlayRoute[]; 
+  lines?: DrawingLine[]; // Standalone drawing lines
+  shapes?: PlayShape[]; // Zone/coverage shapes
+  notes?: string;
+  thumbnailUrl?: string;
+  systemPlayId?: string; // If imported from system playbook (for auto-sync)
+  isSystemPlay?: boolean; // True if imported from system (read-only)
+  createdAt: any;
+  updatedAt?: any;
+  coachId: string; // Owner coach ID
+  coachName?: string; // For display
+}
+
+// Team play assignment (stored in teams/{teamId}/assignedPlays)
+// References a coach's play - auto-syncs when coach updates their play
+export interface TeamPlayAssignment {
+  id: string; // Assignment ID
+  playId: string; // Reference to coach's play ID
+  coachId: string; // Which coach's play this references
+  category: 'Offense' | 'Defense' | 'Special Teams';
+  assignedAt: any;
+  assignedBy: string; // Coach UID who assigned it
+  assignedByName?: string;
+}
+
+// Position player assignment - assigns roster players to play positions
+// Stored in teams/{teamId}/assignedPlays/{assignmentId}/positionAssignments/{elementId}
+export interface PositionAssignment {
+  id: string; // Same as the element ID from the play
+  elementLabel: string; // The position label (e.g., "QB", "RB", "WR1")
+  primaryPlayerId?: string; // First string player
+  primaryPlayerName?: string;
+  primaryPlayerNumber?: number;
+  secondaryPlayerId?: string; // Second string player (backup)
+  secondaryPlayerName?: string;
+  secondaryPlayerNumber?: number;
+  updatedAt?: any;
+  updatedBy?: string;
+}
+
+// Legacy interface - still used for backward compatibility
 export interface Play {
   id: string;
   name: string;
@@ -176,6 +288,75 @@ export interface Play {
   notes?: string;
   thumbnailUrl?: string;
   createdAt: any;
+}
+
+// ============================================
+// SYSTEM PLAYBOOKS (Admin-created, shareable)
+// ============================================
+
+// System Formation - admin-created formation template
+// Stored in systemFormations/{formationId}
+export interface SystemFormation {
+  id: string;
+  name: string;
+  category: 'Offense' | 'Defense' | 'Special Teams';
+  elements: PlayElement[]; // Base player positions
+  notes?: string;
+  createdBy: string; // Admin UID
+  createdByName?: string;
+  createdAt: any;
+  updatedAt?: any;
+}
+
+// System Play - admin-created play template
+// Stored in systemPlays/{playId}
+export interface SystemPlay {
+  id: string;
+  name: string;
+  category: 'Offense' | 'Defense' | 'Special Teams';
+  offenseType?: OffensePlayType; // Only for Offense plays
+  defenseType?: DefensePlayType; // Only for Defense plays
+  formationId: string; // Reference to SystemFormation
+  formationName?: string; // Denormalized for display
+  elements: PlayElement[]; // Final player positions
+  routes: PlayRoute[];
+  lines?: DrawingLine[]; // Standalone drawing lines
+  shapes?: PlayShape[]; // Zone/coverage shapes
+  notes?: string;
+  createdBy: string; // Admin UID
+  createdByName?: string;
+  createdAt: any;
+  updatedAt?: any;
+}
+
+// System Playbook - collection of plays that coaches can import
+// Stored in systemPlaybooks/{playbookId}
+export interface SystemPlaybook {
+  id: string;
+  name: string;
+  description?: string;
+  category: 'Offense' | 'Defense' | 'Special Teams'; // Each playbook is single-category
+  playIds: string[]; // References to SystemPlay IDs
+  formationIds: string[]; // References to SystemFormation IDs (auto-collected from plays)
+  coverImage?: string; // Optional cover image URL
+  playCount: number; // Denormalized count
+  createdBy: string; // Admin UID
+  createdByName?: string;
+  createdAt: any;
+  updatedAt?: any;
+  isPublished: boolean; // Only published playbooks are visible to coaches
+}
+
+// Coach's imported playbook reference
+// Stored in users/{coachId}/importedPlaybooks/{playbookId}
+export interface ImportedPlaybook {
+  id: string; // Same as SystemPlaybook ID
+  playbookId: string; // Reference to SystemPlaybook
+  playbookName: string; // Denormalized
+  category: 'Offense' | 'Defense' | 'Special Teams';
+  importedAt: any;
+  // Track which plays from this playbook the coach has removed from their view
+  removedPlayIds?: string[];
 }
 
 export interface Marker {
@@ -454,4 +635,63 @@ export interface PlayerStats {
   spts: number;
   updatedAt: any;
   updatedBy?: string;
+}
+
+// ============================================
+// CLONE PLAY FEATURE TYPES
+// ============================================
+
+// Response from OpenAI Vision API analysis
+export interface ClonePlayAnalysis {
+  players: ClonedPlayer[];
+  routes: ClonedRoute[];
+  shapes: ClonedShape[];
+  suggestedCategory: 'Offense' | 'Defense' | 'Special Teams';
+  confidence: number; // 0-100 confidence score
+}
+
+// A detected player element from the image
+export interface ClonedPlayer {
+  id: string;
+  x: number; // 0-100 coordinate
+  y: number; // 0-100 coordinate
+  shape: 'circle' | 'triangle' | 'square' | 'x'; // Detected shape type
+  detectedColor?: string; // Color detected in image
+  suggestedType?: 'O' | 'X'; // O = offense (circle), X = defense (triangle/x)
+  assignedPosition?: string; // User-assigned position (QB, RB, WR, etc.)
+  isAssigned: boolean; // Has user assigned a position?
+}
+
+// A detected route/arrow from the image
+export interface ClonedRoute {
+  id: string;
+  points: { x: number; y: number }[];
+  lineType: 'solid' | 'dashed' | 'curved' | 'zigzag';
+  color: string;
+  hasArrow: boolean;
+}
+
+// A detected shape/zone from the image
+export interface ClonedShape {
+  id: string;
+  shapeType: 'circle' | 'oval' | 'rectangle' | 'square';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+}
+
+// Clone operation request
+export interface ClonePlayRequest {
+  imageBase64: string; // Base64 encoded image
+  userId: string;
+}
+
+// Clone operation response
+export interface ClonePlayResponse {
+  success: boolean;
+  analysis?: ClonePlayAnalysis;
+  error?: string;
+  creditsRemaining?: number;
 }

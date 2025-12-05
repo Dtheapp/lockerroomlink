@@ -6,7 +6,7 @@ import { getAuth } from 'firebase/auth';
 import { db, auth } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UserProfile, Team } from '../../types';
-import { Trash2, Link, User, Shield, AtSign, Key, AlertTriangle, Search, Edit2, X, Check, UserX, ChevronLeft, ChevronRight, Download, CheckSquare, Square, History, Crown, Plus, Copy, Eye, EyeOff } from 'lucide-react';
+import { Trash2, Link, User, Shield, AtSign, Key, AlertTriangle, Search, Edit2, X, Check, UserX, ChevronLeft, ChevronRight, Download, CheckSquare, Square, History, Crown, Plus, Copy, Eye, EyeOff, Zap, Sparkles } from 'lucide-react';
 
 const ManageUsers: React.FC = () => {
   const { user, userData } = useAuth();
@@ -51,6 +51,7 @@ const ManageUsers: React.FC = () => {
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState<'Coach' | 'Parent'>('Parent');
   const [editUsername, setEditUsername] = useState('');
+  const [editCloneCredits, setEditCloneCredits] = useState(10);
   const [editError, setEditError] = useState('');
   const [saving, setSaving] = useState(false);
   
@@ -262,6 +263,7 @@ const ManageUsers: React.FC = () => {
     setEditName(targetUser.name || '');
     setEditRole(targetUser.role as 'Coach' | 'Parent');
     setEditUsername(targetUser.username || '');
+    setEditCloneCredits(targetUser.cloneCredits ?? 10);
     setEditError('');
     setIsEditModalOpen(true);
   };
@@ -337,6 +339,11 @@ const ManageUsers: React.FC = () => {
         updates.username = editUsername.trim();
       }
       
+      // Update clone credits for coaches
+      if (editRole === 'Coach') {
+        updates.cloneCredits = editCloneCredits;
+      }
+      
       // Handle role change for coaches
       if (selectedUser.role === 'Coach' && editRole === 'Parent' && selectedUser.teamId) {
         // Removing coach status - clear from team
@@ -346,7 +353,7 @@ const ManageUsers: React.FC = () => {
       
       await updateDoc(userDocRef, updates);
       
-      await logActivity('Edit User', `Updated ${selectedUser.name}: role=${editRole}`);
+      await logActivity('Edit User', `Updated ${selectedUser.name}: role=${editRole}${editRole === 'Coach' ? `, credits=${editCloneCredits}` : ''}`);
       
       setIsEditModalOpen(false);
       setSelectedUser(null);
@@ -834,6 +841,12 @@ const ManageUsers: React.FC = () => {
                         <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${u.role === 'Coach' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400' : 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400'}`}>
                             {u.role}
                         </span>
+                        {u.role === 'Coach' && (
+                          <span className="ml-2 inline-flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-400" title="Clone Play Credits">
+                            <Zap className="w-3 h-3" />
+                            {u.cloneCredits ?? 10}
+                          </span>
+                        )}
                     </td>
                     <td className="px-6 py-4">
                       {u.teamId ? (
@@ -995,6 +1008,52 @@ const ManageUsers: React.FC = () => {
                   <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">⚠️ Changing to Parent will remove coach status from their team.</p>
                 )}
               </div>
+              
+              {/* Clone Credits - Only for Coaches */}
+              {editRole === 'Coach' && (
+                <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                  <label className="flex items-center gap-2 text-sm font-medium text-purple-700 dark:text-purple-300 mb-2">
+                    <Sparkles className="w-4 h-4" />
+                    AI Clone Play Credits
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="number"
+                      min="0"
+                      max="999"
+                      value={editCloneCredits} 
+                      onChange={(e) => setEditCloneCredits(Math.max(0, parseInt(e.target.value) || 0))} 
+                      className="w-24 bg-white dark:bg-black p-2 rounded-lg border border-purple-300 dark:border-purple-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-purple-500 text-center font-bold"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditCloneCredits(prev => prev + 5)}
+                        className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded text-xs font-medium hover:bg-purple-200 dark:hover:bg-purple-900/50"
+                      >
+                        +5
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditCloneCredits(prev => prev + 10)}
+                        className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded text-xs font-medium hover:bg-purple-200 dark:hover:bg-purple-900/50"
+                      >
+                        +10
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditCloneCredits(10)}
+                        className="px-2 py-1 bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-400 rounded text-xs font-medium hover:bg-slate-200 dark:hover:bg-zinc-700"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
+                    Used: {selectedUser.totalClonesUsed || 0} • Purchased: {selectedUser.purchasedCredits || 0}
+                  </p>
+                </div>
+              )}
               
               <div className="bg-slate-100 dark:bg-zinc-900 p-3 rounded-lg">
                 <p className="text-xs text-slate-500 dark:text-slate-400">

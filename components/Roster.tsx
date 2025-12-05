@@ -5,7 +5,7 @@ import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateD
 import { db } from '../services/firebase';
 import { sanitizeText, sanitizeNumber, sanitizeDate } from '../services/sanitize';
 import type { Player, UserProfile, Team } from '../types';
-import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link as LinkIcon, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera, UserPlus, ArrowRightLeft, BarChart3, Eye, AtSign, Copy, Check, ExternalLink } from 'lucide-react';
+import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link as LinkIcon, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera, UserPlus, ArrowRightLeft, BarChart3, Eye, AtSign, Copy, Check, ExternalLink, Zap } from 'lucide-react';
 import PlayerStatsModal from './stats/PlayerStatsModal';
 
 // Pagination settings
@@ -47,7 +47,7 @@ const Roster: React.FC = () => {
   const [transferringHeadCoach, setTransferringHeadCoach] = useState(false);
   
   // Coordinator assignment state (Head Coach only)
-  const [assignCoordinatorModal, setAssignCoordinatorModal] = useState<{ type: 'OC' | 'DC'; currentId?: string | null } | null>(null);
+  const [assignCoordinatorModal, setAssignCoordinatorModal] = useState<{ type: 'OC' | 'DC' | 'STC'; currentId?: string | null } | null>(null);
   const [assigningCoordinator, setAssigningCoordinator] = useState(false);
 
   // Filter, sort (starters first), and paginate roster
@@ -727,13 +727,21 @@ const Roster: React.FC = () => {
     setAssigningCoordinator(true);
     try {
       const updateData: any = {};
-      const fieldName = assignCoordinatorModal.type === 'OC' ? 'offensiveCoordinatorId' : 'defensiveCoordinatorId';
+      const fieldName = assignCoordinatorModal.type === 'OC' 
+        ? 'offensiveCoordinatorId' 
+        : assignCoordinatorModal.type === 'DC' 
+          ? 'defensiveCoordinatorId' 
+          : 'specialTeamsCoordinatorId';
       updateData[fieldName] = coachId;
       
       await updateDoc(doc(db, 'teams', teamData.id), updateData);
       
       const coachName = coachId ? teamCoaches.find(c => c.uid === coachId)?.name || 'Unknown' : 'None';
-      const positionName = assignCoordinatorModal.type === 'OC' ? 'Offensive Coordinator' : 'Defensive Coordinator';
+      const positionName = assignCoordinatorModal.type === 'OC' 
+        ? 'Offensive Coordinator' 
+        : assignCoordinatorModal.type === 'DC' 
+          ? 'Defensive Coordinator' 
+          : 'Special Teams Coordinator';
       
       // Log the action
       await addDoc(collection(db, 'adminActivityLog'), {
@@ -1141,6 +1149,7 @@ const Roster: React.FC = () => {
             {teamCoaches.map(coach => {
               const isOC = teamData?.offensiveCoordinatorId === coach.uid;
               const isDC = teamData?.defensiveCoordinatorId === coach.uid;
+              const isSTC = teamData?.specialTeamsCoordinatorId === coach.uid;
               const isHC = teamData?.headCoachId === coach.uid;
               
               return (
@@ -1149,7 +1158,7 @@ const Roster: React.FC = () => {
                 className={`bg-slate-50 dark:bg-zinc-950 rounded-lg p-4 border ${
                   isHC 
                     ? 'border-purple-500 dark:border-purple-500' 
-                    : (isOC || isDC)
+                    : (isOC || isDC || isSTC)
                       ? 'border-orange-400 dark:border-orange-500'
                       : 'border-zinc-200 dark:border-zinc-800'
                 }`}
@@ -1163,7 +1172,7 @@ const Roster: React.FC = () => {
                       <p className="font-bold text-zinc-900 dark:text-white flex items-center gap-2">
                         {coach.name}
                         {isHC && (
-                          <Crown className="w-4 h-4 text-purple-500" title="Head Coach" />
+                          <span title="Head Coach"><Crown className="w-4 h-4 text-purple-500" /></span>
                         )}
                       </p>
                       <p className="text-xs text-zinc-500">@{coach.username || coach.email}</p>
@@ -1177,6 +1186,11 @@ const Roster: React.FC = () => {
                         {isDC && (
                           <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded flex items-center gap-0.5">
                             <Shield className="w-2.5 h-2.5" /> DC
+                          </span>
+                        )}
+                        {isSTC && (
+                          <span className="text-[10px] bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                            <Zap className="w-2.5 h-2.5" /> STC
                           </span>
                         )}
                       </div>
@@ -1213,6 +1227,19 @@ const Roster: React.FC = () => {
                           title={isDC ? 'Remove Defensive Coordinator' : 'Set as Defensive Coordinator'}
                         >
                           <Shield className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setAssignCoordinatorModal({ type: 'STC', currentId: isSTC ? null : coach.uid });
+                          }}
+                          className={`p-1 rounded transition-colors ${
+                            isSTC 
+                              ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400' 
+                              : 'text-zinc-400 hover:text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
+                          }`}
+                          title={isSTC ? 'Remove Special Teams Coordinator' : 'Set as Special Teams Coordinator'}
+                        >
+                          <Zap className="w-4 h-4" />
                         </button>
                       </div>
                       {coach.uid !== userData?.uid && (
@@ -1439,31 +1466,42 @@ const Roster: React.FC = () => {
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl w-full max-w-sm border border-zinc-200 dark:border-zinc-800 shadow-2xl">
             {(() => {
-              const isOC = assignCoordinatorModal.type === 'OC';
-              const currentCoordId = isOC ? teamData?.offensiveCoordinatorId : teamData?.defensiveCoordinatorId;
+              const coordType = assignCoordinatorModal.type;
+              const currentCoordId = coordType === 'OC' 
+                ? teamData?.offensiveCoordinatorId 
+                : coordType === 'DC' 
+                  ? teamData?.defensiveCoordinatorId 
+                  : teamData?.specialTeamsCoordinatorId;
               const selectedCoach = teamCoaches.find(c => c.uid === assignCoordinatorModal.currentId);
               const currentCoach = teamCoaches.find(c => c.uid === currentCoordId);
               const isRemoving = !assignCoordinatorModal.currentId || (currentCoordId === assignCoordinatorModal.currentId);
               
+              const coordLabel = coordType === 'OC' ? 'Offensive' : coordType === 'DC' ? 'Defensive' : 'Special Teams';
+              const coordShort = coordType === 'OC' ? 'OC' : coordType === 'DC' ? 'DC' : 'STC';
+              const CoordIcon = coordType === 'OC' ? Sword : coordType === 'DC' ? Shield : Zap;
+              const colorClass = coordType === 'OC' ? 'text-red-500' : coordType === 'DC' ? 'text-blue-500' : 'text-yellow-500';
+              const bgColorClass = coordType === 'OC' ? 'bg-red-600 hover:bg-red-700' : coordType === 'DC' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-yellow-600 hover:bg-yellow-700';
+              const textColorClass = coordType === 'OC' ? 'text-red-600 dark:text-red-400' : coordType === 'DC' ? 'text-blue-600 dark:text-blue-400' : 'text-yellow-600 dark:text-yellow-400';
+              
               return (
                 <>
                   <h2 className="text-xl font-bold mb-4 text-zinc-900 dark:text-white flex items-center gap-2">
-                    {isOC ? <Sword className="w-5 h-5 text-red-500" /> : <Shield className="w-5 h-5 text-blue-500" />}
-                    {isRemoving ? 'Remove' : 'Assign'} {isOC ? 'Offensive' : 'Defensive'} Coordinator
+                    <CoordIcon className={`w-5 h-5 ${colorClass}`} />
+                    {isRemoving ? 'Remove' : 'Assign'} {coordLabel} Coordinator
                   </h2>
                   
                   {isRemoving && currentCoach ? (
                     <p className="text-zinc-600 dark:text-zinc-400 mb-6">
-                      Remove <strong className="text-zinc-900 dark:text-white">{currentCoach.name}</strong> as {isOC ? 'Offensive' : 'Defensive'} Coordinator?
+                      Remove <strong className="text-zinc-900 dark:text-white">{currentCoach.name}</strong> as {coordLabel} Coordinator?
                     </p>
                   ) : selectedCoach ? (
                     <p className="text-zinc-600 dark:text-zinc-400 mb-6">
                       {currentCoach && (
                         <span className="block mb-2 text-sm">
-                          Current {isOC ? 'OC' : 'DC'}: <span className="text-zinc-500">{currentCoach.name}</span>
+                          Current {coordShort}: <span className="text-zinc-500">{currentCoach.name}</span>
                         </span>
                       )}
-                      Assign <strong className={isOC ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>{selectedCoach.name}</strong> as {isOC ? 'Offensive' : 'Defensive'} Coordinator?
+                      Assign <strong className={textColorClass}>{selectedCoach.name}</strong> as {coordLabel} Coordinator?
                     </p>
                   ) : null}
                   
@@ -1479,7 +1517,7 @@ const Roster: React.FC = () => {
                       onClick={() => handleAssignCoordinator(isRemoving ? null : assignCoordinatorModal.currentId!)}
                       disabled={assigningCoordinator}
                       className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${
-                        isRemoving ? 'bg-zinc-600 hover:bg-zinc-700' : (isOC ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700')
+                        isRemoving ? 'bg-zinc-600 hover:bg-zinc-700' : bgColorClass
                       }`}
                     >
                       {assigningCoordinator ? (
@@ -1489,7 +1527,7 @@ const Roster: React.FC = () => {
                         </>
                       ) : (
                         <>
-                          {isOC ? <Sword className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
+                          <CoordIcon className="w-4 h-4" />
                           {isRemoving ? 'Remove' : 'Assign'}
                         </>
                       )}

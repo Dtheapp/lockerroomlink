@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
-import { Home, Users, ClipboardList, MessageCircle, Video, LogOut, User, Send, Menu, X, ChevronLeft, Sun, Moon, BarChart3, Shield, AlertTriangle } from 'lucide-react';
+import { Home, Users, ClipboardList, MessageCircle, Video, LogOut, User, Send, Menu, X, ChevronLeft, Sun, Moon, BarChart3, Shield, AlertTriangle, BookOpen } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
@@ -107,17 +107,18 @@ const Layout: React.FC = () => {
   const allNavItems = [
     { name: 'Dashboard', path: '/dashboard', icon: Home },
     { name: 'Roster', path: '/roster', icon: Users },
-    { name: 'Playbook', path: '/playbook', icon: ClipboardList },
+    { name: 'Team Plays', path: '/playbook', icon: ClipboardList },
     { name: 'Team Chat', path: '/chat', icon: MessageCircle, unreadKey: 'teamChat' as const },
     { name: 'Strategy', path: '/strategies', icon: Shield, coachOnly: true, unreadKey: 'strategy' as const },
     { name: 'Messenger', path: '/messenger', icon: Send, unreadKey: 'messenger' as const },
     { name: 'Film Room', path: '/videos', icon: Video },
     { name: 'Stats', path: '/stats', icon: BarChart3 },
-    { name: 'Profile', path: '/profile', icon: User }, 
+    { name: 'Profile', path: '/profile', icon: User },
+    { name: 'My Plays', path: '/coaching', icon: BookOpen, coachOnly: true },
   ];
 
   const navItems = allNavItems.filter(item => {
-      if (item.name === 'Playbook' && userData?.role === 'Parent') return false;
+      if (item.name === 'Team Plays' && userData?.role === 'Parent') return false;
       if ((item as any).coachOnly && userData?.role !== 'Coach') return false;
       return true;
   });

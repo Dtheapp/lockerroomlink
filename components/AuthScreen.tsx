@@ -11,17 +11,14 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-type AuthMode = 'Parent' | 'Coach' | 'Admin';
-const ADMIN_MODE: AuthMode = 'Admin';
-const COACH_MODE: AuthMode = 'Coach';
-const PARENT_MODE: AuthMode = 'Parent';
+type SignUpRole = 'Parent' | 'Coach';
 
 const AuthScreen: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const [mode, setMode] = useState<AuthMode>('Parent');
   const [isSignUp, setIsSignUp] = useState(false);
+  const [signUpRole, setSignUpRole] = useState<SignUpRole>('Parent'); // Only used for signup
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   
   const [isConfirmingReset, setIsConfirmingReset] = useState(false);
@@ -99,14 +96,6 @@ const AuthScreen: React.FC = () => {
       }
   }, [searchParams]);
 
-  const switchMode = (newMode: AuthMode) => {
-    setMode(newMode);
-    setError('');
-    setSuccessMessage('');
-    setIsSignUp(false); 
-    setIsResettingPassword(false);
-  };
-
   const validateUsername = async (u: string) => {
       if (!/^[a-zA-Z0-9]+$/.test(u)) {
           throw new Error('Username can only contain letters and numbers.');
@@ -129,11 +118,6 @@ const AuthScreen: React.FC = () => {
         if (!email || !password) throw new Error('Email and Password are required.');
 
         if (isSignUp) {
-            // SECURITY FIX: Prevent Admin Sign Up via UI
-            if (mode === 'Admin') {
-                throw new Error('Admin accounts cannot be created publicly.');
-            }
-
             // --- SIGN UP LOGIC ---
             if (!name) throw new Error('Full Name is required.');
             if (!username) throw new Error('Username is required.');
@@ -142,9 +126,8 @@ const AuthScreen: React.FC = () => {
 
             // Parents no longer need teamId during signup - they'll add players with teamIds later
             let verifiedTeamId = null;
-            if (mode === COACH_MODE) {
+            if (signUpRole === 'Coach') {
                 // Coaches can optionally provide a teamId during signup, or create one later
-                // This allows flexibility - we'll keep it optional for now
                 if (teamId) {
                     const teamDoc = await getDoc(doc(db, 'teams', teamId));
                     if (teamDoc.exists()) {
@@ -160,7 +143,7 @@ const AuthScreen: React.FC = () => {
                 uid: user.uid,
                 name,
                 email,
-                role: mode,
+                role: signUpRole,
                 teamId: verifiedTeamId, // null for Parents, optional for Coaches
                 username: cleanUsername
             };
@@ -168,40 +151,9 @@ const AuthScreen: React.FC = () => {
             await setDoc(doc(db, 'users', user.uid), userProfile);
 
         } else {
-            // --- SIGN IN LOGIC ---
-            // Sign in first, then verify role after authentication
+            // --- SIGN IN LOGIC (Simplified - no role check needed) ---
+            // Just authenticate - the app will read their role from Firestore and route accordingly
             await signInWithEmailAndPassword(auth, email, password);
-            
-            // POST-LOGIN: Verify role matches selected tab
-            const currentUser = auth.currentUser;
-            if (currentUser) {
-                const userDocRef = doc(db, 'users', currentUser.uid);
-                const userDocSnap = await getDoc(userDocRef);
-                
-                if (userDocSnap.exists()) {
-                    const userData = userDocSnap.data();
-                    const actualRole = userData.role;
-                    const targetRole = mode === 'Admin' ? 'SuperAdmin' : mode;
-                    
-                    // Check role mismatch
-                    if (actualRole) {
-                        let roleMismatch = false;
-                        if (mode === 'Admin') {
-                            if (actualRole !== 'SuperAdmin' && actualRole !== 'Admin') {
-                                roleMismatch = true;
-                            }
-                        } else if (actualRole !== targetRole) {
-                            roleMismatch = true;
-                        }
-                        
-                        if (roleMismatch) {
-                            // Sign out and show error
-                            await auth.signOut();
-                            throw new Error(`This account is registered as a ${actualRole}. Please select the correct access tab.`);
-                        }
-                    }
-                }
-            }
         }
 
     } catch (err: any) {
@@ -244,12 +196,12 @@ const AuthScreen: React.FC = () => {
   
   const getButtonText = () => {
       if (loading) return null;
-      if (mode === PARENT_MODE) return isSignUp ? 'Join Team' : 'Sign In';
       return isSignUp ? 'Create Account' : 'Sign In';
   };
 
   const renderForm = () => {
      if (!isSignUp) {
+         // LOGIN FORM - Simple email/password only
          return (
              <>
                <div><label className="block text-sm font-medium text-zinc-400 mb-1">Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-orange-500" /></div>
@@ -260,29 +212,38 @@ const AuthScreen: React.FC = () => {
              </>
          );
      }
-    switch (mode) {
-      case 'Parent': return (
-          <>
-            <div><label className="block text-sm font-medium text-zinc-400 mb-1">Full Name</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Papa John" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
-            <div><label className="block text-sm font-medium text-zinc-400 mb-1">Username</label><input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. PapaJohn23" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white font-mono focus:ring-orange-500" /></div>
-            <div><label className="block text-sm font-medium text-zinc-400 mb-1">Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
-            <div><label className="block text-sm font-medium text-zinc-400 mb-1">Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
-            <div className="pt-2 border-t border-zinc-800">
-              <p className="text-xs text-zinc-500 italic">You'll add your players and their teams after signing up</p>
-            </div>
-          </>
-      );
-      case 'Coach': return (
-          <>
-             <div><label className="block text-sm font-medium text-zinc-400 mb-1">Full Name</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Coach Taylor" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
-             <div><label className="block text-sm font-medium text-zinc-400 mb-1">Coach ID (Username)</label><input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. CoachPrime" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white font-mono focus:ring-orange-500" /></div>
-             <div><label className="block text-sm font-medium text-zinc-400 mb-1">Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
-             <div><label className="block text-sm font-medium text-zinc-400 mb-1">Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
-          </>
-      );
-      // SECURITY FIX: Removed Admin Sign Up Inputs
-      case 'Admin': return null; 
-    }
+     
+     // SIGN UP FORM - includes role selector
+     return (
+       <>
+         {/* Role selector for signup only */}
+         <div className="mb-4">
+           <label className="block text-sm font-medium text-zinc-400 mb-2">I am a...</label>
+           <div className="grid grid-cols-2 gap-2 bg-black p-1 rounded-xl border border-zinc-800">
+             {(['Parent', 'Coach'] as SignUpRole[]).map(role => (
+               <button 
+                 key={role} 
+                 type="button" 
+                 onClick={() => setSignUpRole(role)} 
+                 className={`py-2.5 px-3 rounded-lg text-sm font-bold transition-all duration-200 ${signUpRole === role ? 'bg-orange-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+               >
+                 {role}
+               </button>
+             ))}
+           </div>
+         </div>
+         
+         <div><label className="block text-sm font-medium text-zinc-400 mb-1">Full Name</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder={signUpRole === 'Coach' ? "e.g., Coach Taylor" : "e.g., John Smith"} className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
+         <div><label className="block text-sm font-medium text-zinc-400 mb-1">{signUpRole === 'Coach' ? 'Coach ID (Username)' : 'Username'}</label><input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder={signUpRole === 'Coach' ? "e.g. CoachPrime" : "e.g. PapaJohn23"} className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white font-mono focus:ring-orange-500" /></div>
+         <div><label className="block text-sm font-medium text-zinc-400 mb-1">Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
+         <div><label className="block text-sm font-medium text-zinc-400 mb-1">Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
+         {signUpRole === 'Parent' && (
+           <div className="pt-2 border-t border-zinc-800">
+             <p className="text-xs text-zinc-500 italic">You'll add your players and their teams after signing up</p>
+           </div>
+         )}
+       </>
+     );
   }
 
   // --- RENDER ---
@@ -416,12 +377,6 @@ const AuthScreen: React.FC = () => {
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1 bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-50"></div>
           <h1 className="text-3xl font-black tracking-tighter text-center text-white mb-2">LOCKER<span className="text-orange-500">ROOM</span></h1>
           <p className="text-center text-zinc-500 mb-8 text-sm uppercase tracking-widest font-bold">Digital Locker Room</p>
-          
-          <div className="mb-8 grid grid-cols-3 gap-2 bg-black p-1 rounded-xl border border-zinc-800">
-            {(['Parent', 'Coach', 'Admin'] as AuthMode[]).map(m => (
-              <button key={m} type="button" onClick={() => switchMode(m)} className={`py-2 px-3 rounded-lg text-sm font-bold transition-all duration-200 ${mode === m ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}>{m}</button>
-            ))}
-          </div>
 
           {error && <p className="bg-red-500/10 text-red-400 p-3 rounded-lg mb-6 text-sm border border-red-500/20 text-center font-medium">{error}</p>}
           
@@ -433,14 +388,11 @@ const AuthScreen: React.FC = () => {
               </button>
             </div>
             
-            {/* SECURITY FIX: Do not show Sign Up toggle for Admins */}
-            {mode !== 'Admin' && (
-                <div className="text-center mt-6">
-                    <button type="button" onClick={() => setIsSignUp(!isSignUp)} className="text-sm text-zinc-400 hover:text-white transition-colors hover:underline">
-                        {isSignUp ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
-                    </button>
-                </div>
-            )}
+            <div className="text-center mt-6">
+                <button type="button" onClick={() => { setIsSignUp(!isSignUp); setError(''); }} className="text-sm text-zinc-400 hover:text-white transition-colors hover:underline">
+                    {isSignUp ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
+                </button>
+            </div>
           </form>
         </div>
         </div>

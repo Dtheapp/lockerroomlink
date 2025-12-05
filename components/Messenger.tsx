@@ -6,7 +6,7 @@ import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { uploadFile } from '../services/storage';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnreadMessages } from '../hooks/useUnreadMessages';
-import { Search, Send, MessageSquare, AlertCircle, Edit2, Trash2, X, Check, AlertTriangle, CheckCheck } from 'lucide-react';
+import { Search, Send, MessageSquare, AlertCircle, Edit2, Trash2, X, Check, AlertTriangle, CheckCheck, Reply, CornerUpLeft } from 'lucide-react';
 import type { PrivateChat, PrivateMessage, UserProfile } from '../types';
 import NoAthleteBlock from './NoAthleteBlock';
 
@@ -14,6 +14,17 @@ import NoAthleteBlock from './NoAthleteBlock';
 interface ExtendedChat extends PrivateChat {
   isGrievance?: boolean;
   grievanceNumber?: number;
+}
+
+// Extended message type with reply support
+interface ExtendedMessage extends PrivateMessage {
+  readBy?: string[];
+  replyTo?: {
+    id: string;
+    text: string;
+    senderId: string;
+    senderName?: string;
+  };
 }
 
 const Messenger: React.FC = () => {
@@ -24,7 +35,7 @@ const Messenger: React.FC = () => {
   const [chats, setChats] = useState<ExtendedChat[]>([]);
   const [grievanceChats, setGrievanceChats] = useState<ExtendedChat[]>([]);
   const [activeChat, setActiveChat] = useState<ExtendedChat | null>(null);
-  const [messages, setMessages] = useState<PrivateMessage[]>([]);
+  const [messages, setMessages] = useState<ExtendedMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
@@ -36,6 +47,9 @@ const Messenger: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Reply to message state
+  const [replyingTo, setReplyingTo] = useState<ExtendedMessage | null>(null);
   
   // Edit/Delete message state
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -121,7 +135,7 @@ const Messenger: React.FC = () => {
       const messagesQuery = query(collection(db, chatCollection, activeChat.id, 'messages'), orderBy('timestamp', 'asc'), limitToLast(50));
       
       const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
-          setMessages(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as PrivateMessage)));
+          setMessages(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as ExtendedMessage)));
           setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       });
       return () => unsubscribe();
@@ -129,15 +143,16 @@ const Messenger: React.FC = () => {
 
   // 2b. MARK MESSAGES AS READ when viewing a chat
   useEffect(() => {
-    if (!activeChat || !user) return;
+    if (!activeChat || !user || messages.length === 0) return;
     
     const markMessagesAsRead = async () => {
       const chatCollection = activeChat.isGrievance ? 'grievance_chats' : 'private_chats';
       
-      // Find unread messages from other participants
+      // Find unread messages from other participants (not sent by me, and I haven't read them)
       const unreadMessages = messages.filter(msg => {
-        const readBy = (msg as any).readBy || [];
-        return msg.senderId !== user.uid && !readBy.includes(user.uid);
+        if (msg.senderId === user.uid) return false; // Skip my own messages
+        const readBy = msg.readBy || [];
+        return !readBy.includes(user.uid);
       });
       
       if (unreadMessages.length === 0) return;
@@ -147,11 +162,14 @@ const Messenger: React.FC = () => {
         const batch = writeBatch(db);
         unreadMessages.forEach(msg => {
           const msgRef = doc(db, chatCollection, activeChat.id, 'messages', msg.id);
-          const currentReadBy = (msg as any).readBy || [];
-          batch.update(msgRef, {
-            readBy: [...currentReadBy, user.uid],
-            [`readAt.${user.uid}`]: serverTimestamp()
-          });
+          const currentReadBy = msg.readBy || [];
+          // Only add if not already in the array
+          if (!currentReadBy.includes(user.uid)) {
+            batch.update(msgRef, {
+              readBy: [...currentReadBy, user.uid],
+              [`readAt.${user.uid}`]: serverTimestamp()
+            });
+          }
         });
         await batch.commit();
       } catch (error) {
@@ -160,9 +178,9 @@ const Messenger: React.FC = () => {
     };
     
     // Small delay to prevent marking as read during initial load
-    const timer = setTimeout(markMessagesAsRead, 500);
+    const timer = setTimeout(markMessagesAsRead, 300);
     return () => clearTimeout(timer);
-  }, [activeChat?.id, messages, user]);
+  }, [activeChat?.id, messages.length, user?.uid]); // Use messages.length instead of messages to prevent infinite loops
 
   // 3. LOAD USERS FOR SEARCH (Security Fix: Scope to Team)
   useEffect(() => {
@@ -277,9 +295,29 @@ const Messenger: React.FC = () => {
           setAttachments([]);
         }
 
-        const messagePayload: any = { text, senderId: user.uid, timestamp: serverTimestamp() };
+        // Build message payload with readBy initialized and reply support
+        const messagePayload: any = { 
+          text, 
+          senderId: user.uid, 
+          timestamp: serverTimestamp(),
+          readBy: [user.uid] // Initialize with sender as having "read" it
+        };
+        
         if (uploadedAttachments && uploadedAttachments.length > 0) {
           messagePayload.attachments = uploadedAttachments;
+        }
+        
+        // Add reply reference if replying to a message
+        if (replyingTo) {
+          const replyingSenderName = replyingTo.senderId === user.uid 
+            ? 'You' 
+            : (activeChat.participantData[replyingTo.senderId]?.username || 'Unknown');
+          messagePayload.replyTo = {
+            id: replyingTo.id,
+            text: replyingTo.text.substring(0, 100), // Truncate for storage
+            senderId: replyingTo.senderId,
+            senderName: replyingSenderName
+          };
         }
 
         // Determine which collection to use based on chat type
@@ -287,6 +325,9 @@ const Messenger: React.FC = () => {
         
         await addDoc(collection(db, chatCollection, activeChat.id, 'messages'), messagePayload);
         await updateDoc(doc(db, chatCollection, activeChat.id), { lastMessage: text, updatedAt: serverTimestamp(), lastMessageTime: serverTimestamp(), lastSenderId: user.uid });
+        
+        // Clear reply state after sending
+        setReplyingTo(null);
       } catch (error) { console.error(error); alert('Failed to send message or upload attachments.'); }
       finally { setSending(false); }
   };
@@ -440,6 +481,11 @@ const Messenger: React.FC = () => {
               ) : (
                   allChats.map(chat => {
                       const other = getOtherParticipant(chat);
+                      
+                      // Check if this specific chat has unread messages
+                      const lastSenderId = (chat as any).lastSenderId;
+                      const hasUnread = lastSenderId && lastSenderId !== user?.uid;
+                      
                       return (
                         <div key={chat.id} className={`p-4 border-b border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors ${activeChat?.id === chat.id ? 'bg-zinc-100 dark:bg-zinc-900 border-l-4 border-l-orange-500' : ''} ${chat.isGrievance ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
                             {deleteChatConfirm === chat.id ? (
@@ -466,7 +512,16 @@ const Messenger: React.FC = () => {
                                 <div className="flex justify-between items-start mb-1">
                                     <div className="flex items-center gap-2">
                                         {chat.isGrievance && <AlertTriangle className="w-4 h-4 text-amber-500" />}
-                                        <h3 className="font-bold text-zinc-900 dark:text-white text-sm">{other.username}</h3>
+                                        <h3 className="font-bold text-zinc-900 dark:text-white text-sm flex items-center gap-2">
+                                          {other.username}
+                                          {/* Unread indicator - pulsing red dot */}
+                                          {hasUnread && activeChat?.id !== chat.id && (
+                                            <span className="relative flex h-2.5 w-2.5">
+                                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                                            </span>
+                                          )}
+                                        </h3>
                                     </div>
                                     <div className="flex items-center gap-1">
                                       <span className={`text-[10px] uppercase px-1.5 rounded ${chat.isGrievance ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400' : 'bg-zinc-200 dark:bg-black text-zinc-500'}`}>{other.role}</span>
@@ -479,7 +534,7 @@ const Messenger: React.FC = () => {
                                       </button>
                                     </div>
                                 </div>
-                                <p className="text-zinc-500 text-xs truncate">{chat.lastMessage}</p>
+                                <p className={`text-xs truncate ${hasUnread && activeChat?.id !== chat.id ? 'text-zinc-700 dark:text-zinc-300 font-medium' : 'text-zinc-500'}`}>{chat.lastMessage}</p>
                               </div>
                             )}
                         </div>
@@ -513,12 +568,25 @@ const Messenger: React.FC = () => {
                         const isSystemMessage = (msg as any).isSystemMessage;
                         
                         // Read receipt logic - check if other participant(s) have read this message
-                        const readBy = (msg as any).readBy || [];
+                        const readBy = msg.readBy || [];
                         const otherParticipants = activeChat?.participants.filter(p => p !== user?.uid) || [];
                         const isRead = otherParticipants.some(p => readBy.includes(p));
                         
+                        // Get reply info if this message is a reply
+                        const replyInfo = msg.replyTo;
+                        
                         return (
-                            <div key={msg.id} className={`flex ${isSystemMessage ? 'justify-center' : isMe ? 'justify-end' : 'justify-start'}`}>
+                            <div key={msg.id} id={`msg-${msg.id}`} className={`flex ${isSystemMessage ? 'justify-center' : isMe ? 'justify-end' : 'justify-start'} group`}>
+                                {/* Reply button - shows on hover for non-system messages */}
+                                {!isSystemMessage && !isMe && (
+                                  <button
+                                    onClick={() => setReplyingTo(msg)}
+                                    className="opacity-0 group-hover:opacity-100 self-center mr-1 p-1 text-zinc-400 hover:text-orange-500 transition-all"
+                                    title="Reply"
+                                  >
+                                    <Reply className="w-4 h-4" />
+                                  </button>
+                                )}
                                 <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${
                                   isSystemMessage 
                                     ? 'bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-100'
@@ -557,6 +625,31 @@ const Messenger: React.FC = () => {
                                       </div>
                                     ) : (
                                       <>
+                                        {/* Reply preview - shows what message this is replying to */}
+                                        {msg.replyTo?.id && msg.replyTo?.text && (
+                                          <div 
+                                            className={`mb-2 p-2 rounded cursor-pointer border-l-2 ${
+                                              isMe 
+                                                ? 'bg-orange-700/50 border-orange-300' 
+                                                : 'bg-zinc-100 dark:bg-zinc-700/50 border-orange-500'
+                                            }`}
+                                            onClick={() => {
+                                              const replyElement = document.getElementById(`msg-${msg.replyTo?.id}`);
+                                              if (replyElement) {
+                                                replyElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                replyElement.classList.add('ring-2', 'ring-orange-500');
+                                                setTimeout(() => replyElement.classList.remove('ring-2', 'ring-orange-500'), 2000);
+                                              }
+                                            }}
+                                          >
+                                            <p className={`text-[10px] font-semibold ${isMe ? 'text-orange-200' : 'text-orange-600 dark:text-orange-400'}`}>
+                                              {msg.replyTo.senderName || 'Unknown'}
+                                            </p>
+                                            <p className={`text-xs truncate ${isMe ? 'text-orange-100/80' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                                              {msg.replyTo.text}
+                                            </p>
+                                          </div>
+                                        )}
                                         <p>{msg.text}</p>
                                         {/* Attachments */}
                                         {((msg as any).attachments || []).length > 0 && (
@@ -609,6 +702,16 @@ const Messenger: React.FC = () => {
                                       </>
                                     )}
                                 </div>
+                                {/* Reply button - shows on hover for sender's own messages */}
+                                {!isSystemMessage && isMe && (
+                                  <button
+                                    onClick={() => setReplyingTo(msg)}
+                                    className="opacity-0 group-hover:opacity-100 self-center ml-1 p-1 text-zinc-400 hover:text-orange-500 transition-all"
+                                    title="Reply"
+                                  >
+                                    <Reply className="w-4 h-4" />
+                                  </button>
+                                )}
                             </div>
                         );
                     })}
@@ -646,6 +749,27 @@ const Messenger: React.FC = () => {
                 )}
 
                 <form onSubmit={sendMessage} className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+                    {/* Reply preview - shows what message you're replying to */}
+                    {replyingTo && (
+                      <div className="mb-2 p-2 bg-orange-50 dark:bg-orange-900/20 border-l-4 border-orange-500 rounded flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+                            Replying to {replyingTo.senderId === user?.uid ? 'yourself' : (allUsers.find(u => u.uid === replyingTo.senderId)?.name || 'Unknown')}
+                          </p>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                            {replyingTo.text}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setReplyingTo(null)}
+                          className="ml-2 p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+
                     {/* Attachments preview */}
                     {attachments.length > 0 && (
                       <div className="mb-2 flex gap-2 items-center overflow-x-auto">

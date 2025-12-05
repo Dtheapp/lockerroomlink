@@ -63,6 +63,7 @@ const VideoLibrary = lazyWithRetry(() => import('./components/VideoLibrary'));
 const Profile = lazyWithRetry(() => import('./components/Profile'));
 const Messenger = lazyWithRetry(() => import('./components/Messenger'));
 const Stats = lazyWithRetry(() => import('./components/Stats'));
+const Coaching = lazyWithRetry(() => import('./components/Coaching'));
 
 // Lazy-loaded Admin Pages
 const AdminDashboard = lazyWithRetry(() => import('./components/admin/AdminDashboard'));
@@ -78,6 +79,7 @@ const DataManagement = lazyWithRetry(() => import('./components/admin/DataManage
 const EmailCommunication = lazyWithRetry(() => import('./components/admin/EmailCommunication'));
 const ActivityLog = lazyWithRetry(() => import('./components/admin/ActivityLog'));
 const CoachFeedback = lazyWithRetry(() => import('./components/admin/CoachFeedback'));
+const AdminPlaybook = lazyWithRetry(() => import('./components/admin/AdminPlaybook'));
 
 // Loading fallback for lazy-loaded components
 const PageLoader = () => (
@@ -172,6 +174,7 @@ const AppContent: React.FC = () => {
                 <Route path="activity" element={<ActivityLog />} />
                 <Route path="data" element={<DataManagement />} />
                 <Route path="stats" element={<Stats />} />
+                <Route path="playbook" element={<AdminPlaybook />} />
                 <Route path="settings" element={<AppSettings />} />
               </Route>
               <Route path="*" element={<Navigate to="/admin" replace />} />
@@ -189,6 +192,7 @@ const AppContent: React.FC = () => {
                 <Route path="videos" element={<VideoLibrary />} />
                 <Route path="profile" element={<Profile />} />
                 <Route path="stats" element={<Stats />} />
+                <Route path="coaching" element={<Coaching />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </>
