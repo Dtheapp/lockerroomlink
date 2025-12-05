@@ -1256,11 +1256,17 @@ const AdminPlaybook: React.FC = () => {
       onTouchMove={handleMove}
       onTouchEnd={stopDrag}
       className="w-full h-full relative select-none overflow-hidden"
-      style={{ backgroundColor: '#2e7d32', touchAction: 'none' }}
+      style={{ backgroundColor: isDarkMode ? '#1f1f1f' : '#e5e5e5', touchAction: 'none' }}
     >
-      <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: `repeating-linear-gradient(to bottom, transparent 0%, transparent 9%, rgba(255,255,255,0.3) 9%, rgba(255,255,255,0.3) 10%)`, backgroundSize: '100% 10%' }}></div>
-      <div className="absolute top-0 left-0 right-0 h-[8%] bg-orange-600/40 pointer-events-none"></div>
-      <div className="absolute bottom-0 left-0 right-0 h-[8%] bg-orange-600/40 pointer-events-none"></div>
+      {/* Field markings */}
+      <div className="absolute inset-0 pointer-events-none" style={{ 
+        backgroundImage: isDarkMode 
+          ? `repeating-linear-gradient(to bottom, transparent 0%, transparent 9%, rgba(255,255,255,0.1) 9%, rgba(255,255,255,0.1) 10%)`
+          : `repeating-linear-gradient(to bottom, transparent 0%, transparent 9%, rgba(0,0,0,0.1) 9%, rgba(0,0,0,0.1) 10%)`,
+        backgroundSize: '100% 10%' 
+      }}></div>
+      <div className={`absolute top-0 left-0 right-0 h-[8%] pointer-events-none ${isDarkMode ? 'bg-orange-600/20' : 'bg-orange-500/15'}`}></div>
+      <div className={`absolute bottom-0 left-0 right-0 h-[8%] pointer-events-none ${isDarkMode ? 'bg-orange-600/20' : 'bg-orange-500/15'}`}></div>
       
       {/* Trace Background Image for Formation */}
       {formationTraceBackground && formationTraceBackground.settings.visible && (
