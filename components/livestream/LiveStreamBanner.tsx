@@ -64,28 +64,28 @@ const LiveStreamBanner: React.FC<LiveStreamBannerProps> = ({
         
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="bg-white text-red-600 text-xs font-black px-2 py-0.5 rounded animate-pulse">
               🔴 LIVE
             </span>
             <span className="text-white/80 text-sm">{teamName}</span>
+            {streams.length > 1 && (
+              <span className="bg-purple-500 text-white text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Users className="w-3 h-3" />
+                {streams.length} Angles
+              </span>
+            )}
           </div>
           <h3 className="text-white font-bold text-lg truncate">
             {streams.length === 1 
               ? streams[0].title 
-              : `${streams.length} Live Streams`}
+              : `${streams.length} Live Streams - Multi-Angle Coverage`}
           </h3>
           <div className="flex items-center gap-4 mt-1 text-red-100/80 text-sm">
             <span className="flex items-center gap-1">
               <Video className="w-4 h-4" />
               {angleText}
             </span>
-            {streams.length > 1 && (
-              <span className="flex items-center gap-1">
-                <Users className="w-4 h-4" />
-                Multi-angle available
-              </span>
-            )}
           </div>
         </div>
         

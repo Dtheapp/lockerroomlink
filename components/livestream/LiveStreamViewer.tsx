@@ -111,33 +111,34 @@ const LiveStreamViewer: React.FC<LiveStreamViewerProps> = ({
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               🔴 LIVE: {teamName}
             </h2>
-            <p className="text-zinc-400 text-sm">
-              {streams.length} stream{streams.length !== 1 ? 's' : ''} active
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-zinc-400 text-sm">
+                {streams.length} stream{streams.length !== 1 ? 's' : ''} active
+              </p>
+              {/* Prominent multi-stream button */}
+              {streams.length > 1 && viewMode === 'single' && (
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5 transition-all animate-pulse hover:animate-none"
+                >
+                  <Grid className="w-3.5 h-3.5" />
+                  Watch All {streams.length} Streams
+                </button>
+              )}
+              {streams.length > 1 && viewMode === 'grid' && (
+                <button
+                  onClick={() => setViewMode('single')}
+                  className="bg-zinc-700 hover:bg-zinc-600 text-white text-xs font-medium px-3 py-1 rounded-full flex items-center gap-1.5 transition-colors"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  Single View
+                </button>
+              )}
+            </div>
           </div>
         </div>
         
         <div className="flex items-center gap-2">
-          {/* View mode toggle (only if multiple streams) */}
-          {streams.length > 1 && (
-            <div className="flex bg-zinc-800 rounded-lg p-1">
-              <button
-                onClick={() => setViewMode('single')}
-                className={`p-2 rounded ${viewMode === 'single' ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white'}`}
-                title="Single view"
-              >
-                <Maximize2 className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`p-2 rounded ${viewMode === 'grid' ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white'}`}
-                title="Grid view"
-              >
-                <Grid className="w-5 h-5" />
-              </button>
-            </div>
-          )}
-          
           <button
             onClick={onClose}
             className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
