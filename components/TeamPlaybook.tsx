@@ -408,8 +408,6 @@ const TeamPlaybook: React.FC = () => {
         positionData.secondaryPlayerNumber = null;
       }
       
-      console.log('[TeamPlaybook] Saving assignment - elementId:', currentElementId, 'assignmentId:', currentAssignmentId, 'positionData:', positionData);
-      
       await setDoc(
         doc(db, 'teams', teamData.id, 'assignedPlays', currentAssignmentId, 'positionAssignments', currentElementId),
         positionData
@@ -419,7 +417,6 @@ const TeamPlaybook: React.FC = () => {
       setPositionAssignments(prev => {
         const newMap = new Map(prev);
         newMap.set(currentElementId, positionData as PositionAssignment);
-        console.log('[TeamPlaybook] Updated positionAssignments - key:', currentElementId, 'map size:', newMap.size, 'keys:', Array.from(newMap.keys()));
         return newMap;
       });
       
@@ -634,10 +631,8 @@ const TeamPlaybook: React.FC = () => {
         const assignment = positionAssignments.get(el.id);
         const hasAssignment = assignment && (assignment.primaryPlayerId || assignment.secondaryPlayerId);
         
-        // Debug logging - log for elements that have assignments
-        if (assignment) {
-          console.log('[TeamPlaybook] Element with assignment - id:', el.id, 'label:', el.label, 'assignment:', assignment, 'hasAssignment:', hasAssignment);
-        }
+        // For type 'X' (triangles), we need a wrapper to show the glow without clipPath clipping it
+        const isTriangle = el.type === 'X';
         
         return (
           <div
@@ -646,21 +641,37 @@ const TeamPlaybook: React.FC = () => {
               setSelectedElementId(el.id);
               setAssigningPosition(true);
             }}
-            className={`absolute flex items-center font-bold text-white shadow-lg border-2 z-30 cursor-pointer hover:scale-110 transition-transform ${el.color} ${el.type === 'O' ? 'rounded-full justify-center' : 'justify-center'} ${hasAssignment ? 'ring-4 ring-yellow-400 ring-offset-2' : 'border-white/80'}`}
+            className={`absolute z-30 cursor-pointer hover:scale-110 transition-transform`}
             style={{ 
               left: `${el.x}%`, 
               top: `${el.y}%`, 
               transform: 'translate(-50%, -50%)',
               width: '36px',
               height: '36px',
-              fontSize: '10px',
-              ['--tw-ring-offset-color' as string]: isDarkMode ? '#1f1f1f' : '#e5e5e5',
-              ...(hasAssignment ? { boxShadow: '0 0 12px 4px rgba(250, 204, 21, 0.6), 0 0 20px 8px rgba(250, 204, 21, 0.3)' } : {}),
-              ...(el.type === 'X' ? { clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)', borderRadius: '0', paddingTop: '12px' } : {})
             }}
             title={hasAssignment ? `1st: ${assignment.primaryPlayerName || 'Not set'}\n2nd: ${assignment.secondaryPlayerName || 'Not set'}` : 'Click to assign player'}
           >
-            {el.label || el.type}
+            {/* Glow effect wrapper - outside the clipPath */}
+            {hasAssignment && (
+              <div 
+                className="absolute inset-0 rounded-full"
+                style={{ 
+                  boxShadow: '0 0 12px 4px rgba(250, 204, 21, 0.6), 0 0 20px 8px rgba(250, 204, 21, 0.3)',
+                  transform: 'scale(1.2)',
+                }}
+              />
+            )}
+            {/* The actual player element */}
+            <div
+              className={`w-full h-full flex items-center font-bold text-white shadow-lg border-2 ${el.color} ${!isTriangle ? 'rounded-full justify-center' : 'justify-center'} ${hasAssignment ? 'ring-4 ring-yellow-400 ring-offset-2' : 'border-white/80'}`}
+              style={{ 
+                fontSize: '10px',
+                ['--tw-ring-offset-color' as string]: isDarkMode ? '#1f1f1f' : '#e5e5e5',
+                ...(isTriangle ? { clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)', borderRadius: '0', paddingTop: '12px' } : {})
+              }}
+            >
+              {el.label || el.type}
+            </div>
             {hasAssignment && (
               <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 bg-yellow-500 text-black text-[8px] px-1 rounded whitespace-nowrap font-medium">
                 {assignment.primaryPlayerName?.split(' ')[0] || '#'}
@@ -752,27 +763,41 @@ const TeamPlaybook: React.FC = () => {
         {(play.elements || []).map(el => {
           const assignment = playAssignments.get(el.id);
           const hasAssignment = assignment && (assignment.primaryPlayerId || assignment.secondaryPlayerId);
+          const isTriangle = el.type === 'X';
           
           return (
             <div
               key={el.id}
-              className={`absolute flex items-center justify-center font-bold text-white border z-30 ${el.color} ${el.type === 'O' ? 'rounded-full' : ''}`}
+              className="absolute z-30"
               style={{ 
                 left: `${el.x}%`, 
                 top: `${el.y}%`, 
                 transform: 'translate(-50%, -50%)',
                 width: '20px',
                 height: '20px',
-                fontSize: '7px',
-                borderWidth: '1.5px',
-                borderColor: hasAssignment ? '#facc15' : 'rgba(255,255,255,0.7)',
-                ...(hasAssignment ? { 
-                  boxShadow: '0 0 8px 2px rgba(250, 204, 21, 0.7)',
-                } : {}),
-                ...(el.type === 'X' ? { clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)', borderRadius: '0', paddingTop: '6px' } : {})
               }}
             >
-              {el.label || el.type}
+              {/* Glow wrapper - outside clipPath */}
+              {hasAssignment && (
+                <div 
+                  className="absolute inset-0 rounded-full"
+                  style={{ 
+                    boxShadow: '0 0 8px 2px rgba(250, 204, 21, 0.7)',
+                    transform: 'scale(1.2)',
+                  }}
+                />
+              )}
+              <div
+                className={`w-full h-full flex items-center justify-center font-bold text-white border ${el.color} ${!isTriangle ? 'rounded-full' : ''}`}
+                style={{ 
+                  fontSize: '7px',
+                  borderWidth: '1.5px',
+                  borderColor: hasAssignment ? '#facc15' : 'rgba(255,255,255,0.7)',
+                  ...(isTriangle ? { clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)', borderRadius: '0', paddingTop: '6px' } : {})
+                }}
+              >
+                {el.label || el.type}
+              </div>
             </div>
           );
         })}
