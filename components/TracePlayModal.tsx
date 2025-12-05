@@ -593,13 +593,13 @@ const TracePlayModal: React.FC<TracePlayModalProps> = ({
                   />
                   <div className="flex gap-2">
                     <button
-                      onClick={() => adjustSize(-10)}
+                      onClick={() => adjustSize(-1)}
                       className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white flex items-center justify-center gap-1"
                     >
                       <Minus className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => adjustSize(10)}
+                      onClick={() => adjustSize(1)}
                       className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white flex items-center justify-center gap-1"
                     >
                       <Plus className="w-4 h-4" />
