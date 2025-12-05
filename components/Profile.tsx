@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, updateDoc, collection, addDoc, query, where, onSnapshot, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, addDoc, query, where, onSnapshot, getDocs, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { uploadFile, deleteFile } from '../services/storage';
 import { useAuth } from '../contexts/AuthContext';
@@ -85,6 +85,9 @@ const Profile: React.FC = () => {
   // Bio state for coaches
   const [bio, setBio] = useState('');
   
+  // Head Coach status for coaches
+  const [isHeadCoach, setIsHeadCoach] = useState(false);
+  
   // Edit username validation state
   const [editUsernameError, setEditUsernameError] = useState<string | null>(null);
   const [checkingEditUsername, setCheckingEditUsername] = useState(false);
@@ -104,6 +107,40 @@ const Profile: React.FC = () => {
       }
     }
   }, [userData]);
+
+  // Check if coach is head coach of any of their teams
+  useEffect(() => {
+    const checkHeadCoachStatus = async () => {
+      if (userData?.role !== 'Coach' || !userData?.uid) {
+        setIsHeadCoach(false);
+        return;
+      }
+      
+      try {
+        // Get all team IDs the coach belongs to
+        const coachTeamIds = userData.teamIds || (userData.teamId ? [userData.teamId] : []);
+        
+        // Check each team to see if this coach is the head coach
+        for (const teamId of coachTeamIds) {
+          const teamDocRef = doc(db, 'teams', teamId);
+          const teamDocSnap = await getDoc(teamDocRef);
+          if (teamDocSnap.exists()) {
+            const team = teamDocSnap.data() as Team;
+            if (team.headCoachId === userData.uid || team.coachId === userData.uid) {
+              setIsHeadCoach(true);
+              return;
+            }
+          }
+        }
+        setIsHeadCoach(false);
+      } catch (err) {
+        console.error('Error checking head coach status:', err);
+        setIsHeadCoach(false);
+      }
+    };
+    
+    checkHeadCoachStatus();
+  }, [userData?.role, userData?.uid, userData?.teamIds, userData?.teamId]);
 
   // 2. Load My Athletes from Context (already loaded in AuthContext for parents)
   useEffect(() => {
@@ -607,7 +644,14 @@ const Profile: React.FC = () => {
             </div>
             <div className="text-center md:text-left">
                 <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">{userData?.username || name || 'User'}</h2>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-500/20 uppercase tracking-wider">{userData?.role}</span>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium uppercase tracking-wider ${
+                  userData?.role === 'Coach' && isHeadCoach 
+                    ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20'
+                    : 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-500/20'
+                }`}>
+                  {userData?.role === 'Coach' && isHeadCoach && <Crown className="w-3 h-3" />}
+                  {userData?.role === 'Coach' ? (isHeadCoach ? 'Head Coach' : 'Assistant Coach') : userData?.role}
+                </span>
                 <p className="text-xs text-slate-500 mt-2">Hover over photo to change</p>
             </div>
         </div>
