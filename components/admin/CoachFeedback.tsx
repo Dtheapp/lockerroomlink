@@ -70,12 +70,13 @@ const CoachFeedback: React.FC = () => {
         ...(adminNotes && { adminNotes })
       });
       
-      // Send notification message to the parent (via Admin channel, NOT to coach)
+      // Send notification message to the parent (via System Admin channel, NOT to coach)
+      // Uses the same system admin ID as the initial acknowledgment
       try {
         const parentId = selectedFeedback.parentId;
-        const adminId = userData?.uid || 'admin'; // Current admin user
+        const ADMIN_SYSTEM_ID = 'lockerroom-admin'; // Same system admin account for all grievances
         
-        // Find existing chat between parent and this admin
+        // Find existing chat between parent and system admin
         const chatsQuery = query(
           collection(db, 'private_chats'),
           where('participants', 'array-contains', parentId)
@@ -85,8 +86,8 @@ const CoachFeedback: React.FC = () => {
         
         chatsSnapshot.forEach(chatDoc => {
           const chatData = chatDoc.data();
-          // Find chat with admin, not with coach
-          if (chatData.participants.includes(adminId)) {
+          // Find chat with system admin (lockerroom-admin), NOT with any coach
+          if (chatData.participants.includes(ADMIN_SYSTEM_ID)) {
             existingChatId = chatDoc.id;
           }
         });
@@ -112,7 +113,7 @@ Your grievance regarding Coach ${selectedFeedback.coachName} has been marked as 
         if (existingChatId) {
           await addDoc(collection(db, 'private_chats', existingChatId, 'messages'), {
             text: notificationMessage,
-            senderId: adminId,
+            senderId: ADMIN_SYSTEM_ID,
             timestamp: serverTimestamp(),
             isSystemMessage: true
           });
@@ -120,24 +121,24 @@ Your grievance regarding Coach ${selectedFeedback.coachName} has been marked as 
             lastMessage: `${statusEmoji} Grievance Update: ${statusLabel}`,
             updatedAt: serverTimestamp(),
             lastMessageTime: serverTimestamp(),
-            lastSenderId: adminId
+            lastSenderId: ADMIN_SYSTEM_ID
           });
         } else {
-          // Create new chat between admin and parent (coach cannot see this)
+          // Create new chat between system admin and parent (coach cannot see this)
           const newChatRef = await addDoc(collection(db, 'private_chats'), {
-            participants: [parentId, adminId],
+            participants: [parentId, ADMIN_SYSTEM_ID],
             participantData: {
               [parentId]: { username: selectedFeedback.parentName, role: 'Parent' },
-              [adminId]: { username: userData?.name || 'Administration', role: 'SuperAdmin' }
+              [ADMIN_SYSTEM_ID]: { username: 'LockerRoom Administration', role: 'SuperAdmin' }
             },
             lastMessage: `${statusEmoji} Grievance Update: ${statusLabel}`,
             updatedAt: serverTimestamp(),
             lastMessageTime: serverTimestamp(),
-            lastSenderId: adminId
+            lastSenderId: ADMIN_SYSTEM_ID
           });
           await addDoc(collection(db, 'private_chats', newChatRef.id, 'messages'), {
             text: notificationMessage,
-            senderId: adminId,
+            senderId: ADMIN_SYSTEM_ID,
             timestamp: serverTimestamp(),
             isSystemMessage: true
           });

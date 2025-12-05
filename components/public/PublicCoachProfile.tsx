@@ -268,8 +268,11 @@ const PublicCoachProfile: React.FC = () => {
       });
       
       // Send automated acknowledgment to parent's private messages
+      // IMPORTANT: This goes to a System Admin chat, NOT to the coach
       try {
-        // Check if a chat already exists with the system/admin
+        const ADMIN_SYSTEM_ID = 'lockerroom-admin'; // System admin account for grievances
+        
+        // Check if a chat already exists with the system admin
         const chatsQuery = query(
           collection(db, 'private_chats'),
           where('participants', 'array-contains', user.uid)
@@ -277,10 +280,10 @@ const PublicCoachProfile: React.FC = () => {
         const chatsSnapshot = await getDocs(chatsQuery);
         let existingChatId: string | null = null;
         
-        // Look for existing chat with the coach
+        // Look for existing chat with system admin (NOT the coach)
         chatsSnapshot.forEach(chatDoc => {
           const chatData = chatDoc.data();
-          if (chatData.participants.includes(data.coach.uid)) {
+          if (chatData.participants.includes(ADMIN_SYSTEM_ID)) {
             existingChatId = chatDoc.id;
           }
         });
@@ -298,7 +301,7 @@ You will receive a follow-up message once your grievance has been reviewed.
         if (existingChatId) {
           await addDoc(collection(db, 'private_chats', existingChatId, 'messages'), {
             text: acknowledgmentMessage,
-            senderId: 'system',
+            senderId: ADMIN_SYSTEM_ID,
             timestamp: serverTimestamp(),
             isSystemMessage: true
           });
@@ -306,25 +309,25 @@ You will receive a follow-up message once your grievance has been reviewed.
             lastMessage: '📋 Grievance Received',
             updatedAt: serverTimestamp(),
             lastMessageTime: serverTimestamp(),
-            lastSenderId: 'system'
+            lastSenderId: ADMIN_SYSTEM_ID
           });
         } else {
-          // Create a new chat between parent and coach for grievance communication
+          // Create a new chat between parent and SYSTEM ADMIN (not coach)
           const participantData = {
             [user.uid]: { username: userData.username || userData.name, role: userData.role },
-            [data.coach.uid]: { username: data.coach.username || data.coach.name, role: data.coach.role }
+            [ADMIN_SYSTEM_ID]: { username: 'LockerRoom Administration', role: 'SuperAdmin' }
           };
           const newChatRef = await addDoc(collection(db, 'private_chats'), {
-            participants: [user.uid, data.coach.uid],
+            participants: [user.uid, ADMIN_SYSTEM_ID],
             participantData,
             lastMessage: '📋 Grievance Received',
             updatedAt: serverTimestamp(),
             lastMessageTime: serverTimestamp(),
-            lastSenderId: 'system'
+            lastSenderId: ADMIN_SYSTEM_ID
           });
           await addDoc(collection(db, 'private_chats', newChatRef.id, 'messages'), {
             text: acknowledgmentMessage,
-            senderId: 'system',
+            senderId: ADMIN_SYSTEM_ID,
             timestamp: serverTimestamp(),
             isSystemMessage: true
           });
