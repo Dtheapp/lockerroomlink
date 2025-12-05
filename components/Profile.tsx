@@ -121,21 +121,42 @@ const Profile: React.FC = () => {
         const positions: { teamId: string; teamName: string; isHeadCoach: boolean }[] = [];
         const processedTeamIds = new Set<string>();
         
-        // Method 1: Get teams from userData.teamIds array
-        const coachTeamIds = userData.teamIds || [];
+        // Fetch the coach's latest data directly from Firestore to ensure we have current teamIds
+        const coachDocSnap = await getDoc(doc(db, 'users', userData.uid));
+        const coachData = coachDocSnap.exists() ? coachDocSnap.data() : null;
+        
+        // Method 1: Get teams from the coach's teamIds array (from fresh Firestore data)
+        const coachTeamIds: string[] = [];
+        if (coachData?.teamIds && Array.isArray(coachData.teamIds)) {
+          coachTeamIds.push(...coachData.teamIds);
+        }
+        if (coachData?.teamId && !coachTeamIds.includes(coachData.teamId)) {
+          coachTeamIds.push(coachData.teamId);
+        }
+        // Also include from userData in case it has more recent local state
+        if (userData.teamIds) {
+          userData.teamIds.forEach((tid: string) => {
+            if (!coachTeamIds.includes(tid)) coachTeamIds.push(tid);
+          });
+        }
         if (userData.teamId && !coachTeamIds.includes(userData.teamId)) {
           coachTeamIds.push(userData.teamId);
         }
         
-        // Fetch teams from the user's teamIds
+        // Fetch ALL teams at once (more efficient than individual fetches)
+        const allTeamsSnapshot = await getDocs(collection(db, 'teams'));
+        const allTeamsMap = new Map<string, Team>();
+        allTeamsSnapshot.docs.forEach(teamDoc => {
+          allTeamsMap.set(teamDoc.id, { id: teamDoc.id, ...teamDoc.data() } as Team);
+        });
+        
+        // Process teams from coach's teamIds
         for (const teamId of coachTeamIds) {
           if (processedTeamIds.has(teamId)) continue;
-          processedTeamIds.add(teamId);
           
-          const teamDocRef = doc(db, 'teams', teamId);
-          const teamDocSnap = await getDoc(teamDocRef);
-          if (teamDocSnap.exists()) {
-            const team = teamDocSnap.data() as Team;
+          const team = allTeamsMap.get(teamId);
+          if (team) {
+            processedTeamIds.add(teamId);
             const isHeadCoach = team.headCoachId === userData.uid || team.coachId === userData.uid;
             positions.push({
               teamId,
@@ -145,21 +166,17 @@ const Profile: React.FC = () => {
           }
         }
         
-        // Method 2: Also query all teams to find any where this user is headCoachId or coachId
-        // This catches cases where teamIds might not be fully synced
-        const allTeamsSnapshot = await getDocs(collection(db, 'teams'));
-        allTeamsSnapshot.docs.forEach(teamDoc => {
-          const teamId = teamDoc.id;
+        // Method 2: Also find any teams where this coach is headCoachId or coachId
+        // (catches cases where teamIds might not be synced)
+        allTeamsMap.forEach((team, teamId) => {
           if (processedTeamIds.has(teamId)) return;
           
-          const team = teamDoc.data() as Team;
-          // Check if this coach is assigned to this team
           if (team.headCoachId === userData.uid || team.coachId === userData.uid) {
             processedTeamIds.add(teamId);
             positions.push({
               teamId,
               teamName: team.name || teamId,
-              isHeadCoach: true // They're the head/main coach
+              isHeadCoach: true
             });
           }
         });
