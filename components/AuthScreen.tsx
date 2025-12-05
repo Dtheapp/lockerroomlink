@@ -219,10 +219,16 @@ const AuthScreen: React.FC = () => {
       setLoading(true); setError(''); setSuccessMessage('');
       
       try {
-          const actionCodeSettings = { url: window.location.href, handleCodeInApp: true };
-          await sendPasswordResetEmail(auth, email, actionCodeSettings);
+          // Don't pass actionCodeSettings to avoid domain authorization issues
+          // Firebase will use its default email template
+          await sendPasswordResetEmail(auth, email);
           setSuccessMessage('Check your email! We sent you a link to reset your password.');
-      } catch (err: any) { setError(err.message); } finally { setLoading(false); }
+      } catch (err: any) { 
+        const msg = err.code === 'auth/user-not-found' 
+          ? 'No account found with this email. Please sign up first.'
+          : err.message;
+        setError(msg); 
+      } finally { setLoading(false); }
   }
 
   const handleConfirmReset = async (e: React.FormEvent) => {
