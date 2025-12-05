@@ -65,7 +65,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
   }
 
   try {
-    const { imageBase64, userId } = JSON.parse(event.body || '{}');
+    const { imageBase64, userId, hints } = JSON.parse(event.body || '{}');
 
     if (!imageBase64) {
       return {
@@ -82,6 +82,11 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         body: JSON.stringify({ error: 'No user ID provided' })
       };
     }
+    
+    // Build user hints section for the prompt
+    const userHintsSection = hints 
+      ? `\n\nUSER PROVIDED HINTS (IMPORTANT - follow these instructions):\n${hints}`
+      : '';
 
     // Get OpenAI API key from environment
     const openaiApiKey = process.env.OPENAI_API_KEY;
@@ -187,7 +192,7 @@ DO NOT convert triangles to circles!`
 4. KEEP TRIANGLES AS TRIANGULAR SHAPE - don't convert to circles!
 5. Preserve exact x,y positions - if players are spread wide, show them spread wide
 6. Look for route lines (yellow arrows) and include them
-7. Return ONLY valid JSON, no explanation text`
+7. Return ONLY valid JSON, no explanation text${userHintsSection}`
               },
               {
                 type: 'image_url',

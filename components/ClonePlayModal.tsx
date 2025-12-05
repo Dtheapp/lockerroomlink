@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { doc, updateDoc, increment, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import type { ClonePlayAnalysis, ClonedPlayer, PlayElement, DrawingLine, PlayShape, LineType, ShapeType } from '../types';
-import { X, Upload, Clipboard, Image, Loader2, AlertCircle, CheckCircle, Sparkles, Zap, RefreshCw, Trash2, HelpCircle } from 'lucide-react';
+import { X, Upload, Clipboard, Image, Loader2, AlertCircle, CheckCircle, Sparkles, Zap, RefreshCw, Trash2, HelpCircle, Settings, Wand2, MessageSquare } from 'lucide-react';
 
 interface ClonePlayModalProps {
   isOpen: boolean;
@@ -11,6 +11,21 @@ interface ClonePlayModalProps {
   onPlayCloned: (elements: PlayElement[], lines: DrawingLine[], shapes: PlayShape[], suggestedCategory: 'Offense' | 'Defense' | 'Special Teams') => void;
   currentCredits: number;
 }
+
+// Hint presets for Simple mode
+interface HintPreset {
+  id: string;
+  label: string;
+  hint: string;
+}
+
+const HINT_PRESETS: HintPreset[] = [
+  { id: 'x_triangles', label: 'X marks = defensive players (triangles)', hint: 'X marks in this diagram represent defensive players, treat them as triangles' },
+  { id: 'offense_only', label: 'Only offense shown (~11 players)', hint: 'This diagram only shows offensive players, expect around 11 players total' },
+  { id: 'defense_only', label: 'Only defense shown (~11 players)', hint: 'This diagram only shows defensive players, expect around 11 players total' },
+  { id: 'squares_circles', label: 'Squares = offensive players', hint: 'Square shapes represent offensive players, treat them as circles' },
+  { id: 'ignore_text', label: 'Ignore text/labels in image', hint: 'Ignore any text or labels in the image, focus only on player symbols and routes' },
+];
 
 // Color palette for route/line colors (matches CoachPlaybook)
 const LINE_COLORS = [
@@ -25,10 +40,21 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
 }) => {
   const { user, userData } = useAuth();
   
+  // Mode selection
+  const [mode, setMode] = useState<'simple' | 'advanced'>('simple');
+  
   // Image state
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageName, setImageName] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
+  
+  // Hints state (Simple mode)
+  const [selectedPresets, setSelectedPresets] = useState<string[]>([]);
+  const [customHint, setCustomHint] = useState('');
+  
+  // Advanced mode state
+  const [feedbackText, setFeedbackText] = useState('');
+  const [generationCount, setGenerationCount] = useState(0);
   
   // Analysis state
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -50,6 +76,11 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
       setAnalysis(null);
       setAnalysisError(null);
       setPreviewElements([]);
+      setSelectedPresets([]);
+      setCustomHint('');
+      setFeedbackText('');
+      setGenerationCount(0);
+      setMode('simple');
     }
   }, [isOpen]);
 
@@ -136,7 +167,7 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
   }, []);
 
   // Analyze the image using the Netlify function
-  const analyzeImage = async () => {
+  const analyzeImage = async (isRegenerate: boolean = false) => {
     if (!imagePreview || !user?.uid) return;
     
     // Check credits
@@ -154,6 +185,19 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
         ? imagePreview 
         : `data:image/png;base64,${imagePreview}`;
       
+      // Build hints string from presets and custom hint
+      let hints = '';
+      if (mode === 'simple') {
+        const presetHints = selectedPresets
+          .map(id => HINT_PRESETS.find(p => p.id === id)?.hint)
+          .filter(Boolean)
+          .join('. ');
+        hints = [presetHints, customHint].filter(Boolean).join('. ');
+      } else if (mode === 'advanced' && isRegenerate && feedbackText) {
+        // For advanced mode regeneration, include feedback about what was wrong
+        hints = `CORRECTION FROM USER: ${feedbackText}. Please fix these issues in your analysis.`;
+      }
+      
       // Call the Netlify function
       const response = await fetch('/.netlify/functions/clone-play', {
         method: 'POST',
@@ -162,7 +206,8 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
         },
         body: JSON.stringify({
           imageBase64: base64Data,
-          userId: user.uid
+          userId: user.uid,
+          hints: hints || undefined
         })
       });
       
@@ -206,6 +251,8 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
       
       setAnalysis(data.analysis);
       setPreviewElements(data.analysis.players || []);
+      setGenerationCount(prev => prev + 1);
+      setFeedbackText(''); // Clear feedback after successful generation
       
     } catch (error) {
       console.error('Clone play error:', error);
@@ -213,6 +260,15 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
     } finally {
       setIsAnalyzing(false);
     }
+  };
+  
+  // Toggle preset selection
+  const togglePreset = (presetId: string) => {
+    setSelectedPresets(prev => 
+      prev.includes(presetId) 
+        ? prev.filter(id => id !== presetId)
+        : [...prev, presetId]
+    );
   };
 
   // Remove a detected player from preview
@@ -563,10 +619,118 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
                 )}
               </div>
 
+              {/* Mode selection (only show when image is uploaded) */}
+              {imagePreview && (
+                <div className="space-y-4">
+                  {/* Mode toggle */}
+                  <div className="flex gap-2 p-1 bg-gray-800 rounded-lg">
+                    <button
+                      onClick={() => setMode('simple')}
+                      className={`flex-1 py-2 px-3 rounded-md text-sm font-medium flex items-center justify-center gap-2 transition-colors
+                        ${mode === 'simple' 
+                          ? 'bg-purple-600 text-white' 
+                          : 'text-gray-400 hover:text-gray-300'
+                        }
+                      `}
+                    >
+                      <Wand2 className="w-4 h-4" />
+                      Simple Mode
+                    </button>
+                    <button
+                      onClick={() => setMode('advanced')}
+                      className={`flex-1 py-2 px-3 rounded-md text-sm font-medium flex items-center justify-center gap-2 transition-colors
+                        ${mode === 'advanced' 
+                          ? 'bg-purple-600 text-white' 
+                          : 'text-gray-400 hover:text-gray-300'
+                        }
+                      `}
+                    >
+                      <Settings className="w-4 h-4" />
+                      Advanced Mode
+                    </button>
+                  </div>
+
+                  {/* Mode description */}
+                  <div className={`p-3 rounded-lg text-sm ${mode === 'simple' ? 'bg-purple-500/10 text-purple-200' : 'bg-orange-500/10 text-orange-200'}`}>
+                    {mode === 'simple' ? (
+                      <>
+                        <span className="font-medium">Simple Mode:</span> One-time analysis with optional hints. Uses 1 credit.
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-medium">Advanced Mode:</span> Iterative refinement - regenerate with feedback until perfect. 1 credit per generation.
+                      </>
+                    )}
+                  </div>
+
+                  {/* Simple Mode: Presets + custom hint */}
+                  {mode === 'simple' && (
+                    <div className="space-y-3 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                      <p className="text-sm font-medium text-gray-300">Help the AI understand your diagram (optional):</p>
+                      
+                      {/* Preset checkboxes */}
+                      <div className="space-y-2">
+                        {HINT_PRESETS.map(preset => (
+                          <label 
+                            key={preset.id}
+                            className="flex items-center gap-2 cursor-pointer group"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedPresets.includes(preset.id)}
+                              onChange={() => togglePreset(preset.id)}
+                              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-purple-500 focus:ring-purple-500 focus:ring-offset-gray-900"
+                            />
+                            <span className="text-sm text-gray-400 group-hover:text-gray-300">
+                              {preset.label}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+
+                      {/* Custom hint input */}
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Additional hints:</label>
+                        <input
+                          type="text"
+                          value={customHint}
+                          onChange={(e) => setCustomHint(e.target.value)}
+                          placeholder="e.g., 'Blue shapes are receivers'"
+                          className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Advanced Mode: Info about iterative process */}
+                  {mode === 'advanced' && (
+                    <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                      <div className="flex items-start gap-3">
+                        <MessageSquare className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
+                        <div className="space-y-2">
+                          <p className="text-sm text-gray-300">
+                            <span className="font-medium">How Advanced Mode works:</span>
+                          </p>
+                          <ol className="text-sm text-gray-400 list-decimal list-inside space-y-1">
+                            <li>AI analyzes your image (1 credit)</li>
+                            <li>Review the result and describe what's wrong</li>
+                            <li>Regenerate with your feedback (1 credit each)</li>
+                            <li>Repeat until you're happy with the result</li>
+                          </ol>
+                          <p className="text-xs text-gray-500 mt-2">
+                            Perfect for complex diagrams that need multiple refinements.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Analyze button */}
               {imagePreview && (
                 <button
-                  onClick={analyzeImage}
+                  onClick={() => analyzeImage(false)}
                   disabled={isAnalyzing || currentCredits <= 0}
                   className={`w-full py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors
                     ${isAnalyzing || currentCredits <= 0
@@ -653,6 +817,54 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
                 {renderPreviewCanvas()}
               </div>
 
+              {/* Advanced Mode: Feedback and Regenerate */}
+              {mode === 'advanced' && (
+                <div className="p-4 bg-orange-500/10 border border-orange-500/30 rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4 text-orange-400" />
+                      <span className="text-sm font-medium text-orange-200">
+                        Not quite right? Regenerate with feedback
+                      </span>
+                    </div>
+                    <span className="text-xs text-orange-400/70">
+                      Generation #{generationCount}
+                    </span>
+                  </div>
+                  
+                  <textarea
+                    value={feedbackText}
+                    onChange={(e) => setFeedbackText(e.target.value)}
+                    placeholder="Describe what's wrong, e.g., 'Missing 3 players on the offensive line' or 'The triangles should be at the bottom, not the top'"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+                    rows={3}
+                  />
+                  
+                  <button
+                    onClick={() => analyzeImage(true)}
+                    disabled={isAnalyzing || currentCredits <= 0 || !feedbackText.trim()}
+                    className={`w-full py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors
+                      ${isAnalyzing || currentCredits <= 0 || !feedbackText.trim()
+                        ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                        : 'bg-orange-600 hover:bg-orange-500 text-white'
+                      }
+                    `}
+                  >
+                    {isAnalyzing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Regenerating...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4" />
+                        Regenerate (uses 1 credit)
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
               {/* Action buttons */}
               <div className="flex gap-3">
                 <button
@@ -661,11 +873,13 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
                     setImagePreview(null);
                     setImageName('');
                     setPreviewElements([]);
+                    setFeedbackText('');
+                    setGenerationCount(0);
                   }}
                   className="flex-1 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
                 >
-                  <RefreshCw className="w-4 h-4" />
-                  Try Different Image
+                  <Trash2 className="w-4 h-4" />
+                  Start Over
                 </button>
                 <button
                   onClick={applyClonedPlay}
@@ -681,6 +895,13 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
                   Use This Play
                 </button>
               </div>
+
+              {/* Credits used indicator for Advanced mode */}
+              {mode === 'advanced' && generationCount > 0 && (
+                <p className="text-xs text-center text-gray-500">
+                  Credits used this session: {generationCount}
+                </p>
+              )}
 
               <p className="text-xs text-gray-500 text-center">
                 The play will be added to your editor where you can adjust positions, add routes, and save it.
