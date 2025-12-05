@@ -2794,13 +2794,6 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                             >
                               <Sparkles className="w-3 h-3" /> clone from image (AI)
                             </button>
-                            {' '} | {' '}
-                            <button 
-                              onClick={() => setShowTraceModal(true)} 
-                              className="underline font-medium text-cyan-600 dark:text-cyan-400 inline-flex items-center gap-1"
-                            >
-                              <ImageIcon className="w-3 h-3" /> trace from image (free)
-                            </button>
                           </p>
                         </div>
                       ) : (
@@ -2980,6 +2973,16 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                               <Square className="w-3 h-3" /> Shapes
                             </button>
                           </div>
+                          
+                          {/* Trace Background Button */}
+                          {!traceBackground && (
+                            <button
+                              onClick={() => setShowTraceModal(true)}
+                              className="w-full py-2 border-2 border-dashed border-cyan-400 dark:border-cyan-700 rounded-lg text-cyan-600 dark:text-cyan-400 hover:border-cyan-500 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 flex items-center justify-center gap-2 text-xs font-bold transition-colors"
+                            >
+                              <ImageIcon className="w-3 h-3" /> Load Image to Trace
+                            </button>
+                          )}
                           
                           {/* Line Type Selection */}
                           {drawingMode === 'line' && (
