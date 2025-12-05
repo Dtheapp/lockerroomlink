@@ -125,6 +125,11 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
   const [traceBackground, setTraceBackground] = useState<{ imageUrl: string; settings: ImageSettings } | null>(null);
   const [showImageAdjust, setShowImageAdjust] = useState(false);
   
+  // Trace Formation Modal state
+  const [showTraceFormationModal, setShowTraceFormationModal] = useState(false);
+  const [formationTraceBackground, setFormationTraceBackground] = useState<{ imageUrl: string; settings: ImageSettings } | null>(null);
+  const [showFormationImageAdjust, setShowFormationImageAdjust] = useState(false);
+  
   // Drag state for trace background adjustment
   const [isAdjustingImage, setIsAdjustingImage] = useState(false);
   const [adjustDragStart, setAdjustDragStart] = useState<{ x: number; y: number; imgX: number; imgY: number } | null>(null);
@@ -676,6 +681,16 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
     setFormationElements([]);
     setIsFormationDesignMode(false);
     setSelectedElementId(null);
+    // Clear formation trace background
+    setFormationTraceBackground(null);
+    setShowFormationImageAdjust(false);
+  };
+  
+  // Handle starting formation trace
+  const handleStartFormationTracing = (imageDataUrl: string, imageSettings: ImageSettings) => {
+    setFormationTraceBackground({ imageUrl: imageDataUrl, settings: imageSettings });
+    setIsFormationDesignMode(true);
+    setShowTraceFormationModal(false);
   };
 
   const deleteFormation = async () => {
@@ -1779,6 +1794,31 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
         touchAction: 'none'
       }}
     >
+      {/* TRACE FORMATION BACKGROUND IMAGE */}
+      {formationTraceBackground && formationTraceBackground.settings.visible && (
+        <div 
+          className="absolute inset-0 pointer-events-none z-10"
+          style={{
+            opacity: formationTraceBackground.settings.opacity / 100,
+          }}
+        >
+          <img
+            src={formationTraceBackground.imageUrl}
+            alt="Trace background"
+            className="absolute"
+            style={{
+              left: `${50 + formationTraceBackground.settings.x}%`,
+              top: `${50 + formationTraceBackground.settings.y}%`,
+              transform: 'translate(-50%, -50%)',
+              width: `${formationTraceBackground.settings.width}%`,
+              height: `${formationTraceBackground.settings.height}%`,
+              objectFit: 'contain',
+            }}
+            draggable={false}
+          />
+        </div>
+      )}
+      
       {/* FIELD MARKINGS */}
       <div className="absolute inset-0 pointer-events-none" style={{ 
         backgroundImage: `repeating-linear-gradient(to bottom, transparent 0%, transparent 9%, rgba(255,255,255,0.3) 9%, rgba(255,255,255,0.3) 10%)`,
@@ -1821,7 +1861,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
       ))}
 
       {/* Empty state hint for formation */}
-      {formationElements.length === 0 && (
+      {formationElements.length === 0 && !formationTraceBackground && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="bg-slate-900/70 backdrop-blur-sm text-white px-4 py-2 rounded-lg text-sm text-center">
             <Layers className="w-5 h-5 mx-auto mb-1 opacity-60" />
@@ -1834,6 +1874,170 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
       <div className="absolute top-2 left-2 bg-black/60 text-white px-2 py-1 rounded text-xs font-bold z-40">
         FORMATION: {formationName || 'Untitled'}
       </div>
+      
+      {/* Formation Trace Background Controls */}
+      {formationTraceBackground && (
+        <div className="absolute top-2 right-2 z-40" onClick={(e) => e.stopPropagation()}>
+          {/* Main controls bar */}
+          <div className="bg-slate-900/90 backdrop-blur-sm rounded-lg p-2 flex items-center gap-2">
+            <span className="text-xs text-cyan-400 font-medium px-2">Trace</span>
+            <div className="flex items-center gap-1 border-l border-slate-700 pl-2">
+              <label className="text-xs text-slate-400">Opacity:</label>
+              <input
+                type="range"
+                min="10"
+                max="100"
+                value={formationTraceBackground.settings.opacity}
+                onChange={(e) => setFormationTraceBackground(prev => prev ? {
+                  ...prev,
+                  settings: { ...prev.settings, opacity: Number(e.target.value) }
+                } : null)}
+                className="w-16 accent-cyan-500"
+              />
+              <span className="text-xs text-slate-400 w-8">{formationTraceBackground.settings.opacity}%</span>
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowFormationImageAdjust(!showFormationImageAdjust); }}
+              className={`p-1.5 rounded transition-colors ${showFormationImageAdjust ? 'bg-cyan-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
+              title="Adjust image position & size"
+            >
+              <Settings2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setFormationTraceBackground(prev => prev ? {
+                ...prev,
+                settings: { ...prev.settings, visible: !prev.settings.visible }
+              } : null); }}
+              className={`p-1.5 rounded transition-colors ${formationTraceBackground.settings.visible ? 'bg-slate-700 text-white' : 'bg-purple-600 text-white'}`}
+              title={formationTraceBackground.settings.visible ? 'Hide background' : 'Show background'}
+            >
+              {formationTraceBackground.settings.visible ? <Eye className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setFormationTraceBackground(null);
+                setShowFormationImageAdjust(false);
+              }}
+              className="p-1.5 bg-red-600 hover:bg-red-500 rounded text-white transition-colors"
+              title="Remove trace background"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          
+          {/* Image adjustment panel */}
+          {showFormationImageAdjust && (
+            <div className="mt-2 bg-slate-900/90 backdrop-blur-sm rounded-lg p-3 min-w-[280px]">
+              <div className="text-xs text-slate-400 mb-2 font-medium">Adjust Image Position & Size</div>
+              
+              {/* Size controls */}
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-xs text-slate-400 w-12">Size:</label>
+                <button
+                  onClick={() => setFormationTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, width: Math.max(20, prev.settings.width - 10), height: Math.max(20, prev.settings.height - 10) }
+                  } : null)}
+                  className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded text-white"
+                  title="Zoom out"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <input
+                  type="range"
+                  min="20"
+                  max="200"
+                  value={formationTraceBackground.settings.width}
+                  onChange={(e) => {
+                    const newSize = Number(e.target.value);
+                    setFormationTraceBackground(prev => prev ? {
+                      ...prev,
+                      settings: { ...prev.settings, width: newSize, height: newSize }
+                    } : null);
+                  }}
+                  className="flex-1 accent-cyan-500"
+                />
+                <button
+                  onClick={() => setFormationTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, width: Math.min(200, prev.settings.width + 10), height: Math.min(200, prev.settings.height + 10) }
+                  } : null)}
+                  className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded text-white"
+                  title="Zoom in"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <span className="text-xs text-slate-400 w-10">{Math.round(formationTraceBackground.settings.width)}%</span>
+              </div>
+              
+              {/* Position controls */}
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-xs text-slate-400 w-12">X:</label>
+                <input
+                  type="range"
+                  min="-50"
+                  max="50"
+                  value={formationTraceBackground.settings.x}
+                  onChange={(e) => setFormationTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, x: Number(e.target.value) }
+                  } : null)}
+                  className="flex-1 accent-cyan-500"
+                />
+                <span className="text-xs text-slate-400 w-10">{Math.round(formationTraceBackground.settings.x)}</span>
+              </div>
+              
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-xs text-slate-400 w-12">Y:</label>
+                <input
+                  type="range"
+                  min="-50"
+                  max="50"
+                  value={formationTraceBackground.settings.y}
+                  onChange={(e) => setFormationTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, y: Number(e.target.value) }
+                  } : null)}
+                  className="flex-1 accent-cyan-500"
+                />
+                <span className="text-xs text-slate-400 w-10">{Math.round(formationTraceBackground.settings.y)}</span>
+              </div>
+              
+              {/* Quick actions */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setFormationTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, x: 0, y: 0 }
+                  } : null)}
+                  className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white"
+                >
+                  Center
+                </button>
+                <button
+                  onClick={() => setFormationTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, width: 100, height: 100 }
+                  } : null)}
+                  className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white"
+                >
+                  Fit 100%
+                </button>
+                <button
+                  onClick={() => setFormationTraceBackground(prev => prev ? {
+                    ...prev,
+                    settings: { ...prev.settings, x: 0, y: 0, width: 100, height: 100 }
+                  } : null)}
+                  className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white"
+                >
+                  Reset All
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -2452,13 +2656,21 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                         ))}
                       </div>
                       
-                      {/* New Formation Button */}
-                      <button
-                        onClick={() => setIsFormationDesignMode(true)}
-                        className="w-full py-3 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg text-slate-500 hover:border-orange-400 hover:text-orange-500 flex items-center justify-center gap-2 transition-colors"
-                      >
-                        <Plus className="w-4 h-4" /> Create Formation
-                      </button>
+                      {/* New Formation Buttons */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setIsFormationDesignMode(true)}
+                          className="flex-1 py-3 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg text-slate-500 hover:border-orange-400 hover:text-orange-500 flex items-center justify-center gap-2 transition-colors"
+                        >
+                          <Plus className="w-4 h-4" /> Create
+                        </button>
+                        <button
+                          onClick={() => setShowTraceFormationModal(true)}
+                          className="flex-1 py-3 border-2 border-dashed border-cyan-400 dark:border-cyan-700 rounded-lg text-cyan-600 dark:text-cyan-400 hover:border-cyan-500 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 flex items-center justify-center gap-2 transition-colors"
+                        >
+                          <ImageIcon className="w-4 h-4" /> Trace
+                        </button>
+                      </div>
                       
                       {/* Formations List */}
                       {filteredFormations.length === 0 ? (
@@ -4073,6 +4285,13 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
       isOpen={showTraceModal}
       onClose={() => setShowTraceModal(false)}
       onStartTracing={handleStartTracing}
+    />
+    
+    {/* Trace Formation Modal */}
+    <TracePlayModal
+      isOpen={showTraceFormationModal}
+      onClose={() => setShowTraceFormationModal(false)}
+      onStartTracing={handleStartFormationTracing}
     />
     </>
   );
