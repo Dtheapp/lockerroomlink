@@ -77,10 +77,10 @@ const Messenger: React.FC = () => {
   useEffect(() => {
     if (!user || userData?.role !== 'Parent') return;
     
+    // Simple query without orderBy to avoid composite index requirement
     const grievanceChatsQuery = query(
       collection(db, 'grievance_chats'), 
-      where('parentId', '==', user.uid),
-      orderBy('updatedAt', 'desc')
+      where('parentId', '==', user.uid)
     );
     
     const unsubscribe = onSnapshot(grievanceChatsQuery, (snapshot) => {

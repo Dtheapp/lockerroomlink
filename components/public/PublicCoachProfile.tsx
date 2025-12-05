@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { doc, getDoc, collection, getDocs, query, where, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, addDoc, serverTimestamp, updateDoc, setDoc, runTransaction } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UserProfile, Team, CoachKudos, CoachFeedback } from '../../types';
@@ -253,28 +253,42 @@ const PublicCoachProfile: React.FC = () => {
     try {
       const teamMatch = data.teams.find(t => t.id === selectedTeamId);
       
-      // Get next grievance number by counting existing grievances
-      const grievancesSnapshot = await getDocs(collection(db, 'coachFeedback'));
-      const nextGrievanceNumber = grievancesSnapshot.size + 1;
+      // Get next grievance number using transaction for atomic increment
+      const counterRef = doc(db, 'grievance_meta', 'counter');
+      let nextGrievanceNumber = 1;
       
-      const GRIEVANCE_SYSTEM_ID = 'grievance-system'; // System ID for grievance chats
+      try {
+        await runTransaction(db, async (transaction) => {
+          const counterDoc = await transaction.get(counterRef);
+          if (counterDoc.exists()) {
+            nextGrievanceNumber = (counterDoc.data().lastNumber || 0) + 1;
+            transaction.update(counterRef, { lastNumber: nextGrievanceNumber });
+          } else {
+            nextGrievanceNumber = 1;
+            transaction.set(counterRef, { lastNumber: 1 });
+          }
+        });
+      } catch (err) {
+        console.error('Transaction failed, using fallback:', err);
+        // Fallback: just count existing grievances
+        const grievancesSnapshot = await getDocs(collection(db, 'coachFeedback'));
+        nextGrievanceNumber = grievancesSnapshot.size + 1;
+      }
       
-      // Create a dedicated chat for this grievance FIRST
-      const chatName = `Grievance #${nextGrievanceNumber}`;
-      const participantData = {
-        [user.uid]: { username: userData.username || userData.name, role: userData.role },
-        [GRIEVANCE_SYSTEM_ID]: { username: chatName, role: 'System' }
-      };
-      
-      const newChatRef = await addDoc(collection(db, 'private_chats'), {
-        participants: [user.uid, GRIEVANCE_SYSTEM_ID],
-        participantData,
-        grievanceChat: true, // Flag to identify grievance chats
+      // Create a dedicated grievance chat in grievance_chats collection
+      const grievanceChatRef = await addDoc(collection(db, 'grievance_chats'), {
+        parentId: user.uid,
+        parentName: userData.name || 'Parent',
         grievanceNumber: nextGrievanceNumber,
+        coachId: data.coach.uid,
+        coachName: data.coach.name,
+        teamId: selectedTeamId,
+        teamName: teamMatch?.name || 'Unknown Team',
+        category: feedbackCategory,
         lastMessage: '📋 Grievance Filed',
+        lastSenderId: 'grievance-system',
         updatedAt: serverTimestamp(),
-        lastMessageTime: serverTimestamp(),
-        lastSenderId: GRIEVANCE_SYSTEM_ID
+        createdAt: serverTimestamp()
       });
       
       // Send the initial acknowledgment message
@@ -294,9 +308,9 @@ You will receive updates in this chat as your grievance is reviewed.
 
 — LockerRoom Administration`;
       
-      await addDoc(collection(db, 'private_chats', newChatRef.id, 'messages'), {
+      await addDoc(collection(db, 'grievance_chats', grievanceChatRef.id, 'messages'), {
         text: acknowledgmentMessage,
-        senderId: GRIEVANCE_SYSTEM_ID,
+        senderId: 'grievance-system',
         timestamp: serverTimestamp(),
         isSystemMessage: true
       });
@@ -304,7 +318,7 @@ You will receive updates in this chat as your grievance is reviewed.
       // Save the grievance with the chat ID and grievance number
       await addDoc(collection(db, 'coachFeedback'), {
         grievanceNumber: nextGrievanceNumber,
-        chatId: newChatRef.id, // Link to the dedicated chat
+        chatId: grievanceChatRef.id, // Link to the dedicated grievance chat
         coachId: data.coach.uid,
         coachName: data.coach.name,
         parentId: user.uid,

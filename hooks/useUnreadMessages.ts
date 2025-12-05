@@ -143,11 +143,10 @@ export const useUnreadMessages = () => {
   useEffect(() => {
     if (!user || userData?.role !== 'Parent') return;
 
+    // Simple query - just filter by parentId (no orderBy to avoid composite index requirement)
     const grievanceChatsQuery = query(
       collection(db, 'grievance_chats'),
-      where('parentId', '==', user.uid),
-      orderBy('updatedAt', 'desc'),
-      limit(20)
+      where('parentId', '==', user.uid)
     );
 
     const unsubscribe = onSnapshot(grievanceChatsQuery, (snapshot) => {
@@ -186,10 +185,9 @@ export const useUnreadMessages = () => {
       return;
     }
 
+    // Simple query without orderBy to avoid index requirement
     const grievanceChatsQuery = query(
-      collection(db, 'grievance_chats'),
-      orderBy('updatedAt', 'desc'),
-      limit(50)
+      collection(db, 'grievance_chats')
     );
 
     const unsubscribe = onSnapshot(grievanceChatsQuery, (snapshot) => {
