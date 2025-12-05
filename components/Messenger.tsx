@@ -6,17 +6,24 @@ import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { uploadFile } from '../services/storage';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnreadMessages } from '../hooks/useUnreadMessages';
-import { Search, Send, MessageSquare, AlertCircle, Edit2, Trash2, X, Check } from 'lucide-react';
+import { Search, Send, MessageSquare, AlertCircle, Edit2, Trash2, X, Check, AlertTriangle } from 'lucide-react';
 import type { PrivateChat, PrivateMessage, UserProfile } from '../types';
 import NoAthleteBlock from './NoAthleteBlock';
+
+// Extended chat type that can be regular or grievance
+interface ExtendedChat extends PrivateChat {
+  isGrievance?: boolean;
+  grievanceNumber?: number;
+}
 
 const Messenger: React.FC = () => {
   // ADDED: teamData to scope the search to teammates only
   const { user, userData, teamData } = useAuth();
   const { markAsRead } = useUnreadMessages();
   
-  const [chats, setChats] = useState<PrivateChat[]>([]);
-  const [activeChat, setActiveChat] = useState<PrivateChat | null>(null);
+  const [chats, setChats] = useState<ExtendedChat[]>([]);
+  const [grievanceChats, setGrievanceChats] = useState<ExtendedChat[]>([]);
+  const [activeChat, setActiveChat] = useState<ExtendedChat | null>(null);
   const [messages, setMessages] = useState<PrivateMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -37,6 +44,13 @@ const Messenger: React.FC = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Combine regular chats + grievance chats
+  const allChats = [...chats, ...grievanceChats].sort((a, b) => {
+    const aTime = a.updatedAt?.seconds || 0;
+    const bTime = b.updatedAt?.seconds || 0;
+    return bTime - aTime;
+  });
+
   // Mark conversation as read when opening it
   useEffect(() => {
     if (activeChat?.id) {
@@ -49,16 +63,53 @@ const Messenger: React.FC = () => {
     if (!user) return;
     const chatsQuery = query(collection(db, 'private_chats'), where('participants', 'array-contains', user.uid), orderBy('updatedAt', 'desc'));
     const unsubscribe = onSnapshot(chatsQuery, (snapshot) => {
-        setChats(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as PrivateChat)));
+        setChats(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as ExtendedChat)));
     });
     return () => unsubscribe();
   }, [user]);
 
+  // 1b. LOAD GRIEVANCE CHATS (For parents only)
+  useEffect(() => {
+    if (!user || userData?.role !== 'Parent') return;
+    
+    const grievanceChatsQuery = query(
+      collection(db, 'grievance_chats'), 
+      where('parentId', '==', user.uid),
+      orderBy('updatedAt', 'desc')
+    );
+    
+    const unsubscribe = onSnapshot(grievanceChatsQuery, (snapshot) => {
+      const gChats = snapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          participants: [user.uid, 'admin'],
+          participantData: {
+            [user.uid]: { username: userData?.username || 'Me', role: 'Parent' },
+            admin: { username: `Grievance #${data.grievanceNumber || '?'}`, role: 'Admin' }
+          },
+          lastMessage: data.lastMessage || 'Grievance filed',
+          lastMessageTime: data.updatedAt,
+          updatedAt: data.updatedAt,
+          isGrievance: true,
+          grievanceNumber: data.grievanceNumber
+        } as ExtendedChat;
+      });
+      setGrievanceChats(gChats);
+    });
+    
+    return () => unsubscribe();
+  }, [user, userData?.role, userData?.username]);
+
   // 2. LOAD MESSAGES (Optimized with limitToLast)
   useEffect(() => {
       if (!activeChat) return;
+      
+      // Determine which collection to query based on chat type
+      const chatCollection = activeChat.isGrievance ? 'grievance_chats' : 'private_chats';
+      
       // FIX: Added limitToLast(50) to prevent loading thousands of old messages
-      const messagesQuery = query(collection(db, 'private_chats', activeChat.id, 'messages'), orderBy('timestamp', 'asc'), limitToLast(50));
+      const messagesQuery = query(collection(db, chatCollection, activeChat.id, 'messages'), orderBy('timestamp', 'asc'), limitToLast(50));
       
       const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
           setMessages(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as PrivateMessage)));
@@ -185,8 +236,11 @@ const Messenger: React.FC = () => {
           messagePayload.attachments = uploadedAttachments;
         }
 
-        await addDoc(collection(db, 'private_chats', activeChat.id, 'messages'), messagePayload);
-        await updateDoc(doc(db, 'private_chats', activeChat.id), { lastMessage: text, updatedAt: serverTimestamp(), lastMessageTime: serverTimestamp(), lastSenderId: user.uid });
+        // Determine which collection to use based on chat type
+        const chatCollection = activeChat.isGrievance ? 'grievance_chats' : 'private_chats';
+        
+        await addDoc(collection(db, chatCollection, activeChat.id, 'messages'), messagePayload);
+        await updateDoc(doc(db, chatCollection, activeChat.id), { lastMessage: text, updatedAt: serverTimestamp(), lastMessageTime: serverTimestamp(), lastSenderId: user.uid });
       } catch (error) { console.error(error); alert('Failed to send message or upload attachments.'); }
       finally { setSending(false); }
   };
@@ -197,7 +251,8 @@ const Messenger: React.FC = () => {
     
     setSavingEdit(true);
     try {
-      const messageDocRef = doc(db, 'private_chats', activeChat.id, 'messages', messageId);
+      const chatCollection = activeChat.isGrievance ? 'grievance_chats' : 'private_chats';
+      const messageDocRef = doc(db, chatCollection, activeChat.id, 'messages', messageId);
       await updateDoc(messageDocRef, {
         text: sanitizeText(editingText, 2000),
         edited: true,
@@ -218,7 +273,8 @@ const Messenger: React.FC = () => {
     
     setDeleting(true);
     try {
-      const messageDocRef = doc(db, 'private_chats', activeChat.id, 'messages', messageId);
+      const chatCollection = activeChat.isGrievance ? 'grievance_chats' : 'private_chats';
+      const messageDocRef = doc(db, chatCollection, activeChat.id, 'messages', messageId);
       await deleteDoc(messageDocRef);
       setDeleteConfirm(null);
     } catch (error) {
@@ -228,8 +284,14 @@ const Messenger: React.FC = () => {
     }
   };
 
-  const getOtherParticipant = (chat: PrivateChat) => {
+  const getOtherParticipant = (chat: ExtendedChat) => {
       if (!user) return { username: 'Unknown', role: '' };
+      
+      // For grievance chats, return the grievance number as the name
+      if (chat.isGrievance) {
+        return { username: `Grievance #${chat.grievanceNumber || '?'}`, role: 'Admin' };
+      }
+      
       const otherId = chat.participants.find(id => id !== user.uid);
       if (otherId && chat.participantData[otherId]) return chat.participantData[otherId];
       return { username: 'Unknown User', role: '' };
@@ -297,16 +359,19 @@ const Messenger: React.FC = () => {
           )}
 
           <div className="flex-1 overflow-y-auto custom-scrollbar">
-              {chats.length === 0 ? (
+              {allChats.length === 0 ? (
                   <div className="p-8 text-center text-zinc-500 text-sm"><MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50"/>No conversations.</div>
               ) : (
-                  chats.map(chat => {
+                  allChats.map(chat => {
                       const other = getOtherParticipant(chat);
                       return (
-                        <div key={chat.id} onClick={() => setActiveChat(chat)} className={`p-4 border-b border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors ${activeChat?.id === chat.id ? 'bg-zinc-100 dark:bg-zinc-900 border-l-4 border-l-orange-500' : ''}`}>
+                        <div key={chat.id} onClick={() => setActiveChat(chat)} className={`p-4 border-b border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors ${activeChat?.id === chat.id ? 'bg-zinc-100 dark:bg-zinc-900 border-l-4 border-l-orange-500' : ''} ${chat.isGrievance ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
                             <div className="flex justify-between items-start mb-1">
-                                <h3 className="font-bold text-zinc-900 dark:text-white text-sm">{other.username}</h3>
-                                <span className="text-[10px] text-zinc-500 uppercase bg-zinc-200 dark:bg-black px-1.5 rounded">{other.role}</span>
+                                <div className="flex items-center gap-2">
+                                    {chat.isGrievance && <AlertTriangle className="w-4 h-4 text-amber-500" />}
+                                    <h3 className="font-bold text-zinc-900 dark:text-white text-sm">{other.username}</h3>
+                                </div>
+                                <span className={`text-[10px] uppercase px-1.5 rounded ${chat.isGrievance ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400' : 'bg-zinc-200 dark:bg-black text-zinc-500'}`}>{other.role}</span>
                             </div>
                             <p className="text-zinc-500 text-xs truncate">{chat.lastMessage}</p>
                         </div>
@@ -320,14 +385,14 @@ const Messenger: React.FC = () => {
       <div className={`w-full md:w-2/3 flex flex-col bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-lg ${!activeChat ? 'hidden md:flex' : 'flex'}`}>
           {activeChat ? (
               <>
-                <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-3 bg-zinc-50 dark:bg-zinc-900/50">
+                <div className={`p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-3 ${activeChat.isGrievance ? 'bg-amber-50 dark:bg-amber-900/20' : 'bg-zinc-50 dark:bg-zinc-900/50'}`}>
                     <button onClick={() => setActiveChat(null)} className="md:hidden text-zinc-500 mr-2">←</button>
-                    <div className="h-10 w-10 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center font-bold text-white">
-                        {getOtherParticipant(activeChat).username.charAt(0).toUpperCase()}
+                    <div className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-white ${activeChat.isGrievance ? 'bg-gradient-to-br from-amber-500 to-orange-600' : 'bg-gradient-to-br from-orange-500 to-red-600'}`}>
+                        {activeChat.isGrievance ? <AlertTriangle className="w-5 h-5" /> : getOtherParticipant(activeChat).username.charAt(0).toUpperCase()}
                     </div>
                     <div>
                         <h3 className="text-zinc-900 dark:text-white font-bold">{getOtherParticipant(activeChat).username}</h3>
-                        <p className="text-xs text-orange-500 uppercase tracking-wider">{getOtherParticipant(activeChat).role}</p>
+                        <p className={`text-xs uppercase tracking-wider ${activeChat.isGrievance ? 'text-amber-600' : 'text-orange-500'}`}>{activeChat.isGrievance ? 'Grievance Chat with Admin' : getOtherParticipant(activeChat).role}</p>
                     </div>
                 </div>
 
