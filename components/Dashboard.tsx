@@ -6,8 +6,9 @@ import { uploadFile, deleteFile } from '../services/storage';
 import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
-import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle, Minus, ExternalLink, Copy, Link as LinkIcon, Users, Crown, User, Image, FileText, Paperclip, Zap } from 'lucide-react';
-import type { BulletinPost, PlayerSeasonStats, TeamEvent, UserProfile } from '../types';
+import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle, Minus, ExternalLink, Copy, Link as LinkIcon, Users, Crown, User, Image, FileText, Paperclip, Zap, Radio } from 'lucide-react';
+import type { BulletinPost, PlayerSeasonStats, TeamEvent, UserProfile, LiveStream } from '../types';
+import { GoLiveModal, LiveStreamBanner, LiveStreamViewer, SaveStreamToLibraryModal } from './livestream';
 
 // Helper: Format date string (YYYY-MM-DD) to readable format without timezone issues
 const formatEventDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
@@ -85,6 +86,12 @@ const Dashboard: React.FC = () => {
   // Coaching Staff state with coordinator info
   const [coaches, setCoaches] = useState<(UserProfile & { isHeadCoach: boolean; isOC: boolean; isDC: boolean; isSTC: boolean })[]>([]);
   const [coachesLoading, setCoachesLoading] = useState(true);
+
+  // Live Stream state
+  const [liveStreams, setLiveStreams] = useState<LiveStream[]>([]);
+  const [showGoLiveModal, setShowGoLiveModal] = useState(false);
+  const [showLiveStreamViewer, setShowLiveStreamViewer] = useState(false);
+  const [endedStream, setEndedStream] = useState<LiveStream | null>(null);
 
   // --- OPTIMIZED STATS CALCULATION (PERFORMANCE FIX) ---
   // Calculates leaders only when playerStats data changes, not on every render
@@ -217,6 +224,35 @@ const Dashboard: React.FC = () => {
     
     fetchCoaches();
   }, [teamData?.id, teamData?.headCoachId, teamData?.coachId, teamData?.offensiveCoordinatorId, teamData?.defensiveCoordinatorId, teamData?.specialTeamsCoordinatorId]);
+
+  // Live streams listener
+  useEffect(() => {
+    if (!teamData?.id) return;
+    
+    // Listen for active live streams for this team
+    const liveStreamsQuery = query(
+      collection(db, 'teams', teamData.id, 'liveStreams'),
+      where('isLive', '==', true)
+    );
+    
+    const unsubscribe = onSnapshot(liveStreamsQuery, (snapshot) => {
+      const streams: LiveStream[] = [];
+      snapshot.forEach(docSnap => {
+        streams.push({ id: docSnap.id, ...docSnap.data() } as LiveStream);
+      });
+      // Sort by startedAt (newest first)
+      streams.sort((a, b) => {
+        const aTime = a.startedAt?.toMillis?.() || 0;
+        const bTime = b.startedAt?.toMillis?.() || 0;
+        return bTime - aTime;
+      });
+      setLiveStreams(streams);
+    }, (error) => {
+      console.error('Error fetching live streams:', error);
+    });
+    
+    return () => unsubscribe();
+  }, [teamData?.id]);
 
   // Event attachments handlers
   const handleNewEventFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1136,6 +1172,33 @@ const Dashboard: React.FC = () => {
           </div>
       </div>
 
+      {/* LIVE STREAM SECTION */}
+      {/* Show banner if there are active live streams */}
+      {liveStreams.length > 0 && (
+        <LiveStreamBanner
+          streams={liveStreams}
+          teamName={teamData?.name || ''}
+          onClick={() => setShowLiveStreamViewer(true)}
+        />
+      )}
+      
+      {/* Go Live button for coaches when no active streams from this coach */}
+      {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && 
+       !liveStreams.some(s => s.coachId === userData?.uid) && (
+        <button
+          onClick={() => setShowGoLiveModal(true)}
+          className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white p-4 rounded-xl flex items-center justify-center gap-3 transition-all shadow-lg group"
+        >
+          <div className="bg-white/20 p-2 rounded-lg group-hover:scale-110 transition-transform">
+            <Radio className="w-6 h-6" />
+          </div>
+          <div className="text-left">
+            <div className="font-bold text-lg">Go Live</div>
+            <div className="text-sm text-red-100 opacity-80">Start streaming to your team</div>
+          </div>
+        </button>
+      )}
+
       {/* TEAM RECORD */}
       <div className="bg-white dark:bg-gradient-to-br dark:from-zinc-900 dark:to-black rounded-2xl border border-gray-200 dark:border-zinc-800 overflow-hidden shadow-xl">
         <div className="p-6">
@@ -1776,6 +1839,40 @@ const Dashboard: React.FC = () => {
             <p className="text-center text-white/70 text-sm mt-3">{lightboxImage.name}</p>
           </div>
         </div>
+      )}
+
+      {/* GO LIVE MODAL */}
+      {showGoLiveModal && teamData && (
+        <GoLiveModal
+          onClose={() => setShowGoLiveModal(false)}
+          teamId={teamData.id}
+          teamName={teamData.name}
+        />
+      )}
+
+      {/* LIVE STREAM VIEWER */}
+      {showLiveStreamViewer && teamData && liveStreams.length > 0 && (
+        <LiveStreamViewer
+          streams={liveStreams}
+          teamId={teamData.id}
+          teamName={teamData.name}
+          onClose={() => setShowLiveStreamViewer(false)}
+          isCoach={userData?.role === 'Coach' || userData?.role === 'SuperAdmin'}
+          onStreamEnded={(stream) => {
+            // Show save to library modal when coach ends their stream
+            setEndedStream(stream);
+          }}
+        />
+      )}
+
+      {/* SAVE STREAM TO LIBRARY MODAL */}
+      {endedStream && teamData && (
+        <SaveStreamToLibraryModal
+          stream={endedStream}
+          teamId={teamData.id}
+          onClose={() => setEndedStream(null)}
+          onSaved={() => setEndedStream(null)}
+        />
       )}
     </div>
   );

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import type { Player, Team, PlayerSeasonStats, Game, TeamEvent, UserProfile, Video } from '../../types';
-import { Users, Trophy, Calendar, MapPin, Clock, User, Crown, Star, Shield, Sword, TrendingUp, ChevronRight, Home, X, Heart, Award, Film, Play } from 'lucide-react';
+import type { Player, Team, PlayerSeasonStats, Game, TeamEvent, UserProfile, Video, LiveStream } from '../../types';
+import { Users, Trophy, Calendar, MapPin, Clock, User, Crown, Star, Shield, Sword, TrendingUp, ChevronRight, Home, X, Heart, Award, Film, Play, Radio } from 'lucide-react';
+import { LiveStreamBanner, LiveStreamViewer } from '../livestream';
 
 interface TeamCoach {
   id: string;
@@ -44,6 +45,10 @@ const PublicTeamProfile: React.FC = () => {
   const [selectedEvent, setSelectedEvent] = useState<TeamEvent | null>(null);
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
   const [showFilmRoom, setShowFilmRoom] = useState(false);
+  
+  // Live stream state
+  const [liveStreams, setLiveStreams] = useState<LiveStream[]>([]);
+  const [showLiveStreamViewer, setShowLiveStreamViewer] = useState(false);
 
   useEffect(() => {
     const fetchTeamData = async () => {
@@ -203,6 +208,36 @@ const PublicTeamProfile: React.FC = () => {
     fetchTeamData();
   }, [teamId]);
 
+  // Live streams listener for PUBLIC streams only
+  useEffect(() => {
+    if (!teamId) return;
+    
+    // Listen for active PUBLIC live streams for this team
+    const liveStreamsQuery = query(
+      collection(db, 'teams', teamId, 'liveStreams'),
+      where('isLive', '==', true),
+      where('visibility', '==', 'public')
+    );
+    
+    const unsubscribe = onSnapshot(liveStreamsQuery, (snapshot) => {
+      const streams: LiveStream[] = [];
+      snapshot.forEach(docSnap => {
+        streams.push({ id: docSnap.id, ...docSnap.data() } as LiveStream);
+      });
+      // Sort by startedAt (newest first)
+      streams.sort((a, b) => {
+        const aTime = a.startedAt?.toMillis?.() || 0;
+        const bTime = b.startedAt?.toMillis?.() || 0;
+        return bTime - aTime;
+      });
+      setLiveStreams(streams);
+    }, (error) => {
+      console.error('Error fetching live streams:', error);
+    });
+    
+    return () => unsubscribe();
+  }, [teamId]);
+
   // Format date helper
   const formatDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
     const [year, month, day] = dateStr.split('-').map(Number);
@@ -313,6 +348,17 @@ const PublicTeamProfile: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Live Stream Banner - Shows when there are PUBLIC live streams */}
+        {liveStreams.length > 0 && (
+          <div className="mb-8">
+            <LiveStreamBanner
+              streams={liveStreams}
+              teamName={team.name}
+              onClick={() => setShowLiveStreamViewer(true)}
+            />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
@@ -804,6 +850,17 @@ const PublicTeamProfile: React.FC = () => {
             ></iframe>
           </div>
         </div>
+      )}
+
+      {/* Live Stream Viewer Modal */}
+      {showLiveStreamViewer && teamId && liveStreams.length > 0 && (
+        <LiveStreamViewer
+          streams={liveStreams}
+          teamId={teamId}
+          teamName={team.name}
+          onClose={() => setShowLiveStreamViewer(false)}
+          isCoach={false}
+        />
       )}
     </div>
   );

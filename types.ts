@@ -99,6 +99,27 @@ export interface Team {
 
 // In types.ts
 
+// --- LIVE STREAMING ---
+export type CameraAngle = 'Sideline' | 'End Zone' | 'Press Box' | 'Drone' | 'Other';
+
+export interface LiveStream {
+  id: string;
+  youtubeUrl: string;
+  youtubeVideoId: string;
+  teamId: string;
+  coachId: string;
+  coachName: string;
+  title: string;
+  cameraAngle: CameraAngle | string; // Allow preset or custom
+  visibility: 'public' | 'team';
+  isLive: boolean;
+  startedAt: any; // Timestamp
+  endedAt?: any; // Timestamp | null
+  // For saving to video library after stream ends
+  savedToLibrary?: boolean;
+  videoId?: string; // Reference to saved video if applicable
+}
+
 export interface Player {
   id: string;
   name: string;
