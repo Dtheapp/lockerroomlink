@@ -6,7 +6,7 @@ import { uploadFile, deleteFile } from '../services/storage';
 import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
-import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle, Minus, ExternalLink, Copy, Link as LinkIcon, Users, Crown, User } from 'lucide-react';
+import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle, Minus, ExternalLink, Copy, Link as LinkIcon, Users, Crown, User, Image, FileText, Paperclip } from 'lucide-react';
 import type { BulletinPost, PlayerSeasonStats, TeamEvent, UserProfile } from '../types';
 
 // Helper: Format date string (YYYY-MM-DD) to readable format without timezone issues
@@ -60,6 +60,9 @@ const Dashboard: React.FC = () => {
   // Loading states for async operations
   const [addingPost, setAddingPost] = useState(false);
   const [addingEvent, setAddingEvent] = useState(false);
+  
+  // Lightbox state for viewing images full-screen
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null);
   const [newEventAttachments, setNewEventAttachments] = useState<File[]>([]);
   const [editingEventAttachments, setEditingEventAttachments] = useState<File[]>([]);
   const [uploadingEventFiles, setUploadingEventFiles] = useState(false);
@@ -798,16 +801,32 @@ const Dashboard: React.FC = () => {
                   {(selectedEvent as any).attachments && (selectedEvent as any).attachments.length > 0 && (
                     <div className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800">
                       <div className="flex items-center gap-2 mb-3">
-                        <Info className="w-4 h-4 text-zinc-500" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Attachments</span>
+                        <Paperclip className="w-4 h-4 text-zinc-500" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Attachments ({(selectedEvent as any).attachments.length})</span>
                       </div>
-                      <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
                         {(selectedEvent as any).attachments.map((att: any, i: number) => (
                           <div key={i}>
                             {att.mimeType && att.mimeType.startsWith('image') ? (
-                              <img src={att.url} alt={att.name} className="max-w-full rounded" />
+                              <div 
+                                className="relative aspect-video rounded-lg overflow-hidden border border-zinc-300 dark:border-zinc-700 cursor-pointer group"
+                                onClick={() => setLightboxImage({ url: att.url, name: att.name })}
+                              >
+                                <img src={att.url} alt={att.name} className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                                  <Image className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                              </div>
                             ) : (
-                              <a href={att.url} target="_blank" rel="noreferrer" className="text-sky-500 underline">{att.name}</a>
+                              <a 
+                                href={att.url} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="flex items-center gap-2 p-3 bg-zinc-100 dark:bg-zinc-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                              >
+                                <FileText className="w-5 h-5 text-sky-500 flex-shrink-0" />
+                                <span className="text-sm text-zinc-700 dark:text-zinc-300 truncate">{att.name}</span>
+                              </a>
                             )}
                           </div>
                         ))}
@@ -1495,8 +1514,35 @@ const Dashboard: React.FC = () => {
                                 <MapPin className="w-3 h-3" /> {event.location}
                             </div>
                         )}
+                        {/* Attachment indicator */}
+                        {(event as any).attachments && (event as any).attachments.length > 0 && (
+                          <div className="mt-2 flex items-center gap-2">
+                            {/* Show small thumbnail for first image attachment */}
+                            {(event as any).attachments.some((a: any) => a.mimeType?.startsWith('image')) && (
+                              <div 
+                                className="relative w-12 h-12 rounded overflow-hidden border border-zinc-300 dark:border-zinc-700 cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const firstImage = (event as any).attachments.find((a: any) => a.mimeType?.startsWith('image'));
+                                  if (firstImage) setLightboxImage({ url: firstImage.url, name: firstImage.name });
+                                }}
+                              >
+                                <img 
+                                  src={(event as any).attachments.find((a: any) => a.mimeType?.startsWith('image'))?.url} 
+                                  alt="" 
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            )}
+                            {/* Attachment count badge */}
+                            <div className="flex items-center gap-1 text-[10px] text-sky-500 bg-sky-500/10 px-2 py-1 rounded">
+                              <Paperclip className="w-3 h-3" />
+                              <span>{(event as any).attachments.length} {(event as any).attachments.length === 1 ? 'file' : 'files'}</span>
+                            </div>
+                          </div>
+                        )}
                         {/* Tap to view indicator */}
-                        {event.description && (
+                        {(event.description || ((event as any).attachments && (event as any).attachments.length > 0)) && (
                             <div className="mt-2 flex items-center gap-1 text-[10px] text-orange-500">
                                 <Info className="w-3 h-3" /> Tap to view details
                             </div>
@@ -1632,6 +1678,29 @@ const Dashboard: React.FC = () => {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* IMAGE LIGHTBOX */}
+      {lightboxImage && (
+        <div 
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button 
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <div className="max-w-4xl max-h-[90vh] relative" onClick={(e) => e.stopPropagation()}>
+            <img 
+              src={lightboxImage.url} 
+              alt={lightboxImage.name} 
+              className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+            />
+            <p className="text-center text-white/70 text-sm mt-3">{lightboxImage.name}</p>
           </div>
         </div>
       )}
