@@ -391,7 +391,7 @@ export interface Marker {
 }
 
 // --- VIDEO ---
-export type VideoCategory = 'Game Film' | 'Training' | 'Highlights' | 'Other';
+export type VideoCategory = 'Game Film' | 'Practice' | 'Training' | 'Highlights' | 'Other';
 
 export interface Video {
   id: string;

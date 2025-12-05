@@ -8,6 +8,7 @@ import NoAthleteBlock from './NoAthleteBlock';
 
 const VIDEO_CATEGORIES: { value: VideoCategory; label: string; icon: React.ReactNode; color: string }[] = [
   { value: 'Game Film', label: 'Game Film', icon: <Film className="w-4 h-4" />, color: 'text-red-500 bg-red-500/10 border-red-500/20' },
+  { value: 'Practice', label: 'Practice', icon: <Users className="w-4 h-4" />, color: 'text-green-500 bg-green-500/10 border-green-500/20' },
   { value: 'Training', label: 'Training', icon: <Dumbbell className="w-4 h-4" />, color: 'text-cyan-500 bg-cyan-500/10 border-cyan-500/20' },
   { value: 'Highlights', label: 'Highlights', icon: <Trophy className="w-4 h-4" />, color: 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20' },
   { value: 'Other', label: 'Other', icon: <FolderOpen className="w-4 h-4" />, color: 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20' },
