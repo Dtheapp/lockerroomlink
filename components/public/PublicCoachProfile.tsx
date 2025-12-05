@@ -55,12 +55,21 @@ const PublicCoachProfile: React.FC = () => {
           return;
         }
 
-        // Get teams this coach belongs to
-        const teamIds = coach.teamIds || (coach.teamId ? [coach.teamId] : []);
+        // Get teams this coach belongs to - check both teamIds and query all teams
+        const processedTeamIds = new Set<string>();
         const teams: Team[] = [];
         const isHeadCoach: boolean[] = [];
+        
+        // Method 1: Get teams from coach's teamIds array
+        const teamIds = coach.teamIds || [];
+        if (coach.teamId && !teamIds.includes(coach.teamId)) {
+          teamIds.push(coach.teamId);
+        }
 
         for (const teamId of teamIds) {
+          if (processedTeamIds.has(teamId)) continue;
+          processedTeamIds.add(teamId);
+          
           const teamDoc = await getDoc(doc(db, 'teams', teamId));
           if (teamDoc.exists()) {
             const team = { id: teamDoc.id, ...teamDoc.data() } as Team;
@@ -68,6 +77,21 @@ const PublicCoachProfile: React.FC = () => {
             isHeadCoach.push(team.headCoachId === coachId || team.coachId === coachId);
           }
         }
+        
+        // Method 2: Query all teams to find any where this coach is headCoachId or coachId
+        const allTeamsSnapshot = await getDocs(collection(db, 'teams'));
+        allTeamsSnapshot.docs.forEach(teamDocSnap => {
+          const teamId = teamDocSnap.id;
+          if (processedTeamIds.has(teamId)) return;
+          
+          const teamData = teamDocSnap.data();
+          if (teamData.headCoachId === coachId || teamData.coachId === coachId) {
+            processedTeamIds.add(teamId);
+            const team = { id: teamId, ...teamData } as Team;
+            teams.push(team);
+            isHeadCoach.push(true); // They're the head/main coach
+          }
+        });
 
         // Get kudos count
         const kudosQuery = query(collection(db, 'coachKudos'), where('coachId', '==', coachId));

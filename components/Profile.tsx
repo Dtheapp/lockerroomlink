@@ -118,17 +118,19 @@ const Profile: React.FC = () => {
       
       try {
         const positions: { teamId: string; teamName: string; isHeadCoach: boolean }[] = [];
+        const processedTeamIds = new Set<string>();
         
-        // Get all team IDs the coach belongs to
-        const coachTeamIds = userData.teamIds || (userData.teamId ? [userData.teamId] : []);
-        
-        // If no team IDs but we have teamData from context, add it
-        if (coachTeamIds.length === 0 && teamData?.id) {
-          coachTeamIds.push(teamData.id);
+        // Method 1: Get teams from userData.teamIds array
+        const coachTeamIds = userData.teamIds || [];
+        if (userData.teamId && !coachTeamIds.includes(userData.teamId)) {
+          coachTeamIds.push(userData.teamId);
         }
         
-        // Fetch each team and determine position
+        // Fetch teams from the user's teamIds
         for (const teamId of coachTeamIds) {
+          if (processedTeamIds.has(teamId)) continue;
+          processedTeamIds.add(teamId);
+          
           const teamDocRef = doc(db, 'teams', teamId);
           const teamDocSnap = await getDoc(teamDocRef);
           if (teamDocSnap.exists()) {
@@ -142,8 +144,32 @@ const Profile: React.FC = () => {
           }
         }
         
-        // Sort: head coach positions first
-        positions.sort((a, b) => (b.isHeadCoach ? 1 : 0) - (a.isHeadCoach ? 1 : 0));
+        // Method 2: Also query all teams to find any where this user is headCoachId or coachId
+        // This catches cases where teamIds might not be fully synced
+        const allTeamsSnapshot = await getDocs(collection(db, 'teams'));
+        allTeamsSnapshot.docs.forEach(teamDoc => {
+          const teamId = teamDoc.id;
+          if (processedTeamIds.has(teamId)) return;
+          
+          const team = teamDoc.data() as Team;
+          // Check if this coach is assigned to this team
+          if (team.headCoachId === userData.uid || team.coachId === userData.uid) {
+            processedTeamIds.add(teamId);
+            positions.push({
+              teamId,
+              teamName: team.name || teamId,
+              isHeadCoach: true // They're the head/main coach
+            });
+          }
+        });
+        
+        // Sort: head coach positions first, then alphabetically by team name
+        positions.sort((a, b) => {
+          if (a.isHeadCoach !== b.isHeadCoach) {
+            return b.isHeadCoach ? 1 : -1;
+          }
+          return a.teamName.localeCompare(b.teamName);
+        });
         
         setCoachTeamPositions(positions);
       } catch (err) {
