@@ -477,7 +477,7 @@ const TracePlayModal: React.FC<TracePlayModalProps> = ({
                     {formationElements.map(el => (
                       <div
                         key={el.id}
-                        className={`absolute flex items-center font-bold text-white shadow-lg border-2 border-white/80 pointer-events-none ${el.color} ${el.type === 'O' ? 'rounded-full justify-center' : 'justify-center'}`}
+                        className={`absolute flex items-center font-bold text-white shadow-lg border-2 border-white/60 pointer-events-none ${el.color} ${el.type === 'O' ? 'rounded-full justify-center' : 'justify-center'}`}
                         style={{ 
                           left: `${el.x}%`, 
                           top: `${el.y}%`, 
@@ -485,7 +485,7 @@ const TracePlayModal: React.FC<TracePlayModalProps> = ({
                           width: '36px',
                           height: '36px',
                           fontSize: '10px',
-                          opacity: 0.85,
+                          opacity: 0.6,
                           ...(el.type === 'X' ? { clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)', borderRadius: '0', paddingTop: '12px' } : {})
                         }}
                       >
@@ -570,6 +570,27 @@ const TracePlayModal: React.FC<TracePlayModalProps> = ({
                   <label className="text-sm text-gray-400 mb-2 block">
                     Size: {Math.round(imageSettings.width)}%
                   </label>
+                  <input
+                    type="range"
+                    min="10"
+                    max="200"
+                    value={imageSettings.width}
+                    onChange={(e) => {
+                      const newWidth = Number(e.target.value);
+                      if (naturalWidth && naturalHeight) {
+                        const aspectRatio = naturalWidth / naturalHeight;
+                        const previewAspect = 16 / 9;
+                        setImageSettings(prev => ({
+                          ...prev,
+                          width: newWidth,
+                          height: (newWidth / aspectRatio) * previewAspect
+                        }));
+                      } else {
+                        setImageSettings(prev => ({ ...prev, width: newWidth, height: newWidth }));
+                      }
+                    }}
+                    className="w-full accent-cyan-500 mb-2"
+                  />
                   <div className="flex gap-2">
                     <button
                       onClick={() => adjustSize(-10)}
