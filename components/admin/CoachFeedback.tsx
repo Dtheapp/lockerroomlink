@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp, addDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useUnreadMessages } from '../../hooks/useUnreadMessages';
 import type { CoachFeedback as CoachFeedbackType } from '../../types';
 import { 
   MessageSquare, AlertTriangle, CheckCircle, Clock, User, Shield, 
@@ -42,6 +43,7 @@ const GRIEVANCE_SYSTEM_ID = 'grievance-system';
 
 const CoachFeedback: React.FC = () => {
   const { userData } = useAuth();
+  const { markAsRead } = useUnreadMessages();
   const [feedback, setFeedback] = useState<CoachFeedbackType[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFeedback, setSelectedFeedback] = useState<CoachFeedbackType | null>(null);
@@ -56,6 +58,13 @@ const CoachFeedback: React.FC = () => {
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Mark grievance chat as read when opening it
+  useEffect(() => {
+    if (selectedFeedback?.chatId) {
+      markAsRead('grievance', selectedFeedback.chatId);
+    }
+  }, [selectedFeedback?.chatId, markAsRead]);
 
   // Load grievances
   useEffect(() => {
@@ -83,7 +92,7 @@ const CoachFeedback: React.FC = () => {
 
     setChatLoading(true);
     const messagesQuery = query(
-      collection(db, 'private_chats', selectedFeedback.chatId, 'messages'),
+      collection(db, 'grievance_chats', selectedFeedback.chatId, 'messages'),
       orderBy('timestamp', 'asc')
     );
 
@@ -111,7 +120,7 @@ const CoachFeedback: React.FC = () => {
 
     setSendingMessage(true);
     try {
-      await addDoc(collection(db, 'private_chats', selectedFeedback.chatId, 'messages'), {
+      await addDoc(collection(db, 'grievance_chats', selectedFeedback.chatId, 'messages'), {
         text: newMessage.trim(),
         senderId: GRIEVANCE_SYSTEM_ID,
         timestamp: serverTimestamp(),
@@ -119,7 +128,7 @@ const CoachFeedback: React.FC = () => {
         adminName: userData?.name || 'Admin'
       });
 
-      await updateDoc(doc(db, 'private_chats', selectedFeedback.chatId), {
+      await updateDoc(doc(db, 'grievance_chats', selectedFeedback.chatId), {
         lastMessage: newMessage.trim(),
         updatedAt: serverTimestamp(),
         lastMessageTime: serverTimestamp(),
@@ -152,14 +161,14 @@ const CoachFeedback: React.FC = () => {
         const statusEmoji = newStatus === 'reviewed' ? '👁️' : '✅';
         const statusMessage = `${statusEmoji} Status Update: This grievance has been marked as "${statusLabel}" by ${userData?.name || 'Admin'}.`;
 
-        await addDoc(collection(db, 'private_chats', selectedFeedback.chatId, 'messages'), {
+        await addDoc(collection(db, 'grievance_chats', selectedFeedback.chatId, 'messages'), {
           text: statusMessage,
           senderId: GRIEVANCE_SYSTEM_ID,
           timestamp: serverTimestamp(),
           isSystemMessage: true
         });
 
-        await updateDoc(doc(db, 'private_chats', selectedFeedback.chatId), {
+        await updateDoc(doc(db, 'grievance_chats', selectedFeedback.chatId), {
           lastMessage: `${statusEmoji} Status: ${statusLabel}`,
           updatedAt: serverTimestamp(),
           lastMessageTime: serverTimestamp(),
@@ -505,14 +514,14 @@ const CoachFeedback: React.FC = () => {
                           >
                             <div className={`max-w-[85%] rounded-2xl px-4 py-2 ${
                               msg.isSystemMessage
-                                ? 'bg-orange-500/20 border border-orange-500/30 text-orange-200'
+                                ? 'bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700'
                                 : isAdmin
                                   ? 'bg-orange-600 text-white'
                                   : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white'
                             }`}>
-                              <p className="whitespace-pre-wrap text-sm">{msg.text}</p>
+                              <p className={`whitespace-pre-wrap text-sm ${msg.isSystemMessage ? 'text-amber-900 dark:text-amber-100' : ''}`}>{msg.text}</p>
                               <p className={`text-xs mt-1 ${
-                                msg.isSystemMessage ? 'text-orange-400' : isAdmin ? 'text-orange-200' : 'text-zinc-500'
+                                msg.isSystemMessage ? 'text-amber-700 dark:text-amber-400' : isAdmin ? 'text-orange-200' : 'text-zinc-500'
                               }`}>
                                 {formatMessageTime(msg.timestamp)}
                               </p>

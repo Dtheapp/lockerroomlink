@@ -5,6 +5,7 @@ import { auth } from '../services/firebase';
 import { LayoutDashboard, Users, Shield, LogOut, FileText, Menu, X, ChevronLeft, Sun, Moon, BarChart3, Megaphone, Settings, PieChart, ShieldAlert, Database, Mail, History, MessageSquare, Heart } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useUnreadMessages } from '../hooks/useUnreadMessages';
 
 const adminNavItems = [
   { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
@@ -27,6 +28,7 @@ const AdminLayout: React.FC = () => {
   const navigate = useNavigate();
   const { userData } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { unread } = useUnreadMessages();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -120,18 +122,28 @@ const AdminLayout: React.FC = () => {
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto min-h-0">
-          {adminNavItems.map((item) => (
+          {adminNavItems.map((item) => {
+            const showBadge = item.name === 'Grievances' && unread.grievances;
+            return (
             <NavLink
               key={item.name}
               to={item.path}
               onClick={() => isMobile && setSidebarOpen(false)}
-              className={({ isActive }) => `${navLinkClasses} ${isActive ? activeClasses : inactiveClasses}`}
+              className={({ isActive }) => `${navLinkClasses} ${isActive ? activeClasses : inactiveClasses} relative`}
               title={!sidebarOpen ? item.name : ''}
             >
-              <item.icon className="w-5 h-5 flex-shrink-0" />
+              <div className="relative">
+                <item.icon className="w-5 h-5 flex-shrink-0" />
+                {showBadge && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse border border-white dark:border-zinc-950" />
+                )}
+              </div>
               <span className={`transition-opacity duration-300 ${sidebarOpen ? 'opacity-100 ml-3 font-medium' : 'opacity-0 w-0 hidden'}`}>{item.name}</span>
+              {showBadge && sidebarOpen && (
+                <span className="ml-auto bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">NEW</span>
+              )}
             </NavLink>
-          ))}
+          )})}
         </nav>
 
         <div className="border-t border-zinc-200 dark:border-zinc-900 pt-4 mt-auto flex-shrink-0 space-y-2">

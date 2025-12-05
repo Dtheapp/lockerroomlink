@@ -7,6 +7,7 @@ interface UnreadState {
   teamChat: boolean;
   strategy: boolean;
   messenger: boolean;
+  grievances: boolean;
 }
 
 export const useUnreadMessages = () => {
@@ -15,6 +16,7 @@ export const useUnreadMessages = () => {
     teamChat: false,
     strategy: false,
     messenger: false,
+    grievances: false,
   });
   const [lastReadData, setLastReadData] = useState<Record<string, Timestamp>>({});
 
@@ -137,14 +139,59 @@ export const useUnreadMessages = () => {
     return () => unsubscribe();
   }, [user, lastReadData]);
 
+  // Grievance unread listener (admin only)
+  useEffect(() => {
+    if (!user || userData?.role !== 'Admin') {
+      setUnread(prev => ({ ...prev, grievances: false }));
+      return;
+    }
+
+    const grievanceChatsQuery = query(
+      collection(db, 'grievance_chats'),
+      orderBy('updatedAt', 'desc'),
+      limit(50)
+    );
+
+    const unsubscribe = onSnapshot(grievanceChatsQuery, (snapshot) => {
+      let hasUnreadGrievances = false;
+      
+      snapshot.docs.forEach(chatDoc => {
+        const chatData = chatDoc.data();
+        const lastMsgTime = chatData.updatedAt as Timestamp;
+        const lastRead = lastReadData[`grievance_${chatDoc.id}`] as Timestamp;
+        const lastSenderId = chatData.lastSenderId;
+        
+        // Has unread if: newer message exists AND wasn't sent by admin (grievance-system)
+        if (lastMsgTime && 
+            (!lastRead || lastMsgTime.seconds > lastRead.seconds) &&
+            lastSenderId && 
+            lastSenderId !== 'grievance-system') {
+          hasUnreadGrievances = true;
+        }
+      });
+      
+      setUnread(prev => ({ ...prev, grievances: hasUnreadGrievances }));
+    }, (error) => {
+      console.log('Grievance unread check:', error.message);
+      setUnread(prev => ({ ...prev, grievances: false }));
+    });
+
+    return () => unsubscribe();
+  }, [user, userData?.role, lastReadData]);
+
   // Function to mark a chat as read
-  const markAsRead = useCallback(async (chatType: 'teamChat' | 'strategy' | 'messenger', chatId?: string) => {
+  const markAsRead = useCallback(async (chatType: 'teamChat' | 'strategy' | 'messenger' | 'grievance', chatId?: string) => {
     if (!user) return;
 
     try {
       const lastReadRef = doc(db, 'users', user.uid, 'meta', 'lastRead');
       
-      const key = chatType === 'messenger' && chatId ? `messenger_${chatId}` : chatType;
+      let key = chatType;
+      if (chatType === 'messenger' && chatId) {
+        key = `messenger_${chatId}` as any;
+      } else if (chatType === 'grievance' && chatId) {
+        key = `grievance_${chatId}` as any;
+      }
       
       await setDoc(lastReadRef, {
         [key]: Timestamp.now()

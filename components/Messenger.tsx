@@ -402,9 +402,17 @@ const Messenger: React.FC = () => {
                         const isEditing = editingMessageId === msg.id;
                         const isEdited = (msg as any).edited;
                         
+                        const isSystemMessage = (msg as any).isSystemMessage;
+                        
                         return (
-                            <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${isMe ? 'bg-orange-600 text-white rounded-br-none' : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 rounded-bl-none'}`}>
+                            <div key={msg.id} className={`flex ${isSystemMessage ? 'justify-center' : isMe ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${
+                                  isSystemMessage 
+                                    ? 'bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-100'
+                                    : isMe 
+                                      ? 'bg-orange-600 text-white rounded-br-none' 
+                                      : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 rounded-bl-none'
+                                }`}>
                                     {isEditing ? (
                                       <div className="flex flex-col gap-2">
                                         <input
