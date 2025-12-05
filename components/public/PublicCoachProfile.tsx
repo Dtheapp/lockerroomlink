@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { doc, getDoc, collection, getDocs, query, where, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UserProfile, Team, CoachKudos, CoachFeedback } from '../../types';
@@ -133,6 +133,7 @@ const PublicCoachProfile: React.FC = () => {
       // Find the team connection between parent and coach
       const parentTeamId = userData.teamId || '';
       const teamMatch = data.teams.find(t => t.id === parentTeamId);
+      const noteText = kudosMessage.trim();
       
       await addDoc(collection(db, 'coachKudos'), {
         coachId: data.coach.uid,
@@ -140,9 +141,73 @@ const PublicCoachProfile: React.FC = () => {
         parentName: userData.name,
         teamId: parentTeamId,
         teamName: teamMatch?.name || 'Unknown Team',
-        message: kudosMessage.trim() || null,
+        message: noteText || null,
         createdAt: serverTimestamp()
       });
+      
+      // Send a private message to the coach notifying them of the kudos
+      try {
+        // Check if a chat already exists between parent and coach
+        const chatsQuery = query(
+          collection(db, 'private_chats'),
+          where('participants', 'array-contains', user.uid)
+        );
+        const chatsSnapshot = await getDocs(chatsQuery);
+        let existingChatId: string | null = null;
+        
+        chatsSnapshot.forEach(chatDoc => {
+          const chatData = chatDoc.data();
+          if (chatData.participants.includes(data.coach.uid)) {
+            existingChatId = chatDoc.id;
+          }
+        });
+        
+        // Build the kudos notification message
+        let kudosNotificationMessage = `🎉 Congratulations! ${userData.name} just sent you kudos!`;
+        if (noteText) {
+          kudosNotificationMessage += `\n\n💬 "${noteText}"`;
+        }
+        kudosNotificationMessage += `\n\nKeep up the great work, Coach! 💪`;
+        
+        if (existingChatId) {
+          // Add message to existing chat
+          await addDoc(collection(db, 'private_chats', existingChatId, 'messages'), {
+            text: kudosNotificationMessage,
+            senderId: user.uid,
+            timestamp: serverTimestamp(),
+            isKudosNotification: true
+          });
+          await updateDoc(doc(db, 'private_chats', existingChatId), {
+            lastMessage: kudosNotificationMessage.split('\n')[0],
+            updatedAt: serverTimestamp(),
+            lastMessageTime: serverTimestamp(),
+            lastSenderId: user.uid
+          });
+        } else {
+          // Create a new chat and send the message
+          const participantData = {
+            [user.uid]: { username: userData.username || userData.name, role: userData.role },
+            [data.coach.uid]: { username: data.coach.username || data.coach.name, role: data.coach.role }
+          };
+          const newChatRef = await addDoc(collection(db, 'private_chats'), {
+            participants: [user.uid, data.coach.uid],
+            participantData,
+            lastMessage: kudosNotificationMessage.split('\n')[0],
+            updatedAt: serverTimestamp(),
+            lastMessageTime: serverTimestamp(),
+            lastSenderId: user.uid
+          });
+          await addDoc(collection(db, 'private_chats', newChatRef.id, 'messages'), {
+            text: kudosNotificationMessage,
+            senderId: user.uid,
+            timestamp: serverTimestamp(),
+            isKudosNotification: true
+          });
+        }
+      } catch (msgError) {
+        console.error('Error sending kudos notification message:', msgError);
+        // Kudos was saved, just the notification failed - don't show error to user
+      }
       
       // Update local state
       setData(prev => prev ? { ...prev, kudosCount: prev.kudosCount + 1, hasGivenKudos: true } : null);
