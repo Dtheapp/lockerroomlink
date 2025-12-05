@@ -50,6 +50,10 @@ const FanClipCreator: React.FC<FanClipCreatorProps> = ({
   // YouTube player ref
   const playerRef = useRef<any>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  
+  // Dragging state
+  const [isDragging, setIsDragging] = useState<'start' | 'end' | null>(null);
 
   // Load public videos from the athlete's team and other teams
   useEffect(() => {
@@ -203,6 +207,64 @@ const FanClipCreator: React.FC<FanClipCreatorProps> = ({
       setStartTime(Math.max(0, time - 30));
     }
   };
+
+  // Timeline click handler - click to seek
+  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!timelineRef.current || !playerRef.current || duration === 0) return;
+    
+    const rect = timelineRef.current.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, clickX / rect.width));
+    const newTime = percentage * duration;
+    
+    handleSeek(newTime);
+  };
+
+  // Get time from mouse position
+  const getTimeFromMouseEvent = (e: MouseEvent | React.MouseEvent): number => {
+    if (!timelineRef.current || duration === 0) return 0;
+    const rect = timelineRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
+    return percentage * duration;
+  };
+
+  // Start dragging a marker
+  const handleMarkerMouseDown = (marker: 'start' | 'end') => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDragging(marker);
+  };
+
+  // Handle mouse move while dragging
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const time = Math.floor(getTimeFromMouseEvent(e));
+      
+      if (isDragging === 'start') {
+        // Don't let start go past end - 3 seconds
+        const maxStart = Math.max(0, endTime - 3);
+        setStartTime(Math.min(time, maxStart));
+      } else if (isDragging === 'end') {
+        // Don't let end go before start + 3 seconds
+        const minEnd = Math.min(duration, startTime + 3);
+        setEndTime(Math.max(time, minEnd));
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(null);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, startTime, endTime, duration]);
 
   const handlePreviewClip = () => {
     if (!playerRef.current) return;
@@ -411,39 +473,66 @@ const FanClipCreator: React.FC<FanClipCreatorProps> = ({
               {/* Timeline */}
               <div className="bg-zinc-800 rounded-lg p-4 mb-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-zinc-400">Timeline</span>
+                  <span className="text-sm text-zinc-400">Timeline <span className="text-zinc-500">(click to seek, drag markers to adjust)</span></span>
                   <span className="text-sm text-zinc-400">
                     Clip: {formatTime(endTime - startTime)}
                   </span>
                 </div>
                 
-                {/* Timeline bar */}
-                <div className="relative h-8 bg-zinc-700 rounded-lg mb-3">
-                  {/* Selected range */}
+                {/* Timeline bar - clickable */}
+                <div 
+                  ref={timelineRef}
+                  onClick={handleTimelineClick}
+                  className="relative h-12 bg-zinc-700 rounded-lg mb-3 cursor-pointer select-none"
+                >
+                  {/* Unselected area (darker) */}
+                  <div className="absolute inset-0 bg-zinc-800/50 rounded-lg" />
+                  
+                  {/* Selected range (highlighted) */}
                   <div
-                    className="absolute h-full bg-purple-500/30 rounded"
+                    className="absolute h-full bg-purple-500/40 border-y-2 border-purple-500"
                     style={{
                       left: `${(startTime / duration) * 100}%`,
                       width: `${((endTime - startTime) / duration) * 100}%`
                     }}
                   />
-                  {/* Current position */}
+                  
+                  {/* Current position indicator */}
                   <div
-                    className="absolute w-1 h-full bg-white rounded"
+                    className="absolute w-0.5 h-full bg-white shadow-lg z-10"
                     style={{ left: `${(currentTime / duration) * 100}%` }}
-                  />
-                  {/* Start marker */}
+                  >
+                    <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-white rounded-full shadow" />
+                  </div>
+                  
+                  {/* Start marker - draggable */}
                   <div
-                    className="absolute w-2 h-full bg-green-500 rounded-l cursor-ew-resize"
-                    style={{ left: `${(startTime / duration) * 100}%` }}
-                    title={`Start: ${formatTime(startTime)}`}
-                  />
-                  {/* End marker */}
+                    onMouseDown={handleMarkerMouseDown('start')}
+                    className={`absolute w-4 h-full bg-green-500 rounded-l-lg cursor-ew-resize z-20 flex items-center justify-center hover:bg-green-400 transition-colors ${isDragging === 'start' ? 'bg-green-400 ring-2 ring-green-300' : ''}`}
+                    style={{ left: `calc(${(startTime / duration) * 100}% - 8px)` }}
+                    title={`Start: ${formatTime(startTime)} - Drag to adjust`}
+                  >
+                    <div className="w-0.5 h-6 bg-green-800 rounded" />
+                  </div>
+                  
+                  {/* End marker - draggable */}
                   <div
-                    className="absolute w-2 h-full bg-red-500 rounded-r cursor-ew-resize"
-                    style={{ left: `${(endTime / duration) * 100}%` }}
-                    title={`End: ${formatTime(endTime)}`}
-                  />
+                    onMouseDown={handleMarkerMouseDown('end')}
+                    className={`absolute w-4 h-full bg-red-500 rounded-r-lg cursor-ew-resize z-20 flex items-center justify-center hover:bg-red-400 transition-colors ${isDragging === 'end' ? 'bg-red-400 ring-2 ring-red-300' : ''}`}
+                    style={{ left: `calc(${(endTime / duration) * 100}% - 8px)` }}
+                    title={`End: ${formatTime(endTime)} - Drag to adjust`}
+                  >
+                    <div className="w-0.5 h-6 bg-red-800 rounded" />
+                  </div>
+                  
+                  {/* Time markers */}
+                  <div className="absolute bottom-0 left-0 right-0 flex justify-between px-1 text-[10px] text-zinc-500">
+                    <span>0:00</span>
+                    <span>{formatTime(duration / 4)}</span>
+                    <span>{formatTime(duration / 2)}</span>
+                    <span>{formatTime(duration * 3 / 4)}</span>
+                    <span>{formatTime(duration)}</span>
+                  </div>
                 </div>
 
                 {/* Controls */}
