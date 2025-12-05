@@ -58,6 +58,7 @@ const Profile: React.FC = () => {
   
   // Copy link feedback
   const [copiedPlayerId, setCopiedPlayerId] = useState<string | null>(null);
+  const [copiedCoachLink, setCopiedCoachLink] = useState(false);
 
   // Full Edit Form State (including medical)
   const [editForm, setEditForm] = useState({
@@ -246,6 +247,21 @@ const Profile: React.FC = () => {
       await navigator.clipboard.writeText(publicUrl);
       setCopiedPlayerId(player.id);
       setTimeout(() => setCopiedPlayerId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy link:', err);
+    }
+  };
+
+  const copyCoachPublicLink = async () => {
+    if (!userData?.username) return;
+    
+    const baseUrl = window.location.origin + window.location.pathname;
+    const publicUrl = `${baseUrl}#/coach/${userData.username}`;
+    
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setCopiedCoachLink(true);
+      setTimeout(() => setCopiedCoachLink(false), 2000);
     } catch (err) {
       console.error('Failed to copy link:', err);
     }
@@ -810,6 +826,52 @@ const Profile: React.FC = () => {
                     ) : (
                       <p className="text-slate-900 dark:text-white whitespace-pre-wrap">{bio || <span className="text-slate-500 italic">No bio added yet. Click Edit to add one.</span>}</p>
                     )}
+                  </div>
+                )}
+
+                {/* Public Page Link - for Coaches */}
+                {userData?.role === 'Coach' && userData?.username && (
+                  <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+                    <div className="bg-purple-50 dark:bg-purple-900/10 p-4 rounded-lg border border-purple-200 dark:border-purple-900/30">
+                      <h3 className="text-sm font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                        <LinkIcon className="w-4 h-4" /> Public Page
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Share this link with parents and loved ones so they can view your public coach profile.</p>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-white dark:bg-zinc-800 rounded px-3 py-2 text-sm text-slate-600 dark:text-slate-300 truncate border border-purple-200 dark:border-purple-800">
+                          lockerroomlink.com/#/coach/{userData.username}
+                        </div>
+                        <button
+                          onClick={copyCoachPublicLink}
+                          className={`flex items-center gap-1.5 px-3 py-2 rounded text-sm font-medium transition-all ${
+                            copiedCoachLink
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-purple-500 hover:bg-purple-600 text-white'
+                          }`}
+                        >
+                          {copiedCoachLink ? (
+                            <>
+                              <Check className="w-4 h-4" />
+                              Copied!
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-4 h-4" />
+                              Copy
+                            </>
+                          )}
+                        </button>
+                        <a
+                          href={`#/coach/${userData.username}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 bg-slate-200 dark:bg-zinc-700 hover:bg-slate-300 dark:hover:bg-zinc-600 rounded transition-colors"
+                          title="View public profile"
+                        >
+                          <ExternalLink className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+                        </a>
+                      </div>
+                    </div>
                   </div>
                 )}
                 
