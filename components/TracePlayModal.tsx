@@ -1,10 +1,22 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { X, Upload, Clipboard, Image, Move, Lock, Unlock, Eye, EyeOff, ZoomIn, ZoomOut, Maximize, HelpCircle, Plus, Minus, RotateCcw } from 'lucide-react';
 
+// Player element type for displaying formation
+interface PlayElement {
+  id: string;
+  type: 'X' | 'O';
+  label: string;
+  x: number;
+  y: number;
+  color: string;
+}
+
 interface TracePlayModalProps {
   isOpen: boolean;
   onClose: () => void;
   onStartTracing: (imageDataUrl: string, imageSettings: ImageSettings) => void;
+  formationElements?: PlayElement[]; // Optional: show formation players in preview
+  formationName?: string; // Optional: name of the formation being used
 }
 
 export interface ImageSettings {
@@ -20,7 +32,9 @@ export interface ImageSettings {
 const TracePlayModal: React.FC<TracePlayModalProps> = ({
   isOpen,
   onClose,
-  onStartTracing
+  onStartTracing,
+  formationElements = [],
+  formationName = ''
 }) => {
   // Image state
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -455,6 +469,36 @@ const TracePlayModal: React.FC<TracePlayModalProps> = ({
                       objectFit: 'fill'
                     }}
                   />
+                )}
+                
+                {/* Formation elements overlay - show players on top of trace image */}
+                {formationElements.length > 0 && (
+                  <>
+                    {formationElements.map(el => (
+                      <div
+                        key={el.id}
+                        className={`absolute flex items-center font-bold text-white shadow-lg border-2 border-white/80 pointer-events-none ${el.color} ${el.type === 'O' ? 'rounded-full justify-center' : 'justify-center'}`}
+                        style={{ 
+                          left: `${el.x}%`, 
+                          top: `${el.y}%`, 
+                          transform: 'translate(-50%, -50%)',
+                          width: '36px',
+                          height: '36px',
+                          fontSize: '10px',
+                          opacity: 0.85,
+                          ...(el.type === 'X' ? { clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)', borderRadius: '0', paddingTop: '12px' } : {})
+                        }}
+                      >
+                        {el.label || el.type}
+                      </div>
+                    ))}
+                    {/* Formation name badge */}
+                    {formationName && (
+                      <div className="absolute top-2 left-2 bg-emerald-600/90 text-white text-xs px-2 py-1 rounded font-semibold">
+                        {formationName}
+                      </div>
+                    )}
+                  </>
                 )}
                 
                 {/* Drag hint */}

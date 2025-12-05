@@ -4526,14 +4526,16 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
       currentCredits={cloneCredits}
     />
     
-    {/* Trace Play Modal */}
+    {/* Trace Play Modal - pass current elements and formation name for alignment */}
     <TracePlayModal
       isOpen={showTraceModal}
       onClose={() => setShowTraceModal(false)}
       onStartTracing={handleStartTracing}
+      formationElements={elements}
+      formationName={playFormationName}
     />
     
-    {/* Trace Formation Modal */}
+    {/* Trace Formation Modal - no formation to show since we're creating one */}
     <TracePlayModal
       isOpen={showTraceFormationModal}
       onClose={() => setShowTraceFormationModal(false)}
