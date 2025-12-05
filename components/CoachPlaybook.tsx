@@ -199,7 +199,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
         const configDoc = await getDoc(doc(db, 'appConfig', 'settings'));
         if (configDoc.exists()) {
           const data = configDoc.data();
-          setCloneEnabled(data.cloneEnabled ?? true);
+          setCloneEnabled(data.clonePlayEnabled ?? true);
         }
       } catch (err) {
         console.error('Error loading clone config:', err);
