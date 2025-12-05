@@ -1372,9 +1372,11 @@ const Dashboard: React.FC = () => {
           ) : coaches.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {coaches.map(coach => (
-                <Link
+                <a
                   key={coach.uid}
-                  to={`/coach/${coach.username}`}
+                  href={`#/coach/${coach.username}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="group bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 text-center hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10 transition-all"
                 >
                   {/* Coach Photo */}
@@ -1408,7 +1410,7 @@ const Dashboard: React.FC = () => {
                   <p className="text-xs text-zinc-500 mt-1">
                     {coach.isHeadCoach ? 'Head Coach' : 'Coach'}
                   </p>
-                </Link>
+                </a>
               ))}
             </div>
           ) : (

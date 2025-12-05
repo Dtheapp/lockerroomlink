@@ -295,13 +295,15 @@ const PublicAthleteProfile: React.FC = () => {
               </div>
 
               {team && (
-                <Link 
-                  to={`/team/${team.id}`}
+                <a 
+                  href={`#/team/${team.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 text-sky-400 hover:text-sky-300 transition-colors"
                 >
                   <Users className="w-4 h-4" />
                   <span className="font-medium">{team.name}</span>
-                </Link>
+                </a>
               )}
 
               {/* Physical Stats */}

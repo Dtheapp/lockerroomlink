@@ -70,12 +70,12 @@ const CoachFeedback: React.FC = () => {
         ...(adminNotes && { adminNotes })
       });
       
-      // Send notification message to the parent
+      // Send notification message to the parent (via Admin channel, NOT to coach)
       try {
         const parentId = selectedFeedback.parentId;
-        const coachId = selectedFeedback.coachId;
+        const adminId = userData?.uid || 'admin'; // Current admin user
         
-        // Find existing chat between parent and coach
+        // Find existing chat between parent and this admin
         const chatsQuery = query(
           collection(db, 'private_chats'),
           where('participants', 'array-contains', parentId)
@@ -85,7 +85,8 @@ const CoachFeedback: React.FC = () => {
         
         chatsSnapshot.forEach(chatDoc => {
           const chatData = chatDoc.data();
-          if (chatData.participants.includes(coachId)) {
+          // Find chat with admin, not with coach
+          if (chatData.participants.includes(adminId)) {
             existingChatId = chatDoc.id;
           }
         });
@@ -111,7 +112,7 @@ Your grievance regarding Coach ${selectedFeedback.coachName} has been marked as 
         if (existingChatId) {
           await addDoc(collection(db, 'private_chats', existingChatId, 'messages'), {
             text: notificationMessage,
-            senderId: 'system',
+            senderId: adminId,
             timestamp: serverTimestamp(),
             isSystemMessage: true
           });
@@ -119,24 +120,24 @@ Your grievance regarding Coach ${selectedFeedback.coachName} has been marked as 
             lastMessage: `${statusEmoji} Grievance Update: ${statusLabel}`,
             updatedAt: serverTimestamp(),
             lastMessageTime: serverTimestamp(),
-            lastSenderId: 'system'
+            lastSenderId: adminId
           });
         } else {
-          // Create new chat if none exists
+          // Create new chat between admin and parent (coach cannot see this)
           const newChatRef = await addDoc(collection(db, 'private_chats'), {
-            participants: [parentId, coachId],
+            participants: [parentId, adminId],
             participantData: {
               [parentId]: { username: selectedFeedback.parentName, role: 'Parent' },
-              [coachId]: { username: selectedFeedback.coachName, role: 'Coach' }
+              [adminId]: { username: userData?.name || 'Administration', role: 'SuperAdmin' }
             },
             lastMessage: `${statusEmoji} Grievance Update: ${statusLabel}`,
             updatedAt: serverTimestamp(),
             lastMessageTime: serverTimestamp(),
-            lastSenderId: 'system'
+            lastSenderId: adminId
           });
           await addDoc(collection(db, 'private_chats', newChatRef.id, 'messages'), {
             text: notificationMessage,
-            senderId: 'system',
+            senderId: adminId,
             timestamp: serverTimestamp(),
             isSystemMessage: true
           });

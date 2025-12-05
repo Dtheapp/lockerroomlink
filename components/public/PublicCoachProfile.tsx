@@ -445,15 +445,17 @@ You will receive a follow-up message once your grievance has been reviewed.
               {/* Teams */}
               <div className="flex flex-wrap justify-center md:justify-start gap-2">
                 {teams.map((team, index) => (
-                  <Link 
+                  <a 
                     key={team.id}
-                    to={`/team/${team.id}`}
+                    href={`#/team/${team.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 text-sky-400 hover:text-sky-300 transition-colors bg-sky-500/10 px-3 py-1 rounded-full"
                   >
                     <Shield className="w-4 h-4" />
                     <span className="font-medium text-sm">{team.name}</span>
                     {isHeadCoach[index] && <Crown className="w-3 h-3 text-amber-400" />}
-                  </Link>
+                  </a>
                 ))}
               </div>
 
@@ -539,9 +541,11 @@ You will receive a follow-up message once your grievance has been reviewed.
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {teams.map((team, index) => (
-                <Link
+                <a
                   key={team.id}
-                  to={`/team/${team.id}`}
+                  href={`#/team/${team.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="bg-zinc-900/50 rounded-lg p-4 border border-zinc-700 hover:border-zinc-500 transition-colors"
                 >
                   <div className="flex items-center gap-3">
@@ -562,7 +566,7 @@ You will receive a follow-up message once your grievance has been reviewed.
                       )}
                     </div>
                   </div>
-                </Link>
+                </a>
               ))}
             </div>
           </div>

@@ -899,14 +899,16 @@ const Roster: React.FC = () => {
                         </h3>
                         {/* Username */}
                         {player.username && (
-                          <Link 
-                            to={`/athlete/${player.username}`}
+                          <a 
+                            href={`#/athlete/${player.username}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="flex items-center justify-center gap-1 mt-0.5 hover:opacity-80 transition-opacity"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <AtSign className="w-3 h-3 text-purple-500" />
                             <span className="text-sm text-purple-600 dark:text-purple-400 font-medium hover:underline">{player.username}</span>
-                          </Link>
+                          </a>
                         )}
                         <p className="text-orange-500 font-bold text-sm uppercase tracking-wide">
                           {player.photoUrl && <span>#{player.number} <span className="text-zinc-400 dark:text-zinc-500">|</span> </span>}{player.position}

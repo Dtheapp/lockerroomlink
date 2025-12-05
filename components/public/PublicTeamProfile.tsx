@@ -348,9 +348,11 @@ const PublicTeamProfile: React.FC = () => {
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {coaches.map((coach) => (
-                    <Link 
+                    <a 
                       key={coach.id}
-                      to={`/coach/${coach.username}`}
+                      href={`#/coach/${coach.username}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className={`flex items-center gap-3 p-3 rounded-lg transition-all hover:scale-[1.02] ${
                         coach.isHeadCoach 
                           ? 'bg-amber-500/10 border border-amber-500/30 hover:border-amber-400' 
@@ -379,7 +381,7 @@ const PublicTeamProfile: React.FC = () => {
                         </p>
                       </div>
                       <ChevronRight className="w-4 h-4 text-zinc-500 flex-shrink-0" />
-                    </Link>
+                    </a>
                   ))}
                 </div>
               </div>
@@ -393,14 +395,17 @@ const PublicTeamProfile: React.FC = () => {
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {players.map((player) => (
-                  <Link
+                  <a
                     key={player.id}
-                    to={player.username ? `/athlete/${player.username}` : '#'}
+                    href={player.username ? `#/athlete/${player.username}` : '#'}
+                    target={player.username ? "_blank" : undefined}
+                    rel={player.username ? "noopener noreferrer" : undefined}
                     className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
                       player.username 
                         ? 'bg-zinc-900/50 hover:bg-zinc-700/50 border border-zinc-700 cursor-pointer' 
                         : 'bg-zinc-900/30 border border-zinc-800 cursor-default'
                     } ${player.isStarter ? 'ring-2 ring-orange-500/50' : ''}`}
+                    onClick={!player.username ? (e: React.MouseEvent) => e.preventDefault() : undefined}
                   >
                     {player.photoUrl ? (
                       <img src={player.photoUrl} alt={player.name} className="w-10 h-10 rounded-full object-cover" />
@@ -422,7 +427,7 @@ const PublicTeamProfile: React.FC = () => {
                     {player.username && (
                       <ChevronRight className="w-4 h-4 text-zinc-600" />
                     )}
-                  </Link>
+                  </a>
                 ))}
               </div>
             </div>
@@ -467,8 +472,10 @@ const PublicTeamProfile: React.FC = () => {
           <div className="space-y-6">
             {/* Sportsmanship Star */}
             {sportsmanshipLeader && sportsmanshipLeader.player.username && (
-              <Link 
-                to={`/athlete/${sportsmanshipLeader.player.username}`}
+              <a 
+                href={`#/athlete/${sportsmanshipLeader.player.username}`}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="block sportsmanship-card bg-gradient-to-br from-amber-900/40 to-orange-900/40 rounded-xl border-2 border-amber-500/50 p-6 relative overflow-hidden transition-all duration-300 cursor-pointer hover:border-amber-400"
               >
                 {/* Shimmer overlay handled by CSS ::before */}
@@ -536,7 +543,7 @@ const PublicTeamProfile: React.FC = () => {
                 <p className="mt-2 text-xs text-amber-500/50 text-center font-medium">
                   Tap to view full profile →
                 </p>
-              </Link>
+              </a>
             )}
 
             {/* Top Performers */}
