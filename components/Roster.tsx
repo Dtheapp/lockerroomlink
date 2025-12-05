@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc, getDocs, where, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -898,10 +899,14 @@ const Roster: React.FC = () => {
                         </h3>
                         {/* Username */}
                         {player.username && (
-                          <div className="flex items-center justify-center gap-1 mt-0.5">
+                          <Link 
+                            to={`/athlete/${player.username}`}
+                            className="flex items-center justify-center gap-1 mt-0.5 hover:opacity-80 transition-opacity"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <AtSign className="w-3 h-3 text-purple-500" />
-                            <span className="text-sm text-purple-600 dark:text-purple-400 font-medium">{player.username}</span>
-                          </div>
+                            <span className="text-sm text-purple-600 dark:text-purple-400 font-medium hover:underline">{player.username}</span>
+                          </Link>
                         )}
                         <p className="text-orange-500 font-bold text-sm uppercase tracking-wide">
                           {player.photoUrl && <span>#{player.number} <span className="text-zinc-400 dark:text-zinc-500">|</span> </span>}{player.position}
