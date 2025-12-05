@@ -104,6 +104,9 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
   // Play preview modal (for viewing plays without editing)
   const [previewPlay, setPreviewPlay] = useState<CoachPlay | null>(null);
   
+  // Formation preview modal (for viewing formation without editing)
+  const [previewFormation, setPreviewFormation] = useState<Formation | null>(null);
+  
   // Unimport playbook state
   const [unimportConfirm, setUnimportConfirm] = useState<ImportedPlaybook | null>(null);
   const [unimportingPlaybook, setUnimportingPlaybook] = useState(false);
@@ -2704,6 +2707,13 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                                   </div>
                                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button
+                                      onClick={() => setPreviewFormation(formation)}
+                                      className="p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                                      title="View formation"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </button>
+                                    <button
                                       onClick={() => startPlayFromFormation(formation)}
                                       className="p-1.5 text-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 rounded"
                                       title="Create play from formation"
@@ -4046,6 +4056,113 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                 <Edit2 className="w-4 h-4" /> Edit Play
               </button>
             )}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* FORMATION PREVIEW MODAL */}
+    {previewFormation && (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-2xl w-full max-w-xl max-h-[90vh] overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="p-4 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
+                <Layers className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">{previewFormation.name}</h3>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                    previewFormation.category === 'Offense' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'
+                    : previewFormation.category === 'Defense' ? 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400'
+                    : 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'
+                  }`}>{previewFormation.category}</span>
+                  <span className="text-xs text-slate-500">{previewFormation.elements?.length || 0} players</span>
+                </div>
+              </div>
+            </div>
+            <button 
+              onClick={() => setPreviewFormation(null)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 p-2"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          
+          {/* Field Preview */}
+          <div className="flex-1 p-4 overflow-auto">
+            <div className="bg-slate-200 dark:bg-slate-900 rounded-xl p-2">
+              <div 
+                className="w-full rounded-lg overflow-hidden border-4 border-slate-300 dark:border-slate-700 shadow-xl relative"
+                style={{ aspectRatio: `${FIELD_ASPECT_RATIO}`, backgroundColor: '#2e7d32' }}
+              >
+                {/* Field markings */}
+                <div className="absolute inset-0 pointer-events-none" style={{ 
+                  backgroundImage: `repeating-linear-gradient(to bottom, transparent 0%, transparent 9%, rgba(255,255,255,0.3) 9%, rgba(255,255,255,0.3) 10%)`,
+                  backgroundSize: '100% 10%' 
+                }}></div>
+                
+                {/* Hash marks */}
+                <div className="absolute left-1/3 right-1/3 top-0 bottom-0 pointer-events-none" style={{ 
+                  backgroundImage: `repeating-linear-gradient(to bottom, transparent 0%, transparent 4%, rgba(255,255,255,0.2) 4%, rgba(255,255,255,0.2) 5%)`,
+                  backgroundSize: '100% 10%',
+                  borderLeft: '1px dashed rgba(255,255,255,0.15)', 
+                  borderRight: '1px dashed rgba(255,255,255,0.15)' 
+                }}></div>
+                
+                {/* End zones */}
+                <div className="absolute top-0 left-0 right-0 h-[8%] bg-orange-600/40 pointer-events-none"></div>
+                <div className="absolute bottom-0 left-0 right-0 h-[8%] bg-orange-600/40 pointer-events-none"></div>
+
+                {/* Player elements */}
+                {(previewFormation.elements || []).map(el => (
+                  <div
+                    key={el.id}
+                    className={`absolute flex items-center font-bold text-white shadow-lg border-2 z-30 border-white/80 ${el.color} ${el.type === 'O' ? 'rounded-full justify-center' : 'justify-center'}`}
+                    style={{ 
+                      left: `${el.x}%`, 
+                      top: `${el.y}%`, 
+                      transform: 'translate(-50%, -50%)', 
+                      width: '36px', 
+                      height: '36px', 
+                      fontSize: '10px',
+                      ...(el.type === 'X' ? { clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)', borderRadius: '0', paddingTop: '12px' } : {})
+                    }}
+                  >
+                    {el.label || el.type}
+                  </div>
+                ))}
+                
+                {/* Formation label */}
+                <div className="absolute top-2 left-2 bg-black/60 text-white px-2 py-1 rounded text-xs font-bold z-40">
+                  {previewFormation.name}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Footer */}
+          <div className="p-4 border-t border-slate-200 dark:border-zinc-800 flex gap-3">
+            <button 
+              onClick={() => setPreviewFormation(null)}
+              className="flex-1 py-2.5 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors"
+            >
+              Close
+            </button>
+            <button 
+              onClick={() => { startPlayFromFormation(previewFormation); setPreviewFormation(null); }}
+              className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Create Play
+            </button>
+            <button 
+              onClick={() => { loadFormationForEdit(previewFormation); setPreviewFormation(null); }}
+              className="flex-1 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+            >
+              <Edit2 className="w-4 h-4" /> Edit
+            </button>
           </div>
         </div>
       </div>
