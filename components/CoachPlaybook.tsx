@@ -1032,21 +1032,38 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
 
   // Handle starting trace mode
   const handleStartTracing = (imageUrl: string, settings: ImageSettings) => {
-    // Clear the board
-    clearBoard();
+    // Preserve current elements and formation info before setting trace background
+    const currentElements = [...elements];
+    const currentFormationId = playFormationId;
+    const currentFormationName = playFormationName;
     
-    // Set the trace background
+    // Set the trace background (don't clear the board - keep the formation!)
     setTraceBackground({ imageUrl, settings });
+    
+    // Restore elements and formation if they were set
+    if (currentElements.length > 0) {
+      setElements(currentElements);
+      setPlayFormationId(currentFormationId);
+      setPlayFormationName(currentFormationName);
+    }
     
     // Switch to editor tab
     setActiveTab('editor');
     
-    // Set play name
-    setPlayName('Traced Play');
-    setPlayNotes('Play traced from image.');
+    // Set play name if not already set
+    if (playName === 'New Play' || !playName) {
+      setPlayName('Traced Play');
+    }
+    if (!playNotes) {
+      setPlayNotes('Play traced from image.');
+    }
+    
+    // Reset drawing mode and clear any partial drawings
+    setDrawingMode('select');
+    cancelDrawing();
     
     // Show success message
-    showToast('Trace mode active! Place players and draw routes over the image.');
+    showToast('Trace mode active! Draw routes and shapes over the image.');
   };
 
   const deletePlay = async () => {
