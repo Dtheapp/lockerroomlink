@@ -391,7 +391,7 @@ const AuthScreen: React.FC = () => {
 
         <div className="bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-800 p-8 relative overflow-hidden">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1 bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-50"></div>
-          <h1 className="text-3xl font-black tracking-tighter text-center text-white mb-2">LOCKER<span className="text-orange-500">ROOM</span></h1>
+          <h1 className="text-3xl font-black tracking-tighter text-center text-white mb-2">LEVEL<span className="text-orange-500">UP</span></h1>
           <p className="text-center text-zinc-500 mb-8 text-sm uppercase tracking-widest font-bold">Level Up Your Game</p>
 
           {error && <p className="bg-red-500/10 text-red-400 p-3 rounded-lg mb-6 text-sm border border-red-500/20 text-center font-medium">{error}</p>}
