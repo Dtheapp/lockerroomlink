@@ -408,6 +408,8 @@ const TeamPlaybook: React.FC = () => {
         positionData.secondaryPlayerNumber = null;
       }
       
+      console.log('[TeamPlaybook] Saving assignment - elementId:', currentElementId, 'assignmentId:', currentAssignmentId, 'positionData:', positionData);
+      
       await setDoc(
         doc(db, 'teams', teamData.id, 'assignedPlays', currentAssignmentId, 'positionAssignments', currentElementId),
         positionData
@@ -417,6 +419,7 @@ const TeamPlaybook: React.FC = () => {
       setPositionAssignments(prev => {
         const newMap = new Map(prev);
         newMap.set(currentElementId, positionData as PositionAssignment);
+        console.log('[TeamPlaybook] Updated positionAssignments - key:', currentElementId, 'map size:', newMap.size, 'keys:', Array.from(newMap.keys()));
         return newMap;
       });
       
@@ -627,9 +630,16 @@ const TeamPlaybook: React.FC = () => {
       </svg>
 
       {/* PLAYER ELEMENTS */}
-      {(play.elements || []).map(el => {
+      {(play.elements || []).map((el, idx) => {
         const assignment = positionAssignments.get(el.id);
         const hasAssignment = assignment && (assignment.primaryPlayerId || assignment.secondaryPlayerId);
+        
+        // Debug logging - only log once per render for first element
+        if (idx === 0) {
+          console.log('[TeamPlaybook] Rendering elements - positionAssignments size:', positionAssignments.size, 
+            'keys:', Array.from(positionAssignments.keys()),
+            'element IDs:', play.elements?.map(e => e.id));
+        }
         
         return (
           <div
@@ -730,6 +740,13 @@ const TeamPlaybook: React.FC = () => {
               strokeDasharray={getStrokeDash(line.lineType)}
               markerEnd={getMarkerEnd(line).replace('-team-', '-preview-')}
             />
+          ))}
+
+          {/* Shapes */}
+          {(play.shapes || []).map(shape => (
+            <g key={shape.id}>
+              {renderShapeSvg(shape)}
+            </g>
           ))}
         </svg>
 
