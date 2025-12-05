@@ -116,37 +116,41 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
             role: 'system',
             content: `You are an expert football play diagram analyzer. Your job is to PRECISELY detect and count EVERY player symbol in a football play diagram.
 
-CRITICAL INSTRUCTIONS:
-1. COUNT CAREFULLY - Football plays typically have 11 offensive players AND may show defensive players (11 more). Count EVERY circle and triangle symbol.
-2. IGNORE decorative elements - Rectangles around groups of players are just visual groupings, NOT players. Large ovals/circles at bottom are zone markers, NOT players.
-3. PRESERVE RELATIVE POSITIONS - The positions you output should maintain the EXACT same relative spacing as the original image.
+CRITICAL: EXPECT 22 PLAYERS (11 offense + 11 defense) in most diagrams!
 
-PLAYER IDENTIFICATION:
-- CIRCLES (filled or hollow) = Offensive players (type: "O")
-- TRIANGLES (filled or hollow, pointing up or down) = Defensive players (type: "X")  
-- SQUARES = Usually a special player like center or quarterback
-- X marks = Defensive players
+PLAYER SYMBOL IDENTIFICATION:
+1. CIRCLES (filled or hollow, any color) = Offensive players → type: "O", shape: "circle"
+2. SMALL SQUARES (same size as circles, on the offensive line) = Offensive players (usually center) → type: "O", shape: "circle" (treat as circle!)
+3. TRIANGLES (filled or hollow, pointing any direction) = Defensive players → type: "X", shape: "triangle"
+4. X marks = Defensive players → type: "X", shape: "x"
 
-COORDINATE MAPPING (VERY IMPORTANT):
-- Look at the ACTUAL playing area in the image (ignore title bars, decorations)
-- Map the leftmost player to around x=10-15
-- Map the rightmost player to around x=85-90
-- Map the topmost player to around y=15-25
-- Map the bottommost player to around y=75-85
-- PRESERVE the relative distances between players exactly
+CRITICAL - DISTINGUISHING PLAYERS FROM DECORATIONS:
+- LARGE RECTANGLES that CONTAIN other players inside them = Visual groupings/boxes, NOT players! (e.g., boxes around cornerbacks)
+- LARGE OVALS at bottom of field = Zone markers, NOT players!
+- SMALL circles/squares/triangles that are SIMILAR SIZE to other player symbols = ACTUAL PLAYERS
+- If a rectangle contains a circle AND a triangle, count BOTH the circle AND triangle as separate players, ignore the rectangle
 
-For a typical 4-4 defense image like this:
-- Back row (safeties): 2 circles at top = y around 10-15
-- Second row (secondary): circles in a line = y around 25-30
-- Third row (linebackers): triangles = y around 40-50
-- Front row (D-line): triangles = y around 55-65
-- Deep safety in oval: triangle = y around 80-85
+SIZE RULE: If a shape is 3-5x larger than the typical player symbols, it's a decoration. If it's similar size, it's a player.
 
-Return ONLY valid JSON (no markdown, no explanation):
+COORDINATE MAPPING:
+- x: 0 = left edge, 100 = right edge of the PLAY AREA (not the whole image)
+- y: 0 = top of play area, 100 = bottom
+- Ignore title bars, slide numbers, decorative borders
+- Map players to fill roughly 10-90 range for x and 15-85 range for y
+
+TYPICAL LAYOUT for 4-4 Defense vs Offense:
+Row 1 (y~10-15): 2 safeties (circles, O)
+Row 2 (y~25-30): 4-5 secondary/receivers (circles, O) - may include players in boxes on the sides
+Row 3 (y~35-45): 4 linebackers (triangles, X)
+Row 4 (y~50-60): 4 D-linemen (triangles, X)
+Row 5 (y~65-75): 5-7 offensive linemen (circles + 1 small square for center, all count as O)
+Row 6 (y~80-90): Deep safety in oval zone (triangle, X) - count the triangle, ignore the oval
+
+Return ONLY valid JSON:
 {
   "players": [
-    {"x": 50, "y": 15, "shape": "circle", "suggestedType": "O"},
-    {"x": 30, "y": 45, "shape": "triangle", "suggestedType": "X"}
+    {"x": 50, "y": 70, "shape": "circle", "suggestedType": "O"},
+    {"x": 50, "y": 50, "shape": "triangle", "suggestedType": "X"}
   ],
   "routes": [
     {"points": [{"x": 30, "y": 45}, {"x": 35, "y": 35}], "lineType": "solid", "color": "#FACC15", "hasArrow": true}
@@ -154,23 +158,21 @@ Return ONLY valid JSON (no markdown, no explanation):
   "shapes": [],
   "suggestedCategory": "Defense",
   "confidence": 90,
-  "totalPlayersDetected": 18
+  "totalPlayersDetected": 22
 }
 
 ROUTES/ARROWS:
-- Detect ALL arrow lines showing player movement
-- "solid" = solid line, "dashed" = dashed line, "curved" = curved path
-- Include the start point (at player) and end point (arrow tip)
-- Color: yellow=#FACC15, red=#ef4444, white=#ffffff
+- Solid arrows = "solid", Dashed arrows = "dashed", Curved = "curved"
+- Yellow=#FACC15, Red=#ef4444, White=#ffffff
 
-DO NOT include large rectangles or ovals that are zone markers or field decorations - only include small shapes that represent specific coverage zones if they're clearly part of the play design.`
+DO NOT output large rectangles or ovals as shapes - they are field decorations.`
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: 'Analyze this football play diagram. COUNT AND LIST EVERY SINGLE player symbol (circles AND triangles). There may be 15-22 total players. Extract all routes/arrows. Return JSON only.'
+                text: 'Analyze this football play diagram. This likely has 22 PLAYERS (11 offense + 11 defense). Count EVERY circle (offense), small square (offense), and triangle (defense). Large rectangles around players are just visual groupings - count the players INSIDE them. Return JSON only.'
               },
               {
                 type: 'image_url',
