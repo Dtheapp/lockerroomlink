@@ -921,6 +921,9 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
       setSelectedShapeId(null);
       setDrawingMode('select');
       cancelDrawing();
+      // Clear trace background completely
+      setTraceBackground(null);
+      setShowImageAdjust(false);
   };
 
   // Handle cloned play from AI
