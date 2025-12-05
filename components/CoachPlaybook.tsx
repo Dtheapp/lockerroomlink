@@ -1499,20 +1499,23 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
         {/* Drawing lines - with clickable hitbox */}
         {lines.map(line => (
           <g key={line.id}>
-            {/* Invisible wider stroke for click detection */}
+            {/* Invisible wider stroke for click detection - starts drag immediately */}
             {drawingMode === 'select' && (
               <path
                 d={generateLinePath(line)}
                 stroke="transparent"
-                strokeWidth="3"
+                strokeWidth="5"
                 fill="none"
-                style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
-                onClick={(e) => {
+                style={{ cursor: 'move', pointerEvents: 'stroke' }}
+                onMouseDown={(e) => {
                   e.stopPropagation();
-                  setSelectedLineId(line.id);
-                  setSelectedElementId(null);
-                  setSelectedRouteId(null);
-                  setSelectedShapeId(null);
+                  e.preventDefault();
+                  startDrag(e as any, 'line', line.id);
+                }}
+                onTouchStart={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  startDrag(e as any, 'line', line.id);
                 }}
               />
             )}
@@ -1546,7 +1549,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
         {/* Shapes - with clickable hitbox */}
         {shapes.map(shape => (
           <g key={shape.id}>
-            {/* Invisible clickable area for selection */}
+            {/* Invisible clickable area for selection - starts drag immediately */}
             {drawingMode === 'select' && (
               <rect
                 x={shape.x - shape.width / 2 - 1}
@@ -1554,13 +1557,16 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                 width={shape.width + 2}
                 height={shape.height + 2}
                 fill="transparent"
-                style={{ cursor: 'pointer', pointerEvents: 'fill' }}
-                onClick={(e) => {
+                style={{ cursor: 'move', pointerEvents: 'fill' }}
+                onMouseDown={(e) => {
                   e.stopPropagation();
-                  setSelectedShapeId(shape.id);
-                  setSelectedElementId(null);
-                  setSelectedRouteId(null);
-                  setSelectedLineId(null);
+                  e.preventDefault();
+                  startDrag(e as any, 'shape', shape.id);
+                }}
+                onTouchStart={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  startDrag(e as any, 'shape', shape.id);
                 }}
               />
             )}
@@ -1593,21 +1599,22 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
         const maxX = Math.max(...xs);
         const minY = Math.min(...ys);
         const maxY = Math.max(...ys);
-        const padding = 1; // 1% padding for easier click
+        const padding = 2; // 2% padding for easier click
         return (
           <div
             key={`line-handle-${line.id}`}
             onMouseDown={(e) => startDrag(e, 'line', line.id)}
             onTouchStart={(e) => startDrag(e, 'line', line.id)}
-            className={`absolute cursor-move z-14 ${
-              selectedLineId === line.id ? 'ring-2 ring-yellow-400 ring-offset-1 bg-yellow-400/10' : ''
+            className={`absolute cursor-move ${
+              selectedLineId === line.id ? 'ring-2 ring-yellow-400 ring-offset-1 bg-yellow-400/20' : 'bg-transparent hover:bg-yellow-400/10'
             }`}
             style={{
               left: `${minX - padding}%`,
               top: `${minY - padding}%`,
-              width: `${Math.max(maxX - minX + padding * 2, 3)}%`,
-              height: `${Math.max(maxY - minY + padding * 2, 3)}%`,
-              pointerEvents: drawingMode === 'select' ? 'auto' : 'none'
+              width: `${Math.max(maxX - minX + padding * 2, 5)}%`,
+              height: `${Math.max(maxY - minY + padding * 2, 5)}%`,
+              pointerEvents: drawingMode === 'select' ? 'auto' : 'none',
+              zIndex: 18
             }}
           />
         );
@@ -1619,15 +1626,16 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
           key={shape.id}
           onMouseDown={(e) => startDrag(e, 'shape', shape.id)}
           onTouchStart={(e) => startDrag(e, 'shape', shape.id)}
-          className={`absolute cursor-move z-15 ${
-            selectedShapeId === shape.id ? 'ring-2 ring-yellow-400 ring-offset-1' : ''
+          className={`absolute cursor-move ${
+            selectedShapeId === shape.id ? 'ring-2 ring-yellow-400 ring-offset-1 bg-yellow-400/20' : 'bg-transparent hover:bg-yellow-400/10'
           }`}
           style={{
             left: `${shape.x - shape.width / 2}%`,
             top: `${shape.y - shape.height / 2}%`,
             width: `${shape.width}%`,
             height: `${shape.height}%`,
-            pointerEvents: drawingMode === 'select' ? 'auto' : 'none'
+            pointerEvents: drawingMode === 'select' ? 'auto' : 'none',
+            zIndex: 19
           }}
         />
       ))}
