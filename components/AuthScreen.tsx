@@ -11,7 +11,7 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-type SignUpRole = 'Parent' | 'Coach';
+type SignUpRole = 'Parent' | 'Coach' | 'Fan';
 
 const AuthScreen: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -144,9 +144,17 @@ const AuthScreen: React.FC = () => {
                 name,
                 email,
                 role: signUpRole,
-                teamId: verifiedTeamId, // null for Parents, optional for Coaches
+                teamId: verifiedTeamId, // null for Parents and Fans, optional for Coaches
                 username: cleanUsername
             };
+            
+            // Add fan-specific fields
+            if (signUpRole === 'Fan') {
+                userProfile.followedAthletes = [];
+                userProfile.kudosGiven = {};
+                userProfile.favoriteTeams = [];
+                userProfile.isBanned = false;
+            }
             
             await setDoc(doc(db, 'users', user.uid), userProfile);
 
@@ -219,8 +227,8 @@ const AuthScreen: React.FC = () => {
          {/* Role selector for signup only */}
          <div className="mb-4">
            <label className="block text-sm font-medium text-zinc-400 mb-2">I am a...</label>
-           <div className="grid grid-cols-2 gap-2 bg-black p-1 rounded-xl border border-zinc-800">
-             {(['Parent', 'Coach'] as SignUpRole[]).map(role => (
+           <div className="grid grid-cols-3 gap-2 bg-black p-1 rounded-xl border border-zinc-800">
+             {(['Parent', 'Coach', 'Fan'] as SignUpRole[]).map(role => (
                <button 
                  key={role} 
                  type="button" 
@@ -231,15 +239,23 @@ const AuthScreen: React.FC = () => {
                </button>
              ))}
            </div>
+           {signUpRole === 'Fan' && (
+             <p className="text-xs text-purple-400 mt-2">🎉 Follow athletes, give kudos, and engage with the community!</p>
+           )}
          </div>
          
-         <div><label className="block text-sm font-medium text-zinc-400 mb-1">Full Name</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder={signUpRole === 'Coach' ? "e.g., Coach Taylor" : "e.g., John Smith"} className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
-         <div><label className="block text-sm font-medium text-zinc-400 mb-1">{signUpRole === 'Coach' ? 'Coach ID (Username)' : 'Username'}</label><input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder={signUpRole === 'Coach' ? "e.g. CoachPrime" : "e.g. PapaJohn23"} className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white font-mono focus:ring-orange-500" /></div>
+         <div><label className="block text-sm font-medium text-zinc-400 mb-1">{signUpRole === 'Fan' ? 'Display Name' : 'Full Name'}</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder={signUpRole === 'Coach' ? "e.g., Coach Taylor" : signUpRole === 'Fan' ? "e.g., SportsFan2024" : "e.g., John Smith"} className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
+         <div><label className="block text-sm font-medium text-zinc-400 mb-1">{signUpRole === 'Coach' ? 'Coach ID (Username)' : signUpRole === 'Fan' ? 'Fan Handle' : 'Username'}</label><input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder={signUpRole === 'Coach' ? "e.g. CoachPrime" : signUpRole === 'Fan' ? "e.g. SidelineSuperFan" : "e.g. PapaJohn23"} className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white font-mono focus:ring-orange-500" /></div>
          <div><label className="block text-sm font-medium text-zinc-400 mb-1">Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
          <div><label className="block text-sm font-medium text-zinc-400 mb-1">Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="mt-1 block w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-sm py-3 px-4 text-white focus:ring-orange-500" /></div>
          {signUpRole === 'Parent' && (
            <div className="pt-2 border-t border-zinc-800">
              <p className="text-xs text-zinc-500 italic">You'll add your players and their teams after signing up</p>
+           </div>
+         )}
+         {signUpRole === 'Fan' && (
+           <div className="pt-2 border-t border-zinc-800">
+             <p className="text-xs text-zinc-500 italic">Follow your favorite athletes, give kudos, and cheer them on!</p>
            </div>
          )}
        </>
@@ -302,7 +318,7 @@ const AuthScreen: React.FC = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-white font-bold text-sm">Get the App Experience</h3>
-                  <p className="text-white/80 text-xs">Install LockerRoom for quick access</p>
+                  <p className="text-white/80 text-xs">Install LevelUp for quick access</p>
                 </div>
                 <button
                   onClick={handleInstallClick}
@@ -323,7 +339,7 @@ const AuthScreen: React.FC = () => {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-white font-bold text-lg">Install LockerRoom</h3>
+                  <h3 className="text-white font-bold text-lg">Install LevelUp</h3>
                   <button onClick={() => setShowIOSInstall(false)} className="text-zinc-500 hover:text-white">
                     <X className="w-5 h-5" />
                   </button>
@@ -376,7 +392,7 @@ const AuthScreen: React.FC = () => {
         <div className="bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-800 p-8 relative overflow-hidden">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1 bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-50"></div>
           <h1 className="text-3xl font-black tracking-tighter text-center text-white mb-2">LOCKER<span className="text-orange-500">ROOM</span></h1>
-          <p className="text-center text-zinc-500 mb-8 text-sm uppercase tracking-widest font-bold">Digital Locker Room</p>
+          <p className="text-center text-zinc-500 mb-8 text-sm uppercase tracking-widest font-bold">Level Up Your Game</p>
 
           {error && <p className="bg-red-500/10 text-red-400 p-3 rounded-lg mb-6 text-sm border border-red-500/20 text-center font-medium">{error}</p>}
           

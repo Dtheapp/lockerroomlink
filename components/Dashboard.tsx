@@ -522,7 +522,7 @@ const Dashboard: React.FC = () => {
             <div className="w-20 h-20 bg-orange-100 dark:bg-orange-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
               <Plus className="w-10 h-10 text-orange-600 dark:text-orange-400" />
             </div>
-            <h1 className="text-3xl font-black text-zinc-900 dark:text-white mb-2">Welcome to LockerRoom!</h1>
+            <h1 className="text-3xl font-black text-zinc-900 dark:text-white mb-2">Welcome to LevelUp!</h1>
             <p className="text-zinc-600 dark:text-zinc-400 text-lg">Let's get started by adding your first athlete</p>
           </div>
           

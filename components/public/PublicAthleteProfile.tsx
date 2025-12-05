@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, orderBy, setDoc, deleteDoc, updateDoc, increment, Timestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import type { Player, Team, PlayerSeasonStats, Game, GamePlayerStats, PlayerFilmEntry } from '../../types';
-import { User, Trophy, Sword, Shield, Target, Activity, Calendar, MapPin, TrendingUp, Star, Zap, Crown, Users, ArrowLeft, Home, Award, Heart, Film, Play, X, ChevronRight } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import type { Player, Team, PlayerSeasonStats, Game, GamePlayerStats, PlayerFilmEntry, AthleteFollower } from '../../types';
+import { User, Trophy, Sword, Shield, Target, Activity, Calendar, MapPin, TrendingUp, Star, Zap, Crown, Users, ArrowLeft, Home, Award, Heart, Film, Play, X, ChevronRight, UserPlus, UserMinus, Loader2, MessageCircle } from 'lucide-react';
+import PublicChat from './PublicChat';
+import AthletePosts from './AthletePosts';
+import AthleteKudos from './AthleteKudos';
+import FanClipGallery from './FanClipGallery';
 
 interface PublicAthleteData {
   player: Player;
@@ -19,11 +24,83 @@ interface PublicAthleteData {
 
 const PublicAthleteProfile: React.FC = () => {
   const { username } = useParams<{ username: string }>();
+  const { user, userData } = useAuth();
   const [data, setData] = useState<PublicAthleteData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showFilmRoom, setShowFilmRoom] = useState(false);
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+
+  // Follow state for fans
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+
+  // Check if current user is following this athlete
+  useEffect(() => {
+    if (data && userData?.role === 'Fan' && userData.followedAthletes) {
+      const athleteKey = `${data.teamId}_${data.player.id}`;
+      setIsFollowing(userData.followedAthletes.includes(athleteKey));
+    }
+    if (data?.player) {
+      setFollowerCount(data.player.followerCount || 0);
+    }
+  }, [data, userData]);
+
+  // Handle follow/unfollow
+  const handleFollow = async () => {
+    if (!user || !userData || userData.role !== 'Fan' || !data) return;
+    
+    setFollowLoading(true);
+    const athleteKey = `${data.teamId}_${data.player.id}`;
+    
+    try {
+      if (isFollowing) {
+        // Unfollow
+        await updateDoc(doc(db, 'users', user.uid), {
+          followedAthletes: arrayRemove(athleteKey)
+        });
+        
+        // Remove from athlete's followers subcollection
+        await deleteDoc(doc(db, 'teams', data.teamId, 'players', data.player.id, 'followers', user.uid));
+        
+        // Decrement follower count
+        await updateDoc(doc(db, 'teams', data.teamId, 'players', data.player.id), {
+          followerCount: increment(-1)
+        });
+        
+        setFollowerCount(prev => Math.max(0, prev - 1));
+        setIsFollowing(false);
+      } else {
+        // Follow
+        await updateDoc(doc(db, 'users', user.uid), {
+          followedAthletes: arrayUnion(athleteKey)
+        });
+        
+        // Add to athlete's followers subcollection
+        const followerData: AthleteFollower = {
+          oddsId: user.uid,
+          fanName: userData.name || 'Fan',
+          fanUsername: userData.username || '',
+          followedAt: Timestamp.now(),
+          isVerified: false
+        };
+        await setDoc(doc(db, 'teams', data.teamId, 'players', data.player.id, 'followers', user.uid), followerData);
+        
+        // Increment follower count
+        await updateDoc(doc(db, 'teams', data.teamId, 'players', data.player.id), {
+          followerCount: increment(1)
+        });
+        
+        setFollowerCount(prev => prev + 1);
+        setIsFollowing(true);
+      }
+    } catch (err) {
+      console.error('Error updating follow status:', err);
+    } finally {
+      setFollowLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchAthleteData = async () => {
@@ -313,6 +390,52 @@ const PublicAthleteProfile: React.FC = () => {
                   {player.weight && <span>Weight: <strong className="text-white">{player.weight}</strong></span>}
                 </div>
               )}
+
+              {/* Follower Count & Follow Button */}
+              <div className="flex items-center justify-center md:justify-start gap-4 mt-4">
+                <div className="flex items-center gap-1.5 text-sm text-zinc-400">
+                  <Users className="w-4 h-4 text-purple-400" />
+                  <span><strong className="text-white">{followerCount}</strong> {followerCount === 1 ? 'follower' : 'followers'}</span>
+                </div>
+                
+                {/* Follow Button - Only show for logged-in fans */}
+                {userData?.role === 'Fan' && (
+                  <button
+                    onClick={handleFollow}
+                    disabled={followLoading}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-all ${
+                      isFollowing
+                        ? 'bg-zinc-700 text-zinc-300 hover:bg-red-600 hover:text-white'
+                        : 'bg-purple-600 text-white hover:bg-purple-500 shadow-[0_0_15px_rgba(147,51,234,0.3)]'
+                    }`}
+                  >
+                    {followLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : isFollowing ? (
+                      <>
+                        <UserMinus className="w-4 h-4" />
+                        <span className="hidden sm:inline">Following</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-4 h-4" />
+                        <span className="hidden sm:inline">Follow</span>
+                      </>
+                    )}
+                  </button>
+                )}
+                
+                {/* Prompt non-logged-in users to sign up */}
+                {!user && (
+                  <a
+                    href="#/auth"
+                    className="px-4 py-2 bg-purple-600/20 text-purple-400 rounded-lg font-medium text-sm flex items-center gap-2 hover:bg-purple-600/30 transition-colors border border-purple-500/30"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span className="hidden sm:inline">Sign up to Follow</span>
+                  </a>
+                )}
+              </div>
             </div>
 
             {/* Quick Stats Card */}
@@ -374,6 +497,45 @@ const PublicAthleteProfile: React.FC = () => {
             </div>
           </button>
         )}
+
+        {/* Public Fan Chat */}
+        <div className="mb-8">
+          <PublicChat
+            teamId={teamId}
+            playerId={player.id}
+            playerName={player.name}
+            parentId={player.parentId}
+          />
+        </div>
+
+        {/* Athlete Posts Feed */}
+        <div className="mb-8">
+          <AthletePosts
+            teamId={teamId}
+            playerId={player.id}
+            player={player}
+            parentId={player.parentId}
+          />
+        </div>
+
+        {/* Athlete Kudos */}
+        <div className="mb-8">
+          <AthleteKudos
+            teamId={teamId}
+            playerId={player.id}
+            playerName={player.name}
+          />
+        </div>
+
+        {/* Fan Highlight Clips */}
+        <div className="mb-8">
+          <FanClipGallery
+            teamId={teamId}
+            playerId={player.id}
+            playerName={player.name}
+            parentId={player.parentId}
+          />
+        </div>
 
         {/* Season Stats */}
         {seasonStats && (
@@ -633,7 +795,7 @@ const PublicAthleteProfile: React.FC = () => {
 
         {/* Footer */}
         <footer className="mt-12 text-center text-zinc-600 text-sm">
-          <p>Powered by <span className="text-orange-500 font-bold">LockerRoom</span></p>
+          <p>Powered by <span className="text-orange-500 font-bold">LevelUp</span></p>
         </footer>
       </main>
 

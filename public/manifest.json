@@ -1,6 +1,6 @@
 {
-  "name": "LockerRoom Link",
-  "short_name": "LockerRoom",
+  "name": "LevelUp",
+  "short_name": "LevelUp",
   "description": "Youth sports team management app for coaches and parents",
   "start_url": "/",
   "display": "standalone",

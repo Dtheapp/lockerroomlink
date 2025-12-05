@@ -34,10 +34,10 @@ const EMAIL_TEMPLATES: EmailTemplate[] = [
     {
         id: 'welcome',
         name: 'Welcome Message',
-        subject: 'Welcome to Locker Room Link!',
+        subject: 'Welcome to LevelUp!',
         body: `Hello {name},
 
-Welcome to Locker Room Link! We're excited to have you join our community.
+Welcome to LevelUp! We're excited to have you join our community.
 
 Here are some things you can do:
 • Check your team's dashboard for updates
@@ -48,25 +48,25 @@ Here are some things you can do:
 If you have any questions, feel free to reach out.
 
 Best regards,
-The Locker Room Link Team`
+The LevelUp Team`
     },
     {
         id: 'reminder',
         name: 'General Reminder',
-        subject: 'Reminder from Locker Room Link',
+        subject: 'Reminder from LevelUp',
         body: `Hello {name},
 
-This is a friendly reminder from Locker Room Link.
+This is a friendly reminder from LevelUp.
 
 {custom_message}
 
 Thank you,
-The Locker Room Link Team`
+The LevelUp Team`
     },
     {
         id: 'update',
         name: 'Important Update',
-        subject: 'Important Update - Locker Room Link',
+        subject: 'Important Update - LevelUp',
         body: `Hello {name},
 
 We have an important update to share with you:
@@ -76,22 +76,22 @@ We have an important update to share with you:
 Please log in to your account to learn more.
 
 Thank you,
-The Locker Room Link Team`
+The LevelUp Team`
     },
     {
         id: 'maintenance',
         name: 'Maintenance Notice',
-        subject: 'Scheduled Maintenance - Locker Room Link',
+        subject: 'Scheduled Maintenance - LevelUp',
         body: `Hello {name},
 
-We will be performing scheduled maintenance on Locker Room Link.
+We will be performing scheduled maintenance on LevelUp.
 
 {custom_message}
 
 We apologize for any inconvenience and appreciate your patience.
 
 Thank you,
-The Locker Room Link Team`
+The LevelUp Team`
     }
 ];
 

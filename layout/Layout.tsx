@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
-import { Home, Users, ClipboardList, MessageCircle, Video, LogOut, User, Send, Menu, X, ChevronLeft, Sun, Moon, BarChart3, Shield, AlertTriangle, BookOpen } from 'lucide-react';
+import { Home, Users, ClipboardList, MessageCircle, Video, LogOut, User, Send, Menu, X, ChevronLeft, Sun, Moon, BarChart3, Shield, AlertTriangle, BookOpen, Star, Heart } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
@@ -106,6 +106,12 @@ const Layout: React.FC = () => {
     }
   };
 
+  // Fan-specific nav items (simpler navigation)
+  const fanNavItems = [
+    { name: 'Home', path: '/dashboard', icon: Home },
+    { name: 'My Profile', path: '/profile', icon: User },
+  ];
+
   const allNavItems = [
     { name: 'Dashboard', path: '/dashboard', icon: Home },
     { name: 'Roster', path: '/roster', icon: Users },
@@ -119,7 +125,8 @@ const Layout: React.FC = () => {
     { name: 'My Plays', path: '/coaching', icon: BookOpen, coachOnly: true, configKey: 'playbookEnabled' as const },
   ];
 
-  const navItems = allNavItems.filter(item => {
+  // Use fan nav items for fans, regular items for others
+  const navItems = userData?.role === 'Fan' ? fanNavItems : allNavItems.filter(item => {
       if (item.name === 'Team Plays' && userData?.role === 'Parent') return false;
       if ((item as any).coachOnly && userData?.role !== 'Coach') return false;
       // Filter by config toggle
@@ -137,7 +144,7 @@ const Layout: React.FC = () => {
       {/* MOBILE HEADER */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-900 flex items-center justify-between px-4 z-40 shadow-sm">
           <button onClick={handleLogoClick} className="text-xl font-black tracking-tighter hover:opacity-80 transition-opacity">
-            <span className="text-orange-500">LOCKER</span><span className="text-zinc-900 dark:text-white">ROOM</span>
+            <span className="text-orange-500">LEVEL</span><span className="text-zinc-900 dark:text-white">UP</span>
           </button>
           <button onClick={() => setIsSidebarOpen(true)} className="text-zinc-600 dark:text-zinc-300">
               <Menu className="w-8 h-8" />
@@ -158,15 +165,15 @@ const Layout: React.FC = () => {
                 <button onClick={handleLogoClick} className="min-w-0 hover:opacity-80 transition-opacity text-left">
                     {/* FIX: Split Logo Color Logic */}
                     <div className="text-2xl font-black tracking-tighter truncate leading-none">
-                        <span className="text-orange-500">LOCKER</span>
-                        <span className="text-zinc-900 dark:text-white">ROOM</span>
+                        <span className="text-orange-500">LEVEL</span>
+                        <span className="text-zinc-900 dark:text-white">UP</span>
                     </div>
                 </button>
             )}
             {isDesktopCollapsed && (
                 <button onClick={handleLogoClick} className="mx-auto hover:opacity-80 transition-opacity" title="Go to Dashboard">
                     <span className="text-xl font-black text-orange-500">L</span>
-                    <span className="text-xl font-black text-zinc-900 dark:text-white">R</span>
+                    <span className="text-xl font-black text-zinc-900 dark:text-white">U</span>
                 </button>
             )}
             
@@ -198,7 +205,7 @@ const Layout: React.FC = () => {
 
         <nav className="flex-1 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
-            const hasUnread = item.unreadKey && unread[item.unreadKey];
+            const hasUnread = (item as any).unreadKey && unread[(item as any).unreadKey];
             // On mobile, always show full nav items (isSidebarOpen means mobile menu is open)
             // On desktop, respect isDesktopCollapsed
             const showLabel = isSidebarOpen || !isDesktopCollapsed;

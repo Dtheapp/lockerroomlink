@@ -66,6 +66,10 @@ const Messenger = lazyWithRetry(() => import('./components/Messenger'));
 const Stats = lazyWithRetry(() => import('./components/Stats'));
 const Coaching = lazyWithRetry(() => import('./components/Coaching'));
 
+// Fan Pages
+const FanDashboard = lazyWithRetry(() => import('./components/FanDashboard'));
+const FanProfile = lazyWithRetry(() => import('./components/FanProfile'));
+
 // Lazy-loaded Admin Pages
 const AdminDashboard = lazyWithRetry(() => import('./components/admin/AdminDashboard'));
 const AdminMessenger = lazyWithRetry(() => import('./components/admin/AdminMessenger'));
@@ -182,6 +186,16 @@ const AppContent: React.FC = () => {
                 <Route path="settings" element={<AppSettings />} />
               </Route>
               <Route path="*" element={<Navigate to="/admin" replace />} />
+            </>
+          ) : userData?.role === 'Fan' ? (
+            // Fan-specific routes - simplified navigation
+            <>
+              <Route path="/" element={<Layout />}>
+                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route path="dashboard" element={<FanDashboard />} />
+                <Route path="profile" element={<FanProfile />} />
+              </Route>
+              <Route path="*" element={<Navigate to="/" replace />} />
             </>
           ) : (
             <>

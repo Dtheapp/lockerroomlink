@@ -1,6 +1,6 @@
 import { Timestamp } from 'firebase/firestore';
 
-export type UserRole = 'Coach' | 'Parent' | 'SuperAdmin';
+export type UserRole = 'Coach' | 'Parent' | 'Fan' | 'SuperAdmin';
 
 // --- HELPER INTERFACES ---
 export interface EmergencyContact {
@@ -78,6 +78,14 @@ export interface UserProfile {
   cloneCredits?: number; // Number of remaining clone credits (default: 10 for new coaches)
   totalClonesUsed?: number; // Total clones ever used (for analytics)
   purchasedCredits?: number; // Credits purchased (for future monetization)
+  
+  // --- FAN-SPECIFIC FIELDS ---
+  followedAthletes?: string[]; // Array of athlete usernames the fan follows
+  kudosGiven?: { [athleteUsername: string]: number }; // Kudos given to each athlete
+  isBanned?: boolean; // If fan is banned from all interactions
+  banReason?: string;
+  bannedAt?: Timestamp;
+  favoriteTeams?: string[]; // Team IDs the fan follows
 }
 
 export interface Team {
@@ -156,8 +164,42 @@ export interface Player {
     td: number;
     tkl: number;
   };
+  
+  // --- FAN ENGAGEMENT (stored on player document) ---
+  followerCount?: number; // Denormalized count for quick display
+  kudosCount?: number; // Total kudos received
 }
-// Keep all other interfaces intact.
+
+// --- ATHLETE FOLLOWER (stored in subcollection: teams/{teamId}/players/{playerId}/followers/{fanId}) ---
+export interface AthleteFollower {
+  oddsId: string; // Fan's user ID
+  fanName: string;
+  fanUsername: string;
+  fanPhotoUrl?: string;
+  followedAt: Timestamp;
+  isVerified?: boolean; // Verified fan (attended games, etc.)
+}
+
+// --- ATHLETE KUDOS (stored in subcollection: teams/{teamId}/players/{playerId}/kudos/{kudosId}) ---
+export type KudosCategory = 'great_play' | 'teamwork' | 'sportsmanship' | 'improvement' | 'leadership' | 'hustle';
+
+export interface AthleteKudos {
+  id: string;
+  fanId: string;
+  fanName: string;
+  fanUsername?: string;
+  category: KudosCategory;
+  amount: number; // Kudos points given (1-5)
+  message?: string; // Optional message with kudos
+  createdAt: any;
+}
+
+export interface KudosCategoryInfo {
+  id: KudosCategory;
+  label: string;
+  emoji: string;
+  description: string;
+}
 
 // --- TEAM CHAT ---
 export interface Message {
@@ -719,4 +761,135 @@ export interface ClonePlayResponse {
   analysis?: ClonePlayAnalysis;
   error?: string;
   creditsRemaining?: number;
+}
+
+// --- PUBLIC CHAT (Fan Feature) ---
+export interface PublicChatMessage {
+  id: string;
+  text: string;
+  senderId: string;
+  senderName: string;
+  senderUsername: string;
+  senderRole: 'Fan' | 'Parent' | 'Athlete'; // Who sent the message
+  senderPhotoUrl?: string;
+  timestamp: any; // Timestamp
+  // For "Chat As Athlete" feature - parent chatting as their child
+  isAthletePost?: boolean;
+  athleteId?: string;
+  athleteName?: string;
+  // Moderation
+  isDeleted?: boolean;
+  deletedBy?: string;
+  deletedAt?: any;
+  // Reply support
+  replyTo?: {
+    id: string;
+    text: string;
+    senderName: string;
+  };
+  // Reactions/likes
+  likes?: string[]; // array of userIds who liked
+  likeCount?: number;
+}
+
+export interface PublicChatSettings {
+  chatEnabled: boolean;
+  allowFanChat: boolean;
+  requireApproval: boolean; // If true, fan messages need approval (we're NOT using this per user request)
+  slowModeSeconds: number; // 0 = no slow mode, >0 = seconds between messages
+  bannedWords?: string[];
+}
+
+export interface PublicChatMutedUser {
+  oduserId: string;
+  odusername: string;
+  mutedBy: string;
+  mutedByName: string;
+  mutedAt: any; // Timestamp
+  reason?: string;
+  expiresAt?: any; // Timestamp, null = permanent
+}
+
+// --- ATHLETE POSTS (Fan Feature Phase 3) ---
+export interface AthletePost {
+  id: string;
+  // Content
+  text: string;
+  imageUrl?: string;
+  imagePath?: string; // For deletion
+  videoUrl?: string;
+  // Author info
+  authorId: string; // Parent's user ID
+  authorName: string;
+  athleteId: string; // The athlete this post is for
+  athleteName: string;
+  athletePhotoUrl?: string;
+  // Metadata
+  createdAt: any; // Timestamp
+  updatedAt?: any;
+  // Engagement
+  likes: string[]; // Array of user IDs who liked
+  likeCount: number;
+  commentCount: number;
+  // Visibility
+  isPinned?: boolean;
+  isHidden?: boolean;
+}
+
+export interface PostComment {
+  id: string;
+  postId: string;
+  text: string;
+  // Author
+  authorId: string;
+  authorName: string;
+  authorUsername: string;
+  authorRole: 'Fan' | 'Parent' | 'Athlete';
+  authorPhotoUrl?: string;
+  // For athlete comments
+  isAthleteComment?: boolean;
+  athleteId?: string;
+  athleteName?: string;
+  // Metadata
+  createdAt: any; // Timestamp
+  // Engagement
+  likes: string[];
+  likeCount: number;
+  // Moderation
+  isDeleted?: boolean;
+  deletedBy?: string;
+}
+
+// --- FAN CLIPS (stored in: teams/{teamId}/players/{playerId}/fanClips/{clipId}) ---
+export interface FanClip {
+  id: string;
+  // Source video info
+  sourceVideoId: string;
+  sourceVideoTitle: string;
+  sourceTeamId: string;
+  sourceTeamName: string;
+  youtubeId: string;
+  // Clip timing (in seconds)
+  startTime: number;
+  endTime: number;
+  // Clip details
+  title: string;
+  description?: string;
+  // Creator info
+  creatorId: string;
+  creatorName: string;
+  creatorUsername?: string;
+  // Target athlete
+  athleteId: string;
+  athleteName: string;
+  // Metadata
+  createdAt: any;
+  // Engagement
+  likes: string[];
+  likeCount: number;
+  viewCount: number;
+  // Moderation
+  isApproved?: boolean; // Parent can approve/reject
+  isHidden?: boolean;
+  rejectionReason?: string;
 }
