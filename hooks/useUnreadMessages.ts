@@ -139,6 +139,46 @@ export const useUnreadMessages = () => {
     return () => unsubscribe();
   }, [user, lastReadData]);
 
+  // Grievance chat unread listener for Parents (shows in Messenger)
+  useEffect(() => {
+    if (!user || userData?.role !== 'Parent') return;
+
+    const grievanceChatsQuery = query(
+      collection(db, 'grievance_chats'),
+      where('parentId', '==', user.uid),
+      orderBy('updatedAt', 'desc'),
+      limit(20)
+    );
+
+    const unsubscribe = onSnapshot(grievanceChatsQuery, (snapshot) => {
+      let hasUnreadGrievanceMessages = false;
+      
+      snapshot.docs.forEach(chatDoc => {
+        const chatData = chatDoc.data();
+        const lastMsgTime = chatData.updatedAt as Timestamp;
+        const lastRead = lastReadData[`grievance_${chatDoc.id}`] as Timestamp;
+        const lastSenderId = chatData.lastSenderId;
+        
+        // Has unread if: newer message exists AND was sent by admin (grievance-system)
+        if (lastMsgTime && 
+            (!lastRead || lastMsgTime.seconds > lastRead.seconds) &&
+            lastSenderId && 
+            lastSenderId === 'grievance-system') {
+          hasUnreadGrievanceMessages = true;
+        }
+      });
+      
+      // If parent has unread grievance messages, also show messenger indicator
+      if (hasUnreadGrievanceMessages) {
+        setUnread(prev => ({ ...prev, messenger: true }));
+      }
+    }, (error) => {
+      console.log('Parent grievance unread check:', error.message);
+    });
+
+    return () => unsubscribe();
+  }, [user, userData?.role, lastReadData]);
+
   // Grievance unread listener (admin only)
   useEffect(() => {
     if (!user || userData?.role !== 'Admin') {

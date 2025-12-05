@@ -54,9 +54,14 @@ const Messenger: React.FC = () => {
   // Mark conversation as read when opening it
   useEffect(() => {
     if (activeChat?.id) {
-      markAsRead('messenger', activeChat.id);
+      // Use appropriate key based on chat type
+      if (activeChat.isGrievance) {
+        markAsRead('grievance', activeChat.id);
+      } else {
+        markAsRead('messenger', activeChat.id);
+      }
     }
-  }, [activeChat?.id, markAsRead]);
+  }, [activeChat?.id, activeChat?.isGrievance, markAsRead]);
 
   // 1. LOAD CHATS
   useEffect(() => {
