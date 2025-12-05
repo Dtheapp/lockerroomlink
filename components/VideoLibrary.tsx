@@ -216,7 +216,7 @@ const VideoLibrary: React.FC = () => {
               title: newVideo.title,
               youtubeId,
               category: newVideo.category,
-              description: newVideo.description || undefined,
+              description: newVideo.description || '',
               taggedAt: serverTimestamp(),
               teamName: teamData.name
             };
@@ -331,7 +331,7 @@ const VideoLibrary: React.FC = () => {
               title: newVideo.title,
               youtubeId,
               category: newVideo.category,
-              description: newVideo.description || undefined,
+              description: newVideo.description || '',
               taggedAt: serverTimestamp(),
               teamName: teamData.name
             };
