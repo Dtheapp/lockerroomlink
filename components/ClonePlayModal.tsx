@@ -563,12 +563,19 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
                 <div>
                   <p className="text-sm font-medium text-green-200">Play detected successfully!</p>
                   <p className="text-xs text-green-300">
-                    Found {previewElements.length} player{previewElements.length !== 1 ? 's' : ''}, {' '}
-                    {analysis.routes.length} route{analysis.routes.length !== 1 ? 's' : ''}, {' '}
-                    {analysis.shapes.length} shape{analysis.shapes.length !== 1 ? 's' : ''}
+                    Found {previewElements.length} player{previewElements.length !== 1 ? 's' : ''} 
+                    ({previewElements.filter(p => p.suggestedType === 'O').length} offense, {previewElements.filter(p => p.suggestedType === 'X').length} defense), {' '}
+                    {analysis.routes.length} route{analysis.routes.length !== 1 ? 's' : ''}
                   </p>
                 </div>
               </div>
+              
+              {/* Player count warning if low */}
+              {previewElements.length < 10 && (
+                <div className="p-2 bg-yellow-500/20 border border-yellow-500/50 rounded-lg text-xs text-yellow-300">
+                  ⚠️ Fewer than 11 players detected. The AI may have missed some - you can add missing players manually after importing.
+                </div>
+              )}
 
               {/* Category badge */}
               <div className="flex items-center gap-2">

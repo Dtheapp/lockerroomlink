@@ -36,6 +36,7 @@ interface ClonePlayAnalysis {
   shapes: ClonedShape[];
   suggestedCategory: 'Offense' | 'Defense' | 'Special Teams';
   confidence: number;
+  detectedPlayerCount: number;
 }
 
 // Generate unique IDs
@@ -101,7 +102,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
       imageData = `data:image/png;base64,${imageBase64}`;
     }
 
-    // Call OpenAI Vision API
+    // Call OpenAI Vision API with improved prompt
     const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -113,53 +114,63 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         messages: [
           {
             role: 'system',
-            content: `You are a football play diagram analyzer. Analyze the image and extract:
-1. Player positions - identify circles (usually offense) and triangles/X shapes (usually defense)
-2. Routes/arrows - lines showing player movement paths
-3. Zones/shapes - rectangles, ovals, or other areas
+            content: `You are an expert football play diagram analyzer. Your job is to PRECISELY detect and count EVERY player symbol in a football play diagram.
 
-Return ONLY valid JSON in this exact format (no markdown, no explanation):
+CRITICAL INSTRUCTIONS:
+1. COUNT CAREFULLY - Football plays typically have 11 offensive players AND may show defensive players (11 more). Count EVERY circle and triangle symbol.
+2. IGNORE decorative elements - Rectangles around groups of players are just visual groupings, NOT players. Large ovals/circles at bottom are zone markers, NOT players.
+3. PRESERVE RELATIVE POSITIONS - The positions you output should maintain the EXACT same relative spacing as the original image.
+
+PLAYER IDENTIFICATION:
+- CIRCLES (filled or hollow) = Offensive players (type: "O")
+- TRIANGLES (filled or hollow, pointing up or down) = Defensive players (type: "X")  
+- SQUARES = Usually a special player like center or quarterback
+- X marks = Defensive players
+
+COORDINATE MAPPING (VERY IMPORTANT):
+- Look at the ACTUAL playing area in the image (ignore title bars, decorations)
+- Map the leftmost player to around x=10-15
+- Map the rightmost player to around x=85-90
+- Map the topmost player to around y=15-25
+- Map the bottommost player to around y=75-85
+- PRESERVE the relative distances between players exactly
+
+For a typical 4-4 defense image like this:
+- Back row (safeties): 2 circles at top = y around 10-15
+- Second row (secondary): circles in a line = y around 25-30
+- Third row (linebackers): triangles = y around 40-50
+- Front row (D-line): triangles = y around 55-65
+- Deep safety in oval: triangle = y around 80-85
+
+Return ONLY valid JSON (no markdown, no explanation):
 {
   "players": [
-    {"x": 50, "y": 30, "shape": "circle", "suggestedType": "O", "detectedColor": "blue"},
-    {"x": 45, "y": 60, "shape": "triangle", "suggestedType": "X", "detectedColor": "red"}
+    {"x": 50, "y": 15, "shape": "circle", "suggestedType": "O"},
+    {"x": 30, "y": 45, "shape": "triangle", "suggestedType": "X"}
   ],
   "routes": [
-    {"points": [{"x": 50, "y": 30}, {"x": 55, "y": 20}], "lineType": "solid", "color": "#FACC15", "hasArrow": true}
+    {"points": [{"x": 30, "y": 45}, {"x": 35, "y": 35}], "lineType": "solid", "color": "#FACC15", "hasArrow": true}
   ],
-  "shapes": [
-    {"shapeType": "oval", "x": 50, "y": 80, "width": 40, "height": 10, "color": "#ff0000"}
-  ],
+  "shapes": [],
   "suggestedCategory": "Defense",
-  "confidence": 85
+  "confidence": 90,
+  "totalPlayersDetected": 18
 }
 
-COORDINATE SYSTEM:
-- x: 0 = left edge, 100 = right edge
-- y: 0 = top (end zone), 100 = bottom (other end zone)
-- Place coordinates as percentage of field
+ROUTES/ARROWS:
+- Detect ALL arrow lines showing player movement
+- "solid" = solid line, "dashed" = dashed line, "curved" = curved path
+- Include the start point (at player) and end point (arrow tip)
+- Color: yellow=#FACC15, red=#ef4444, white=#ffffff
 
-SHAPE DETECTION:
-- Circles = usually offensive players (O)
-- Triangles, X marks = usually defensive players (X)
-- Squares/rectangles with players inside = zones or special markers
-
-LINE TYPES:
-- Solid lines = movement routes
-- Dashed lines = pass routes or optional movements  
-- Curved lines = curved routes
-- Zigzag = blocking or special routes
-
-COLORS: Try to detect actual colors, default to #FACC15 (yellow) for routes if unclear.
-
-Be thorough - detect ALL players and routes visible in the image.`
+DO NOT include large rectangles or ovals that are zone markers or field decorations - only include small shapes that represent specific coverage zones if they're clearly part of the play design.`
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: 'Analyze this football play diagram. Extract all player positions, routes/arrows, and zones. Return the JSON response only.'
+                text: 'Analyze this football play diagram. COUNT AND LIST EVERY SINGLE player symbol (circles AND triangles). There may be 15-22 total players. Extract all routes/arrows. Return JSON only.'
               },
               {
                 type: 'image_url',
@@ -171,8 +182,8 @@ Be thorough - detect ALL players and routes visible in the image.`
             ]
           }
         ],
-        max_tokens: 2000,
-        temperature: 0.2
+        max_tokens: 4000,
+        temperature: 0.1
       })
     });
 
@@ -217,40 +228,77 @@ Be thorough - detect ALL players and routes visible in the image.`
 
       const parsed = JSON.parse(jsonStr);
       
+      // Process players and normalize coordinates to fit field view better
+      const rawPlayers = parsed.players || [];
+      
+      // Calculate bounding box of detected players
+      let minX = 100, maxX = 0, minY = 100, maxY = 0;
+      rawPlayers.forEach((p: any) => {
+        const px = Number(p.x) || 50;
+        const py = Number(p.y) || 50;
+        minX = Math.min(minX, px);
+        maxX = Math.max(maxX, px);
+        minY = Math.min(minY, py);
+        maxY = Math.max(maxY, py);
+      });
+      
+      // Normalize to use more of the field (15-85 range for x, 20-80 for y)
+      const xRange = maxX - minX || 1;
+      const yRange = maxY - minY || 1;
+      
+      const normalizeX = (x: number) => {
+        if (xRange < 5) return 50; // If too compressed, center it
+        return 15 + ((x - minX) / xRange) * 70; // Map to 15-85
+      };
+      
+      const normalizeY = (y: number) => {
+        if (yRange < 5) return 50;
+        return 20 + ((y - minY) / yRange) * 60; // Map to 20-80
+      };
+      
       // Validate and add IDs to players
       analysis = {
-        players: (parsed.players || []).map((p: any) => ({
+        players: rawPlayers.map((p: any) => ({
           id: generateId(),
-          x: Math.max(0, Math.min(100, Number(p.x) || 50)),
-          y: Math.max(0, Math.min(100, Number(p.y) || 50)),
+          x: Math.max(5, Math.min(95, normalizeX(Number(p.x) || 50))),
+          y: Math.max(5, Math.min(95, normalizeY(Number(p.y) || 50))),
           shape: ['circle', 'triangle', 'square', 'x'].includes(p.shape) ? p.shape : 'circle',
-          suggestedType: p.suggestedType === 'X' ? 'X' : 'O',
-          detectedColor: p.detectedColor || '#3b82f6',
+          suggestedType: p.suggestedType === 'X' || p.shape === 'triangle' ? 'X' : 'O',
+          detectedColor: p.detectedColor || (p.shape === 'triangle' ? '#ef4444' : '#3b82f6'),
           isAssigned: false
         })),
         routes: (parsed.routes || []).map((r: any) => ({
           id: generateId(),
           points: (r.points || []).map((pt: any) => ({
-            x: Math.max(0, Math.min(100, Number(pt.x) || 50)),
-            y: Math.max(0, Math.min(100, Number(pt.y) || 50))
+            x: Math.max(5, Math.min(95, normalizeX(Number(pt.x) || 50))),
+            y: Math.max(5, Math.min(95, normalizeY(Number(pt.y) || 50)))
           })),
           lineType: ['solid', 'dashed', 'curved', 'zigzag'].includes(r.lineType) ? r.lineType : 'solid',
           color: r.color || '#FACC15',
           hasArrow: r.hasArrow !== false
         })),
-        shapes: (parsed.shapes || []).map((s: any) => ({
-          id: generateId(),
-          shapeType: ['circle', 'oval', 'rectangle', 'square'].includes(s.shapeType) ? s.shapeType : 'rectangle',
-          x: Math.max(0, Math.min(100, Number(s.x) || 50)),
-          y: Math.max(0, Math.min(100, Number(s.y) || 50)),
-          width: Math.max(1, Math.min(50, Number(s.width) || 10)),
-          height: Math.max(1, Math.min(50, Number(s.height) || 10)),
-          color: s.color || '#ff0000'
-        })),
+        // Filter out large shapes that are likely field markers, not play elements
+        shapes: (parsed.shapes || [])
+          .filter((s: any) => {
+            const width = Number(s.width) || 10;
+            const height = Number(s.height) || 10;
+            // Skip shapes that are too large (likely field decorations)
+            return width < 30 && height < 30;
+          })
+          .map((s: any) => ({
+            id: generateId(),
+            shapeType: ['circle', 'oval', 'rectangle', 'square'].includes(s.shapeType) ? s.shapeType : 'rectangle',
+            x: Math.max(5, Math.min(95, normalizeX(Number(s.x) || 50))),
+            y: Math.max(5, Math.min(95, normalizeY(Number(s.y) || 50))),
+            width: Math.max(1, Math.min(25, Number(s.width) || 10)),
+            height: Math.max(1, Math.min(25, Number(s.height) || 10)),
+            color: s.color || '#ff0000'
+          })),
         suggestedCategory: ['Offense', 'Defense', 'Special Teams'].includes(parsed.suggestedCategory) 
           ? parsed.suggestedCategory 
-          : 'Offense',
-        confidence: Math.max(0, Math.min(100, Number(parsed.confidence) || 70))
+          : 'Defense',
+        confidence: Math.max(0, Math.min(100, Number(parsed.confidence) || 70)),
+        detectedPlayerCount: rawPlayers.length
       };
     } catch (parseError) {
       console.error('Failed to parse AI response:', aiContent);

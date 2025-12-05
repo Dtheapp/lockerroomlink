@@ -648,6 +648,7 @@ export interface ClonePlayAnalysis {
   shapes: ClonedShape[];
   suggestedCategory: 'Offense' | 'Defense' | 'Special Teams';
   confidence: number; // 0-100 confidence score
+  detectedPlayerCount?: number; // Total players detected by AI (before any filtering)
 }
 
 // A detected player element from the image
