@@ -499,6 +499,136 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-8 pb-20">
       
+      {/* ADD NEW EVENT MODAL */}
+      {showNewEventForm && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setShowNewEventForm(false); setNewEventAttachments([]); }}>
+          <div 
+            className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-zinc-200 dark:border-zinc-700 shadow-2xl animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className={`${getEventTypeColor(newEvent.type || 'Practice')} p-6 relative`}>
+              <button 
+                onClick={() => { setShowNewEventForm(false); setNewEventAttachments([]); }} 
+                className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/20 hover:bg-black/30 rounded-full p-1.5 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <span className="text-xs font-bold uppercase tracking-wider text-white/80">
+                {newEvent.type || 'Practice'}
+              </span>
+              <input 
+                value={newEvent.title || ''} 
+                onChange={e => setNewEvent({...newEvent, title: e.target.value})} 
+                className="text-2xl font-black text-white mt-1 bg-transparent border-b-2 border-white/50 focus:border-white outline-none w-full placeholder-white/50"
+                placeholder="Event Title"
+              />
+            </div>
+            
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase text-zinc-500 mb-1 block">Date</label>
+                  <input 
+                    type="date" 
+                    value={newEvent.date || ''} 
+                    onChange={e => setNewEvent({...newEvent, date: e.target.value})} 
+                    className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-zinc-500 mb-1 block">Time</label>
+                  <input 
+                    type="time" 
+                    value={newEvent.time || ''} 
+                    onChange={e => setNewEvent({...newEvent, time: e.target.value})} 
+                    className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase text-zinc-500 mb-1 block">Location</label>
+                <input 
+                  value={newEvent.location || ''} 
+                  onChange={e => setNewEvent({...newEvent, location: e.target.value})} 
+                  placeholder="Location" 
+                  className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase text-zinc-500 mb-1 block">Event Type</label>
+                <select 
+                  value={newEvent.type || 'Practice'} 
+                  onChange={e => setNewEvent({...newEvent, type: e.target.value as any})} 
+                  className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg"
+                >
+                  <option value="Practice">Practice</option>
+                  <option value="Game">Game</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase text-zinc-500 mb-1 block">Notes</label>
+                <textarea 
+                  value={newEvent.description || ''} 
+                  onChange={e => setNewEvent({...newEvent, description: e.target.value})} 
+                  placeholder="Add notes or details..." 
+                  className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white p-3 rounded-lg" 
+                  rows={4}
+                />
+              </div>
+              {/* Attachments */}
+              <div>
+                {newEventAttachments.length > 0 && (
+                  <div className="mb-2 flex gap-2 flex-wrap">
+                    {newEventAttachments.map((f, i) => (
+                      <div key={i} className="bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded flex items-center gap-2 text-sm">
+                        <span className="truncate max-w-[150px] text-zinc-700 dark:text-zinc-300">{f.name}</span>
+                        <button type="button" onClick={() => removeNewEventAttachment(i)} className="text-zinc-400 hover:text-red-500">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <label className="inline-flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 px-3 py-2 rounded text-sm cursor-pointer hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
+                  <input type="file" accept="image/*,application/pdf" multiple onChange={handleNewEventFiles} className="hidden" />
+                  <Plus className="w-4 h-4 text-zinc-500" />
+                  <span className="text-zinc-600 dark:text-zinc-300">Add attachments</span>
+                </label>
+              </div>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 rounded-b-2xl">
+              <div className="flex gap-2">
+                <button 
+                  onClick={(e) => handleAddEvent(e as any)}
+                  disabled={addingEvent || !newEvent.title?.trim() || !newEvent.date}
+                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {addingEvent ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" /> Save
+                    </>
+                  )}
+                </button>
+                <button 
+                  onClick={() => { setShowNewEventForm(false); setNewEventAttachments([]); }}
+                  disabled={addingEvent}
+                  className="flex-1 py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg font-bold transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* EVENT DETAIL MODAL */}
       {selectedEvent && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setSelectedEvent(null); setEditingEventId(null); }}>
@@ -1339,47 +1469,7 @@ const Dashboard: React.FC = () => {
                 ))}
             </div>
 
-            {showNewEventForm && (
-                <div className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 mb-4 animate-in slide-in-from-top-2 space-y-3">
-                    <input value={newEvent.title} onChange={e => setNewEvent({...newEvent, title: e.target.value})} placeholder="Event Title" className="w-full bg-black border border-zinc-800 rounded p-2 text-sm text-white"/>
-                    <div className="grid grid-cols-2 gap-2">
-                        <input type="date" value={newEvent.date} onChange={e => setNewEvent({...newEvent, date: e.target.value})} className="bg-black border border-zinc-800 rounded p-2 text-sm text-white"/>
-                        <input type="time" value={newEvent.time} onChange={e => setNewEvent({...newEvent, time: e.target.value})} className="bg-black border border-zinc-800 rounded p-2 text-sm text-white"/>
-                    </div>
-                    <input value={newEvent.location} onChange={e => setNewEvent({...newEvent, location: e.target.value})} placeholder="Location" className="w-full bg-black border border-zinc-800 rounded p-2 text-sm text-white"/>
-                    <textarea value={newEvent.description} onChange={e => setNewEvent({...newEvent, description: e.target.value})} placeholder="Description" className="w-full bg-black border border-zinc-800 rounded p-2 text-sm text-white"/>
-                    <select value={newEvent.type} onChange={e => setNewEvent({...newEvent, type: e.target.value as any})} className="w-full bg-black border border-zinc-800 rounded p-2 text-sm text-white">
-                        <option>Practice</option><option>Game</option><option>Other</option>
-                    </select>
-                    {/* Attachments for event (images, pdfs). Coaches and admins only see the Add button so this is safe UI-wise. */}
-                    <div>
-                      {newEventAttachments.length > 0 && (
-                        <div className="flex gap-2 mb-2 overflow-x-auto">
-                          {newEventAttachments.map((f, i) => (
-                            <div key={i} className="bg-zinc-800 px-3 py-1 rounded flex items-center gap-2 text-sm">
-                              <span className="truncate max-w-xs">{f.name}</span>
-                              <button type="button" onClick={() => removeNewEventAttachment(i)} className="text-zinc-400 hover:text-white">✕</button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <label className="inline-flex items-center gap-2 bg-zinc-800 px-3 py-2 rounded text-sm cursor-pointer">
-                        <input type="file" accept="image/*,application/pdf" multiple onChange={handleNewEventFiles} className="hidden" />
-                        <span className="text-zinc-400">Attach files</span>
-                      </label>
-                    </div>
-                    <div className="flex gap-2">
-                        <button onClick={handleAddEvent} disabled={addingEvent} aria-label="Add event" className="flex-1 bg-emerald-600 text-white py-2 rounded text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-1">
-                          {addingEvent ? (
-                            <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Adding...</>
-                          ) : (
-                            'Add'
-                          )}
-                        </button>
-                        <button onClick={() => setShowNewEventForm(false)} disabled={addingEvent} className="flex-1 bg-zinc-700 text-white py-2 rounded text-xs">Cancel</button>
-                    </div>
-                </div>
-            )}
+
 
             <div className="space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar">
                  {eventsLoading ? <p className="text-zinc-500">Loading...</p> : teamEvents.filter(event => eventFilter === 'All' || event.type?.toLowerCase() === eventFilter.toLowerCase()).length > 0 ? teamEvents.filter(event => eventFilter === 'All' || event.type?.toLowerCase() === eventFilter.toLowerCase()).map(event => (

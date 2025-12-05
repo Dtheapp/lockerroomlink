@@ -1,0 +1,1986 @@
+From ed9517b75ff8bf24f9e2ea46b081b76b9486fcc6 Mon Sep 17 00:00:00 2001
+From: Dtheapp <your-email@example.com>
+Date: Thu, 4 Dec 2025 20:07:19 -0400
+Subject: [PATCH] storage: use Firebase Storage for uploads; add upload/delete
+ helpers; update profile, messenger, and dashboard to store photoPath and
+ delete storage objects
+
+---
+ components/Dashboard.tsx                    | 195 ++++-
+ components/Messenger.tsx                    | 113 ++-
+ components/Profile.tsx                      |  39 +-
+ components/admin/AdminMessenger.tsx         | 132 +++-
+ components/stats/EditableEventsSchedule.tsx | 749 --------------------
+ components/stats/EventAnnouncements.tsx     | 297 --------
+ services/firebase.ts                        |  49 +-
+ services/storage.ts                         |  66 ++
+ types.ts                                    |  29 +-
+ 9 files changed, 496 insertions(+), 1173 deletions(-)
+ delete mode 100644 components/stats/EditableEventsSchedule.tsx
+ delete mode 100644 components/stats/EventAnnouncements.tsx
+ create mode 100644 services/storage.ts
+
+diff --git a/components/Dashboard.tsx b/components/Dashboard.tsx
+index 60487df..2c4a701 100644
+--- a/components/Dashboard.tsx
++++ b/components/Dashboard.tsx
+@@ -1,7 +1,8 @@
+ import React, { useState, useEffect, useMemo } from 'react';
+ import { useAuth } from '../contexts/AuthContext';
+ import { Link } from 'react-router-dom';
+-import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp, deleteDoc, doc, updateDoc, where, getDocs } from 'firebase/firestore';
++import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp, deleteDoc, doc, updateDoc, where, getDocs, getDoc } from 'firebase/firestore';
++import { uploadFile, deleteFile } from '../services/storage';
+ import { db } from '../services/firebase';
+ import { sanitizeText } from '../services/sanitize';
+ import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
+@@ -59,6 +60,10 @@ const Dashboard: React.FC = () => {
+   // Loading states for async operations
+   const [addingPost, setAddingPost] = useState(false);
+   const [addingEvent, setAddingEvent] = useState(false);
++  const [newEventAttachments, setNewEventAttachments] = useState<File[]>([]);
++  const [editingEventAttachments, setEditingEventAttachments] = useState<File[]>([]);
++  const [uploadingEventFiles, setUploadingEventFiles] = useState(false);
++  const [eventUploadProgress, setEventUploadProgress] = useState<Record<string, number>>({});
+   
+   // Rate limit error state
+   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
+@@ -185,6 +190,57 @@ const Dashboard: React.FC = () => {
+     fetchCoaches();
+   }, [teamData?.id, teamData?.headCoachId, teamData?.coachId]);
+ 
++  // Event attachments handlers
++  const handleNewEventFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
++    if (!e.target.files) return;
++    const files = Array.from(e.target.files);
++    setNewEventAttachments(prev => [...prev, ...files].slice(0, 5));
++    e.currentTarget.value = '';
++  };
++
++  const removeNewEventAttachment = (index: number) => {
++    setNewEventAttachments(prev => prev.filter((_, i) => i !== index));
++  };
++
++  const handleEditingEventFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
++    if (!e.target.files) return;
++    const files = Array.from(e.target.files);
++    setEditingEventAttachments(prev => [...prev, ...files].slice(0, 5));
++    e.currentTarget.value = '';
++  };
++
++  const removeEditingEventAttachment = (index: number) => {
++    setEditingEventAttachments(prev => prev.filter((_, i) => i !== index));
++  };
++
++  const removeExistingEventAttachment = async (eventId: string, attIndex: number) => {
++    if (!teamData?.id) return;
++    try {
++      const eventRef = doc(db, 'teams', teamData.id, 'events', eventId);
++      const snap = await getDoc(eventRef);
++      if (!snap.exists()) return;
++      const current = (snap.data() as any).attachments || [];
++      const removed = current[attIndex];
++      const updated = current.filter((_: any, i: number) => i !== attIndex);
++
++      // If the attachment included a storage path, delete the object from Storage
++      if (removed && removed.path) {
++        try {
++          await deleteFile(removed.path);
++        } catch (err) {
++          console.warn('Failed to delete storage object for attachment:', err);
++        }
++      }
++
++      await updateDoc(eventRef, { attachments: updated, updatedAt: serverTimestamp() });
++      // Refresh local state by reloading selectedEvent
++      const refreshed = { id: eventId, ...(snap.data() as any), attachments: updated } as any;
++      setSelectedEvent(refreshed);
++    } catch (err) {
++      console.error('Failed to remove attachment:', err);
++    }
++  };
++
+   const handleAddPost = async (e: React.FormEvent) => {
+     e.preventDefault();
+     if (!newPost.trim() || !teamData?.id || !userData?.name || addingPost) return;
+@@ -239,14 +295,42 @@ const Dashboard: React.FC = () => {
+     if (!teamData?.id || !editingEvent.title?.trim()) return;
+     try {
+       // SECURITY: Sanitize event data
+-      await updateDoc(doc(db, 'teams', teamData.id, 'events', eventId), {
+-        title: sanitizeText(editingEvent.title || '', 200), 
+-        date: editingEvent.date, 
++      // If there are new attachments, upload them and append to existing attachments
++      let uploadedAttachments: any[] | undefined = undefined;
++      if (editingEventAttachments.length > 0) {
++        setUploadingEventFiles(true);
++        uploadedAttachments = [];
++        for (const file of editingEventAttachments) {
++          const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
++          const path = `events/${teamData.id}/${safeName}`;
++          const uploaded = await uploadFile(file, path, (percent) => setEventUploadProgress(prev => ({ ...prev, [file.name]: percent })));
++          uploadedAttachments.push(uploaded);
++        }
++        setUploadingEventFiles(false);
++        setEventUploadProgress({});
++        setEditingEventAttachments([]);
++      }
++
++      // Load current attachments from the doc to merge
++      const eventRef = doc(db, 'teams', teamData.id, 'events', eventId);
++      const currentSnap = await getDoc(eventRef);
++      const currentAttachments = (currentSnap.exists() ? (currentSnap.data() as any).attachments || [] : []);
++
++      const updatedPayload: any = {
++        title: sanitizeText(editingEvent.title || '', 200),
++        date: editingEvent.date,
+         time: editingEvent.time,
+-        location: sanitizeText(editingEvent.location || '', 200), 
+-        description: sanitizeText(editingEvent.description || '', 1000), 
++        location: sanitizeText(editingEvent.location || '', 200),
++        description: sanitizeText(editingEvent.description || '', 1000),
+         type: editingEvent.type,
+-      });
++        updatedAt: serverTimestamp(),
++      };
++
++      if (uploadedAttachments && uploadedAttachments.length > 0) {
++        updatedPayload.attachments = [...currentAttachments, ...uploadedAttachments];
++      }
++
++      await updateDoc(eventRef, updatedPayload);
+       setEditingEventId(null); setEditingEvent({});
+     } catch (error) { console.error("Error updating event:", error); }
+   };
+@@ -268,17 +352,34 @@ const Dashboard: React.FC = () => {
+     setAddingEvent(true);
+     try {
+       // SECURITY: Sanitize new event data
+-      const sanitizedEvent = {
++      const sanitizedEvent: any = {
+         title: sanitizeText(newEvent.title || '', 200),
+         date: newEvent.date,
+         time: newEvent.time,
+         location: sanitizeText(newEvent.location || '', 200),
+         description: sanitizeText(newEvent.description || '', 1000),
+         type: newEvent.type,
+-        createdAt: serverTimestamp(), 
+-        createdBy: userData.uid, 
++        createdAt: serverTimestamp(),
++        createdBy: userData.uid,
+         updatedAt: serverTimestamp(),
+       };
++
++      // Upload any attachments and add to event payload
++      if (newEventAttachments.length > 0) {
++        setUploadingEventFiles(true);
++        const uploaded: any[] = [];
++        for (const file of newEventAttachments) {
++          const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
++          const path = `events/${teamData.id}/${safeName}`;
++          const uploadedFile = await uploadFile(file, path, (percent) => setEventUploadProgress(prev => ({ ...prev, [file.name]: percent })));
++          uploaded.push(uploadedFile);
++        }
++        setUploadingEventFiles(false);
++        setEventUploadProgress({});
++        sanitizedEvent.attachments = uploaded;
++        setNewEventAttachments([]);
++      }
++
+       await addDoc(collection(db, 'teams', teamData.id, 'events'), sanitizedEvent);
+       setNewEvent({ title: '', date: '', time: '', location: '', description: '', type: 'Practice' });
+       setShowNewEventForm(false);
+@@ -484,6 +585,43 @@ const Dashboard: React.FC = () => {
+                       rows={4}
+                     />
+                   </div>
++                  {/* Attachments editor */}
++                  <div>
++                    {((selectedEvent as any)?.attachments || []).length > 0 && (
++                      <div className="mb-2 space-y-2">
++                        {((selectedEvent as any).attachments || []).map((att: any, idx: number) => (
++                          <div key={idx} className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-800 p-2 rounded">
++                            <div>
++                              {att.mimeType && att.mimeType.startsWith('image') ? (
++                                <img src={att.url} className="max-w-xs rounded" alt={att.name} />
++                              ) : (
++                                <a href={att.url} target="_blank" rel="noreferrer" className="text-sky-500 underline">{att.name}</a>
++                              )}
++                            </div>
++                            <div>
++                              <button type="button" onClick={() => removeExistingEventAttachment(selectedEvent.id, idx)} className="text-red-500">Remove</button>
++                            </div>
++                          </div>
++                        ))}
++                      </div>
++                    )}
++
++                    {editingEventAttachments.length > 0 && (
++                      <div className="mb-2 flex gap-2 overflow-x-auto">
++                        {editingEventAttachments.map((f, i) => (
++                          <div key={i} className="bg-zinc-800 px-3 py-1 rounded flex items-center gap-2 text-sm">
++                            <span className="truncate max-w-xs">{f.name}</span>
++                            <button type="button" onClick={() => removeEditingEventAttachment(i)} className="text-zinc-400 hover:text-white">✕</button>
++                          </div>
++                        ))}
++                      </div>
++                    )}
++
++                    <label className="inline-flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 px-3 py-2 rounded text-sm cursor-pointer">
++                      <input type="file" accept="image/*,application/pdf" multiple onChange={handleEditingEventFiles} className="hidden" />
++                      <span className="text-zinc-600 dark:text-zinc-300">Add attachments</span>
++                    </label>
++                  </div>
+                 </div>
+               ) : (
+                 /* View Mode */
+@@ -526,6 +664,26 @@ const Dashboard: React.FC = () => {
+                       <p className="text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">{selectedEvent.description}</p>
+                     </div>
+                   )}
++                  {/* Attachments (view mode) */}
++                  {(selectedEvent as any).attachments && (selectedEvent as any).attachments.length > 0 && (
++                    <div className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800">
++                      <div className="flex items-center gap-2 mb-3">
++                        <Info className="w-4 h-4 text-zinc-500" />
++                        <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Attachments</span>
++                      </div>
++                      <div className="space-y-3">
++                        {(selectedEvent as any).attachments.map((att: any, i: number) => (
++                          <div key={i}>
++                            {att.mimeType && att.mimeType.startsWith('image') ? (
++                              <img src={att.url} alt={att.name} className="max-w-full rounded" />
++                            ) : (
++                              <a href={att.url} target="_blank" rel="noreferrer" className="text-sky-500 underline">{att.name}</a>
++                            )}
++                          </div>
++                        ))}
++                      </div>
++                    </div>
++                  )}
+                 </>
+               )}
+             </div>
+@@ -1193,6 +1351,23 @@ const Dashboard: React.FC = () => {
+                     <select value={newEvent.type} onChange={e => setNewEvent({...newEvent, type: e.target.value as any})} className="w-full bg-black border border-zinc-800 rounded p-2 text-sm text-white">
+                         <option>Practice</option><option>Game</option><option>Other</option>
+                     </select>
++                    {/* Attachments for event (images, pdfs). Coaches and admins only see the Add button so this is safe UI-wise. */}
++                    <div>
++                      {newEventAttachments.length > 0 && (
++                        <div className="flex gap-2 mb-2 overflow-x-auto">
++                          {newEventAttachments.map((f, i) => (
++                            <div key={i} className="bg-zinc-800 px-3 py-1 rounded flex items-center gap-2 text-sm">
++                              <span className="truncate max-w-xs">{f.name}</span>
++                              <button type="button" onClick={() => removeNewEventAttachment(i)} className="text-zinc-400 hover:text-white">✕</button>
++                            </div>
++                          ))}
++                        </div>
++                      )}
++                      <label className="inline-flex items-center gap-2 bg-zinc-800 px-3 py-2 rounded text-sm cursor-pointer">
++                        <input type="file" accept="image/*,application/pdf" multiple onChange={handleNewEventFiles} className="hidden" />
++                        <span className="text-zinc-400">Attach files</span>
++                      </label>
++                    </div>
+                     <div className="flex gap-2">
+                         <button onClick={handleAddEvent} disabled={addingEvent} aria-label="Add event" className="flex-1 bg-emerald-600 text-white py-2 rounded text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-1">
+                           {addingEvent ? (
+diff --git a/components/Messenger.tsx b/components/Messenger.tsx
+index 3aedf5b..9535148 100644
+--- a/components/Messenger.tsx
++++ b/components/Messenger.tsx
+@@ -3,6 +3,7 @@ import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp,
+ import { db } from '../services/firebase';
+ import { sanitizeText } from '../services/sanitize';
+ import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
++import { uploadFile } from '../services/storage';
+ import { useAuth } from '../contexts/AuthContext';
+ import { useUnreadMessages } from '../hooks/useUnreadMessages';
+ import { Search, Send, MessageSquare, AlertCircle, Edit2, Trash2, X, Check } from 'lucide-react';
+@@ -23,6 +24,9 @@ const Messenger: React.FC = () => {
+   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+   const [sending, setSending] = useState(false);
++  const [attachments, setAttachments] = useState<File[]>([]);
++  const [uploadingAttachments, setUploadingAttachments] = useState(false);
++  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
+   const scrollRef = useRef<HTMLDivElement>(null);
+   
+@@ -140,14 +144,50 @@ const Messenger: React.FC = () => {
+       }
+       
+       // SECURITY: Sanitize message before storing
+-      const text = sanitizeText(newMessage, 2000); 
++      const text = sanitizeText(newMessage, 2000);
+       setNewMessage('');
+       setSending(true);
+       setRateLimitError(null);
++
++      // If there are attachments, enforce upload rate limit
+       try {
+-          await addDoc(collection(db, 'private_chats', activeChat.id, 'messages'), { text, senderId: user.uid, timestamp: serverTimestamp() });
+-          await updateDoc(doc(db, 'private_chats', activeChat.id), { lastMessage: text, updatedAt: serverTimestamp(), lastMessageTime: serverTimestamp(), lastSenderId: user.uid });
+-      } catch (error) { console.error(error); }
++        if (attachments.length > 0) {
++          const rl = checkRateLimit(`fileUpload:${user.uid}`, RATE_LIMITS.FILE_UPLOAD);
++          if (!rl.allowed) {
++            const seconds = Math.ceil(rl.retryAfterMs / 1000);
++            setRateLimitError(`File upload rate limit reached. Wait ${seconds}s.`);
++            setTimeout(() => setRateLimitError(null), 4000);
++            setSending(false);
++            return;
++          }
++        }
++
++        let uploadedAttachments: any[] | undefined = undefined;
++
++        if (attachments.length > 0 && activeChat) {
++          setUploadingAttachments(true);
++          uploadedAttachments = [];
++          for (const file of attachments) {
++            const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
++            const path = `attachments/${activeChat.id}/${safeName}`;
++            const uploaded = await uploadFile(file, path, (percent) => {
++              setUploadProgress(prev => ({ ...prev, [file.name]: percent }));
++            });
++            uploadedAttachments.push(uploaded);
++          }
++          setUploadingAttachments(false);
++          setUploadProgress({});
++          setAttachments([]);
++        }
++
++        const messagePayload: any = { text, senderId: user.uid, timestamp: serverTimestamp() };
++        if (uploadedAttachments && uploadedAttachments.length > 0) {
++          messagePayload.attachments = uploadedAttachments;
++        }
++
++        await addDoc(collection(db, 'private_chats', activeChat.id, 'messages'), messagePayload);
++        await updateDoc(doc(db, 'private_chats', activeChat.id), { lastMessage: text, updatedAt: serverTimestamp(), lastMessageTime: serverTimestamp(), lastSenderId: user.uid });
++      } catch (error) { console.error(error); alert('Failed to send message or upload attachments.'); }
+       finally { setSending(false); }
+   };
+ 
+@@ -195,6 +235,19 @@ const Messenger: React.FC = () => {
+       return { username: 'Unknown User', role: '' };
+   };
+ 
++  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
++    if (!e.target.files) return;
++    const files = Array.from(e.target.files);
++    // Append, but keep small limit
++    setAttachments(prev => [...prev, ...files].slice(0, 5));
++    // reset input
++    e.currentTarget.value = '';
++  };
++
++  const removeAttachment = (index: number) => {
++    setAttachments(prev => prev.filter((_, i) => i !== index));
++  };
++
+   return (
+     <NoAthleteBlock featureName="Messenger">
+     <div className="flex h-[calc(100vh-140px)] gap-6">
+@@ -319,6 +372,20 @@ const Messenger: React.FC = () => {
+                                     ) : (
+                                       <>
+                                         <p>{msg.text}</p>
++                                        {/* Attachments */}
++                                        {((msg as any).attachments || []).length > 0 && (
++                                          <div className="mt-2 space-y-2">
++                                            {((msg as any).attachments || []).map((att: any, i: number) => (
++                                              <div key={i} className="mt-1">
++                                                {att.mimeType && att.mimeType.startsWith('image') ? (
++                                                  <img src={att.url} alt={att.name} className="max-w-xs rounded shadow-sm" />
++                                                ) : (
++                                                  <a href={att.url} target="_blank" rel="noreferrer" className="text-sm text-sky-600 underline">{att.name}</a>
++                                                )}
++                                              </div>
++                                            ))}
++                                          </div>
++                                        )}
+                                         {/* Footer with timestamp and actions */}
+                                         <div className={`flex items-center justify-between mt-1 gap-2 text-[10px] ${isMe ? 'text-orange-200' : 'text-zinc-400'}`}>
+                                           <span>{isEdited && '(edited)'}</span>
+@@ -380,15 +447,35 @@ const Messenger: React.FC = () => {
+                   </div>
+                 )}
+ 
+-                <form onSubmit={sendMessage} className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex gap-2">
+-                    <input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Type a message..." className="flex-1 bg-zinc-100 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-full px-4 py-2 text-zinc-900 dark:text-white focus:outline-none focus:border-orange-500 transition-colors"/>
+-                    <button type="submit" disabled={!newMessage.trim() || sending} aria-label="Send message" className="bg-orange-600 hover:bg-orange-500 text-white p-2 rounded-full transition-colors disabled:opacity-50">
+-                      {sending ? (
+-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+-                      ) : (
+-                        <Send className="w-5 h-5" />
+-                      )}
+-                    </button>
++                <form onSubmit={sendMessage} className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
++                    {/* Attachments preview */}
++                    {attachments.length > 0 && (
++                      <div className="mb-2 flex gap-2 items-center overflow-x-auto">
++                        {attachments.map((f, idx) => (
++                          <div key={idx} className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-900 px-3 py-1 rounded-full border border-zinc-200 dark:border-zinc-800">
++                            <span className="text-xs">{f.name}</span>
++                            <button type="button" onClick={() => removeAttachment(idx)} className="text-zinc-500 hover:text-zinc-700 ml-2">✕</button>
++                          </div>
++                        ))}
++                      </div>
++                    )}
++
++                    <div className="flex items-center gap-2">
++                        <input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Type a message..." className="flex-1 bg-zinc-100 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-full px-4 py-2 text-zinc-900 dark:text-white focus:outline-none focus:border-orange-500 transition-colors"/>
++
++                        <label className="relative inline-flex items-center justify-center p-2 rounded-full bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 cursor-pointer">
++                          <input type="file" accept="image/*,application/pdf" multiple onChange={handleFileChange} className="hidden" />
++                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828L18 9.828M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
++                        </label>
++
++                        <button type="submit" disabled={(attachments.length === 0 && !newMessage.trim()) || sending} aria-label="Send message" className="bg-orange-600 hover:bg-orange-500 text-white p-2 rounded-full transition-colors disabled:opacity-50">
++                          {sending ? (
++                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
++                          ) : (
++                            <Send className="w-5 h-5" />
++                          )}
++                        </button>
++                    </div>
+                 </form>
+               </>
+           ) : (
+diff --git a/components/Profile.tsx b/components/Profile.tsx
+index 89f740b..1b5a9f7 100644
+--- a/components/Profile.tsx
++++ b/components/Profile.tsx
+@@ -1,6 +1,7 @@
+ import React, { useState, useEffect } from 'react';
+ import { doc, updateDoc, collection, addDoc, query, where, onSnapshot, getDocs, deleteDoc } from 'firebase/firestore';
+ import { db } from '../services/firebase';
++import { uploadFile, deleteFile } from '../services/storage';
+ import { useAuth } from '../contexts/AuthContext';
+ import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye, Sword, User, Camera, Star, Crown, Ruler, Scale, Users, Trash2, AtSign, Link as LinkIcon, Copy, Check, ExternalLink } from 'lucide-react';
+ import type { Player, MedicalInfo, Team } from '../types';
+@@ -215,9 +216,11 @@ const Profile: React.FC = () => {
+     
+     setUploadingProfilePhoto(true);
+     try {
+-      const resizedBase64 = await resizeImage(file, 300, 300);
++      // Upload to Firebase Storage and store both URL and storage path in Firestore
++      const path = `users/${user.uid}/profile-${Date.now()}-${file.name}`;
++      const uploaded = await uploadFile(file, path);
+       const userRef = doc(db, 'users', user.uid);
+-      await updateDoc(userRef, { photoUrl: resizedBase64 });
++      await updateDoc(userRef, { photoUrl: uploaded.url, photoPath: uploaded.path });
+       setStatusMsg({ type: 'success', text: 'Profile photo updated!' });
+       setTimeout(() => setStatusMsg(null), 3000);
+     } catch (error) {
+@@ -237,7 +240,17 @@ const Profile: React.FC = () => {
+     setUploadingProfilePhoto(true);
+     try {
+       const userRef = doc(db, 'users', user.uid);
+-      await updateDoc(userRef, { photoUrl: null });
++      // If there's a storage path recorded, delete the underlying object
++      try {
++        const currentPath = (userData as any)?.photoPath;
++        if (currentPath) {
++          await deleteFile(currentPath);
++        }
++      } catch (err) {
++        console.warn('Failed to delete profile photo from storage:', err);
++      }
++
++      await updateDoc(userRef, { photoUrl: null, photoPath: null });
+       setStatusMsg({ type: 'success', text: 'Profile photo removed.' });
+       setTimeout(() => setStatusMsg(null), 3000);
+     } catch (error) {
+@@ -453,10 +466,12 @@ const Profile: React.FC = () => {
+     
+     setUploadingPhoto(true);
+     try {
+-      const resizedBase64 = await resizeImage(file, 200, 200);
++      // Upload to Firebase Storage and save url + storage path on player document
++      const path = `teams/${selectedAthlete.teamId}/players/${selectedAthlete.id}/photo-${Date.now()}-${file.name}`;
++      const uploaded = await uploadFile(file, path);
+       const playerRef = doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id);
+-      await updateDoc(playerRef, { photoUrl: resizedBase64 });
+-      setSelectedAthlete({ ...selectedAthlete, photoUrl: resizedBase64 });
++      await updateDoc(playerRef, { photoUrl: uploaded.url, photoPath: uploaded.path });
++      setSelectedAthlete({ ...selectedAthlete, photoUrl: uploaded.url, photoPath: uploaded.path });
+     } catch (error) {
+       console.error('Error uploading photo:', error);
+       alert('Failed to upload photo. Please try again.');
+@@ -514,8 +529,16 @@ const Profile: React.FC = () => {
+     setUploadingPhoto(true);
+     try {
+       const playerRef = doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id);
+-      await updateDoc(playerRef, { photoUrl: null });
+-      setSelectedAthlete({ ...selectedAthlete, photoUrl: undefined });
++      try {
++        const currentPath = (selectedAthlete as any)?.photoPath;
++        if (currentPath) {
++          await deleteFile(currentPath);
++        }
++      } catch (err) {
++        console.warn('Failed to delete player photo from storage:', err);
++      }
++      await updateDoc(playerRef, { photoUrl: null, photoPath: null });
++      setSelectedAthlete({ ...selectedAthlete, photoUrl: undefined, photoPath: undefined });
+     } catch (error) {
+       console.error('Error removing photo:', error);
+       alert('Failed to remove photo.');
+diff --git a/components/admin/AdminMessenger.tsx b/components/admin/AdminMessenger.tsx
+index 8814252..c67781c 100644
+--- a/components/admin/AdminMessenger.tsx
++++ b/components/admin/AdminMessenger.tsx
+@@ -4,6 +4,7 @@ import { db } from '../../services/firebase';
+ import { sanitizeText } from '../../services/sanitize';
+ import { useAuth } from '../../contexts/AuthContext';
+ import { Search, Send, MessageSquare, Users, Shield, UserCheck } from 'lucide-react';
++import { uploadFile } from '../../services/storage';
+ import type { PrivateChat, PrivateMessage, UserProfile } from '../../types';
+ 
+ const AdminMessenger: React.FC = () => {
+@@ -18,6 +19,9 @@ const AdminMessenger: React.FC = () => {
+   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+   const [sending, setSending] = useState(false);
++  const [attachments, setAttachments] = useState<File[]>([]);
++  const [uploadingAttachments, setUploadingAttachments] = useState(false);
++  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+   const [roleFilter, setRoleFilter] = useState<'all' | 'Coach' | 'Parent'>('all');
+   const scrollRef = useRef<HTMLDivElement>(null);
+ 
+@@ -136,28 +140,45 @@ const AdminMessenger: React.FC = () => {
+ 
+   const sendMessage = async (e: React.FormEvent) => {
+     e.preventDefault();
+-    if (!newMessage.trim() || !activeChat || !user || sending) return;
+-    
++    if ((!newMessage.trim() && attachments.length === 0) || !activeChat || !user || sending) return;
++
+     const text = sanitizeText(newMessage, 2000);
+     setNewMessage('');
+     setSending(true);
+-    
++
+     try {
+-      await addDoc(collection(db, 'private_chats', activeChat.id, 'messages'), { 
+-        text, 
+-        senderId: user.uid, 
+-        timestamp: serverTimestamp() 
+-      });
+-      await updateDoc(doc(db, 'private_chats', activeChat.id), { 
+-        lastMessage: text, 
+-        updatedAt: serverTimestamp(), 
+-        lastMessageTime: serverTimestamp(), 
+-        lastSenderId: user.uid 
++      let uploadedAttachments: any[] | undefined = undefined;
++      if (attachments.length > 0 && activeChat) {
++        setUploadingAttachments(true);
++        uploadedAttachments = [];
++        for (const file of attachments) {
++          const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
++          const path = `attachments/${activeChat.id}/${safeName}`;
++          const uploaded = await uploadFile(file, path, (percent) => {
++            setUploadProgress(prev => ({ ...prev, [file.name]: percent }));
++          });
++          uploadedAttachments.push(uploaded);
++        }
++        setUploadingAttachments(false);
++        setUploadProgress({});
++        setAttachments([]);
++      }
++
++      const payload: any = { text, senderId: user.uid, timestamp: serverTimestamp() };
++      if (uploadedAttachments && uploadedAttachments.length > 0) payload.attachments = uploadedAttachments;
++
++      await addDoc(collection(db, 'private_chats', activeChat.id, 'messages'), payload);
++      await updateDoc(doc(db, 'private_chats', activeChat.id), {
++        lastMessage: text,
++        updatedAt: serverTimestamp(),
++        lastMessageTime: serverTimestamp(),
++        lastSenderId: user.uid
+       });
+-    } catch (error) { 
+-      console.error(error); 
+-    } finally { 
+-      setSending(false); 
++    } catch (error) {
++      console.error(error);
++      alert('Failed to send message or upload attachments.');
++    } finally {
++      setSending(false);
+     }
+   };
+ 
+@@ -186,6 +207,17 @@ const AdminMessenger: React.FC = () => {
+     }
+   };
+ 
++    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
++      if (!e.target.files) return;
++      const files = Array.from(e.target.files);
++      setAttachments(prev => [...prev, ...files].slice(0, 5));
++      e.currentTarget.value = '';
++    };
++
++    const removeAttachment = (index: number) => {
++      setAttachments(prev => prev.filter((_, i) => i !== index));
++    };
++
+   return (
+     <div className="space-y-6">
+       <div>
+@@ -333,6 +365,20 @@ const AdminMessenger: React.FC = () => {
+                       <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                         <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${isMe ? 'bg-orange-600 text-white rounded-br-none' : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 rounded-bl-none'}`}>
+                           <p className="break-words">{msg.text}</p>
++                          {/* Attachments */}
++                          {((msg as any).attachments || []).length > 0 && (
++                            <div className="mt-2 space-y-2">
++                              {((msg as any).attachments || []).map((att: any, i: number) => (
++                                <div key={i} className="mt-1">
++                                  {att.mimeType && att.mimeType.startsWith('image') ? (
++                                    <img src={att.url} alt={att.name} className="max-w-xs rounded shadow-sm" />
++                                  ) : (
++                                    <a href={att.url} target="_blank" rel="noreferrer" className="text-sm text-sky-600 underline">{att.name}</a>
++                                  )}
++                                </div>
++                              ))}
++                            </div>
++                          )}
+                         </div>
+                       </div>
+                     );
+@@ -341,25 +387,39 @@ const AdminMessenger: React.FC = () => {
+                 <div ref={scrollRef} />
+               </div>
+ 
+-              <form onSubmit={sendMessage} className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex gap-2">
+-                <input 
+-                  value={newMessage} 
+-                  onChange={e => setNewMessage(e.target.value)} 
+-                  placeholder="Type a message..." 
+-                  className="flex-1 bg-zinc-100 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-full px-4 py-2 text-zinc-900 dark:text-white focus:outline-none focus:border-orange-500 transition-colors"
+-                />
+-                <button 
+-                  type="submit" 
+-                  disabled={!newMessage.trim() || sending} 
+-                  aria-label="Send message" 
+-                  className="bg-orange-600 hover:bg-orange-500 text-white p-2 rounded-full transition-colors disabled:opacity-50"
+-                >
+-                  {sending ? (
+-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+-                  ) : (
+-                    <Send className="w-5 h-5" />
+-                  )}
+-                </button>
++              <form onSubmit={sendMessage} className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
++                {attachments.length > 0 && (
++                  <div className="mb-2 flex gap-2 items-center overflow-x-auto">
++                    {attachments.map((f, idx) => (
++                      <div key={idx} className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-900 px-3 py-1 rounded-full border border-zinc-200 dark:border-zinc-800">
++                        <span className="text-xs">{f.name}</span>
++                        <button type="button" onClick={() => removeAttachment(idx)} className="text-zinc-500 hover:text-zinc-700 ml-2">✕</button>
++                      </div>
++                    ))}
++                  </div>
++                )}
++
++                <div className="flex items-center gap-2">
++                  <input 
++                    value={newMessage} 
++                    onChange={e => setNewMessage(e.target.value)} 
++                    placeholder="Type a message..." 
++                    className="flex-1 bg-zinc-100 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-full px-4 py-2 text-zinc-900 dark:text-white focus:outline-none focus:border-orange-500 transition-colors"
++                  />
++
++                  <label className="relative inline-flex items-center justify-center p-2 rounded-full bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 cursor-pointer">
++                    <input type="file" accept="image/*,application/pdf" multiple onChange={handleFileChange} className="hidden" />
++                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828L18 9.828M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
++                  </label>
++
++                  <button type="submit" disabled={(attachments.length === 0 && !newMessage.trim()) || sending} aria-label="Send message" className="bg-orange-600 hover:bg-orange-500 text-white p-2 rounded-full transition-colors disabled:opacity-50">
++                    {sending ? (
++                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
++                    ) : (
++                      <Send className="w-5 h-5" />
++                    )}
++                  </button>
++                </div>
+               </form>
+             </>
+           ) : (
+diff --git a/components/stats/EditableEventsSchedule.tsx b/components/stats/EditableEventsSchedule.tsx
+deleted file mode 100644
+index 459bcdd..0000000
+--- a/components/stats/EditableEventsSchedule.tsx
++++ /dev/null
+@@ -1,749 +0,0 @@
+-import React, { useState, useEffect, useRef } from 'react';
+-import { collection, query, onSnapshot, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+-import { db, uploadEventAttachment, deleteEventAttachment } from '../../services/firebase';
+-import { useAuth } from '../../contexts/AuthContext';
+-import type { TeamEvent, EventAttachment } from '../../types';
+-import { Calendar, Plus, Edit2, Trash2, MapPin, Clock, X, Upload, FileText, Image, Paperclip, Download, Eye } from 'lucide-react';
+-
+-// Helper: Format date string (YYYY-MM-DD) to readable format without timezone issues
+-const formatEventDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
+-  const [year, month, day] = dateStr.split('-').map(Number);
+-  const date = new Date(year, month - 1, day);
+-  return date.toLocaleDateString('en-US', options || { weekday: 'long', month: 'short', day: 'numeric' });
+-};
+-
+-// Helper: Convert 24-hour time (HH:MM) to 12-hour format with AM/PM
+-const formatTime12Hour = (time24: string) => {
+-  if (!time24) return '';
+-  const [hourStr, minute] = time24.split(':');
+-  let hour = parseInt(hourStr, 10);
+-  const ampm = hour >= 12 ? 'PM' : 'AM';
+-  hour = hour % 12 || 12;
+-  return `${hour}:${minute} ${ampm}`;
+-};
+-
+-const EditableEventsSchedule: React.FC = () => {
+-  const { teamData, userData } = useAuth();
+-  const [events, setEvents] = useState<TeamEvent[]>([]);
+-  const [loading, setLoading] = useState(true);
+-  const [showForm, setShowForm] = useState(false);
+-  const [editingId, setEditingId] = useState<string | null>(null);
+-  
+-  const [formData, setFormData] = useState<Partial<TeamEvent>>({
+-    date: '',
+-    time: '',
+-    title: '',
+-    type: 'Practice',
+-    location: '',
+-    description: '',
+-    attachments: [],
+-  });
+-  
+-  // File upload state
+-  const fileInputRef = useRef<HTMLInputElement>(null);
+-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+-  const [uploading, setUploading] = useState(false);
+-  const [existingAttachments, setExistingAttachments] = useState<EventAttachment[]>([]);
+-  const [attachmentsToDelete, setAttachmentsToDelete] = useState<EventAttachment[]>([]);
+-  
+-  // Event detail view state
+-  const [viewingEvent, setViewingEvent] = useState<TeamEvent | null>(null);
+-  const [viewingAttachment, setViewingAttachment] = useState<EventAttachment | null>(null);
+-  
+-  // Delete confirmation state
+-  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; title: string; date: string } | null>(null);
+-  const [deleting, setDeleting] = useState(false);
+-
+-  // Accepted file types
+-  const acceptedFileTypes = '.jpg,.jpeg,.png,.gif,.webp,.pdf';
+-  const maxFileSize = 10 * 1024 * 1024; // 10MB
+-
+-  useEffect(() => {
+-    if (!teamData?.id) return;
+-    setLoading(true);
+-
+-    const eventsQuery = query(
+-      collection(db, 'teams', teamData.id, 'events'),
+-      orderBy('date', 'asc')
+-    );
+-
+-    const unsubscribe = onSnapshot(eventsQuery, (snapshot) => {
+-      const eventsData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as TeamEvent));
+-      setEvents(eventsData);
+-      setLoading(false);
+-    });
+-
+-    return () => unsubscribe();
+-  }, [teamData?.id]);
+-
+-  const handleAddOrEdit = async () => {
+-    if (!teamData?.id || !formData.date || !formData.title) {
+-      alert('Date and Title are required');
+-      return;
+-    }
+-
+-    setUploading(true);
+-    try {
+-      let eventId = editingId;
+-      let currentAttachments = existingAttachments;
+-
+-      if (editingId) {
+-        // Delete attachments marked for removal
+-        for (const attachment of attachmentsToDelete) {
+-          try {
+-            await deleteEventAttachment(teamData.id, editingId, attachment);
+-          } catch (err) {
+-            console.warn('Failed to delete attachment:', err);
+-          }
+-        }
+-      } else {
+-        // Add new event first to get the ID
+-        const docRef = await addDoc(collection(db, 'teams', teamData.id, 'events'), {
+-          ...formData,
+-          attachments: [],
+-          teamId: teamData.id,
+-          createdAt: serverTimestamp(),
+-          createdBy: userData?.uid,
+-          updatedAt: serverTimestamp(),
+-        });
+-        eventId = docRef.id;
+-        currentAttachments = [];
+-      }
+-
+-      // Upload new files
+-      const uploadedAttachments: EventAttachment[] = [];
+-      for (const file of pendingFiles) {
+-        try {
+-          const attachment = await uploadEventAttachment(
+-            teamData.id,
+-            eventId!,
+-            file,
+-            userData?.uid || 'unknown'
+-          );
+-          uploadedAttachments.push(attachment);
+-        } catch (err) {
+-          console.error('Failed to upload file:', file.name, err);
+-          alert(`Failed to upload ${file.name}`);
+-        }
+-      }
+-
+-      // Combine existing and new attachments
+-      const allAttachments = [...currentAttachments, ...uploadedAttachments];
+-
+-      // Update the event with attachments
+-      const eventRef = doc(db, 'teams', teamData.id, 'events', eventId!);
+-      await updateDoc(eventRef, {
+-        ...(editingId ? formData : {}),
+-        attachments: allAttachments,
+-        updatedAt: serverTimestamp(),
+-      });
+-
+-      // Reset form
+-      setFormData({
+-        date: '',
+-        time: '',
+-        title: '',
+-        type: 'Practice',
+-        location: '',
+-        description: '',
+-        attachments: [],
+-      });
+-      setPendingFiles([]);
+-      setExistingAttachments([]);
+-      setAttachmentsToDelete([]);
+-      setEditingId(null);
+-      setShowForm(false);
+-    } catch (error) {
+-      console.error('Error saving event:', error);
+-      alert('Failed to save event. Please try again.');
+-    } finally {
+-      setUploading(false);
+-    }
+-  };
+-
+-  const handleEdit = (event: TeamEvent) => {
+-    setFormData(event);
+-    setEditingId(event.id);
+-    setExistingAttachments(event.attachments || []);
+-    setAttachmentsToDelete([]);
+-    setPendingFiles([]);
+-    setShowForm(true);
+-  };
+-
+-  // File handling functions
+-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+-    const files = Array.from(e.target.files || []);
+-    const validFiles: File[] = [];
+-    
+-    for (const file of files) {
+-      if (file.size > maxFileSize) {
+-        alert(`File "${file.name}" is too large. Maximum size is 10MB.`);
+-        continue;
+-      }
+-      validFiles.push(file);
+-    }
+-    
+-    setPendingFiles(prev => [...prev, ...validFiles]);
+-    if (fileInputRef.current) fileInputRef.current.value = '';
+-  };
+-
+-  const removePendingFile = (index: number) => {
+-    setPendingFiles(prev => prev.filter((_, i) => i !== index));
+-  };
+-
+-  const markAttachmentForDeletion = (attachment: EventAttachment) => {
+-    setAttachmentsToDelete(prev => [...prev, attachment]);
+-    setExistingAttachments(prev => prev.filter(a => a.id !== attachment.id));
+-  };
+-
+-  const getFileIcon = (type: string) => {
+-    if (type === 'image') return <Image className="w-4 h-4" />;
+-    if (type === 'pdf') return <FileText className="w-4 h-4" />;
+-    return <Paperclip className="w-4 h-4" />;
+-  };
+-
+-  const formatFileSize = (bytes: number) => {
+-    if (bytes < 1024) return bytes + ' B';
+-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+-  };
+-
+-  const handleDelete = async () => {
+-    if (!teamData?.id || !deleteConfirm) return;
+-    setDeleting(true);
+-    try {
+-      await deleteDoc(doc(db, 'teams', teamData.id, 'events', deleteConfirm.id));
+-      setDeleteConfirm(null);
+-    } catch (error) {
+-      console.error('Error deleting event:', error);
+-    } finally {
+-      setDeleting(false);
+-    }
+-  };
+-
+-  const getTypeColor = (type: string) => {
+-    switch (type) {
+-      case 'Game':
+-        return 'bg-red-100 dark:bg-red-900/30 border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300';
+-      case 'Practice':
+-        return 'bg-sky-100 dark:bg-sky-900/30 border-sky-200 dark:border-sky-900/50 text-sky-700 dark:text-sky-300';
+-      default:
+-        return 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300';
+-    }
+-  };
+-
+-  const getTypeBadgeColor = (type: string) => {
+-    switch (type) {
+-      case 'Game':
+-        return 'bg-red-600 text-white';
+-      case 'Practice':
+-        return 'bg-orange-600 text-white';
+-      default:
+-        return 'bg-slate-600 text-white';
+-    }
+-  };
+-
+-  const today = new Date().toISOString().split('T')[0];
+-  const upcomingEvents = events.filter(e => e.date >= today);
+-  const pastEvents = events.filter(e => e.date < today);
+-
+-  return (
+-    <div className="space-y-6">
+-      <div className="flex items-center justify-between mb-4">
+-        <div className="flex items-center gap-3">
+-          <Calendar className="w-6 h-6 text-sky-500" />
+-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Events Schedule</h2>
+-        </div>
+-        <button
+-          onClick={() => {
+-            setFormData({
+-              date: '',
+-              time: '',
+-              title: '',
+-              type: 'Practice',
+-              location: '',
+-              description: '',
+-            });
+-            setEditingId(null);
+-            setShowForm(true);
+-          }}
+-          className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition-colors"
+-        >
+-          <Plus className="w-5 h-5" />
+-          Add Event
+-        </button>
+-      </div>
+-
+-      {/* Form */}
+-      {showForm && (
+-        <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-xl">
+-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
+-            {editingId ? 'Edit Event' : 'Add New Event'}
+-          </h3>
+-          <div className="space-y-4">
+-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+-              <div>
+-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date *</label>
+-                <input
+-                  type="date"
+-                  value={formData.date || ''}
+-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+-                  className="w-full bg-slate-50 dark:bg-slate-800 p-3 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
+-                />
+-              </div>
+-              <div>
+-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Time (optional)</label>
+-                <input
+-                  type="time"
+-                  value={formData.time || ''}
+-                  onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+-                  className="w-full bg-slate-50 dark:bg-slate-800 p-3 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
+-                />
+-              </div>
+-            </div>
+-
+-            <div>
+-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Title *</label>
+-              <input
+-                type="text"
+-                placeholder="e.g., Practice Session, Away Game vs Tigers"
+-                value={formData.title || ''}
+-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+-                className="w-full bg-slate-50 dark:bg-slate-800 p-3 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400"
+-              />
+-            </div>
+-
+-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+-              <div>
+-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Event Type</label>
+-                <select
+-                  value={formData.type || 'Practice'}
+-                  onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+-                  className="w-full bg-slate-50 dark:bg-slate-800 p-3 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
+-                >
+-                  <option value="Practice">Practice</option>
+-                  <option value="Game">Game</option>
+-                  <option value="Other">Other</option>
+-                </select>
+-              </div>
+-              <div>
+-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Location</label>
+-                <input
+-                  type="text"
+-                  placeholder="Field, Stadium, etc."
+-                  value={formData.location || ''}
+-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+-                  className="w-full bg-slate-50 dark:bg-slate-800 p-3 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400"
+-                />
+-              </div>
+-            </div>
+-
+-            <div>
+-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
+-              <textarea
+-                placeholder="Additional details for parents..."
+-                value={formData.description || ''}
+-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+-                className="w-full bg-slate-50 dark:bg-slate-800 p-3 rounded border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 resize-none h-24"
+-              />
+-            </div>
+-
+-            {/* Attachments Section */}
+-            <div>
+-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+-                Attachments (Images, PDFs - Max 10MB each)
+-              </label>
+-              
+-              {/* Existing Attachments */}
+-              {existingAttachments.length > 0 && (
+-                <div className="mb-3 space-y-2">
+-                  <p className="text-xs text-slate-500 dark:text-slate-400">Current attachments:</p>
+-                  {existingAttachments.map((attachment) => (
+-                    <div key={attachment.id} className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded">
+-                      {getFileIcon(attachment.type)}
+-                      <span className="flex-1 text-sm truncate text-slate-700 dark:text-slate-300">{attachment.name}</span>
+-                      <span className="text-xs text-slate-500">{formatFileSize(attachment.size)}</span>
+-                      <button
+-                        type="button"
+-                        onClick={() => markAttachmentForDeletion(attachment)}
+-                        className="text-red-500 hover:text-red-700 p-1"
+-                      >
+-                        <X className="w-4 h-4" />
+-                      </button>
+-                    </div>
+-                  ))}
+-                </div>
+-              )}
+-              
+-              {/* Pending Files to Upload */}
+-              {pendingFiles.length > 0 && (
+-                <div className="mb-3 space-y-2">
+-                  <p className="text-xs text-slate-500 dark:text-slate-400">Files to upload:</p>
+-                  {pendingFiles.map((file, index) => (
+-                    <div key={index} className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded border border-emerald-200 dark:border-emerald-800">
+-                      {file.type.startsWith('image/') ? <Image className="w-4 h-4 text-emerald-600" /> : <FileText className="w-4 h-4 text-emerald-600" />}
+-                      <span className="flex-1 text-sm truncate text-slate-700 dark:text-slate-300">{file.name}</span>
+-                      <span className="text-xs text-slate-500">{formatFileSize(file.size)}</span>
+-                      <button
+-                        type="button"
+-                        onClick={() => removePendingFile(index)}
+-                        className="text-red-500 hover:text-red-700 p-1"
+-                      >
+-                        <X className="w-4 h-4" />
+-                      </button>
+-                    </div>
+-                  ))}
+-                </div>
+-              )}
+-              
+-              {/* Upload Button */}
+-              <input
+-                type="file"
+-                ref={fileInputRef}
+-                onChange={handleFileSelect}
+-                accept={acceptedFileTypes}
+-                multiple
+-                className="hidden"
+-              />
+-              <button
+-                type="button"
+-                onClick={() => fileInputRef.current?.click()}
+-                className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-600 transition-colors"
+-              >
+-                <Upload className="w-4 h-4" />
+-                Add Files
+-              </button>
+-            </div>
+-
+-            <div className="flex gap-3">
+-              <button
+-                onClick={handleAddOrEdit}
+-                disabled={uploading}
+-                className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-400 text-white px-4 py-2 rounded font-semibold transition-colors flex items-center justify-center gap-2"
+-              >
+-                {uploading ? (
+-                  <>
+-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+-                    Saving...
+-                  </>
+-                ) : (
+-                  editingId ? 'Update Event' : 'Add Event'
+-                )}
+-              </button>
+-              <button
+-                onClick={() => {
+-                  setShowForm(false);
+-                  setEditingId(null);
+-                  setPendingFiles([]);
+-                  setExistingAttachments([]);
+-                  setAttachmentsToDelete([]);
+-                  setFormData({
+-                    date: '',
+-                    time: '',
+-                    title: '',
+-                    type: 'Practice',
+-                    location: '',
+-                    description: '',
+-                    attachments: [],
+-                  });
+-                }}
+-                disabled={uploading}
+-                className="flex-1 bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600 disabled:opacity-50 text-slate-900 dark:text-white px-4 py-2 rounded font-semibold transition-colors"
+-              >
+-                Cancel
+-              </button>
+-            </div>
+-          </div>
+-        </div>
+-      )}
+-
+-      {/* Upcoming Events */}
+-      {upcomingEvents.length > 0 && (
+-        <div>
+-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3">Upcoming Events</h3>
+-          <div className="space-y-3">
+-            {upcomingEvents.map((event) => (
+-              <div
+-                key={event.id}
+-                className={`p-4 rounded-lg border ${getTypeColor(event.type)} transition-all`}
+-              >
+-                <div className="flex items-start justify-between mb-2">
+-                  <div className="flex items-center gap-2">
+-                    <span className={`px-2 py-1 rounded text-xs font-bold ${getTypeBadgeColor(event.type)}`}>
+-                      {event.type}
+-                    </span>
+-                    <h4 className="text-lg font-bold">{event.title}</h4>
+-                  </div>
+-                  <div className="flex gap-2">
+-                    <button
+-                      onClick={() => handleEdit(event)}
+-                      className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 p-1"
+-                      title="Edit"
+-                    >
+-                      <Edit2 className="w-4 h-4" />
+-                    </button>
+-                    <button
+-                      onClick={() => setDeleteConfirm({ id: event.id, title: event.title, date: event.date })}
+-                      className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 p-1"
+-                      title="Delete"
+-                    >
+-                      <Trash2 className="w-4 h-4" />
+-                    </button>
+-                  </div>
+-                </div>
+-
+-                <div className="space-y-1 text-sm">
+-                  <div className="flex items-center gap-2">
+-                    <Calendar className="w-4 h-4" />
+-                    <span>{formatEventDate(event.date)}</span>
+-                    {event.time && (
+-                      <>
+-                        <Clock className="w-4 h-4 ml-2" />
+-                        <span>{formatTime12Hour(event.time)}</span>
+-                      </>
+-                    )}
+-                  </div>
+-
+-                  {event.location && (
+-                    <div className="flex items-center gap-2">
+-                      <MapPin className="w-4 h-4" />
+-                      <span>{event.location}</span>
+-                    </div>
+-                  )}
+-
+-                  {event.description && (
+-                    <p className="mt-2 pt-2 border-t border-current/20">{event.description}</p>
+-                  )}
+-
+-                  {/* Attachments indicator */}
+-                  {event.attachments && event.attachments.length > 0 && (
+-                    <button
+-                      onClick={() => setViewingEvent(event)}
+-                      className="mt-2 flex items-center gap-2 text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300"
+-                    >
+-                      <Paperclip className="w-4 h-4" />
+-                      <span>{event.attachments.length} attachment{event.attachments.length > 1 ? 's' : ''}</span>
+-                      <Eye className="w-4 h-4" />
+-                    </button>
+-                  )}
+-                </div>
+-              </div>
+-            ))}
+-          </div>
+-        </div>
+-      )}
+-
+-      {/* Past Events */}
+-      {pastEvents.length > 0 && (
+-        <div>
+-          <h3 className="text-lg font-bold text-slate-600 dark:text-slate-400 mb-3">Past Events</h3>
+-          <div className="space-y-3 opacity-60">
+-            {pastEvents.slice(-5).map((event) => (
+-              <div
+-                key={event.id}
+-                className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50"
+-              >
+-                <div className="flex items-start justify-between">
+-                  <div>
+-                    <span className="px-2 py-1 rounded text-xs font-bold bg-slate-300 dark:bg-slate-600">
+-                      {event.type}
+-                    </span>
+-                    <h4 className="text-sm font-bold mt-1">{event.title}</h4>
+-                    <span className="text-xs text-slate-600 dark:text-slate-400">
+-                      {formatEventDate(event.date, { month: 'short', day: 'numeric' })}
+-                    </span>
+-                  </div>
+-                  <button
+-                    onClick={() => setDeleteConfirm({ id: event.id, title: event.title, date: event.date })}
+-                    className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 p-1"
+-                    title="Delete"
+-                  >
+-                    <Trash2 className="w-4 h-4" />
+-                  </button>
+-                </div>
+-              </div>
+-            ))}
+-          </div>
+-        </div>
+-      )}
+-
+-      {loading && (
+-        <div className="text-center py-8 text-slate-600 dark:text-slate-400">
+-          Loading events...
+-        </div>
+-      )}
+-
+-      {!loading && events.length === 0 && !showForm && (
+-        <div className="text-center py-8 text-slate-600 dark:text-slate-400">
+-          No events scheduled yet. Click "Add Event" to get started!
+-        </div>
+-      )}
+-
+-      {/* DELETE CONFIRMATION MODAL */}
+-      {deleteConfirm && (
+-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+-          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-2xl w-full max-w-md p-6">
+-            <div className="flex items-center justify-between mb-4">
+-              <div className="flex items-center gap-3">
+-                <div className="w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center">
+-                  <Trash2 className="w-5 h-5 text-red-500" />
+-                </div>
+-                <div>
+-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Delete Event</h3>
+-                  <p className="text-sm text-slate-500 dark:text-zinc-400">This action cannot be undone</p>
+-                </div>
+-              </div>
+-              <button 
+-                onClick={() => setDeleteConfirm(null)}
+-                className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+-              >
+-                <X className="w-5 h-5" />
+-              </button>
+-            </div>
+-            
+-            <div className="bg-slate-100 dark:bg-zinc-800 rounded-lg p-4 mb-4">
+-              <p className="font-bold text-slate-900 dark:text-white">{deleteConfirm.title}</p>
+-              <p className="text-sm text-slate-600 dark:text-zinc-400 mt-1">
+-                {formatEventDate(deleteConfirm.date, { weekday: 'long', month: 'long', day: 'numeric' })}
+-              </p>
+-            </div>
+-            
+-            <p className="text-sm text-slate-600 dark:text-zinc-400 mb-4">
+-              Are you sure you want to delete this event? All team members will no longer see it on the schedule.
+-            </p>
+-            
+-            <div className="flex gap-3">
+-              <button
+-                onClick={() => setDeleteConfirm(null)}
+-                disabled={deleting}
+-                className="flex-1 py-2.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 rounded-lg font-medium transition-colors disabled:opacity-50"
+-              >
+-                Cancel
+-              </button>
+-              <button
+-                onClick={handleDelete}
+-                disabled={deleting}
+-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+-              >
+-                {deleting ? (
+-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+-                ) : (
+-                  <>
+-                    <Trash2 className="w-4 h-4" />
+-                    Delete Event
+-                  </>
+-                )}
+-              </button>
+-            </div>
+-          </div>
+-        </div>
+-      )}
+-
+-      {/* VIEW ATTACHMENTS MODAL */}
+-      {viewingEvent && (
+-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+-          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden">
+-            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-zinc-800">
+-              <div>
+-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">{viewingEvent.title}</h3>
+-                <p className="text-sm text-slate-500 dark:text-zinc-400">
+-                  {viewingEvent.attachments?.length || 0} attachment{(viewingEvent.attachments?.length || 0) !== 1 ? 's' : ''}
+-                </p>
+-              </div>
+-              <button 
+-                onClick={() => setViewingEvent(null)}
+-                className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 p-1"
+-              >
+-                <X className="w-5 h-5" />
+-              </button>
+-            </div>
+-            
+-            <div className="p-4 overflow-y-auto max-h-[60vh]">
+-              {viewingEvent.attachments && viewingEvent.attachments.length > 0 ? (
+-                <div className="grid grid-cols-2 gap-3">
+-                  {viewingEvent.attachments.map((attachment) => (
+-                    <div
+-                      key={attachment.id}
+-                      className="border border-slate-200 dark:border-zinc-700 rounded-lg overflow-hidden"
+-                    >
+-                      {attachment.type === 'image' ? (
+-                        <button
+-                          onClick={() => setViewingAttachment(attachment)}
+-                          className="w-full aspect-square bg-slate-100 dark:bg-zinc-800 hover:opacity-80 transition-opacity"
+-                        >
+-                          <img
+-                            src={attachment.url}
+-                            alt={attachment.name}
+-                            className="w-full h-full object-cover"
+-                          />
+-                        </button>
+-                      ) : (
+-                        <div className="aspect-square bg-slate-100 dark:bg-zinc-800 flex flex-col items-center justify-center p-4">
+-                          <FileText className="w-12 h-12 text-orange-500 mb-2" />
+-                          <span className="text-xs text-slate-600 dark:text-zinc-400 text-center truncate w-full px-2">
+-                            {attachment.name}
+-                          </span>
+-                        </div>
+-                      )}
+-                      <div className="p-2 bg-slate-50 dark:bg-zinc-800/50 flex items-center justify-between">
+-                        <span className="text-xs text-slate-600 dark:text-zinc-400 truncate flex-1">
+-                          {attachment.name}
+-                        </span>
+-                        <a
+-                          href={attachment.url}
+-                          target="_blank"
+-                          rel="noopener noreferrer"
+-                          className="text-orange-600 dark:text-orange-400 hover:text-orange-700 p-1"
+-                          title="Open / Download"
+-                        >
+-                          <Download className="w-4 h-4" />
+-                        </a>
+-                      </div>
+-                    </div>
+-                  ))}
+-                </div>
+-              ) : (
+-                <p className="text-center text-slate-500 dark:text-zinc-400 py-8">
+-                  No attachments for this event
+-                </p>
+-              )}
+-            </div>
+-          </div>
+-        </div>
+-      )}
+-
+-      {/* FULL IMAGE VIEWER MODAL */}
+-      {viewingAttachment && (
+-        <div 
+-          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90"
+-          onClick={() => setViewingAttachment(null)}
+-        >
+-          <button 
+-            onClick={() => setViewingAttachment(null)}
+-            className="absolute top-4 right-4 text-white hover:text-slate-300 p-2 bg-black/50 rounded-full"
+-          >
+-            <X className="w-6 h-6" />
+-          </button>
+-          <img
+-            src={viewingAttachment.url}
+-            alt={viewingAttachment.name}
+-            className="max-w-full max-h-full object-contain"
+-            onClick={(e) => e.stopPropagation()}
+-          />
+-          <a
+-            href={viewingAttachment.url}
+-            target="_blank"
+-            rel="noopener noreferrer"
+-            className="absolute bottom-4 right-4 flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg"
+-            onClick={(e) => e.stopPropagation()}
+-          >
+-            <Download className="w-4 h-4" />
+-            Download
+-          </a>
+-        </div>
+-      )}
+-    </div>
+-  );
+-};
+-
+-export default EditableEventsSchedule;
+\ No newline at end of file
+diff --git a/components/stats/EventAnnouncements.tsx b/components/stats/EventAnnouncements.tsx
+deleted file mode 100644
+index 6c3947d..0000000
+--- a/components/stats/EventAnnouncements.tsx
++++ /dev/null
+@@ -1,297 +0,0 @@
+-import React, { useState, useEffect } from 'react';
+-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+-import { db } from '../../services/firebase';
+-import { useAuth } from '../../contexts/AuthContext';
+-import type { TeamEvent, EventAttachment } from '../../types';
+-import { Calendar, MapPin, Megaphone, Paperclip, FileText, Download, X, Eye } from 'lucide-react';
+-
+-// Helper: Format date string (YYYY-MM-DD) to readable format without timezone issues
+-const formatEventDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
+-  const [year, month, day] = dateStr.split('-').map(Number);
+-  const date = new Date(year, month - 1, day);
+-  return date.toLocaleDateString('en-US', options || { weekday: 'long', month: 'short', day: 'numeric' });
+-};
+-
+-// Helper: Convert 24-hour time (HH:MM) to 12-hour format with AM/PM
+-const formatTime12Hour = (time24: string) => {
+-  if (!time24) return '';
+-  const [hourStr, minute] = time24.split(':');
+-  let hour = parseInt(hourStr, 10);
+-  const ampm = hour >= 12 ? 'PM' : 'AM';
+-  hour = hour % 12 || 12;
+-  return `${hour}:${minute} ${ampm}`;
+-};
+-
+-// Helper: Compare date strings without timezone issues
+-const compareDateToToday = (dateStr: string) => {
+-  const [year, month, day] = dateStr.split('-').map(Number);
+-  const eventDate = new Date(year, month - 1, day);
+-  const today = new Date();
+-  today.setHours(0, 0, 0, 0);
+-  return eventDate >= today;
+-};
+-
+-const EventAnnouncements: React.FC = () => {
+-  const { teamData } = useAuth();
+-  const [events, setEvents] = useState<TeamEvent[]>([]);
+-  const [loading, setLoading] = useState(true);
+-  
+-  // Attachment viewing state
+-  const [viewingEvent, setViewingEvent] = useState<TeamEvent | null>(null);
+-  const [viewingAttachment, setViewingAttachment] = useState<EventAttachment | null>(null);
+-
+-  useEffect(() => {
+-    if (!teamData?.id) return;
+-    setLoading(true);
+-
+-    const eventsQuery = query(
+-      collection(db, 'teams', teamData.id, 'events'),
+-      orderBy('date', 'asc')
+-    );
+-
+-    const unsubscribe = onSnapshot(eventsQuery, (snapshot) => {
+-      const eventsData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as TeamEvent));
+-      setEvents(eventsData);
+-      setLoading(false);
+-    });
+-
+-    return () => unsubscribe();
+-  }, [teamData?.id]);
+-
+-  const upcomingEvents = events.filter(e => compareDateToToday(e.date));
+-  const pastEvents = events.filter(e => !compareDateToToday(e.date));
+-
+-  const getTypeColor = (type: TeamEvent['type']) => {
+-    switch (type) {
+-      case 'Game':
+-        return 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300';
+-      case 'Practice':
+-        return 'bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-900/50 text-sky-700 dark:text-sky-300';
+-      default:
+-        return 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300';
+-    }
+-  };
+-
+-  const getTypeBadge = (type: TeamEvent['type']) => {
+-    switch (type) {
+-      case 'Game':
+-        return 'bg-red-600 text-white';
+-      case 'Practice':
+-        return 'bg-orange-600 text-white';
+-      default:
+-        return 'bg-slate-600 text-white';
+-    }
+-  };
+-
+-  return (
+-    <div className="space-y-6">
+-      <div className="flex items-center gap-3 mb-4">
+-        <Megaphone className="w-6 h-6 text-sky-500" />
+-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Team Events</h2>
+-      </div>
+-
+-      {/* Upcoming Events */}
+-      {upcomingEvents.length > 0 && (
+-        <div>
+-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+-            <Calendar className="w-5 h-5 text-emerald-500" />
+-            Upcoming Events
+-          </h3>
+-          <div className="space-y-3">
+-            {upcomingEvents.map((event) => (
+-              <div
+-                key={event.id}
+-                className={`p-4 rounded-lg border ${getTypeColor(event.type)} transition-all hover:shadow-md`}
+-              >
+-                <div className="flex items-start justify-between mb-2">
+-                  <div className="flex items-center gap-2">
+-                    <span className={`px-2 py-1 rounded text-xs font-bold ${getTypeBadge(event.type)}`}>
+-                      {event.type}
+-                    </span>
+-                    <h4 className="text-lg font-bold text-slate-900 dark:text-white">{event.title}</h4>
+-                  </div>
+-                </div>
+-
+-                <div className="space-y-1 ml-0">
+-                  <div className="flex items-center gap-2 text-sm">
+-                    <Calendar className="w-4 h-4" />
+-                    <span>{formatEventDate(event.date)}</span>
+-                    {event.time && <span className="ml-2">{formatTime12Hour(event.time)}</span>}
+-                  </div>
+-
+-                  {event.location && (
+-                    <div className="flex items-center gap-2 text-sm">
+-                      <MapPin className="w-4 h-4" />
+-                      <span>{event.location}</span>
+-                    </div>
+-                  )}
+-
+-                  {event.description && (
+-                    <p className="text-sm mt-2 pt-2 border-t border-current/20">{event.description}</p>
+-                  )}
+-
+-                  {/* Attachments indicator */}
+-                  {event.attachments && event.attachments.length > 0 && (
+-                    <button
+-                      onClick={() => setViewingEvent(event)}
+-                      className="mt-2 flex items-center gap-2 text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium"
+-                    >
+-                      <Paperclip className="w-4 h-4" />
+-                      <span>View {event.attachments.length} attachment{event.attachments.length > 1 ? 's' : ''}</span>
+-                      <Eye className="w-4 h-4" />
+-                    </button>
+-                  )}
+-                </div>
+-              </div>
+-            ))}
+-          </div>
+-        </div>
+-      )}
+-
+-      {/* Past Events (if any) */}
+-      {pastEvents.length > 0 && (
+-        <div>
+-          <h3 className="text-lg font-bold text-slate-600 dark:text-slate-400 mb-3">Past Events</h3>
+-          <div className="space-y-3 opacity-60">
+-            {pastEvents.slice(-5).map((event) => (
+-              <div
+-                key={event.id}
+-                className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50"
+-              >
+-                <div className="flex items-start justify-between">
+-                  <div>
+-                    <span className="px-2 py-1 rounded text-xs font-bold bg-slate-300 dark:bg-slate-600 text-slate-700 dark:text-slate-200">
+-                      {event.type}
+-                    </span>
+-                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-1">{event.title}</h4>
+-                  </div>
+-                  <span className="text-xs text-slate-600 dark:text-slate-400">
+-                    {formatEventDate(event.date, { month: 'short', day: 'numeric' })}
+-                  </span>
+-                </div>
+-              </div>
+-            ))}
+-          </div>
+-        </div>
+-      )}
+-
+-      {loading && (
+-        <div className="text-center py-8 text-slate-600 dark:text-slate-400">
+-          Loading events...
+-        </div>
+-      )}
+-
+-      {!loading && events.length === 0 && (
+-        <div className="text-center py-8 text-slate-600 dark:text-slate-400">
+-          No events scheduled yet. Check back soon!
+-        </div>
+-      )}
+-
+-      {/* VIEW ATTACHMENTS MODAL */}
+-      {viewingEvent && (
+-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+-          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden">
+-            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-zinc-800">
+-              <div>
+-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">{viewingEvent.title}</h3>
+-                <p className="text-sm text-slate-500 dark:text-zinc-400">
+-                  {viewingEvent.attachments?.length || 0} attachment{(viewingEvent.attachments?.length || 0) !== 1 ? 's' : ''}
+-                </p>
+-              </div>
+-              <button 
+-                onClick={() => setViewingEvent(null)}
+-                className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 p-1"
+-              >
+-                <X className="w-5 h-5" />
+-              </button>
+-            </div>
+-            
+-            <div className="p-4 overflow-y-auto max-h-[60vh]">
+-              {viewingEvent.attachments && viewingEvent.attachments.length > 0 ? (
+-                <div className="grid grid-cols-2 gap-3">
+-                  {viewingEvent.attachments.map((attachment) => (
+-                    <div
+-                      key={attachment.id}
+-                      className="border border-slate-200 dark:border-zinc-700 rounded-lg overflow-hidden"
+-                    >
+-                      {attachment.type === 'image' ? (
+-                        <button
+-                          onClick={() => setViewingAttachment(attachment)}
+-                          className="w-full aspect-square bg-slate-100 dark:bg-zinc-800 hover:opacity-80 transition-opacity"
+-                        >
+-                          <img
+-                            src={attachment.url}
+-                            alt={attachment.name}
+-                            className="w-full h-full object-cover"
+-                          />
+-                        </button>
+-                      ) : (
+-                        <div className="aspect-square bg-slate-100 dark:bg-zinc-800 flex flex-col items-center justify-center p-4">
+-                          <FileText className="w-12 h-12 text-orange-500 mb-2" />
+-                          <span className="text-xs text-slate-600 dark:text-zinc-400 text-center truncate w-full px-2">
+-                            {attachment.name}
+-                          </span>
+-                        </div>
+-                      )}
+-                      <div className="p-2 bg-slate-50 dark:bg-zinc-800/50 flex items-center justify-between">
+-                        <span className="text-xs text-slate-600 dark:text-zinc-400 truncate flex-1">
+-                          {attachment.name}
+-                        </span>
+-                        <a
+-                          href={attachment.url}
+-                          target="_blank"
+-                          rel="noopener noreferrer"
+-                          className="text-orange-600 dark:text-orange-400 hover:text-orange-700 p-1"
+-                          title="Open / Download"
+-                        >
+-                          <Download className="w-4 h-4" />
+-                        </a>
+-                      </div>
+-                    </div>
+-                  ))}
+-                </div>
+-              ) : (
+-                <p className="text-center text-slate-500 dark:text-zinc-400 py-8">
+-                  No attachments for this event
+-                </p>
+-              )}
+-            </div>
+-          </div>
+-        </div>
+-      )}
+-
+-      {/* FULL IMAGE VIEWER MODAL */}
+-      {viewingAttachment && (
+-        <div 
+-          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90"
+-          onClick={() => setViewingAttachment(null)}
+-        >
+-          <button 
+-            onClick={() => setViewingAttachment(null)}
+-            className="absolute top-4 right-4 text-white hover:text-slate-300 p-2 bg-black/50 rounded-full"
+-          >
+-            <X className="w-6 h-6" />
+-          </button>
+-          <img
+-            src={viewingAttachment.url}
+-            alt={viewingAttachment.name}
+-            className="max-w-full max-h-full object-contain"
+-            onClick={(e) => e.stopPropagation()}
+-          />
+-          <a
+-            href={viewingAttachment.url}
+-            target="_blank"
+-            rel="noopener noreferrer"
+-            className="absolute bottom-4 right-4 flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg"
+-            onClick={(e) => e.stopPropagation()}
+-          >
+-            <Download className="w-4 h-4" />
+-            Download
+-          </a>
+-        </div>
+-      )}
+-    </div>
+-  );
+-};
+-
+-export default EventAnnouncements;
+diff --git a/services/firebase.ts b/services/firebase.ts
+index 8adcbe6..58624a0 100644
+--- a/services/firebase.ts
++++ b/services/firebase.ts
+@@ -1,8 +1,7 @@
+ import { initializeApp } from 'firebase/app';
+ import { getAuth } from 'firebase/auth';
+ import { getFirestore } from 'firebase/firestore';
+-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+-import type { EventAttachment } from '../types';
++import { getStorage } from 'firebase/storage';
+ 
+ const firebaseConfig = {
+   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_API_KEY,
+@@ -20,50 +19,4 @@ const auth = getAuth(app);
+ const db = getFirestore(app);
+ const storage = getStorage(app);
+ 
+-// Helper to determine file type
+-const getFileType = (contentType: string): 'image' | 'pdf' | 'document' => {
+-  if (contentType.startsWith('image/')) return 'image';
+-  if (contentType === 'application/pdf') return 'pdf';
+-  return 'document';
+-};
+-
+-// Upload event attachment
+-export const uploadEventAttachment = async (
+-  teamId: string,
+-  eventId: string,
+-  file: File,
+-  uploadedBy: string
+-): Promise<EventAttachment> => {
+-  const fileId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+-  const fileExtension = file.name.split('.').pop();
+-  const storagePath = `teams/${teamId}/events/${eventId}/${fileId}.${fileExtension}`;
+-  
+-  const storageRef = ref(storage, storagePath);
+-  await uploadBytes(storageRef, file);
+-  const url = await getDownloadURL(storageRef);
+-  
+-  return {
+-    id: fileId,
+-    name: file.name,
+-    url,
+-    type: getFileType(file.type),
+-    contentType: file.type,
+-    size: file.size,
+-    uploadedAt: new Date(),
+-    uploadedBy
+-  };
+-};
+-
+-// Delete event attachment
+-export const deleteEventAttachment = async (
+-  teamId: string,
+-  eventId: string,
+-  attachment: EventAttachment
+-): Promise<void> => {
+-  const fileExtension = attachment.name.split('.').pop();
+-  const storagePath = `teams/${teamId}/events/${eventId}/${attachment.id}.${fileExtension}`;
+-  const storageRef = ref(storage, storagePath);
+-  await deleteObject(storageRef);
+-};
+-
+ export { auth, db, storage };
+\ No newline at end of file
+diff --git a/services/storage.ts b/services/storage.ts
+new file mode 100644
+index 0000000..f9f964c
+--- /dev/null
++++ b/services/storage.ts
+@@ -0,0 +1,66 @@
++import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
++import { storage } from './firebase';
++
++export interface UploadedFile {
++  url: string;
++  name: string;
++  mimeType: string;
++  size: number;
++  path: string; // storage path used for the object
++}
++
++// Allowed mime types (images and PDFs). Can be extended later.
++const ALLOWED_TYPES = [
++  'image/jpeg',
++  'image/png',
++  'image/webp',
++  'image/gif',
++  'application/pdf'
++];
++
++const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB default
++
++export async function uploadFile(file: File, path: string, onProgress?: (percent: number) => void): Promise<UploadedFile> {
++  if (!ALLOWED_TYPES.includes(file.type)) {
++    throw new Error('Unsupported file type');
++  }
++
++  if (file.size > MAX_FILE_SIZE) {
++    throw new Error('File too large');
++  }
++
++  const storageRef = ref(storage, path);
++  const uploadTask = uploadBytesResumable(storageRef, file);
++
++  return new Promise((resolve, reject) => {
++    uploadTask.on(
++      'state_changed',
++      (snapshot) => {
++        if (onProgress && snapshot.totalBytes) {
++          const percent = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
++          onProgress(percent);
++        }
++      },
++      (error) => reject(error),
++      async () => {
++        try {
++          const url = await getDownloadURL(uploadTask.snapshot.ref);
++          resolve({ url, name: file.name, mimeType: file.type, size: file.size, path });
++        } catch (err) {
++          reject(err);
++        }
++      }
++    );
++  });
++}
++
++export async function deleteFile(path: string): Promise<void> {
++  if (!path) return;
++  try {
++    const storageRef = ref(storage, path);
++    await deleteObject(storageRef);
++  } catch (err) {
++    // Bubble up error - caller can decide how to handle (file may already be gone)
++    throw err;
++  }
++}
+diff --git a/types.ts b/types.ts
+index 0a4f101..df21188 100644
+--- a/types.ts
++++ b/types.ts
+@@ -27,17 +27,6 @@ export interface CalendarEvent {
+ }
+ 
+ // --- EVENTS (Schedule Management) ---
+-export interface EventAttachment {
+-  id: string;
+-  name: string;
+-  url: string;
+-  type: 'image' | 'pdf' | 'document';
+-  contentType: string;
+-  size: number;
+-  uploadedAt: any;
+-  uploadedBy: string;
+-}
+-
+ export interface TeamEvent {
+   id: string;
+   teamId?: string;
+@@ -47,12 +36,13 @@ export interface TeamEvent {
+   type: 'Practice' | 'Game' | 'Other';
+   location: string;
+   description: string;
+-  attachments?: EventAttachment[];
+   createdAt?: any;
+   createdBy?: string;
+   updatedAt?: any;
+ }
+ 
++
++
+ // --- MAIN INTERFACES ---
+ 
+ export interface UserProfile {
+@@ -75,6 +65,7 @@ export interface UserProfile {
+   emergencyContact?: EmergencyContact;
+   
+   photoUrl?: string;
++  photoPath?: string;
+   bio?: string; // About me / bio section for coaches and parents
+   
+   // For Parents: Track currently selected player
+@@ -117,6 +108,7 @@ export interface Player {
+   height?: string; // Player height (e.g., "4'6"")
+   weight?: string; // Player weight (e.g., "85 lbs")
+   photoUrl?: string; // Player headshot photo
++  photoPath?: string;
+   
+   // Link to Parent
+   parentId?: string; 
+@@ -229,6 +221,19 @@ export interface PrivateMessage {
+   timestamp: Timestamp;
+ }
+ 
++export interface Attachment {
++  url: string;
++  name: string;
++  mimeType: string;
++  size: number;
++  path?: string; // optional storage path for deletion
++}
++
++// Allow messages to include optional attachments (images, pdfs, etc.)
++export interface PrivateMessageWithAttachments extends PrivateMessage {
++  attachments?: Attachment[];
++}
++
+ // --- GAME STATS ENGINE ---
+ // Individual game record
+ export interface Game {
+-- 
+2.51.0.windows.1
+
