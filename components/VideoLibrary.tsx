@@ -151,6 +151,10 @@ const VideoLibrary: React.FC = () => {
 
   const handleAddVideo = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent double submission
+    if (saving) return;
+    
     setError('');
     
     if (!teamData?.id || !newVideo.title || !newVideo.url) return;
@@ -250,6 +254,10 @@ const VideoLibrary: React.FC = () => {
 
   const handleUpdateVideo = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent double submission
+    if (saving) return;
+    
     setError('');
     
     if (!teamData?.id || !editingVideo || !newVideo.title) return;
