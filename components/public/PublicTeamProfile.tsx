@@ -328,7 +328,7 @@ const PublicTeamProfile: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-white truncate">{coach.name}</p>
                         <p className="text-xs text-zinc-500">
-                          {coach.isHeadCoach ? 'Head Coach' : 'Assistant Coach'}
+                          {coach.isHeadCoach ? 'Head Coach' : 'Coach'}
                         </p>
                       </div>
                       <ChevronRight className="w-4 h-4 text-zinc-500 flex-shrink-0" />

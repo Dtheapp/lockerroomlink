@@ -85,8 +85,8 @@ const Profile: React.FC = () => {
   // Bio state for coaches
   const [bio, setBio] = useState('');
   
-  // Head Coach status for coaches
-  const [isHeadCoach, setIsHeadCoach] = useState(false);
+  // Coach teams with positions
+  const [coachTeamPositions, setCoachTeamPositions] = useState<{ teamId: string; teamName: string; isHeadCoach: boolean }[]>([]);
   
   // Edit username validation state
   const [editUsernameError, setEditUsernameError] = useState<string | null>(null);
@@ -108,49 +108,51 @@ const Profile: React.FC = () => {
     }
   }, [userData]);
 
-  // Check if coach is head coach of any of their teams
+  // Fetch all teams the coach belongs to and their positions
   useEffect(() => {
-    const checkHeadCoachStatus = async () => {
+    const fetchCoachTeamPositions = async () => {
       if (userData?.role !== 'Coach' || !userData?.uid) {
-        setIsHeadCoach(false);
+        setCoachTeamPositions([]);
         return;
       }
       
       try {
-        // First check if current teamData from context shows this user as head coach
-        if (teamData && (teamData.headCoachId === userData.uid || teamData.coachId === userData.uid)) {
-          setIsHeadCoach(true);
-          return;
-        }
+        const positions: { teamId: string; teamName: string; isHeadCoach: boolean }[] = [];
         
         // Get all team IDs the coach belongs to
         const coachTeamIds = userData.teamIds || (userData.teamId ? [userData.teamId] : []);
         
-        // If no team IDs but we have teamData, add it
+        // If no team IDs but we have teamData from context, add it
         if (coachTeamIds.length === 0 && teamData?.id) {
           coachTeamIds.push(teamData.id);
         }
         
-        // Check each team to see if this coach is the head coach
+        // Fetch each team and determine position
         for (const teamId of coachTeamIds) {
           const teamDocRef = doc(db, 'teams', teamId);
           const teamDocSnap = await getDoc(teamDocRef);
           if (teamDocSnap.exists()) {
             const team = teamDocSnap.data() as Team;
-            if (team.headCoachId === userData.uid || team.coachId === userData.uid) {
-              setIsHeadCoach(true);
-              return;
-            }
+            const isHeadCoach = team.headCoachId === userData.uid || team.coachId === userData.uid;
+            positions.push({
+              teamId,
+              teamName: team.name || teamId,
+              isHeadCoach
+            });
           }
         }
-        setIsHeadCoach(false);
+        
+        // Sort: head coach positions first
+        positions.sort((a, b) => (b.isHeadCoach ? 1 : 0) - (a.isHeadCoach ? 1 : 0));
+        
+        setCoachTeamPositions(positions);
       } catch (err) {
-        console.error('Error checking head coach status:', err);
-        setIsHeadCoach(false);
+        console.error('Error fetching coach team positions:', err);
+        setCoachTeamPositions([]);
       }
     };
     
-    checkHeadCoachStatus();
+    fetchCoachTeamPositions();
   }, [userData?.role, userData?.uid, userData?.teamIds, userData?.teamId, teamData]);
 
   // 2. Load My Athletes from Context (already loaded in AuthContext for parents)
@@ -656,14 +658,28 @@ const Profile: React.FC = () => {
             <div className="text-center md:text-left flex-1">
                 <div className="flex flex-col md:flex-row md:items-center gap-2 mb-2">
                   <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{name || 'User'}</h2>
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium uppercase tracking-wider ${
-                    userData?.role === 'Coach' && isHeadCoach 
-                      ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20'
-                      : 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-500/20'
-                  }`}>
-                    {userData?.role === 'Coach' && isHeadCoach && <Crown className="w-3 h-3" />}
-                    {userData?.role === 'Coach' ? (isHeadCoach ? 'Head Coach' : 'Assistant Coach') : userData?.role}
-                  </span>
+                  {/* Show role badge - for coaches show team positions */}
+                  {userData?.role === 'Coach' && coachTeamPositions.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {coachTeamPositions.map((pos, idx) => (
+                        <span 
+                          key={idx}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium uppercase tracking-wider ${
+                            pos.isHeadCoach 
+                              ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20'
+                              : 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-500/20'
+                          }`}
+                        >
+                          {pos.isHeadCoach && <Crown className="w-3 h-3" />}
+                          {pos.isHeadCoach ? 'Head Coach' : 'Coach'} | {pos.teamName}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium uppercase tracking-wider bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-500/20">
+                      {userData?.role}
+                    </span>
+                  )}
                 </div>
                 {userData?.username && (
                   <p className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1">

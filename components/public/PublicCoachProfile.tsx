@@ -256,7 +256,7 @@ const PublicCoachProfile: React.FC = () => {
                   </span>
                 ) : (
                   <span className="bg-zinc-700 text-zinc-300 px-3 py-1 rounded-full text-sm font-medium">
-                    Assistant Coach
+                    Coach
                   </span>
                 )}
               </div>
@@ -372,7 +372,7 @@ const PublicCoachProfile: React.FC = () => {
                     <div>
                       <p className="font-bold text-white">{team.name}</p>
                       <p className="text-xs text-zinc-500">
-                        {isHeadCoach[index] ? 'Head Coach' : 'Assistant Coach'}
+                        {isHeadCoach[index] ? 'Head Coach' : 'Coach'}
                       </p>
                       {team.record && (
                         <p className="text-xs text-zinc-400 mt-1">
