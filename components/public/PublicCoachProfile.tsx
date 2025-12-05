@@ -337,7 +337,7 @@ const PublicCoachProfile: React.FC = () => {
                     className="flex items-center gap-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 px-4 py-2 rounded-lg font-semibold transition-all"
                   >
                     <MessageSquare className="w-4 h-4" />
-                    Private Feedback
+                    File Grievance
                   </button>
                 </div>
               )}
@@ -505,7 +505,7 @@ const PublicCoachProfile: React.FC = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
                 <MessageSquare className="w-6 h-6 text-sky-500" />
-                Private Feedback
+                File Grievance
               </h3>
               <button onClick={() => setShowFeedbackModal(false)} className="text-zinc-400 hover:text-white">
                 <X className="w-6 h-6" />
