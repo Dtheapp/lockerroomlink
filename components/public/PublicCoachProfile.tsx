@@ -16,7 +16,7 @@ interface CoachData {
 
 const PublicCoachProfile: React.FC = () => {
   const { username } = useParams<{ username: string }>();
-  const { user, userData } = useAuth();
+  const { user, userData, players } = useAuth();
   const [data, setData] = useState<CoachData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,8 +26,16 @@ const PublicCoachProfile: React.FC = () => {
   const [kudosMessage, setKudosMessage] = useState('');
   const [feedbackCategory, setFeedbackCategory] = useState<'communication' | 'conduct' | 'fairness' | 'safety' | 'other'>('other');
   const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [selectedTeamId, setSelectedTeamId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState<'kudos' | 'feedback' | null>(null);
+
+  // Get unique teams the parent's kids are on (that this coach also coaches)
+  const parentTeams = React.useMemo(() => {
+    if (!players || !data) return [];
+    const teamIds = [...new Set(players.map(p => p.teamId).filter(Boolean))];
+    return data.teams.filter(t => teamIds.includes(t.id));
+  }, [players, data]);
 
   useEffect(() => {
     const fetchCoachData = async () => {
@@ -237,21 +245,21 @@ const PublicCoachProfile: React.FC = () => {
     }
   };
 
-  // Handle submitting private feedback
+  // Handle submitting private feedback (grievance)
   const handleSubmitFeedback = async () => {
-    if (!user || !userData || !data || !feedbackMessage.trim()) return;
+    if (!user || !userData || !data || !feedbackMessage.trim() || !selectedTeamId) return;
     
     setSubmitting(true);
     try {
-      const parentTeamId = userData.teamId || '';
-      const teamMatch = data.teams.find(t => t.id === parentTeamId);
+      const teamMatch = data.teams.find(t => t.id === selectedTeamId);
       
+      // Save the grievance
       await addDoc(collection(db, 'coachFeedback'), {
         coachId: data.coach.uid,
         coachName: data.coach.name,
         parentId: user.uid,
         parentName: userData.name,
-        teamId: parentTeamId,
+        teamId: selectedTeamId,
         teamName: teamMatch?.name || 'Unknown Team',
         category: feedbackCategory,
         message: feedbackMessage.trim(),
@@ -259,10 +267,77 @@ const PublicCoachProfile: React.FC = () => {
         createdAt: serverTimestamp()
       });
       
+      // Send automated acknowledgment to parent's private messages
+      try {
+        // Check if a chat already exists with the system/admin
+        const chatsQuery = query(
+          collection(db, 'private_chats'),
+          where('participants', 'array-contains', user.uid)
+        );
+        const chatsSnapshot = await getDocs(chatsQuery);
+        let existingChatId: string | null = null;
+        
+        // Look for existing chat with the coach
+        chatsSnapshot.forEach(chatDoc => {
+          const chatData = chatDoc.data();
+          if (chatData.participants.includes(data.coach.uid)) {
+            existingChatId = chatDoc.id;
+          }
+        });
+        
+        const acknowledgmentMessage = `📋 Grievance Received
+
+Thank you for submitting your grievance regarding Coach ${data.coach.name}.
+
+We have received your report and our administration team will review it promptly. We take all concerns seriously and will work to address this matter in a timely manner.
+
+You will receive a follow-up message once your grievance has been reviewed.
+
+— LockerRoom Administration`;
+        
+        if (existingChatId) {
+          await addDoc(collection(db, 'private_chats', existingChatId, 'messages'), {
+            text: acknowledgmentMessage,
+            senderId: 'system',
+            timestamp: serverTimestamp(),
+            isSystemMessage: true
+          });
+          await updateDoc(doc(db, 'private_chats', existingChatId), {
+            lastMessage: '📋 Grievance Received',
+            updatedAt: serverTimestamp(),
+            lastMessageTime: serverTimestamp(),
+            lastSenderId: 'system'
+          });
+        } else {
+          // Create a new chat between parent and coach for grievance communication
+          const participantData = {
+            [user.uid]: { username: userData.username || userData.name, role: userData.role },
+            [data.coach.uid]: { username: data.coach.username || data.coach.name, role: data.coach.role }
+          };
+          const newChatRef = await addDoc(collection(db, 'private_chats'), {
+            participants: [user.uid, data.coach.uid],
+            participantData,
+            lastMessage: '📋 Grievance Received',
+            updatedAt: serverTimestamp(),
+            lastMessageTime: serverTimestamp(),
+            lastSenderId: 'system'
+          });
+          await addDoc(collection(db, 'private_chats', newChatRef.id, 'messages'), {
+            text: acknowledgmentMessage,
+            senderId: 'system',
+            timestamp: serverTimestamp(),
+            isSystemMessage: true
+          });
+        }
+      } catch (msgError) {
+        console.error('Error sending acknowledgment message:', msgError);
+      }
+      
       setSubmitSuccess('feedback');
       setShowFeedbackModal(false);
       setFeedbackMessage('');
       setFeedbackCategory('other');
+      setSelectedTeamId('');
       
       setTimeout(() => setSubmitSuccess(null), 3000);
     } catch (err) {
@@ -579,7 +654,7 @@ const PublicCoachProfile: React.FC = () => {
       {/* Private Feedback Modal */}
       {showFeedbackModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-zinc-900 rounded-2xl p-6 max-w-md w-full border border-zinc-700 shadow-2xl">
+          <div className="bg-zinc-900 rounded-2xl p-6 max-w-md w-full border border-zinc-700 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
                 <MessageSquare className="w-6 h-6 text-sky-500" />
@@ -593,9 +668,21 @@ const PublicCoachProfile: React.FC = () => {
             <div className="bg-sky-500/10 border border-sky-500/30 rounded-lg p-3 mb-4">
               <p className="text-sky-300 text-sm flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                This feedback is private and will only be seen by organization administrators. It will not be shown to the coach.
+                This grievance is private and will only be seen by organization administrators. It will not be shown to the coach.
               </p>
             </div>
+
+            <label className="block text-sm font-medium text-zinc-300 mb-2">Select Team <span className="text-red-400">*</span></label>
+            <select
+              value={selectedTeamId}
+              onChange={(e) => setSelectedTeamId(e.target.value)}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white mb-4 focus:outline-none focus:border-sky-500"
+            >
+              <option value="">-- Select the team --</option>
+              {parentTeams.map(team => (
+                <option key={team.id} value={team.id}>{team.name}</option>
+              ))}
+            </select>
             
             <label className="block text-sm font-medium text-zinc-300 mb-2">Category</label>
             <select
@@ -610,11 +697,11 @@ const PublicCoachProfile: React.FC = () => {
               <option value="other">Other</option>
             </select>
             
-            <label className="block text-sm font-medium text-zinc-300 mb-2">Your Feedback</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">Describe Your Concern <span className="text-red-400">*</span></label>
             <textarea
               value={feedbackMessage}
               onChange={(e) => setFeedbackMessage(e.target.value)}
-              placeholder="Please describe your concern..."
+              placeholder="Please describe your concern in detail..."
               className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white placeholder-zinc-500 focus:outline-none focus:border-sky-500 resize-none"
               rows={4}
             />
@@ -628,7 +715,7 @@ const PublicCoachProfile: React.FC = () => {
               </button>
               <button
                 onClick={handleSubmitFeedback}
-                disabled={submitting || !feedbackMessage.trim()}
+                disabled={submitting || !feedbackMessage.trim() || !selectedTeamId}
                 className="flex-1 bg-sky-600 hover:bg-sky-500 text-white py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {submitting ? (

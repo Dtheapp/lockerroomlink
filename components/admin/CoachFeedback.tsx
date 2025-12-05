@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp, addDoc, where, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { CoachFeedback as CoachFeedbackType } from '../../types';
@@ -58,14 +58,93 @@ const CoachFeedback: React.FC = () => {
   }, []);
 
   const handleUpdateStatus = async (feedbackId: string, newStatus: 'reviewed' | 'resolved') => {
+    if (!selectedFeedback) return;
+    
     setUpdating(true);
     try {
+      // Update the grievance status
       await updateDoc(doc(db, 'coachFeedback', feedbackId), {
         status: newStatus,
         reviewedAt: serverTimestamp(),
         reviewedBy: userData?.name || 'Admin',
         ...(adminNotes && { adminNotes })
       });
+      
+      // Send notification message to the parent
+      try {
+        const parentId = selectedFeedback.parentId;
+        const coachId = selectedFeedback.coachId;
+        
+        // Find existing chat between parent and coach
+        const chatsQuery = query(
+          collection(db, 'private_chats'),
+          where('participants', 'array-contains', parentId)
+        );
+        const chatsSnapshot = await getDocs(chatsQuery);
+        let existingChatId: string | null = null;
+        
+        chatsSnapshot.forEach(chatDoc => {
+          const chatData = chatDoc.data();
+          if (chatData.participants.includes(coachId)) {
+            existingChatId = chatDoc.id;
+          }
+        });
+        
+        // Build the notification message
+        const statusLabel = newStatus === 'reviewed' ? 'Under Review' : 'Resolved';
+        const statusEmoji = newStatus === 'reviewed' ? '👁️' : '✅';
+        let notificationMessage = `${statusEmoji} Grievance Update: ${statusLabel}
+
+Your grievance regarding Coach ${selectedFeedback.coachName} has been marked as ${statusLabel.toLowerCase()}.`;
+
+        if (adminNotes.trim()) {
+          notificationMessage += `
+
+📝 Response from Administration:
+"${adminNotes.trim()}"`;
+        }
+
+        notificationMessage += `
+
+— LockerRoom Administration`;
+        
+        if (existingChatId) {
+          await addDoc(collection(db, 'private_chats', existingChatId, 'messages'), {
+            text: notificationMessage,
+            senderId: 'system',
+            timestamp: serverTimestamp(),
+            isSystemMessage: true
+          });
+          await updateDoc(doc(db, 'private_chats', existingChatId), {
+            lastMessage: `${statusEmoji} Grievance Update: ${statusLabel}`,
+            updatedAt: serverTimestamp(),
+            lastMessageTime: serverTimestamp(),
+            lastSenderId: 'system'
+          });
+        } else {
+          // Create new chat if none exists
+          const newChatRef = await addDoc(collection(db, 'private_chats'), {
+            participants: [parentId, coachId],
+            participantData: {
+              [parentId]: { username: selectedFeedback.parentName, role: 'Parent' },
+              [coachId]: { username: selectedFeedback.coachName, role: 'Coach' }
+            },
+            lastMessage: `${statusEmoji} Grievance Update: ${statusLabel}`,
+            updatedAt: serverTimestamp(),
+            lastMessageTime: serverTimestamp(),
+            lastSenderId: 'system'
+          });
+          await addDoc(collection(db, 'private_chats', newChatRef.id, 'messages'), {
+            text: notificationMessage,
+            senderId: 'system',
+            timestamp: serverTimestamp(),
+            isSystemMessage: true
+          });
+        }
+      } catch (msgError) {
+        console.error('Error sending status update message:', msgError);
+      }
+      
       setSelectedFeedback(null);
       setAdminNotes('');
     } catch (err) {
@@ -334,15 +413,16 @@ const CoachFeedback: React.FC = () => {
                 <>
                   <div>
                     <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-300 mb-2">
-                      Admin Notes (optional)
+                      Response to Parent (optional)
                     </label>
                     <textarea
                       value={adminNotes}
                       onChange={(e) => setAdminNotes(e.target.value)}
-                      placeholder="Add notes about actions taken..."
+                      placeholder="Add a response that will be sent to the parent..."
                       className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg p-3 text-zinc-900 dark:text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 resize-none"
                       rows={3}
                     />
+                    <p className="text-xs text-zinc-500 mt-1">This response will be sent as a private message to the parent.</p>
                   </div>
 
                   <div className="flex gap-3 pt-2">
