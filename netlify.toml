@@ -3,6 +3,12 @@
   publish = "dist"
   functions = "netlify/functions"
 
+# Exclude API functions from SPA redirect
+[[redirects]]
+  from = "/.netlify/functions/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
