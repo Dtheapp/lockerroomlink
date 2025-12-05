@@ -298,15 +298,15 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
     return (
       <div 
         ref={previewCanvasRef}
-        className="relative w-full aspect-video bg-green-800 rounded-lg overflow-hidden"
+        className="relative w-full aspect-video bg-slate-900 rounded-lg overflow-hidden"
         style={{
           backgroundImage: `
             repeating-linear-gradient(
               0deg,
               transparent,
               transparent 9%,
-              rgba(255,255,255,0.15) 9%,
-              rgba(255,255,255,0.15) 10%
+              rgba(255,255,255,0.08) 9%,
+              rgba(255,255,255,0.08) 10%
             )
           `
         }}
@@ -378,16 +378,37 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
               top: `${player.y}%`
             }}
           >
-            <div 
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs cursor-pointer transition-all
-                ${player.suggestedType === 'X' ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'}
-                ${player.shape === 'triangle' ? 'clip-path-triangle' : ''}
-              `}
-              onClick={() => togglePlayerType(player.id)}
-              title="Click to toggle O/X"
-            >
-              {player.suggestedType || 'O'}
-            </div>
+            {player.shape === 'triangle' ? (
+              // Render triangle shape for defensive players
+              <div 
+                className="relative cursor-pointer"
+                onClick={() => togglePlayerType(player.id)}
+                title="Click to toggle O/X"
+              >
+                <svg width="32" height="32" viewBox="0 0 32 32" className="transition-all hover:scale-110">
+                  <polygon 
+                    points="16,4 28,28 4,28" 
+                    fill={player.suggestedType === 'X' ? '#dc2626' : '#2563eb'}
+                    stroke={player.suggestedType === 'X' ? '#ef4444' : '#3b82f6'}
+                    strokeWidth="2"
+                  />
+                  <text x="16" y="22" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold">
+                    {player.suggestedType || 'X'}
+                  </text>
+                </svg>
+              </div>
+            ) : (
+              // Render circle shape for offensive players
+              <div 
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs cursor-pointer transition-all hover:scale-110
+                  ${player.suggestedType === 'X' ? 'bg-red-600 hover:bg-red-500 border-2 border-red-400' : 'bg-blue-600 hover:bg-blue-500 border-2 border-blue-400'}
+                `}
+                onClick={() => togglePlayerType(player.id)}
+                title="Click to toggle O/X"
+              >
+                {player.suggestedType || 'O'}
+              </div>
+            )}
             <button
               className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 hover:bg-red-600 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
               onClick={(e) => {

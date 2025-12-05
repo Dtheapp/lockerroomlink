@@ -114,65 +114,80 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         messages: [
           {
             role: 'system',
-            content: `You are an expert football play diagram analyzer. Your job is to PRECISELY detect and count EVERY player symbol in a football play diagram.
+            content: `You are an expert football play diagram analyzer. Your task is to PRECISELY identify every player and visual element.
 
-CRITICAL: EXPECT 22 PLAYERS (11 offense + 11 defense) in most diagrams!
+CRITICAL EXPECTATIONS:
+- Football plays have exactly 22 PLAYERS: 11 offense + 11 defense
+- You MUST find and output ALL 22 players!
 
-PLAYER SYMBOL IDENTIFICATION:
-1. CIRCLES (filled or hollow, any color) = Offensive players → type: "O", shape: "circle"
-2. SMALL SQUARES (same size as circles, on the offensive line) = Offensive players (usually center) → type: "O", shape: "circle" (treat as circle!)
-3. TRIANGLES (filled or hollow, pointing any direction) = Defensive players → type: "X", shape: "triangle"
-4. X marks = Defensive players → type: "X", shape: "x"
+STEP 1 - IDENTIFY ALL PLAYER SHAPES:
+Count each symbol ONCE, even if inside a rectangle/box:
 
-CRITICAL - DISTINGUISHING PLAYERS FROM DECORATIONS:
-- LARGE RECTANGLES that CONTAIN other players inside them = Visual groupings/boxes, NOT players! (e.g., boxes around cornerbacks)
-- LARGE OVALS at bottom of field = Zone markers, NOT players!
-- SMALL circles/squares/triangles that are SIMILAR SIZE to other player symbols = ACTUAL PLAYERS
-- If a rectangle contains a circle AND a triangle, count BOTH the circle AND triangle as separate players, ignore the rectangle
+OFFENSIVE PLAYERS (11 total) - output as suggestedType: "O":
+- CIRCLES (solid red/any color) = use shape: "circle"
+- SMALL SQUARES on the line (same size as circles) = use shape: "circle" (the center position)
 
-SIZE RULE: If a shape is 3-5x larger than the typical player symbols, it's a decoration. If it's similar size, it's a player.
+DEFENSIVE PLAYERS (11 total) - output as suggestedType: "X":  
+- TRIANGLES (solid red, pointing up/down) = use shape: "triangle" ← KEEP AS TRIANGLES!
+- X marks = use shape: "x"
 
-COORDINATE MAPPING:
-- x: 0 = left edge, 100 = right edge of the PLAY AREA (not the whole image)
-- y: 0 = top of play area, 100 = bottom
-- Ignore title bars, slide numbers, decorative borders
-- Map players to fill roughly 10-90 range for x and 15-85 range for y
+STEP 2 - CRITICAL RULES:
+1. RECTANGLES/BOXES with players INSIDE: Count the players INSIDE (circles, triangles), IGNORE the rectangle itself
+2. Example: Green box with 1 circle and 1 triangle inside = output 2 players (1 circle O, 1 triangle X)
+3. LARGE OVALS at field bottom = zone markers, but if there's a TRIANGLE inside/near it, count that triangle!
+4. Small square same size as circles on offensive line = CENTER position, treat as circle type O
 
-TYPICAL LAYOUT for 4-4 Defense vs Offense:
-Row 1 (y~10-15): 2 safeties (circles, O)
-Row 2 (y~25-30): 4-5 secondary/receivers (circles, O) - may include players in boxes on the sides
-Row 3 (y~35-45): 4 linebackers (triangles, X)
-Row 4 (y~50-60): 4 D-linemen (triangles, X)
-Row 5 (y~65-75): 5-7 offensive linemen (circles + 1 small square for center, all count as O)
-Row 6 (y~80-90): Deep safety in oval zone (triangle, X) - count the triangle, ignore the oval
+STEP 3 - COORDINATE MAPPING (VERY IMPORTANT):
+Look at the ACTUAL x,y position of each player in the image and preserve their RELATIVE positions!
+- x: 0=left edge, 100=right edge of play diagram area
+- y: 0=top (where offense is deeper), 100=bottom (where defense secondary is)
+- Spread players appropriately - if they're spaced out, reflect that spacing
 
-Return ONLY valid JSON:
+TYPICAL 4-4 DEFENSE LAYOUT (from top to bottom of image):
+- y≈15-20: 3 wide receivers/backs (circles, far apart horizontally)
+- y≈25-35: 2-4 more offensive players (circles)
+- y≈40-50: Offensive LINE - 5-6 circles + 1 small square (center). These should be CLOSE together horizontally!
+- y≈55-65: Defensive LINE - 4 triangles (spread across)
+- y≈65-75: Linebackers - 4 triangles (spread across)
+- y≈80-90: Safety - 1 triangle (often in oval zone area)
+
+STEP 4 - ROUTES AND LINES:
+Detect arrow/route lines drawn from players:
+- Yellow lines with arrows = routes
+- Output start and end points of each route segment
+
+STEP 5 - OUTPUT FORMAT (JSON only):
 {
   "players": [
-    {"x": 50, "y": 70, "shape": "circle", "suggestedType": "O"},
-    {"x": 50, "y": 50, "shape": "triangle", "suggestedType": "X"}
+    {"x": 50, "y": 45, "shape": "circle", "suggestedType": "O"},
+    {"x": 50, "y": 60, "shape": "triangle", "suggestedType": "X"}
   ],
   "routes": [
-    {"points": [{"x": 30, "y": 45}, {"x": 35, "y": 35}], "lineType": "solid", "color": "#FACC15", "hasArrow": true}
+    {"points": [{"x": 50, "y": 45}, {"x": 55, "y": 30}], "lineType": "solid", "color": "#FACC15", "hasArrow": true}
   ],
   "shapes": [],
   "suggestedCategory": "Defense",
-  "confidence": 90,
+  "confidence": 85,
   "totalPlayersDetected": 22
 }
 
-ROUTES/ARROWS:
-- Solid arrows = "solid", Dashed arrows = "dashed", Curved = "curved"
-- Yellow=#FACC15, Red=#ef4444, White=#ffffff
-
-DO NOT output large rectangles or ovals as shapes - they are field decorations.`
+SHAPE MUST BE: "circle", "triangle", or "x" - preserve the actual shape you see!
+DO NOT convert triangles to circles!`
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: 'Analyze this football play diagram. This likely has 22 PLAYERS (11 offense + 11 defense). Count EVERY circle (offense), small square (offense), and triangle (defense). Large rectangles around players are just visual groupings - count the players INSIDE them. Return JSON only.'
+                text: `Analyze this football play diagram carefully:
+
+1. COUNT ALL 22 PLAYERS - Look for 11 circles/squares (offense) and 11 triangles (defense)
+2. Players inside rectangles/boxes still count - extract the circle or triangle inside!
+3. The small square on the offensive line = center, treat as circle with type O
+4. KEEP TRIANGLES AS TRIANGULAR SHAPE - don't convert to circles!
+5. Preserve exact x,y positions - if players are spread wide, show them spread wide
+6. Look for route lines (yellow arrows) and include them
+7. Return ONLY valid JSON, no explanation text`
               },
               {
                 type: 'image_url',
@@ -230,7 +245,7 @@ DO NOT output large rectangles or ovals as shapes - they are field decorations.`
 
       const parsed = JSON.parse(jsonStr);
       
-      // Process players and normalize coordinates to fit field view better
+      // Process players - preserve relative positions better
       const rawPlayers = parsed.players || [];
       
       // Calculate bounding box of detected players
@@ -244,18 +259,27 @@ DO NOT output large rectangles or ovals as shapes - they are field decorations.`
         maxY = Math.max(maxY, py);
       });
       
-      // Normalize to use more of the field (15-85 range for x, 20-80 for y)
+      // Only normalize if the range is very narrow (all players bunched up)
+      // Otherwise, trust the AI's coordinates more
       const xRange = maxX - minX || 1;
       const yRange = maxY - minY || 1;
+      const shouldNormalizeX = xRange < 40; // Only normalize if spread is less than 40%
+      const shouldNormalizeY = yRange < 40;
       
       const normalizeX = (x: number) => {
-        if (xRange < 5) return 50; // If too compressed, center it
-        return 15 + ((x - minX) / xRange) * 70; // Map to 15-85
+        if (shouldNormalizeX) {
+          // Expand to use more of the field
+          return 15 + ((x - minX) / xRange) * 70; // Map to 15-85
+        }
+        // Keep original but ensure within bounds
+        return Math.max(8, Math.min(92, x));
       };
       
       const normalizeY = (y: number) => {
-        if (yRange < 5) return 50;
-        return 20 + ((y - minY) / yRange) * 60; // Map to 20-80
+        if (shouldNormalizeY) {
+          return 15 + ((y - minY) / yRange) * 70; // Map to 15-85
+        }
+        return Math.max(8, Math.min(92, y));
       };
       
       // Validate and add IDs to players
