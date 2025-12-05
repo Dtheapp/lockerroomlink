@@ -1126,7 +1126,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* TEAM RECORD */}
-      <div className="bg-gradient-to-br from-zinc-900 to-black rounded-2xl border border-zinc-800 overflow-hidden shadow-xl">
+      <div className="bg-white dark:bg-gradient-to-br dark:from-zinc-900 dark:to-black rounded-2xl border border-gray-200 dark:border-zinc-800 overflow-hidden shadow-xl">
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
@@ -1134,14 +1134,14 @@ const Dashboard: React.FC = () => {
                 <Trophy className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white">Season Record</h2>
-                <p className="text-xs text-zinc-500">Track your team's wins & losses</p>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">Season Record</h2>
+                <p className="text-xs text-gray-500 dark:text-zinc-500">Track your team's wins & losses</p>
               </div>
             </div>
             {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
               <button 
                 onClick={openEditRecord}
-                className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-medium transition-colors border border-zinc-700"
+                className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-600 dark:text-zinc-300 rounded-lg text-xs font-medium transition-colors border border-gray-200 dark:border-zinc-700"
               >
                 <Edit2 className="w-3 h-3" /> Update
               </button>
@@ -1151,34 +1151,34 @@ const Dashboard: React.FC = () => {
           {/* Record Display */}
           <div className="grid grid-cols-3 gap-4">
             {/* Wins */}
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 text-center">
-              <p className="text-4xl font-black text-emerald-400">{teamData?.record?.wins || 0}</p>
-              <p className="text-xs font-bold uppercase tracking-wider text-emerald-500/70 mt-1">Wins</p>
+            <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-xl p-4 text-center">
+              <p className="text-4xl font-black text-emerald-600 dark:text-emerald-400">{teamData?.record?.wins || 0}</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-emerald-600/70 dark:text-emerald-500/70 mt-1">Wins</p>
             </div>
             
             {/* Losses */}
-            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center">
-              <p className="text-4xl font-black text-red-400">{teamData?.record?.losses || 0}</p>
-              <p className="text-xs font-bold uppercase tracking-wider text-red-500/70 mt-1">Losses</p>
+            <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl p-4 text-center">
+              <p className="text-4xl font-black text-red-600 dark:text-red-400">{teamData?.record?.losses || 0}</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-red-600/70 dark:text-red-500/70 mt-1">Losses</p>
             </div>
             
             {/* Ties */}
-            <div className="bg-zinc-500/10 border border-zinc-500/20 rounded-xl p-4 text-center">
-              <p className="text-4xl font-black text-zinc-400">{teamData?.record?.ties || 0}</p>
-              <p className="text-xs font-bold uppercase tracking-wider text-zinc-500/70 mt-1">Ties</p>
+            <div className="bg-gray-100 dark:bg-zinc-500/10 border border-gray-200 dark:border-zinc-500/20 rounded-xl p-4 text-center">
+              <p className="text-4xl font-black text-gray-600 dark:text-zinc-400">{teamData?.record?.ties || 0}</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-zinc-500/70 mt-1">Ties</p>
             </div>
           </div>
           
           {/* Win Percentage Bar */}
           {((teamData?.record?.wins || 0) + (teamData?.record?.losses || 0) + (teamData?.record?.ties || 0)) > 0 && (
             <div className="mt-4">
-              <div className="flex justify-between text-xs text-zinc-500 mb-1">
+              <div className="flex justify-between text-xs text-gray-500 dark:text-zinc-500 mb-1">
                 <span>Win Rate</span>
                 <span className="font-mono">
                   {Math.round(((teamData?.record?.wins || 0) / ((teamData?.record?.wins || 0) + (teamData?.record?.losses || 0) + (teamData?.record?.ties || 0))) * 100)}%
                 </span>
               </div>
-              <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+              <div className="h-2 bg-gray-200 dark:bg-zinc-800 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-500"
                   style={{ 
