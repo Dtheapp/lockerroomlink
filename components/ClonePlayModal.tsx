@@ -185,11 +185,24 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
       }
       
       // Decrement user's credits
+      // First, check if cloneCredits field exists and initialize if needed
       const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        cloneCredits: increment(-1),
-        totalClonesUsed: increment(1)
-      });
+      const userSnap = await getDoc(userRef);
+      const userData = userSnap.data();
+      
+      if (userData?.cloneCredits === undefined) {
+        // Field doesn't exist - initialize with 9 (10 default - 1 for this use)
+        await updateDoc(userRef, {
+          cloneCredits: 9,
+          totalClonesUsed: 1
+        });
+      } else {
+        // Field exists - use increment
+        await updateDoc(userRef, {
+          cloneCredits: increment(-1),
+          totalClonesUsed: increment(1)
+        });
+      }
       
       setAnalysis(data.analysis);
       setPreviewElements(data.analysis.players || []);
