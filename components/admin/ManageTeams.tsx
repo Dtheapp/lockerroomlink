@@ -246,12 +246,28 @@ const ManageTeams: React.FC = () => {
                 newHeadCoachId = newCoachId;
             }
             
-            // Update team document
-            await updateDoc(doc(db, 'teams', selectedTeam.id), { 
+            // Update team document - also update coachIds array
+            const teamUpdateData: any = { 
                 name: editTeamName,
                 coachId: newCoachId,
                 headCoachId: newHeadCoachId
-            });
+            };
+            
+            // Update coachIds array on the team
+            if (oldCoachId !== newCoachId) {
+                if (oldCoachId) {
+                    teamUpdateData.coachIds = arrayRemove(oldCoachId);
+                }
+            }
+            
+            await updateDoc(doc(db, 'teams', selectedTeam.id), teamUpdateData);
+            
+            // If adding a new coach, add them to coachIds array separately (can't do arrayRemove and arrayUnion in same update)
+            if (oldCoachId !== newCoachId && newCoachId) {
+                await updateDoc(doc(db, 'teams', selectedTeam.id), {
+                    coachIds: arrayUnion(newCoachId)
+                });
+            }
             
             // If coach changed, update user documents
             if (oldCoachId !== newCoachId) {
@@ -269,7 +285,10 @@ const ManageTeams: React.FC = () => {
                     const newCoach = availableCoaches.find(c => c.id === newCoachId);
                     if (newCoach?.currentTeamId && newCoach.currentTeamId !== selectedTeam.id) {
                         // Update their old team to remove this coach
-                        await updateDoc(doc(db, 'teams', newCoach.currentTeamId), { coachId: null });
+                        await updateDoc(doc(db, 'teams', newCoach.currentTeamId), { 
+                            coachId: null,
+                            coachIds: arrayRemove(newCoachId)
+                        });
                     }
                     // Assign new coach to this team - add to teamIds array for multi-team support
                     await updateDoc(doc(db, 'users', newCoachId), { 

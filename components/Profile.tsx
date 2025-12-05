@@ -166,17 +166,20 @@ const Profile: React.FC = () => {
           }
         }
         
-        // Method 2: Also find any teams where this coach is headCoachId or coachId
-        // (catches cases where teamIds might not be synced)
+        // Method 2: Also find any teams where this coach is in coachIds array, headCoachId, or coachId
+        // This is the most reliable method - checks the team's own list of coaches
         allTeamsMap.forEach((team, teamId) => {
           if (processedTeamIds.has(teamId)) return;
           
-          if (team.headCoachId === userData.uid || team.coachId === userData.uid) {
+          const isInCoachIds = team.coachIds && team.coachIds.includes(userData.uid);
+          const isHeadOrMain = team.headCoachId === userData.uid || team.coachId === userData.uid;
+          
+          if (isInCoachIds || isHeadOrMain) {
             processedTeamIds.add(teamId);
             positions.push({
               teamId,
               teamName: team.name || teamId,
-              isHeadCoach: true
+              isHeadCoach: isHeadOrMain
             });
           }
         });

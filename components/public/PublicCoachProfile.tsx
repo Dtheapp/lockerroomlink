@@ -79,18 +79,21 @@ const PublicCoachProfile: React.FC = () => {
           }
         }
         
-        // Method 2: Query all teams to find any where this coach is headCoachId or coachId
+        // Method 2: Query all teams to find any where this coach is in coachIds array, headCoachId, or coachId
         const allTeamsSnapshot = await getDocs(collection(db, 'teams'));
         allTeamsSnapshot.docs.forEach(teamDocSnap => {
           const teamId = teamDocSnap.id;
           if (processedTeamIds.has(teamId)) return;
           
           const teamData = teamDocSnap.data();
-          if (teamData.headCoachId === coachId || teamData.coachId === coachId) {
+          const isInCoachIds = teamData.coachIds && teamData.coachIds.includes(coachId);
+          const isHeadOrMain = teamData.headCoachId === coachId || teamData.coachId === coachId;
+          
+          if (isInCoachIds || isHeadOrMain) {
             processedTeamIds.add(teamId);
             const team = { id: teamId, ...teamData } as Team;
             teams.push(team);
-            isHeadCoach.push(true); // They're the head/main coach
+            isHeadCoach.push(isHeadOrMain);
           }
         });
 

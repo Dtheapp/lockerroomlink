@@ -518,6 +518,11 @@ const Roster: React.FC = () => {
         teamIds: arrayRemove(teamData.id)
       });
       
+      // Also remove coach from team's coachIds array
+      await updateDoc(doc(db, 'teams', teamData.id), {
+        coachIds: arrayRemove(removeCoachConfirm.id)
+      });
+      
       // Log the action to Activity Log
       await addDoc(collection(db, 'adminActivityLog'), {
         action: 'REMOVE_COACH',
@@ -642,6 +647,11 @@ const Roster: React.FC = () => {
       }
       
       await updateDoc(doc(db, 'users', coach.uid), updateData);
+      
+      // Also add coach to team's coachIds array (single source of truth)
+      await updateDoc(doc(db, 'teams', teamData.id), {
+        coachIds: arrayUnion(coach.uid)
+      });
       
       // Log the action
       await addDoc(collection(db, 'adminActivityLog'), {
