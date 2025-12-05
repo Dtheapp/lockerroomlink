@@ -147,6 +147,9 @@ const PublicCoachProfile: React.FC = () => {
       
       // Send a private message to the coach notifying them of the kudos
       try {
+        console.log('Attempting to send kudos notification to coach:', data.coach.uid);
+        console.log('From parent:', user.uid);
+        
         // Check if a chat already exists between parent and coach
         const chatsQuery = query(
           collection(db, 'private_chats'),
@@ -162,6 +165,8 @@ const PublicCoachProfile: React.FC = () => {
           }
         });
         
+        console.log('Existing chat found:', existingChatId);
+        
         // Build the kudos notification message
         let kudosNotificationMessage = `🎉 Congratulations! ${userData.name} just sent you kudos!`;
         if (noteText) {
@@ -171,6 +176,7 @@ const PublicCoachProfile: React.FC = () => {
         
         if (existingChatId) {
           // Add message to existing chat
+          console.log('Adding message to existing chat:', existingChatId);
           await addDoc(collection(db, 'private_chats', existingChatId, 'messages'), {
             text: kudosNotificationMessage,
             senderId: user.uid,
@@ -183,12 +189,16 @@ const PublicCoachProfile: React.FC = () => {
             lastMessageTime: serverTimestamp(),
             lastSenderId: user.uid
           });
+          console.log('Message sent to existing chat successfully');
         } else {
           // Create a new chat and send the message
+          console.log('Creating new chat between parent and coach');
           const participantData = {
             [user.uid]: { username: userData.username || userData.name, role: userData.role },
             [data.coach.uid]: { username: data.coach.username || data.coach.name, role: data.coach.role }
           };
+          console.log('Participant data:', participantData);
+          
           const newChatRef = await addDoc(collection(db, 'private_chats'), {
             participants: [user.uid, data.coach.uid],
             participantData,
@@ -197,12 +207,15 @@ const PublicCoachProfile: React.FC = () => {
             lastMessageTime: serverTimestamp(),
             lastSenderId: user.uid
           });
+          console.log('New chat created with ID:', newChatRef.id);
+          
           await addDoc(collection(db, 'private_chats', newChatRef.id, 'messages'), {
             text: kudosNotificationMessage,
             senderId: user.uid,
             timestamp: serverTimestamp(),
             isKudosNotification: true
           });
+          console.log('Message added to new chat successfully');
         }
       } catch (msgError) {
         console.error('Error sending kudos notification message:', msgError);
