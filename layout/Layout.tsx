@@ -6,6 +6,7 @@ import { Home, Users, ClipboardList, MessageCircle, Video, LogOut, User, Send, M
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
+import { useAppConfig } from '../contexts/AppConfigContext';
 import { useUnreadMessages } from '../hooks/useUnreadMessages';
 import PlayerSelector from '../components/PlayerSelector';
 import TeamSelector from '../components/TeamSelector';
@@ -16,6 +17,7 @@ const Layout: React.FC = () => {
   const { teamData, userData } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { hasUnsavedChanges, setHasUnsavedChanges } = useUnsavedChanges();
+  const { config } = useAppConfig();
   const { unread, markAsRead } = useUnreadMessages();
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -107,19 +109,21 @@ const Layout: React.FC = () => {
   const allNavItems = [
     { name: 'Dashboard', path: '/dashboard', icon: Home },
     { name: 'Roster', path: '/roster', icon: Users },
-    { name: 'Team Plays', path: '/playbook', icon: ClipboardList },
-    { name: 'Team Chat', path: '/chat', icon: MessageCircle, unreadKey: 'teamChat' as const },
-    { name: 'Strategy', path: '/strategies', icon: Shield, coachOnly: true, unreadKey: 'strategy' as const },
-    { name: 'Messenger', path: '/messenger', icon: Send, unreadKey: 'messenger' as const },
-    { name: 'Film Room', path: '/videos', icon: Video },
-    { name: 'Stats', path: '/stats', icon: BarChart3 },
+    { name: 'Team Plays', path: '/playbook', icon: ClipboardList, configKey: 'playbookEnabled' as const },
+    { name: 'Team Chat', path: '/chat', icon: MessageCircle, unreadKey: 'teamChat' as const, configKey: 'chatEnabled' as const },
+    { name: 'Strategy', path: '/strategies', icon: Shield, coachOnly: true, unreadKey: 'strategy' as const, configKey: 'chatEnabled' as const },
+    { name: 'Messenger', path: '/messenger', icon: Send, unreadKey: 'messenger' as const, configKey: 'messengerEnabled' as const },
+    { name: 'Film Room', path: '/videos', icon: Video, configKey: 'videoLibraryEnabled' as const },
+    { name: 'Stats', path: '/stats', icon: BarChart3, configKey: 'statsEnabled' as const },
     { name: 'Profile', path: '/profile', icon: User },
-    { name: 'My Plays', path: '/coaching', icon: BookOpen, coachOnly: true },
+    { name: 'My Plays', path: '/coaching', icon: BookOpen, coachOnly: true, configKey: 'playbookEnabled' as const },
   ];
 
   const navItems = allNavItems.filter(item => {
       if (item.name === 'Team Plays' && userData?.role === 'Parent') return false;
       if ((item as any).coachOnly && userData?.role !== 'Coach') return false;
+      // Filter by config toggle
+      if (item.configKey && !config[item.configKey]) return false;
       return true;
   });
 

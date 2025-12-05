@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { UnsavedChangesProvider } from './contexts/UnsavedChangesContext';
+import { AppConfigProvider, useAppConfig } from './contexts/AppConfigContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import InstallPrompt from './components/InstallPrompt';
 import ForcePasswordChange from './components/ForcePasswordChange';
@@ -93,8 +94,10 @@ const App: React.FC = () => {
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
-          <AppContent />
-          <InstallPrompt />
+          <AppConfigProvider>
+            <AppContent />
+            <InstallPrompt />
+          </AppConfigProvider>
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>
@@ -103,6 +106,7 @@ const App: React.FC = () => {
 
 const AppContent: React.FC = () => {
   const { user, userData, loading } = useAuth();
+  const { config } = useAppConfig();
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [passwordChangeComplete, setPasswordChangeComplete] = useState(false);
 
@@ -185,14 +189,14 @@ const AppContent: React.FC = () => {
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="roster" element={<Roster />} />
-                <Route path="playbook" element={<Playbook />} />
-                <Route path="chat" element={<Chat />} />
-                <Route path="strategies" element={<Strategies />} />
-                <Route path="messenger" element={<Messenger />} />
-                <Route path="videos" element={<VideoLibrary />} />
+                {config.playbookEnabled && <Route path="playbook" element={<Playbook />} />}
+                {config.chatEnabled && <Route path="chat" element={<Chat />} />}
+                {config.chatEnabled && <Route path="strategies" element={<Strategies />} />}
+                {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}
+                {config.videoLibraryEnabled && <Route path="videos" element={<VideoLibrary />} />}
                 <Route path="profile" element={<Profile />} />
-                <Route path="stats" element={<Stats />} />
-                <Route path="coaching" element={<Coaching />} />
+                {config.statsEnabled && <Route path="stats" element={<Stats />} />}
+                {config.playbookEnabled && <Route path="coaching" element={<Coaching />} />}
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </>
