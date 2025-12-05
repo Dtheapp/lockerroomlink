@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import type { Player, Team, PlayerSeasonStats, Game, TeamEvent, UserProfile, Video } from '../../types';
 import { Users, Trophy, Calendar, MapPin, Clock, User, Crown, Star, Shield, Sword, TrendingUp, ChevronRight, Home, X, Heart, Award, Film, Play } from 'lucide-react';
@@ -162,15 +162,23 @@ const PublicTeamProfile: React.FC = () => {
         }
 
         // Get public videos (only videos marked as public and NOT private player videos)
-        const videosQuery = query(
-          collection(db, 'teams', teamId, 'videos'),
-          where('isPublic', '==', true),
-          orderBy('createdAt', 'desc')
-        );
-        const videosSnapshot = await getDocs(videosQuery);
-        const publicVideos = videosSnapshot.docs
-          .map(d => ({ id: d.id, ...d.data() } as Video))
-          .filter(v => !v.playerId); // Extra safety: exclude any private player videos
+        // Note: Fetching all and filtering client-side to avoid needing composite index
+        let publicVideos: Video[] = [];
+        try {
+          const videosSnapshot = await getDocs(collection(db, 'teams', teamId, 'videos'));
+          publicVideos = videosSnapshot.docs
+            .map(d => ({ id: d.id, ...d.data() } as Video))
+            .filter(v => v.isPublic === true && !v.playerId) // Only public team videos
+            .sort((a, b) => {
+              // Sort by createdAt descending
+              const aTime = a.createdAt?.toMillis?.() || 0;
+              const bTime = b.createdAt?.toMillis?.() || 0;
+              return bTime - aTime;
+            });
+        } catch (err) {
+          console.error('Error fetching videos:', err);
+          // Continue without videos if there's an error
+        }
 
         setData({
           team,
