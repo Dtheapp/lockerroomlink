@@ -253,8 +253,58 @@ const PublicCoachProfile: React.FC = () => {
     try {
       const teamMatch = data.teams.find(t => t.id === selectedTeamId);
       
-      // Save the grievance
+      // Get next grievance number by counting existing grievances
+      const grievancesSnapshot = await getDocs(collection(db, 'coachFeedback'));
+      const nextGrievanceNumber = grievancesSnapshot.size + 1;
+      
+      const GRIEVANCE_SYSTEM_ID = 'grievance-system'; // System ID for grievance chats
+      
+      // Create a dedicated chat for this grievance FIRST
+      const chatName = `Grievance #${nextGrievanceNumber}`;
+      const participantData = {
+        [user.uid]: { username: userData.username || userData.name, role: userData.role },
+        [GRIEVANCE_SYSTEM_ID]: { username: chatName, role: 'System' }
+      };
+      
+      const newChatRef = await addDoc(collection(db, 'private_chats'), {
+        participants: [user.uid, GRIEVANCE_SYSTEM_ID],
+        participantData,
+        grievanceChat: true, // Flag to identify grievance chats
+        grievanceNumber: nextGrievanceNumber,
+        lastMessage: '📋 Grievance Filed',
+        updatedAt: serverTimestamp(),
+        lastMessageTime: serverTimestamp(),
+        lastSenderId: GRIEVANCE_SYSTEM_ID
+      });
+      
+      // Send the initial acknowledgment message
+      const acknowledgmentMessage = `📋 Grievance #${nextGrievanceNumber} Filed
+
+Thank you for submitting your grievance regarding Coach ${data.coach.name}.
+
+Category: ${feedbackCategory.charAt(0).toUpperCase() + feedbackCategory.slice(1)}
+Team: ${teamMatch?.name || 'Unknown Team'}
+
+Your concern:
+"${feedbackMessage.trim()}"
+
+We have received your report and our administration team will review it promptly. We take all concerns seriously and will work to address this matter in a timely manner.
+
+You will receive updates in this chat as your grievance is reviewed.
+
+— LockerRoom Administration`;
+      
+      await addDoc(collection(db, 'private_chats', newChatRef.id, 'messages'), {
+        text: acknowledgmentMessage,
+        senderId: GRIEVANCE_SYSTEM_ID,
+        timestamp: serverTimestamp(),
+        isSystemMessage: true
+      });
+      
+      // Save the grievance with the chat ID and grievance number
       await addDoc(collection(db, 'coachFeedback'), {
+        grievanceNumber: nextGrievanceNumber,
+        chatId: newChatRef.id, // Link to the dedicated chat
         coachId: data.coach.uid,
         coachName: data.coach.name,
         parentId: user.uid,
@@ -266,75 +316,6 @@ const PublicCoachProfile: React.FC = () => {
         status: 'new',
         createdAt: serverTimestamp()
       });
-      
-      // Send automated acknowledgment to parent's private messages
-      // IMPORTANT: This goes to a System Admin chat, NOT to the coach
-      try {
-        const ADMIN_SYSTEM_ID = 'lockerroom-admin'; // System admin account for grievances
-        
-        // Check if a chat already exists with the system admin
-        const chatsQuery = query(
-          collection(db, 'private_chats'),
-          where('participants', 'array-contains', user.uid)
-        );
-        const chatsSnapshot = await getDocs(chatsQuery);
-        let existingChatId: string | null = null;
-        
-        // Look for existing chat with system admin (NOT the coach)
-        chatsSnapshot.forEach(chatDoc => {
-          const chatData = chatDoc.data();
-          if (chatData.participants.includes(ADMIN_SYSTEM_ID)) {
-            existingChatId = chatDoc.id;
-          }
-        });
-        
-        const acknowledgmentMessage = `📋 Grievance Received
-
-Thank you for submitting your grievance regarding Coach ${data.coach.name}.
-
-We have received your report and our administration team will review it promptly. We take all concerns seriously and will work to address this matter in a timely manner.
-
-You will receive a follow-up message once your grievance has been reviewed.
-
-— LockerRoom Administration`;
-        
-        if (existingChatId) {
-          await addDoc(collection(db, 'private_chats', existingChatId, 'messages'), {
-            text: acknowledgmentMessage,
-            senderId: ADMIN_SYSTEM_ID,
-            timestamp: serverTimestamp(),
-            isSystemMessage: true
-          });
-          await updateDoc(doc(db, 'private_chats', existingChatId), {
-            lastMessage: '📋 Grievance Received',
-            updatedAt: serverTimestamp(),
-            lastMessageTime: serverTimestamp(),
-            lastSenderId: ADMIN_SYSTEM_ID
-          });
-        } else {
-          // Create a new chat between parent and SYSTEM ADMIN (not coach)
-          const participantData = {
-            [user.uid]: { username: userData.username || userData.name, role: userData.role },
-            [ADMIN_SYSTEM_ID]: { username: 'LockerRoom Administration', role: 'SuperAdmin' }
-          };
-          const newChatRef = await addDoc(collection(db, 'private_chats'), {
-            participants: [user.uid, ADMIN_SYSTEM_ID],
-            participantData,
-            lastMessage: '📋 Grievance Received',
-            updatedAt: serverTimestamp(),
-            lastMessageTime: serverTimestamp(),
-            lastSenderId: ADMIN_SYSTEM_ID
-          });
-          await addDoc(collection(db, 'private_chats', newChatRef.id, 'messages'), {
-            text: acknowledgmentMessage,
-            senderId: ADMIN_SYSTEM_ID,
-            timestamp: serverTimestamp(),
-            isSystemMessage: true
-          });
-        }
-      } catch (msgError) {
-        console.error('Error sending acknowledgment message:', msgError);
-      }
       
       setSubmitSuccess('feedback');
       setShowFeedbackModal(false);

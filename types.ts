@@ -413,6 +413,8 @@ export interface CoachKudos {
 // Private feedback to admins (concerns)
 export interface CoachFeedback {
   id: string;
+  grievanceNumber: number; // Unique sequential number for tracking
+  chatId?: string; // Dedicated chat for this grievance
   coachId: string;
   coachName: string;
   parentId: string;

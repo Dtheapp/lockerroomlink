@@ -1,12 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp, addDoc, where, getDocs } from 'firebase/firestore';
+import React, { useState, useEffect, useRef } from 'react';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp, addDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { CoachFeedback as CoachFeedbackType } from '../../types';
 import { 
   MessageSquare, AlertTriangle, CheckCircle, Clock, User, Shield, 
-  ChevronDown, ChevronUp, Filter, Search, X, Eye, Archive
+  Search, X, Eye, Send
 } from 'lucide-react';
+
+interface ChatMessage {
+  id: string;
+  text: string;
+  senderId: string;
+  timestamp: any;
+  isSystemMessage?: boolean;
+}
 
 const categoryLabels: Record<string, string> = {
   communication: 'Communication',
@@ -30,17 +38,26 @@ const statusColors: Record<string, string> = {
   resolved: 'bg-green-500/20 text-green-400 border-green-500/30'
 };
 
+const GRIEVANCE_SYSTEM_ID = 'grievance-system';
+
 const CoachFeedback: React.FC = () => {
   const { userData } = useAuth();
   const [feedback, setFeedback] = useState<CoachFeedbackType[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFeedback, setSelectedFeedback] = useState<CoachFeedbackType | null>(null);
-  const [adminNotes, setAdminNotes] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [updating, setUpdating] = useState(false);
+  
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [newMessage, setNewMessage] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Load grievances
   useEffect(() => {
     const q = query(collection(db, 'coachFeedback'), orderBy('createdAt', 'desc'));
     
@@ -57,100 +74,103 @@ const CoachFeedback: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  // Load chat messages when a grievance is selected
+  useEffect(() => {
+    if (!selectedFeedback?.chatId) {
+      setChatMessages([]);
+      return;
+    }
+
+    setChatLoading(true);
+    const messagesQuery = query(
+      collection(db, 'private_chats', selectedFeedback.chatId, 'messages'),
+      orderBy('timestamp', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+      const messages = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as ChatMessage[];
+      
+      setChatMessages(messages);
+      setChatLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [selectedFeedback?.chatId]);
+
+  // Scroll to bottom of chat when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  // Send a message in the grievance chat
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedFeedback?.chatId) return;
+
+    setSendingMessage(true);
+    try {
+      await addDoc(collection(db, 'private_chats', selectedFeedback.chatId, 'messages'), {
+        text: newMessage.trim(),
+        senderId: GRIEVANCE_SYSTEM_ID,
+        timestamp: serverTimestamp(),
+        isSystemMessage: false,
+        adminName: userData?.name || 'Admin'
+      });
+
+      await updateDoc(doc(db, 'private_chats', selectedFeedback.chatId), {
+        lastMessage: newMessage.trim(),
+        updatedAt: serverTimestamp(),
+        lastMessageTime: serverTimestamp(),
+        lastSenderId: GRIEVANCE_SYSTEM_ID
+      });
+
+      setNewMessage('');
+    } catch (err) {
+      console.error('Error sending message:', err);
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  // Update grievance status
   const handleUpdateStatus = async (feedbackId: string, newStatus: 'reviewed' | 'resolved') => {
     if (!selectedFeedback) return;
     
     setUpdating(true);
     try {
-      // Update the grievance status
       await updateDoc(doc(db, 'coachFeedback', feedbackId), {
         status: newStatus,
         reviewedAt: serverTimestamp(),
-        reviewedBy: userData?.name || 'Admin',
-        ...(adminNotes && { adminNotes })
+        reviewedBy: userData?.name || 'Admin'
       });
-      
-      // Send notification message to the parent (via System Admin channel, NOT to coach)
-      // Uses the same system admin ID as the initial acknowledgment
-      try {
-        const parentId = selectedFeedback.parentId;
-        const ADMIN_SYSTEM_ID = 'lockerroom-admin'; // Same system admin account for all grievances
-        
-        // Find existing chat between parent and system admin
-        const chatsQuery = query(
-          collection(db, 'private_chats'),
-          where('participants', 'array-contains', parentId)
-        );
-        const chatsSnapshot = await getDocs(chatsQuery);
-        let existingChatId: string | null = null;
-        
-        chatsSnapshot.forEach(chatDoc => {
-          const chatData = chatDoc.data();
-          // Find chat with system admin (lockerroom-admin), NOT with any coach
-          if (chatData.participants.includes(ADMIN_SYSTEM_ID)) {
-            existingChatId = chatDoc.id;
-          }
-        });
-        
-        // Build the notification message
+
+      // Send status update message to the grievance chat
+      if (selectedFeedback.chatId) {
         const statusLabel = newStatus === 'reviewed' ? 'Under Review' : 'Resolved';
         const statusEmoji = newStatus === 'reviewed' ? '👁️' : '✅';
-        let notificationMessage = `${statusEmoji} Grievance Update: ${statusLabel}
+        const statusMessage = `${statusEmoji} Status Update: This grievance has been marked as "${statusLabel}" by ${userData?.name || 'Admin'}.`;
 
-Your grievance regarding Coach ${selectedFeedback.coachName} has been marked as ${statusLabel.toLowerCase()}.`;
+        await addDoc(collection(db, 'private_chats', selectedFeedback.chatId, 'messages'), {
+          text: statusMessage,
+          senderId: GRIEVANCE_SYSTEM_ID,
+          timestamp: serverTimestamp(),
+          isSystemMessage: true
+        });
 
-        if (adminNotes.trim()) {
-          notificationMessage += `
-
-📝 Response from Administration:
-"${adminNotes.trim()}"`;
-        }
-
-        notificationMessage += `
-
-— LockerRoom Administration`;
-        
-        if (existingChatId) {
-          await addDoc(collection(db, 'private_chats', existingChatId, 'messages'), {
-            text: notificationMessage,
-            senderId: ADMIN_SYSTEM_ID,
-            timestamp: serverTimestamp(),
-            isSystemMessage: true
-          });
-          await updateDoc(doc(db, 'private_chats', existingChatId), {
-            lastMessage: `${statusEmoji} Grievance Update: ${statusLabel}`,
-            updatedAt: serverTimestamp(),
-            lastMessageTime: serverTimestamp(),
-            lastSenderId: ADMIN_SYSTEM_ID
-          });
-        } else {
-          // Create new chat between system admin and parent (coach cannot see this)
-          const newChatRef = await addDoc(collection(db, 'private_chats'), {
-            participants: [parentId, ADMIN_SYSTEM_ID],
-            participantData: {
-              [parentId]: { username: selectedFeedback.parentName, role: 'Parent' },
-              [ADMIN_SYSTEM_ID]: { username: 'LockerRoom Administration', role: 'SuperAdmin' }
-            },
-            lastMessage: `${statusEmoji} Grievance Update: ${statusLabel}`,
-            updatedAt: serverTimestamp(),
-            lastMessageTime: serverTimestamp(),
-            lastSenderId: ADMIN_SYSTEM_ID
-          });
-          await addDoc(collection(db, 'private_chats', newChatRef.id, 'messages'), {
-            text: notificationMessage,
-            senderId: ADMIN_SYSTEM_ID,
-            timestamp: serverTimestamp(),
-            isSystemMessage: true
-          });
-        }
-      } catch (msgError) {
-        console.error('Error sending status update message:', msgError);
+        await updateDoc(doc(db, 'private_chats', selectedFeedback.chatId), {
+          lastMessage: `${statusEmoji} Status: ${statusLabel}`,
+          updatedAt: serverTimestamp(),
+          lastMessageTime: serverTimestamp(),
+          lastSenderId: GRIEVANCE_SYSTEM_ID
+        });
       }
-      
-      setSelectedFeedback(null);
-      setAdminNotes('');
+
+      // Update local state to reflect the change
+      setSelectedFeedback({ ...selectedFeedback, status: newStatus });
     } catch (err) {
-      console.error('Error updating feedback:', err);
+      console.error('Error updating status:', err);
     } finally {
       setUpdating(false);
     }
@@ -161,12 +181,13 @@ Your grievance regarding Coach ${selectedFeedback.coachName} has been marked as 
     if (filterStatus !== 'all' && f.status !== filterStatus) return false;
     if (filterCategory !== 'all' && f.category !== filterCategory) return false;
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+      const q = searchQuery.toLowerCase();
       return (
-        f.coachName.toLowerCase().includes(query) ||
-        f.parentName.toLowerCase().includes(query) ||
-        f.teamName.toLowerCase().includes(query) ||
-        f.message.toLowerCase().includes(query)
+        f.coachName.toLowerCase().includes(q) ||
+        f.parentName.toLowerCase().includes(q) ||
+        f.teamName.toLowerCase().includes(q) ||
+        f.message.toLowerCase().includes(q) ||
+        (f.grievanceNumber && `#${f.grievanceNumber}`.includes(q))
       );
     }
     return true;
@@ -184,6 +205,15 @@ Your grievance regarding Coach ${selectedFeedback.coachName} has been marked as 
       month: 'short', 
       day: 'numeric', 
       year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+  };
+
+  const formatMessageTime = (timestamp: any) => {
+    if (!timestamp) return '';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleTimeString('en-US', { 
       hour: 'numeric',
       minute: '2-digit'
     });
@@ -259,7 +289,7 @@ Your grievance regarding Coach ${selectedFeedback.coachName} has been marked as 
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search grievances..."
+                placeholder="Search grievances (by #number, coach, parent...)"
                 className="w-full pl-10 pr-4 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-zinc-900 dark:text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500"
               />
             </div>
@@ -305,14 +335,16 @@ Your grievance regarding Coach ${selectedFeedback.coachName} has been marked as 
               className={`bg-white dark:bg-zinc-900 rounded-xl border ${
                 item.status === 'new' ? 'border-yellow-500/50' : 'border-zinc-200 dark:border-zinc-800'
               } p-4 cursor-pointer hover:border-orange-500/50 transition-colors`}
-              onClick={() => {
-                setSelectedFeedback(item);
-                setAdminNotes(item.adminNotes || '');
-              }}
+              onClick={() => setSelectedFeedback(item)}
             >
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2 mb-2">
+                    {item.grievanceNumber && (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                        #{item.grievanceNumber}
+                      </span>
+                    )}
                     <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${statusColors[item.status]}`}>
                       {item.status.toUpperCase()}
                     </span>
@@ -348,13 +380,21 @@ Your grievance regarding Coach ${selectedFeedback.coachName} has been marked as 
         </div>
       )}
 
-      {/* Detail Modal */}
+      {/* Detail Modal with Embedded Chat */}
       {selectedFeedback && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-zinc-200 dark:border-zinc-700 shadow-2xl">
-            <div className="p-6 border-b border-zinc-200 dark:border-zinc-800">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden border border-zinc-200 dark:border-zinc-700 shadow-2xl flex flex-col">
+            {/* Header */}
+            <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
               <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold text-zinc-900 dark:text-white">Feedback Details</h3>
+                <div className="flex items-center gap-3">
+                  <h3 className="text-xl font-bold text-zinc-900 dark:text-white">
+                    Grievance {selectedFeedback.grievanceNumber ? `#${selectedFeedback.grievanceNumber}` : ''}
+                  </h3>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${statusColors[selectedFeedback.status]}`}>
+                    {selectedFeedback.status.toUpperCase()}
+                  </span>
+                </div>
                 <button 
                   onClick={() => setSelectedFeedback(null)}
                   className="text-zinc-400 hover:text-zinc-600 dark:hover:text-white"
@@ -364,91 +404,159 @@ Your grievance regarding Coach ${selectedFeedback.coachName} has been marked as 
               </div>
             </div>
             
-            <div className="p-6 space-y-4">
-              <div className="flex flex-wrap gap-2">
-                <span className={`px-3 py-1 rounded-full text-sm font-bold border ${statusColors[selectedFeedback.status]}`}>
-                  {selectedFeedback.status.toUpperCase()}
-                </span>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium border ${categoryColors[selectedFeedback.category]}`}>
-                  {categoryLabels[selectedFeedback.category]}
-                </span>
-              </div>
+            <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+              {/* Left side - Grievance Details */}
+              <div className="w-full md:w-1/2 p-4 border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 overflow-y-auto">
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium border ${categoryColors[selectedFeedback.category]}`}>
+                      {categoryLabels[selectedFeedback.category]}
+                    </span>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-zinc-500 dark:text-zinc-400">Coach</p>
-                  <p className="font-bold text-zinc-900 dark:text-white">{selectedFeedback.coachName}</p>
-                </div>
-                <div>
-                  <p className="text-zinc-500 dark:text-zinc-400">Team</p>
-                  <p className="font-bold text-zinc-900 dark:text-white">{selectedFeedback.teamName}</p>
-                </div>
-                <div>
-                  <p className="text-zinc-500 dark:text-zinc-400">Submitted By</p>
-                  <p className="font-bold text-zinc-900 dark:text-white">{selectedFeedback.parentName}</p>
-                </div>
-                <div>
-                  <p className="text-zinc-500 dark:text-zinc-400">Date</p>
-                  <p className="font-bold text-zinc-900 dark:text-white">{formatDate(selectedFeedback.createdAt)}</p>
-                </div>
-              </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-zinc-500 dark:text-zinc-400">Coach</p>
+                      <p className="font-bold text-zinc-900 dark:text-white">{selectedFeedback.coachName}</p>
+                    </div>
+                    <div>
+                      <p className="text-zinc-500 dark:text-zinc-400">Team</p>
+                      <p className="font-bold text-zinc-900 dark:text-white">{selectedFeedback.teamName}</p>
+                    </div>
+                    <div>
+                      <p className="text-zinc-500 dark:text-zinc-400">Submitted By</p>
+                      <p className="font-bold text-zinc-900 dark:text-white">{selectedFeedback.parentName}</p>
+                    </div>
+                    <div>
+                      <p className="text-zinc-500 dark:text-zinc-400">Date</p>
+                      <p className="font-bold text-zinc-900 dark:text-white">{formatDate(selectedFeedback.createdAt)}</p>
+                    </div>
+                  </div>
 
-              <div>
-                <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-2">Grievance Details</p>
-                <div className="bg-zinc-100 dark:bg-zinc-800 rounded-lg p-4">
-                  <p className="text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">{selectedFeedback.message}</p>
-                </div>
-              </div>
+                  <div>
+                    <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-2">Original Grievance</p>
+                    <div className="bg-zinc-100 dark:bg-zinc-800 rounded-lg p-4">
+                      <p className="text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">{selectedFeedback.message}</p>
+                    </div>
+                  </div>
 
-              {selectedFeedback.status !== 'new' && selectedFeedback.reviewedBy && (
-                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-                  <p className="text-sm text-blue-400 mb-1">
-                    Reviewed by {selectedFeedback.reviewedBy} on {formatDate(selectedFeedback.reviewedAt)}
-                  </p>
-                  {selectedFeedback.adminNotes && (
-                    <p className="text-blue-200">{selectedFeedback.adminNotes}</p>
+                  {/* Status Update Buttons */}
+                  {selectedFeedback.status !== 'resolved' && (
+                    <div className="flex gap-3 pt-2">
+                      {selectedFeedback.status === 'new' && (
+                        <button
+                          onClick={() => handleUpdateStatus(selectedFeedback.id, 'reviewed')}
+                          disabled={updating}
+                          className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          <Eye className="w-4 h-4" />
+                          Mark as Reviewed
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleUpdateStatus(selectedFeedback.id, 'resolved')}
+                        disabled={updating}
+                        className="flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Mark as Resolved
+                      </button>
+                    </div>
                   )}
                 </div>
-              )}
+              </div>
 
-              {selectedFeedback.status !== 'resolved' && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-300 mb-2">
-                      Response to Parent (optional)
-                    </label>
-                    <textarea
-                      value={adminNotes}
-                      onChange={(e) => setAdminNotes(e.target.value)}
-                      placeholder="Add a response that will be sent to the parent..."
-                      className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg p-3 text-zinc-900 dark:text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 resize-none"
-                      rows={3}
-                    />
-                    <p className="text-xs text-zinc-500 mt-1">This response will be sent as a private message to the parent.</p>
-                  </div>
+              {/* Right side - Chat */}
+              <div className="w-full md:w-1/2 flex flex-col h-[400px] md:h-auto">
+                <div className="p-3 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
+                  <h4 className="font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-orange-500" />
+                    Chat with {selectedFeedback.parentName}
+                  </h4>
+                  <p className="text-xs text-zinc-500">Messages appear in the parent's Messenger</p>
+                </div>
 
-                  <div className="flex gap-3 pt-2">
-                    {selectedFeedback.status === 'new' && (
+                {/* Chat Messages */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-zinc-50 dark:bg-black/30">
+                  {chatLoading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="w-6 h-6 border-2 border-dashed rounded-full animate-spin border-orange-500"></div>
+                    </div>
+                  ) : !selectedFeedback.chatId ? (
+                    <div className="flex items-center justify-center h-full text-zinc-500 text-sm text-center">
+                      <div>
+                        <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p>No chat available for this grievance.</p>
+                        <p className="text-xs mt-1">(Legacy grievance without chat system)</p>
+                      </div>
+                    </div>
+                  ) : chatMessages.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-zinc-500 text-sm">
+                      No messages yet
+                    </div>
+                  ) : (
+                    <>
+                      {chatMessages.map((msg) => {
+                        const isAdmin = msg.senderId === GRIEVANCE_SYSTEM_ID;
+                        return (
+                          <div 
+                            key={msg.id}
+                            className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div className={`max-w-[85%] rounded-2xl px-4 py-2 ${
+                              msg.isSystemMessage
+                                ? 'bg-orange-500/20 border border-orange-500/30 text-orange-200'
+                                : isAdmin
+                                  ? 'bg-orange-600 text-white'
+                                  : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white'
+                            }`}>
+                              <p className="whitespace-pre-wrap text-sm">{msg.text}</p>
+                              <p className={`text-xs mt-1 ${
+                                msg.isSystemMessage ? 'text-orange-400' : isAdmin ? 'text-orange-200' : 'text-zinc-500'
+                              }`}>
+                                {formatMessageTime(msg.timestamp)}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div ref={messagesEndRef} />
+                    </>
+                  )}
+                </div>
+
+                {/* Chat Input */}
+                {selectedFeedback.chatId && selectedFeedback.status !== 'resolved' && (
+                  <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                        placeholder="Type a message to the parent..."
+                        className="flex-1 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg px-4 py-2 text-zinc-900 dark:text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500"
+                      />
                       <button
-                        onClick={() => handleUpdateStatus(selectedFeedback.id, 'reviewed')}
-                        disabled={updating}
-                        className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                        onClick={handleSendMessage}
+                        disabled={!newMessage.trim() || sendingMessage}
+                        className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-colors"
                       >
-                        <Eye className="w-4 h-4" />
-                        Mark as Reviewed
+                        <Send className="w-5 h-5" />
                       </button>
-                    )}
-                    <button
-                      onClick={() => handleUpdateStatus(selectedFeedback.id, 'resolved')}
-                      disabled={updating}
-                      className="flex-1 bg-green-600 hover:bg-green-500 text-white py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      Mark as Resolved
-                    </button>
+                    </div>
                   </div>
-                </>
-              )}
+                )}
+
+                {selectedFeedback.status === 'resolved' && (
+                  <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 bg-green-500/10 text-center">
+                    <p className="text-sm text-green-400 flex items-center justify-center gap-2">
+                      <CheckCircle className="w-4 h-4" />
+                      This grievance has been resolved
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
