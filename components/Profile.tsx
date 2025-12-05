@@ -117,8 +117,19 @@ const Profile: React.FC = () => {
       }
       
       try {
+        // First check if current teamData from context shows this user as head coach
+        if (teamData && (teamData.headCoachId === userData.uid || teamData.coachId === userData.uid)) {
+          setIsHeadCoach(true);
+          return;
+        }
+        
         // Get all team IDs the coach belongs to
         const coachTeamIds = userData.teamIds || (userData.teamId ? [userData.teamId] : []);
+        
+        // If no team IDs but we have teamData, add it
+        if (coachTeamIds.length === 0 && teamData?.id) {
+          coachTeamIds.push(teamData.id);
+        }
         
         // Check each team to see if this coach is the head coach
         for (const teamId of coachTeamIds) {
@@ -140,7 +151,7 @@ const Profile: React.FC = () => {
     };
     
     checkHeadCoachStatus();
-  }, [userData?.role, userData?.uid, userData?.teamIds, userData?.teamId]);
+  }, [userData?.role, userData?.uid, userData?.teamIds, userData?.teamId, teamData]);
 
   // 2. Load My Athletes from Context (already loaded in AuthContext for parents)
   useEffect(() => {
