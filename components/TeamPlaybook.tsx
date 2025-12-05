@@ -634,11 +634,9 @@ const TeamPlaybook: React.FC = () => {
         const assignment = positionAssignments.get(el.id);
         const hasAssignment = assignment && (assignment.primaryPlayerId || assignment.secondaryPlayerId);
         
-        // Debug logging - only log once per render for first element
-        if (idx === 0) {
-          console.log('[TeamPlaybook] Rendering elements - positionAssignments size:', positionAssignments.size, 
-            'keys:', Array.from(positionAssignments.keys()),
-            'element IDs:', play.elements?.map(e => e.id));
+        // Debug logging - log for elements that have assignments
+        if (assignment) {
+          console.log('[TeamPlaybook] Element with assignment - id:', el.id, 'label:', el.label, 'assignment:', assignment, 'hasAssignment:', hasAssignment);
         }
         
         return (
