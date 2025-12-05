@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
-import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp, deleteDoc, doc, updateDoc, where, getDocs } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp, deleteDoc, doc, updateDoc, where, getDocs, getDoc } from 'firebase/firestore';
+import { uploadFile, deleteFile } from '../services/storage';
 import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
@@ -59,6 +60,10 @@ const Dashboard: React.FC = () => {
   // Loading states for async operations
   const [addingPost, setAddingPost] = useState(false);
   const [addingEvent, setAddingEvent] = useState(false);
+  const [newEventAttachments, setNewEventAttachments] = useState<File[]>([]);
+  const [editingEventAttachments, setEditingEventAttachments] = useState<File[]>([]);
+  const [uploadingEventFiles, setUploadingEventFiles] = useState(false);
+  const [eventUploadProgress, setEventUploadProgress] = useState<Record<string, number>>({});
   
   // Rate limit error state
   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
@@ -185,6 +190,57 @@ const Dashboard: React.FC = () => {
     fetchCoaches();
   }, [teamData?.id, teamData?.headCoachId, teamData?.coachId]);
 
+  // Event attachments handlers
+  const handleNewEventFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const files = Array.from(e.target.files);
+    setNewEventAttachments(prev => [...prev, ...files].slice(0, 5));
+    e.currentTarget.value = '';
+  };
+
+  const removeNewEventAttachment = (index: number) => {
+    setNewEventAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleEditingEventFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const files = Array.from(e.target.files);
+    setEditingEventAttachments(prev => [...prev, ...files].slice(0, 5));
+    e.currentTarget.value = '';
+  };
+
+  const removeEditingEventAttachment = (index: number) => {
+    setEditingEventAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingEventAttachment = async (eventId: string, attIndex: number) => {
+    if (!teamData?.id) return;
+    try {
+      const eventRef = doc(db, 'teams', teamData.id, 'events', eventId);
+      const snap = await getDoc(eventRef);
+      if (!snap.exists()) return;
+      const current = (snap.data() as any).attachments || [];
+      const removed = current[attIndex];
+      const updated = current.filter((_: any, i: number) => i !== attIndex);
+
+      // If the attachment included a storage path, delete the object from Storage
+      if (removed && removed.path) {
+        try {
+          await deleteFile(removed.path);
+        } catch (err) {
+          console.warn('Failed to delete storage object for attachment:', err);
+        }
+      }
+
+      await updateDoc(eventRef, { attachments: updated, updatedAt: serverTimestamp() });
+      // Refresh local state by reloading selectedEvent
+      const refreshed = { id: eventId, ...(snap.data() as any), attachments: updated } as any;
+      setSelectedEvent(refreshed);
+    } catch (err) {
+      console.error('Failed to remove attachment:', err);
+    }
+  };
+
   const handleAddPost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPost.trim() || !teamData?.id || !userData?.name || addingPost) return;
@@ -239,14 +295,42 @@ const Dashboard: React.FC = () => {
     if (!teamData?.id || !editingEvent.title?.trim()) return;
     try {
       // SECURITY: Sanitize event data
-      await updateDoc(doc(db, 'teams', teamData.id, 'events', eventId), {
-        title: sanitizeText(editingEvent.title || '', 200), 
-        date: editingEvent.date, 
+      // If there are new attachments, upload them and append to existing attachments
+      let uploadedAttachments: any[] | undefined = undefined;
+      if (editingEventAttachments.length > 0) {
+        setUploadingEventFiles(true);
+        uploadedAttachments = [];
+        for (const file of editingEventAttachments) {
+          const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
+          const path = `events/${teamData.id}/${safeName}`;
+          const uploaded = await uploadFile(file, path, (percent) => setEventUploadProgress(prev => ({ ...prev, [file.name]: percent })));
+          uploadedAttachments.push(uploaded);
+        }
+        setUploadingEventFiles(false);
+        setEventUploadProgress({});
+        setEditingEventAttachments([]);
+      }
+
+      // Load current attachments from the doc to merge
+      const eventRef = doc(db, 'teams', teamData.id, 'events', eventId);
+      const currentSnap = await getDoc(eventRef);
+      const currentAttachments = (currentSnap.exists() ? (currentSnap.data() as any).attachments || [] : []);
+
+      const updatedPayload: any = {
+        title: sanitizeText(editingEvent.title || '', 200),
+        date: editingEvent.date,
         time: editingEvent.time,
-        location: sanitizeText(editingEvent.location || '', 200), 
-        description: sanitizeText(editingEvent.description || '', 1000), 
+        location: sanitizeText(editingEvent.location || '', 200),
+        description: sanitizeText(editingEvent.description || '', 1000),
         type: editingEvent.type,
-      });
+        updatedAt: serverTimestamp(),
+      };
+
+      if (uploadedAttachments && uploadedAttachments.length > 0) {
+        updatedPayload.attachments = [...currentAttachments, ...uploadedAttachments];
+      }
+
+      await updateDoc(eventRef, updatedPayload);
       setEditingEventId(null); setEditingEvent({});
     } catch (error) { console.error("Error updating event:", error); }
   };
@@ -268,17 +352,34 @@ const Dashboard: React.FC = () => {
     setAddingEvent(true);
     try {
       // SECURITY: Sanitize new event data
-      const sanitizedEvent = {
+      const sanitizedEvent: any = {
         title: sanitizeText(newEvent.title || '', 200),
         date: newEvent.date,
         time: newEvent.time,
         location: sanitizeText(newEvent.location || '', 200),
         description: sanitizeText(newEvent.description || '', 1000),
         type: newEvent.type,
-        createdAt: serverTimestamp(), 
-        createdBy: userData.uid, 
+        createdAt: serverTimestamp(),
+        createdBy: userData.uid,
         updatedAt: serverTimestamp(),
       };
+
+      // Upload any attachments and add to event payload
+      if (newEventAttachments.length > 0) {
+        setUploadingEventFiles(true);
+        const uploaded: any[] = [];
+        for (const file of newEventAttachments) {
+          const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
+          const path = `events/${teamData.id}/${safeName}`;
+          const uploadedFile = await uploadFile(file, path, (percent) => setEventUploadProgress(prev => ({ ...prev, [file.name]: percent })));
+          uploaded.push(uploadedFile);
+        }
+        setUploadingEventFiles(false);
+        setEventUploadProgress({});
+        sanitizedEvent.attachments = uploaded;
+        setNewEventAttachments([]);
+      }
+
       await addDoc(collection(db, 'teams', teamData.id, 'events'), sanitizedEvent);
       setNewEvent({ title: '', date: '', time: '', location: '', description: '', type: 'Practice' });
       setShowNewEventForm(false);
@@ -484,6 +585,43 @@ const Dashboard: React.FC = () => {
                       rows={4}
                     />
                   </div>
+                  {/* Attachments editor */}
+                  <div>
+                    {((selectedEvent as any)?.attachments || []).length > 0 && (
+                      <div className="mb-2 space-y-2">
+                        {((selectedEvent as any).attachments || []).map((att: any, idx: number) => (
+                          <div key={idx} className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-800 p-2 rounded">
+                            <div>
+                              {att.mimeType && att.mimeType.startsWith('image') ? (
+                                <img src={att.url} className="max-w-xs rounded" alt={att.name} />
+                              ) : (
+                                <a href={att.url} target="_blank" rel="noreferrer" className="text-sky-500 underline">{att.name}</a>
+                              )}
+                            </div>
+                            <div>
+                              <button type="button" onClick={() => removeExistingEventAttachment(selectedEvent.id, idx)} className="text-red-500">Remove</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {editingEventAttachments.length > 0 && (
+                      <div className="mb-2 flex gap-2 overflow-x-auto">
+                        {editingEventAttachments.map((f, i) => (
+                          <div key={i} className="bg-zinc-800 px-3 py-1 rounded flex items-center gap-2 text-sm">
+                            <span className="truncate max-w-xs">{f.name}</span>
+                            <button type="button" onClick={() => removeEditingEventAttachment(i)} className="text-zinc-400 hover:text-white">✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <label className="inline-flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 px-3 py-2 rounded text-sm cursor-pointer">
+                      <input type="file" accept="image/*,application/pdf" multiple onChange={handleEditingEventFiles} className="hidden" />
+                      <span className="text-zinc-600 dark:text-zinc-300">Add attachments</span>
+                    </label>
+                  </div>
                 </div>
               ) : (
                 /* View Mode */
@@ -524,6 +662,26 @@ const Dashboard: React.FC = () => {
                         <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Notes</span>
                       </div>
                       <p className="text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">{selectedEvent.description}</p>
+                    </div>
+                  )}
+                  {/* Attachments (view mode) */}
+                  {(selectedEvent as any).attachments && (selectedEvent as any).attachments.length > 0 && (
+                    <div className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Info className="w-4 h-4 text-zinc-500" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Attachments</span>
+                      </div>
+                      <div className="space-y-3">
+                        {(selectedEvent as any).attachments.map((att: any, i: number) => (
+                          <div key={i}>
+                            {att.mimeType && att.mimeType.startsWith('image') ? (
+                              <img src={att.url} alt={att.name} className="max-w-full rounded" />
+                            ) : (
+                              <a href={att.url} target="_blank" rel="noreferrer" className="text-sky-500 underline">{att.name}</a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </>
@@ -1193,6 +1351,23 @@ const Dashboard: React.FC = () => {
                     <select value={newEvent.type} onChange={e => setNewEvent({...newEvent, type: e.target.value as any})} className="w-full bg-black border border-zinc-800 rounded p-2 text-sm text-white">
                         <option>Practice</option><option>Game</option><option>Other</option>
                     </select>
+                    {/* Attachments for event (images, pdfs). Coaches and admins only see the Add button so this is safe UI-wise. */}
+                    <div>
+                      {newEventAttachments.length > 0 && (
+                        <div className="flex gap-2 mb-2 overflow-x-auto">
+                          {newEventAttachments.map((f, i) => (
+                            <div key={i} className="bg-zinc-800 px-3 py-1 rounded flex items-center gap-2 text-sm">
+                              <span className="truncate max-w-xs">{f.name}</span>
+                              <button type="button" onClick={() => removeNewEventAttachment(i)} className="text-zinc-400 hover:text-white">✕</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <label className="inline-flex items-center gap-2 bg-zinc-800 px-3 py-2 rounded text-sm cursor-pointer">
+                        <input type="file" accept="image/*,application/pdf" multiple onChange={handleNewEventFiles} className="hidden" />
+                        <span className="text-zinc-400">Attach files</span>
+                      </label>
+                    </div>
                     <div className="flex gap-2">
                         <button onClick={handleAddEvent} disabled={addingEvent} aria-label="Add event" className="flex-1 bg-emerald-600 text-white py-2 rounded text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-1">
                           {addingEvent ? (

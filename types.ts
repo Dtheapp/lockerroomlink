@@ -27,17 +27,6 @@ export interface CalendarEvent {
 }
 
 // --- EVENTS (Schedule Management) ---
-export interface EventAttachment {
-  id: string;
-  name: string;
-  url: string;
-  type: 'image' | 'pdf' | 'document';
-  contentType: string;
-  size: number;
-  uploadedAt: any;
-  uploadedBy: string;
-}
-
 export interface TeamEvent {
   id: string;
   teamId?: string;
@@ -47,11 +36,12 @@ export interface TeamEvent {
   type: 'Practice' | 'Game' | 'Other';
   location: string;
   description: string;
-  attachments?: EventAttachment[];
   createdAt?: any;
   createdBy?: string;
   updatedAt?: any;
 }
+
+
 
 // --- MAIN INTERFACES ---
 
@@ -75,6 +65,7 @@ export interface UserProfile {
   emergencyContact?: EmergencyContact;
   
   photoUrl?: string;
+  photoPath?: string;
   bio?: string; // About me / bio section for coaches and parents
   
   // For Parents: Track currently selected player
@@ -117,6 +108,7 @@ export interface Player {
   height?: string; // Player height (e.g., "4'6"")
   weight?: string; // Player weight (e.g., "85 lbs")
   photoUrl?: string; // Player headshot photo
+  photoPath?: string;
   
   // Link to Parent
   parentId?: string; 
@@ -227,6 +219,19 @@ export interface PrivateMessage {
   text: string;
   senderId: string;
   timestamp: Timestamp;
+}
+
+export interface Attachment {
+  url: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  path?: string; // optional storage path for deletion
+}
+
+// Allow messages to include optional attachments (images, pdfs, etc.)
+export interface PrivateMessageWithAttachments extends PrivateMessage {
+  attachments?: Attachment[];
 }
 
 // --- GAME STATS ENGINE ---

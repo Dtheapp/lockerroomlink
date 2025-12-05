@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, updateDoc, collection, addDoc, query, where, onSnapshot, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { uploadFile, deleteFile } from '../services/storage';
 import { useAuth } from '../contexts/AuthContext';
 import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye, Sword, User, Camera, Star, Crown, Ruler, Scale, Users, Trash2, AtSign, Link as LinkIcon, Copy, Check, ExternalLink } from 'lucide-react';
 import type { Player, MedicalInfo, Team } from '../types';
@@ -215,9 +216,11 @@ const Profile: React.FC = () => {
     
     setUploadingProfilePhoto(true);
     try {
-      const resizedBase64 = await resizeImage(file, 300, 300);
+      // Upload to Firebase Storage and store both URL and storage path in Firestore
+      const path = `users/${user.uid}/profile-${Date.now()}-${file.name}`;
+      const uploaded = await uploadFile(file, path);
       const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, { photoUrl: resizedBase64 });
+      await updateDoc(userRef, { photoUrl: uploaded.url, photoPath: uploaded.path });
       setStatusMsg({ type: 'success', text: 'Profile photo updated!' });
       setTimeout(() => setStatusMsg(null), 3000);
     } catch (error) {
@@ -237,7 +240,17 @@ const Profile: React.FC = () => {
     setUploadingProfilePhoto(true);
     try {
       const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, { photoUrl: null });
+      // If there's a storage path recorded, delete the underlying object
+      try {
+        const currentPath = (userData as any)?.photoPath;
+        if (currentPath) {
+          await deleteFile(currentPath);
+        }
+      } catch (err) {
+        console.warn('Failed to delete profile photo from storage:', err);
+      }
+
+      await updateDoc(userRef, { photoUrl: null, photoPath: null });
       setStatusMsg({ type: 'success', text: 'Profile photo removed.' });
       setTimeout(() => setStatusMsg(null), 3000);
     } catch (error) {
@@ -453,10 +466,12 @@ const Profile: React.FC = () => {
     
     setUploadingPhoto(true);
     try {
-      const resizedBase64 = await resizeImage(file, 200, 200);
+      // Upload to Firebase Storage and save url + storage path on player document
+      const path = `teams/${selectedAthlete.teamId}/players/${selectedAthlete.id}/photo-${Date.now()}-${file.name}`;
+      const uploaded = await uploadFile(file, path);
       const playerRef = doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id);
-      await updateDoc(playerRef, { photoUrl: resizedBase64 });
-      setSelectedAthlete({ ...selectedAthlete, photoUrl: resizedBase64 });
+      await updateDoc(playerRef, { photoUrl: uploaded.url, photoPath: uploaded.path });
+      setSelectedAthlete({ ...selectedAthlete, photoUrl: uploaded.url, photoPath: uploaded.path });
     } catch (error) {
       console.error('Error uploading photo:', error);
       alert('Failed to upload photo. Please try again.');
@@ -514,8 +529,16 @@ const Profile: React.FC = () => {
     setUploadingPhoto(true);
     try {
       const playerRef = doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id);
-      await updateDoc(playerRef, { photoUrl: null });
-      setSelectedAthlete({ ...selectedAthlete, photoUrl: undefined });
+      try {
+        const currentPath = (selectedAthlete as any)?.photoPath;
+        if (currentPath) {
+          await deleteFile(currentPath);
+        }
+      } catch (err) {
+        console.warn('Failed to delete player photo from storage:', err);
+      }
+      await updateDoc(playerRef, { photoUrl: null, photoPath: null });
+      setSelectedAthlete({ ...selectedAthlete, photoUrl: undefined, photoPath: undefined });
     } catch (error) {
       console.error('Error removing photo:', error);
       alert('Failed to remove photo.');
