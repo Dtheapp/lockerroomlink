@@ -181,7 +181,7 @@ export const useUnreadMessages = () => {
 
   // Grievance unread listener (admin only)
   useEffect(() => {
-    if (!user || userData?.role !== 'Admin') {
+    if (!user || userData?.role !== 'SuperAdmin') {
       setUnread(prev => ({ ...prev, grievances: false }));
       return;
     }
