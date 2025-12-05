@@ -642,17 +642,25 @@ const Profile: React.FC = () => {
                 </button>
               )}
             </div>
-            <div className="text-center md:text-left">
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">{userData?.username || name || 'User'}</h2>
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium uppercase tracking-wider ${
-                  userData?.role === 'Coach' && isHeadCoach 
-                    ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20'
-                    : 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-500/20'
-                }`}>
-                  {userData?.role === 'Coach' && isHeadCoach && <Crown className="w-3 h-3" />}
-                  {userData?.role === 'Coach' ? (isHeadCoach ? 'Head Coach' : 'Assistant Coach') : userData?.role}
-                </span>
-                <p className="text-xs text-slate-500 mt-2">Hover over photo to change</p>
+            <div className="text-center md:text-left flex-1">
+                <div className="flex flex-col md:flex-row md:items-center gap-2 mb-2">
+                  <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{name || 'User'}</h2>
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium uppercase tracking-wider ${
+                    userData?.role === 'Coach' && isHeadCoach 
+                      ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20'
+                      : 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-500/20'
+                  }`}>
+                    {userData?.role === 'Coach' && isHeadCoach && <Crown className="w-3 h-3" />}
+                    {userData?.role === 'Coach' ? (isHeadCoach ? 'Head Coach' : 'Assistant Coach') : userData?.role}
+                  </span>
+                </div>
+                {userData?.username && (
+                  <p className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    <AtSign className="w-3.5 h-3.5" />
+                    {userData.username}
+                  </p>
+                )}
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">Hover over photo to change</p>
             </div>
         </div>
 
