@@ -157,26 +157,40 @@ const Dashboard: React.FC = () => {
       setCoachesLoading(true);
       
       try {
-        // Query users who are coaches and have this team in their teamIds or teamId
         const usersRef = collection(db, 'users');
-        const coachesQuery = query(usersRef, where('role', '==', 'Coach'));
-        const snapshot = await getDocs(coachesQuery);
+        const coachesMap = new Map<string, UserProfile & { isHeadCoach: boolean }>();
         
-        const teamCoaches: (UserProfile & { isHeadCoach: boolean })[] = [];
+        // Query 1: Coaches who have this team in their teamIds array
+        const teamIdsQuery = query(
+          usersRef,
+          where('role', '==', 'Coach'),
+          where('teamIds', 'array-contains', teamData.id)
+        );
+        const teamIdsSnapshot = await getDocs(teamIdsQuery);
+        teamIdsSnapshot.forEach(docSnap => {
+          const coachData = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
+          const isHeadCoach = teamData.headCoachId === docSnap.id || teamData.coachId === docSnap.id;
+          coachesMap.set(docSnap.id, { ...coachData, isHeadCoach });
+        });
         
-        snapshot.forEach(doc => {
-          const coachData = { uid: doc.id, ...doc.data() } as UserProfile;
-          const coachTeamIds = coachData.teamIds || (coachData.teamId ? [coachData.teamId] : []);
-          
-          if (coachTeamIds.includes(teamData.id)) {
-            // Check if this coach is the head coach
-            const isHeadCoach = teamData.headCoachId === doc.id || teamData.coachId === doc.id;
-            teamCoaches.push({ ...coachData, isHeadCoach });
+        // Query 2: Coaches with legacy teamId field (who might not have teamIds yet)
+        const legacyQuery = query(
+          usersRef,
+          where('role', '==', 'Coach'),
+          where('teamId', '==', teamData.id)
+        );
+        const legacySnapshot = await getDocs(legacyQuery);
+        legacySnapshot.forEach(docSnap => {
+          // Only add if not already in the map
+          if (!coachesMap.has(docSnap.id)) {
+            const coachData = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
+            const isHeadCoach = teamData.headCoachId === docSnap.id || teamData.coachId === docSnap.id;
+            coachesMap.set(docSnap.id, { ...coachData, isHeadCoach });
           }
         });
         
-        // Sort: head coach first, then alphabetically
-        teamCoaches.sort((a, b) => {
+        // Convert map to array and sort: head coach first, then alphabetically
+        const teamCoaches = Array.from(coachesMap.values()).sort((a, b) => {
           if (a.isHeadCoach && !b.isHeadCoach) return -1;
           if (!a.isHeadCoach && b.isHeadCoach) return 1;
           return a.name.localeCompare(b.name);

@@ -105,13 +105,23 @@ const ManageTeams: React.FC = () => {
               };
               coaches.push(coachData);
               
-              // Group coaches by team
-              if (data.teamId) {
-                  if (!coachesByTeam[data.teamId]) {
-                      coachesByTeam[data.teamId] = [];
-                  }
-                  coachesByTeam[data.teamId].push(coachData);
+              // Group coaches by all their teams (teamIds array + legacy teamId)
+              const coachTeamIds: string[] = [];
+              if (data.teamIds && Array.isArray(data.teamIds)) {
+                  coachTeamIds.push(...data.teamIds);
               }
+              // Also include legacy teamId if not already in teamIds
+              if (data.teamId && !coachTeamIds.includes(data.teamId)) {
+                  coachTeamIds.push(data.teamId);
+              }
+              
+              // Add coach to each team they belong to
+              coachTeamIds.forEach(teamId => {
+                  if (!coachesByTeam[teamId]) {
+                      coachesByTeam[teamId] = [];
+                  }
+                  coachesByTeam[teamId].push(coachData);
+              });
           });
           
           setCoachLookup(lookup);
