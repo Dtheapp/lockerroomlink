@@ -293,12 +293,12 @@ const FanDashboard: React.FC = () => {
 
   const navigateToAthleteProfile = (username?: string) => {
     if (username) {
-      window.open(`/athlete/${username}`, '_blank');
+      window.open(`/#/athlete/${username}`, '_blank');
     }
   };
 
   const navigateToTeamProfile = (teamId: string) => {
-    window.open(`/team/${teamId}`, '_blank');
+    window.open(`/#/team/${teamId}`, '_blank');
   };
 
   const isFollowing = (teamId: string, playerId: string): boolean => {
