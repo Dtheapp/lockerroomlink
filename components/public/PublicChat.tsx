@@ -48,7 +48,8 @@ const PublicChat: React.FC<PublicChatProps> = ({ teamId, playerId, playerName, p
 
   const isParentModerator = userData?.role === 'Parent' && user?.uid === parentId;
   const isFan = userData?.role === 'Fan';
-  const canChat = user && (isFan || isParentModerator);
+  const isParent = userData?.role === 'Parent';
+  const canChat = user && (isFan || isParent); // Fans and Parents can chat
 
   // Load chat settings
   useEffect(() => {
@@ -177,17 +178,21 @@ const PublicChat: React.FC<PublicChatProps> = ({ teamId, playerId, playerName, p
     try {
       const sanitizedText = sanitizeText(newMessage.trim());
       
-      const messageData: Partial<PublicChatMessage> = {
+      const messageData: Record<string, any> = {
         text: sanitizedText,
         senderId: user.uid,
         senderName: userData.name || 'Anonymous',
         senderUsername: userData.username || '',
         senderRole: userData.role as 'Fan' | 'Parent',
-        senderPhotoUrl: userData.photoUrl || undefined,
         timestamp: serverTimestamp(),
         likes: [],
         likeCount: 0
       };
+      
+      // Only add optional fields if they have values (Firestore doesn't accept undefined)
+      if (userData.photoUrl) {
+        messageData.senderPhotoUrl = userData.photoUrl;
+      }
 
       // Handle "Chat As Athlete" - parent posting as their child
       if (chatAsAthlete && isParentModerator && myAthletes.length > 0) {
@@ -199,7 +204,9 @@ const PublicChat: React.FC<PublicChatProps> = ({ teamId, playerId, playerName, p
           messageData.athleteName = currentAthlete.name;
           messageData.senderRole = 'Athlete';
           messageData.senderName = currentAthlete.name;
-          messageData.senderPhotoUrl = currentAthlete.photoUrl || undefined;
+          if (currentAthlete.photoUrl) {
+            messageData.senderPhotoUrl = currentAthlete.photoUrl;
+          }
         }
       }
 
@@ -566,12 +573,14 @@ const PublicChat: React.FC<PublicChatProps> = ({ teamId, playerId, playerName, p
             <div className="p-4 border-t border-zinc-800 text-center">
               {!user ? (
                 <a href="#/auth" className="text-purple-400 hover:text-purple-300 text-sm">
-                  Sign in as a Fan to join the chat →
+                  Sign in to join the chat →
                 </a>
+              ) : !chatSettings.chatEnabled ? (
+                <p className="text-zinc-500 text-sm">Chat is currently disabled</p>
+              ) : !chatSettings.allowFanChat && isFan ? (
+                <p className="text-zinc-500 text-sm">Fan chat is disabled on this profile</p>
               ) : (
-                <p className="text-zinc-500 text-sm">
-                  {!chatSettings.allowFanChat ? 'Fan chat is disabled' : 'You cannot chat here'}
-                </p>
+                <p className="text-zinc-500 text-sm">Only Fans and Parents can chat here</p>
               )}
             </div>
           )}
