@@ -81,11 +81,13 @@ export interface UserProfile {
   
   // --- FAN-SPECIFIC FIELDS ---
   followedAthletes?: string[]; // Array of athlete usernames the fan follows
+  followedCoaches?: string[]; // Array of coach user IDs the user follows
   kudosGiven?: { [athleteUsername: string]: number }; // Kudos given to each athlete
   isBanned?: boolean; // If fan is banned from all interactions
   banReason?: string;
   bannedAt?: Timestamp;
   favoriteTeams?: string[]; // Team IDs the fan follows
+  followerCount?: number; // Number of followers (for coaches/athletes)
 }
 
 export interface Team {
@@ -892,4 +894,79 @@ export interface FanClip {
   isApproved?: boolean; // Parent can approve/reject
   isHidden?: boolean;
   rejectionReason?: string;
+}
+
+// --- COACH PUBLIC PROFILE TYPES ---
+
+// Coach follower (stored in users/{coachId}/followers/{followerId})
+export interface CoachFollower {
+  oddsId: string; // Follower's user ID
+  followerName: string;
+  followerUsername: string;
+  followerPhotoUrl?: string;
+  followerRole: 'Fan' | 'Parent' | 'Coach';
+  followedAt: Timestamp;
+}
+
+// Coach public chat message (stored in users/{coachId}/publicChatMessages/{messageId})
+export interface CoachChatMessage {
+  id: string;
+  text: string;
+  senderId: string;
+  senderName: string;
+  senderUsername?: string;
+  senderRole: string;
+  senderPhotoUrl?: string;
+  timestamp: any;
+  // Moderation
+  isDeleted?: boolean;
+  // Reply
+  replyTo?: {
+    id: string;
+    text: string;
+    senderName: string;
+  };
+  // Engagement
+  likes?: string[];
+  likeCount?: number;
+  // Coach's own post
+  isCoachPost?: boolean;
+}
+
+// Coach public chat settings (stored in users/{coachId}/config/chatSettings)
+export interface CoachChatSettings {
+  chatEnabled: boolean;
+  allowPublicChat: boolean;
+  slowModeSeconds: number;
+  welcomeMessage?: string;
+}
+
+// Coach announcement (stored in users/{coachId}/announcements/{announcementId})
+export interface CoachAnnouncement {
+  id: string;
+  title: string;
+  content: string;
+  authorId: string;
+  authorName: string;
+  createdAt: any;
+  updatedAt?: any;
+  isPinned?: boolean;
+  // Engagement
+  likes: string[];
+  likeCount: number;
+  commentCount: number;
+  // Visibility
+  isPublic: boolean; // Show on public profile
+  targetAudience?: 'all' | 'parents' | 'coaches' | 'fans';
+}
+
+// Coach muted user (stored in users/{coachId}/mutedUsers/{oduserId})
+export interface CoachMutedUser {
+  oduserId: string;
+  odusername: string;
+  mutedBy: string;
+  mutedByName: string;
+  mutedAt: any;
+  reason?: string;
+  expiresAt?: any;
 }

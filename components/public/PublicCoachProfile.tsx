@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { doc, getDoc, collection, getDocs, query, where, addDoc, serverTimestamp, updateDoc, setDoc, runTransaction } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, addDoc, serverTimestamp, updateDoc, setDoc, runTransaction, deleteDoc, increment, arrayUnion, arrayRemove, Timestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
-import type { UserProfile, Team, CoachKudos, CoachFeedback } from '../../types';
-import { User, Crown, Users, Mail, Trophy, Calendar, MapPin, Home, X, Award, Shield, ThumbsUp, Heart, MessageSquare, Send, CheckCircle, AlertTriangle, Sword, Zap } from 'lucide-react';
+import type { UserProfile, Team, CoachKudos, CoachFeedback, CoachFollower } from '../../types';
+import { User, Crown, Users, Mail, Trophy, Calendar, MapPin, Home, X, Award, Shield, ThumbsUp, Heart, MessageSquare, Send, CheckCircle, AlertTriangle, Sword, Zap, UserPlus, UserMinus, Loader2 } from 'lucide-react';
+import CoachPublicChat from './CoachPublicChat';
+import CoachAnnouncements from './CoachAnnouncements';
 
 interface CoachData {
   coach: UserProfile;
@@ -32,6 +34,11 @@ const PublicCoachProfile: React.FC = () => {
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState<'kudos' | 'feedback' | null>(null);
+
+  // Follow state
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
 
   // Get unique teams the parent's kids are on (that this coach also coaches)
   const parentTeams = React.useMemo(() => {
@@ -133,6 +140,7 @@ const PublicCoachProfile: React.FC = () => {
         }
 
         setData({ coach, teams, isHeadCoach, isOC, isDC, isSTC, kudosCount, hasGivenKudos });
+        setFollowerCount(coach.followerCount || 0);
       } catch (err) {
         console.error('Error fetching coach data:', err);
         setError('Failed to load coach profile');
@@ -143,6 +151,68 @@ const PublicCoachProfile: React.FC = () => {
 
     fetchCoachData();
   }, [username, user]);
+
+  // Check if current user is following this coach
+  useEffect(() => {
+    if (data && userData?.followedCoaches) {
+      setIsFollowing(userData.followedCoaches.includes(data.coach.uid));
+    }
+  }, [data, userData]);
+
+  // Handle follow/unfollow
+  const handleFollow = async () => {
+    if (!user || !userData || !data) return;
+    
+    setFollowLoading(true);
+    const coachId = data.coach.uid;
+    
+    try {
+      if (isFollowing) {
+        // Unfollow
+        await updateDoc(doc(db, 'users', user.uid), {
+          followedCoaches: arrayRemove(coachId)
+        });
+        
+        // Remove from coach's followers subcollection
+        await deleteDoc(doc(db, 'users', coachId, 'followers', user.uid));
+        
+        // Decrement follower count
+        await updateDoc(doc(db, 'users', coachId), {
+          followerCount: increment(-1)
+        });
+        
+        setFollowerCount(prev => Math.max(0, prev - 1));
+        setIsFollowing(false);
+      } else {
+        // Follow
+        await updateDoc(doc(db, 'users', user.uid), {
+          followedCoaches: arrayUnion(coachId)
+        });
+        
+        // Add to coach's followers subcollection
+        const followerData: CoachFollower = {
+          oddsId: user.uid,
+          followerName: userData.name || 'User',
+          followerUsername: userData.username || '',
+          followerRole: userData.role as 'Fan' | 'Parent' | 'Coach',
+          followedAt: Timestamp.now()
+        };
+        await setDoc(doc(db, 'users', coachId, 'followers', user.uid), followerData);
+        
+        // Increment follower count
+        await updateDoc(doc(db, 'users', coachId), {
+          followerCount: increment(1)
+        });
+        
+        setFollowerCount(prev => prev + 1);
+        setIsFollowing(true);
+      }
+    } catch (err) {
+      console.error('Error updating follow status:', err);
+    } finally {
+      setFollowLoading(false);
+    }
+  };
 
   // Handle giving kudos
   const handleGiveKudos = async () => {
@@ -402,9 +472,9 @@ You will receive updates in this chat as your grievance is reviewed.
       {/* Header Bar */}
       <header className="bg-zinc-900/80 backdrop-blur-sm border-b border-zinc-800 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 text-xl font-black tracking-tighter">
-            <span className="text-orange-500">LOCKER</span>
-            <span className="text-white">ROOM</span>
+          <Link to="/" className="flex items-center gap-1 text-xl font-black tracking-tighter">
+            <span className="text-orange-500">LEVEL</span>
+            <span className="text-white">UP</span>
           </Link>
           <span className="text-xs text-zinc-500">Coach Profile</span>
         </div>
@@ -483,43 +553,81 @@ You will receive updates in this chat as your grievance is reviewed.
                 ))}
               </div>
 
-              {/* Kudos Counter */}
-              {kudosCount > 0 && (
-                <div className="mt-4 flex justify-center md:justify-start">
+              {/* Stats Row - Followers & Kudos */}
+              <div className="mt-4 flex flex-wrap justify-center md:justify-start gap-3">
+                {/* Follower Count */}
+                <div className="inline-flex items-center gap-2 bg-blue-500/20 border border-blue-500/30 px-4 py-2 rounded-full">
+                  <Users className="w-5 h-5 text-blue-400" />
+                  <span className="text-white font-bold">{followerCount}</span>
+                  <span className="text-blue-300 text-sm">{followerCount === 1 ? 'Follower' : 'Followers'}</span>
+                </div>
+
+                {/* Kudos Counter */}
+                {kudosCount > 0 && (
                   <div className="inline-flex items-center gap-2 bg-gradient-to-r from-pink-500/20 to-red-500/20 border border-pink-500/30 px-4 py-2 rounded-full">
                     <Heart className="w-5 h-5 text-pink-500 fill-pink-500" />
                     <span className="text-white font-bold">{kudosCount}</span>
-                    <span className="text-pink-300 text-sm">Kudos from Parents</span>
+                    <span className="text-pink-300 text-sm">Kudos</span>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
-              {/* Parent Action Buttons */}
-              {isParent && user && (
-                <div className="mt-4 flex flex-wrap justify-center md:justify-start gap-3">
-                  {!hasGivenKudos ? (
-                    <button
-                      onClick={() => setShowKudosModal(true)}
-                      className="flex items-center gap-2 bg-gradient-to-r from-pink-600 to-red-600 hover:from-pink-500 hover:to-red-500 text-white px-4 py-2 rounded-lg font-semibold transition-all shadow-lg hover:shadow-pink-500/25"
-                    >
-                      <ThumbsUp className="w-4 h-4" />
-                      Give Kudos
-                    </button>
-                  ) : (
-                    <span className="flex items-center gap-2 bg-pink-500/20 text-pink-300 px-4 py-2 rounded-lg font-semibold">
-                      <Heart className="w-4 h-4 fill-pink-400" />
-                      You gave kudos!
-                    </span>
-                  )}
+              {/* Action Buttons */}
+              <div className="mt-4 flex flex-wrap justify-center md:justify-start gap-3">
+                {/* Follow Button - for any logged in user */}
+                {user && user.uid !== coach.uid && (
                   <button
-                    onClick={() => setShowFeedbackModal(true)}
-                    className="flex items-center gap-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 px-4 py-2 rounded-lg font-semibold transition-all"
+                    onClick={handleFollow}
+                    disabled={followLoading}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
+                      isFollowing 
+                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30' 
+                        : 'bg-blue-600 hover:bg-blue-500 text-white'
+                    }`}
                   >
-                    <MessageSquare className="w-4 h-4" />
-                    File Grievance
+                    {followLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : isFollowing ? (
+                      <>
+                        <UserMinus className="w-4 h-4" />
+                        Following
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-4 h-4" />
+                        Follow
+                      </>
+                    )}
                   </button>
-                </div>
-              )}
+                )}
+
+                {/* Parent-only actions */}
+                {isParent && user && (
+                  <>
+                    {!hasGivenKudos ? (
+                      <button
+                        onClick={() => setShowKudosModal(true)}
+                        className="flex items-center gap-2 bg-gradient-to-r from-pink-600 to-red-600 hover:from-pink-500 hover:to-red-500 text-white px-4 py-2 rounded-lg font-semibold transition-all shadow-lg hover:shadow-pink-500/25"
+                      >
+                        <ThumbsUp className="w-4 h-4" />
+                        Give Kudos
+                      </button>
+                    ) : (
+                      <span className="flex items-center gap-2 bg-pink-500/20 text-pink-300 px-4 py-2 rounded-lg font-semibold">
+                        <Heart className="w-4 h-4 fill-pink-400" />
+                        You gave kudos!
+                      </span>
+                    )}
+                    <button
+                      onClick={() => setShowFeedbackModal(true)}
+                      className="flex items-center gap-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 px-4 py-2 rounded-lg font-semibold transition-all"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      File Grievance
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -619,6 +727,22 @@ You will receive updates in this chat as your grievance is reviewed.
             </div>
           </div>
         )}
+
+        {/* Coach Public Chat */}
+        <div className="mb-8">
+          <CoachPublicChat
+            coachId={coach.uid}
+            coachName={coach.name}
+          />
+        </div>
+
+        {/* Coach Announcements */}
+        <div className="mb-8">
+          <CoachAnnouncements
+            coachId={coach.uid}
+            coachName={coach.name}
+          />
+        </div>
 
         {/* Footer */}
         <footer className="mt-12 text-center text-zinc-600 text-sm">
