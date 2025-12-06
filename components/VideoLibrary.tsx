@@ -1,8 +1,133 @@
+
+const getCategoryStyle = (category: VideoCategory) => {
+  const cat = VIDEO_CATEGORIES.find(c => c.value === category);
+  return cat?.color || 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20';
+};
+
+const getCategoryIcon = (category: VideoCategory) => {
+  const cat = VIDEO_CATEGORIES.find(c => c.value === category);
+  return cat?.icon || <FolderOpen className="w-4 h-4" />;
+};
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, getDocs, setDoc, writeBatch, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import type { Video, VideoCategory, Player, PlayerFilmEntry, Team } from '../types';
+// VideoCard component with YouTube availability check
+const VideoCard: React.FC<{ video: any, userData: any, openEditModal: any, setDeleteVideoConfirm: any, setPlayingVideoId: any, getCategoryStyle: any, getCategoryIcon: any }> = ({ video, userData, openEditModal, setDeleteVideoConfirm, setPlayingVideoId, getCategoryStyle, getCategoryIcon }) => {
+  const [isAvailable, setIsAvailable] = React.useState(true);
+  React.useEffect(() => {
+    // Check YouTube oEmbed API for video availability
+    if (video.youtubeId) {
+      axios.get(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${video.youtubeId}&format=json`)
+        .then(() => setIsAvailable(true))
+        .catch(() => setIsAvailable(false));
+    }
+  }, [video.youtubeId]);
+
+  if (!isAvailable) {
+    // Optionally, auto-delete after 24h if still unavailable
+    // (not implemented here, but can be added with a scheduled job)
+    return null;
+  }
+
+  return (
+    <div 
+      key={video.id} 
+      className={`bg-white dark:bg-zinc-950 rounded-xl border overflow-hidden shadow-lg hover:shadow-xl transition-all group ${
+        video.playerId 
+          ? 'border-purple-500/30 ring-1 ring-purple-500/10' 
+          : 'border-zinc-200 dark:border-zinc-800 hover:border-orange-500/30'
+      }`}
+    >
+      {/* Thumbnail */}
+      <div className="relative aspect-video bg-black cursor-pointer" onClick={() => setPlayingVideoId(video.youtubeId)}>
+        <img 
+          src={`https://img.youtube.com/vi/${video.youtubeId}/mqdefault.jpg`} 
+          alt={video.title} 
+          className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+        />
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/0 transition-colors">
+          <div className="bg-orange-600/90 text-white p-3 rounded-full shadow-xl scale-100 group-hover:scale-110 transition-transform">
+            <Play className="w-6 h-6 fill-current" />
+          </div>
+        </div>
+        {/* Category Badge */}
+        <div className={`absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-bold border backdrop-blur-sm ${getCategoryStyle(video.category || 'Other')}`}> 
+          {getCategoryIcon(video.category || 'Other')}
+          {video.category || 'Other'}
+        </div>
+        {/* Private Badge */}
+        {video.playerId && (
+          <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold bg-purple-600 text-white">
+            <Lock className="w-3 h-3" />
+            Private
+          </div>
+        )}
+      </div>
+      {/* Info */}
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-zinc-900 dark:text-white line-clamp-2">{video.title}</h3>
+            {/* Player assignment (for private videos) */}
+            {video.playerId && video.playerName && (
+              <div className="flex items-center gap-1.5 mt-2 text-xs text-purple-500">
+                <User className="w-3 h-3" />
+                <span>For {video.playerName}</span>
+              </div>
+            )}
+            {/* Visibility indicator */}
+            {!video.playerId && (userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
+              <div className="flex items-center gap-3 mt-2 text-xs">
+                {video.isPublic ? (
+                  <div className="flex items-center gap-1">
+                    <Globe className="w-3 h-3 text-purple-500" />
+                    <span className="text-purple-500">Public</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <Users className="w-3 h-3 text-zinc-500" />
+                    <span className="text-zinc-500">Team Only</span>
+                  </div>
+                )}
+                {/* Tagged athletes indicator */}
+                {video.taggedPlayerIds && video.taggedPlayerIds.length > 0 && (
+                  <div className="flex items-center gap-1 text-emerald-500">
+                    <UserCheck className="w-3 h-3" />
+                    <span>{video.taggedPlayerIds.length} tagged</span>
+                  </div>
+                )}
+              </div>
+            )}
+            {/* Description preview */}
+            {video.description && (
+              <p className="text-xs text-zinc-500 mt-2 line-clamp-2">{video.description}</p>
+            )}
+          </div>
+          {/* Actions (Coach only) */}
+          {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
+            <div className="flex items-center gap-1">
+              <button 
+                onClick={(e) => { e.stopPropagation(); openEditModal(video); }} 
+                className="p-2 text-zinc-400 hover:text-cyan-500 hover:bg-cyan-500/10 rounded-lg transition-colors"
+              >
+                <Edit2 className="w-4 h-4"/>
+              </button>
+              <button 
+                onClick={(e) => { e.stopPropagation(); setDeleteVideoConfirm({ id: video.id, title: video.title }); }} 
+                className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+              >
+                <Trash2 className="w-4 h-4"/>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 import { Plus, Trash2, Play, Video as VideoIcon, X, AlertCircle, Film, Dumbbell, Trophy, FolderOpen, Edit2, Check, Lock, Users, Filter, User, Globe, UserCheck } from 'lucide-react';
 import NoAthleteBlock from './NoAthleteBlock';
 
@@ -113,9 +238,12 @@ const VideoLibrary: React.FC = () => {
 
   // OPTIMIZED: Robust Regex that handles Standard, Share links, Embeds, AND Shorts
   const extractYoutubeId = (url: string) => {
-    const regExp = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    // Accept both standard and live YouTube links
+    const regExp = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:live\/|watch\?v=|v\/|embed\/|shorts\/)?([a-zA-Z0-9_-]{11})|youtu\.be\/([a-zA-Z0-9_-]{11}))/;
     const match = url.match(regExp);
-    return (match && match[1]) ? match[1] : null;
+    // If it's a live link, set isLive flag
+    if (url.includes('/live/')) return { id: match?.[1] || match?.[2] || null, isLive: true };
+    return { id: match?.[1] || match?.[2] || null, isLive: false };
   };
 
   const resetForm = () => {
@@ -160,10 +288,9 @@ const VideoLibrary: React.FC = () => {
     
     if (!teamData?.id || !newVideo.title || !newVideo.url) return;
     
-    const youtubeId = extractYoutubeId(newVideo.url);
-    
+    const { id: youtubeId, isLive } = extractYoutubeId(newVideo.url);
     if (!youtubeId) { 
-      setError('Invalid URL. We support YouTube Videos and Shorts.'); 
+      setError('Invalid URL. We support YouTube Videos, Shorts, and Live Streams.'); 
       return; 
     }
 
@@ -188,6 +315,7 @@ const VideoLibrary: React.FC = () => {
         title: newVideo.title,
         url: newVideo.url,
         youtubeId,
+        isLive,
         category: newVideo.category,
         playerId: newVideo.playerId || null,
         playerName: playerName,
@@ -271,13 +399,15 @@ const VideoLibrary: React.FC = () => {
     
     // If URL changed, re-extract YouTube ID
     let youtubeId = editingVideo.youtubeId;
+    let isLive = editingVideo.isLive || false;
     if (newVideo.url !== editingVideo.url) {
-      const newYoutubeId = extractYoutubeId(newVideo.url);
+      const { id: newYoutubeId, isLive: newIsLive } = extractYoutubeId(newVideo.url);
       if (!newYoutubeId) {
-        setError('Invalid URL. We support YouTube Videos and Shorts.');
+        setError('Invalid URL. We support YouTube Videos, Shorts, and Live Streams.');
         return;
       }
       youtubeId = newYoutubeId;
+      isLive = newIsLive;
     }
 
     setSaving(true);
@@ -309,6 +439,7 @@ const VideoLibrary: React.FC = () => {
         title: newVideo.title,
         url: newVideo.url,
         youtubeId,
+        isLive,
         category: newVideo.category,
         playerId: newVideo.playerId || null,
         playerName: playerName,
@@ -412,19 +543,10 @@ const VideoLibrary: React.FC = () => {
     }
   };
 
-  const getCategoryStyle = (category: VideoCategory) => {
-    const cat = VIDEO_CATEGORIES.find(c => c.value === category);
-    return cat?.color || 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20';
-  };
-
-  const getCategoryIcon = (category: VideoCategory) => {
-    const cat = VIDEO_CATEGORIES.find(c => c.value === category);
-    return cat?.icon || <FolderOpen className="w-4 h-4" />;
-  };
 
   return (
     <NoAthleteBlock featureName="Film Room">
-    <div className="space-y-6 pb-20">
+      <div className="space-y-6 pb-20">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -510,106 +632,16 @@ const VideoLibrary: React.FC = () => {
       ) : filteredVideos.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredVideos.map(video => (
-            <div 
+            <VideoCard 
+              video={video} 
+              userData={userData} 
+              openEditModal={openEditModal} 
+              setDeleteVideoConfirm={setDeleteVideoConfirm} 
+              setPlayingVideoId={setPlayingVideoId} 
+              getCategoryStyle={getCategoryStyle}
+              getCategoryIcon={getCategoryIcon}
               key={video.id} 
-              className={`bg-white dark:bg-zinc-950 rounded-xl border overflow-hidden shadow-lg hover:shadow-xl transition-all group ${
-                video.playerId 
-                  ? 'border-purple-500/30 ring-1 ring-purple-500/10' 
-                  : 'border-zinc-200 dark:border-zinc-800 hover:border-orange-500/30'
-              }`}
-            >
-              {/* Thumbnail */}
-              <div className="relative aspect-video bg-black cursor-pointer" onClick={() => setPlayingVideoId(video.youtubeId)}>
-                <img 
-                  src={`https://img.youtube.com/vi/${video.youtubeId}/mqdefault.jpg`} 
-                  alt={video.title} 
-                  className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
-                />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/0 transition-colors">
-                  <div className="bg-orange-600/90 text-white p-3 rounded-full shadow-xl scale-100 group-hover:scale-110 transition-transform">
-                    <Play className="w-6 h-6 fill-current" />
-                  </div>
-                </div>
-                
-                {/* Category Badge */}
-                <div className={`absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-bold border backdrop-blur-sm ${getCategoryStyle(video.category || 'Other')}`}>
-                  {getCategoryIcon(video.category || 'Other')}
-                  {video.category || 'Other'}
-                </div>
-                
-                {/* Private Badge */}
-                {video.playerId && (
-                  <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold bg-purple-600 text-white">
-                    <Lock className="w-3 h-3" />
-                    Private
-                  </div>
-                )}
-              </div>
-              
-              {/* Info */}
-              <div className="p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-zinc-900 dark:text-white line-clamp-2">{video.title}</h3>
-                    
-                    {/* Player assignment (for private videos) */}
-                    {video.playerId && video.playerName && (
-                      <div className="flex items-center gap-1.5 mt-2 text-xs text-purple-500">
-                        <User className="w-3 h-3" />
-                        <span>For {video.playerName}</span>
-                      </div>
-                    )}
-                    
-                    {/* Visibility indicator */}
-                    {!video.playerId && (userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
-                      <div className="flex items-center gap-3 mt-2 text-xs">
-                        {video.isPublic ? (
-                          <div className="flex items-center gap-1">
-                            <Globe className="w-3 h-3 text-purple-500" />
-                            <span className="text-purple-500">Public</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <Users className="w-3 h-3 text-zinc-500" />
-                            <span className="text-zinc-500">Team Only</span>
-                          </div>
-                        )}
-                        {/* Tagged athletes indicator */}
-                        {video.taggedPlayerIds && video.taggedPlayerIds.length > 0 && (
-                          <div className="flex items-center gap-1 text-emerald-500">
-                            <UserCheck className="w-3 h-3" />
-                            <span>{video.taggedPlayerIds.length} tagged</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* Description preview */}
-                    {video.description && (
-                      <p className="text-xs text-zinc-500 mt-2 line-clamp-2">{video.description}</p>
-                    )}
-                  </div>
-                  
-                  {/* Actions (Coach only) */}
-                  {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
-                    <div className="flex items-center gap-1">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); openEditModal(video); }} 
-                        className="p-2 text-zinc-400 hover:text-cyan-500 hover:bg-cyan-500/10 rounded-lg transition-colors"
-                      >
-                        <Edit2 className="w-4 h-4"/>
-                      </button>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setDeleteVideoConfirm({ id: video.id, title: video.title }); }} 
-                        className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4"/>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+            />
           ))}
         </div>
       ) : (
@@ -635,6 +667,7 @@ const VideoLibrary: React.FC = () => {
       )}
 
       {/* ADD/EDIT VIDEO MODAL */}
+      )
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-zinc-950 w-full max-w-lg rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -954,7 +987,7 @@ const VideoLibrary: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
     </NoAthleteBlock>
   );
 };

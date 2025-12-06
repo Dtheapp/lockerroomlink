@@ -450,6 +450,8 @@ export interface Video {
   taggedPlayerIds?: string[]; // Array of player IDs tagged in this video
   // For public visibility on team's public page
   isPublic?: boolean; // If true, show on team's public page (only for team videos, not private player videos)
+  // For live stream videos
+  isLive?: boolean;
   // Metadata
   createdAt?: any;
   createdBy?: string;
