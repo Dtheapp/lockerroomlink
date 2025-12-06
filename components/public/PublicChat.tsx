@@ -48,8 +48,7 @@ const PublicChat: React.FC<PublicChatProps> = ({ teamId, playerId, playerName, p
 
   const isParentModerator = userData?.role === 'Parent' && user?.uid === parentId;
   const isFan = userData?.role === 'Fan';
-  const isParent = userData?.role === 'Parent';
-  const canChat = user && (isFan || isParent); // Fans and Parents can chat
+  const canChat = !!user && !!userData; // Any authenticated user can chat on public profiles
 
   // Load chat settings
   useEffect(() => {
@@ -183,7 +182,7 @@ const PublicChat: React.FC<PublicChatProps> = ({ teamId, playerId, playerName, p
         senderId: user.uid,
         senderName: userData.name || 'Anonymous',
         senderUsername: userData.username || '',
-        senderRole: userData.role as 'Fan' | 'Parent',
+        senderRole: userData.role,
         timestamp: serverTimestamp(),
         likes: [],
         likeCount: 0
@@ -580,7 +579,7 @@ const PublicChat: React.FC<PublicChatProps> = ({ teamId, playerId, playerName, p
               ) : !chatSettings.allowFanChat && isFan ? (
                 <p className="text-zinc-500 text-sm">Fan chat is disabled on this profile</p>
               ) : (
-                <p className="text-zinc-500 text-sm">Only Fans and Parents can chat here</p>
+                <p className="text-zinc-500 text-sm">Sign in to chat</p>
               )}
             </div>
           )}
