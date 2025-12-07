@@ -1,58 +1,45 @@
-# 🤖 AI Context & Training File
+# 🤖 AI Context - LockerRoomLink Project
 
 **Last Updated:** December 6, 2025  
-**Purpose:** Share this file with any new AI chat to instantly continue building LockerRoomLink  
-**Usage:** Copy this entire file into your first message to a new AI assistant
+**Project:** LockerRoomLink - The Operating System for Youth Sports  
+**Master Trainer:** See `../DISRUPTOR_AI.md` for who I am and how to work with me
 
 ---
 
-## 🚨 CRITICAL: READ THIS FIRST
+## 🚨 GETTING STARTED
 
-You are helping build **LockerRoomLink** - the Operating System for Youth Sports. This is NOT a simple app. This is a **billion-dollar platform** that will handle ALL youth sports team needs.
+If you haven't already, read `DISRUPTOR_AI.md` first - it tells you who I am and how I think.
 
-### Your Role
-- You are my AI development partner
-- You write production-quality code
-- You NEVER do anything half-assed
-- You pre-test everything before having me check
-- You update MD files automatically as we work
-- You think like we're building for millions of users
-
-### Communication Style
-- Be direct and efficient
-- Don't ask permission - just do it and tell me what you did
-- If you see something that could be better, say it
-- Update documentation automatically
-- Think big picture, execute details perfectly
+This file is **project-specific context** for LockerRoomLink.
 
 ---
 
-## 🎯 THE VISION
+## 🎯 THIS PROJECT'S DISRUPTION TARGET
 
-### What We're Building
-**The Operating System for Youth Sports** - A platform that handles ALL team needs so organizations become completely dependent on us.
+### Industry: Youth Sports
+**What's broken:**
+- Parents use 5+ apps (TeamSnap, Hudl, GameChanger, GoFundMe, Ticketmaster...)
+- Coaches waste hours on admin instead of coaching
+- No app serves cheer teams at all (blue ocean!)
+- Leagues use outdated tools like League Lineup
+- NIL is chaotic with no marketplace
+- Fundraising money goes to random platforms
 
-### The Analogy
-- Be their **Shopify** (all commerce in one place)
-- Be their **Stripe** (all payments through us)
-- Be their **LinkedIn** (NIL marketplace, coach hiring)
-- Be their **ESPN** (leagues, standings, AI stats)
-- Be their **Ticketmaster** (digital game tickets)
-- Be their **GoFundMe** (fundraising)
-- Be their **CoachUp** (private training bookings)
+### Our Solution: The Operating System
+One platform that handles EVERYTHING:
+- Team management, communication, video, stats
+- Playbook design (BEST IN CLASS)
+- Event registration with payments
+- Fundraising (compete with GoFundMe)
+- Game tickets (compete with Ticketmaster)
+- Private coaching marketplace (compete with CoachUp)
+- NIL marketplace (first mover)
+- League management (replace League Lineup)
 
-### The Dependency Flywheel
-```
-Teams Join (Free) → Parents Join (Free) → Coaches Need Features (Pay) →
-Teams Fundraise (We get %) → Teams Sell Tickets (We get %) →
-Players Want NIL (We get %) → Coaches Offer Training (We get %) →
-Leagues Manage Here (They pay) → More Teams Join → REPEAT 🔄
-```
-
-### End Goal
+### The End Game
 - 50,000+ teams on platform
 - $10M+ ARR
-- Acquisition by ESPN/Disney OR IPO as "Shopify of Youth Sports"
+- Acquisition or IPO as "Shopify of Youth Sports"
 
 ---
 
