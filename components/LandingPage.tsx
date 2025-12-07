@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AnimatedBackground,
@@ -13,8 +13,8 @@ import {
 } from '../components/ui/OSYSComponents';
 import { DemoNavigation } from './ui/DemoNavigation';
 
-// Typewriter component for cycling through features
-const TypewriterText: React.FC = () => {
+// Scrolling feature ticker with typewriter effect
+const FeatureTicker: React.FC = () => {
   const features = [
     'Social Media',
     'Fundraising', 
@@ -30,44 +30,66 @@ const TypewriterText: React.FC = () => {
     'Event Management'
   ];
   
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [displayText, setDisplayText] = useState('');
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [visibleFeatures, setVisibleFeatures] = useState<string[]>([]);
+  const [currentTyping, setCurrentTyping] = useState('');
+  const [featureIndex, setFeatureIndex] = useState(0);
+  const [charIndex, setCharIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  const maxVisible = 4; // Show up to 4 features at a time
   
   useEffect(() => {
-    const currentFeature = features[currentIndex];
-    const typeSpeed = isDeleting ? 40 : 80;
-    const pauseTime = 2000;
+    const currentFeature = features[featureIndex % features.length];
     
-    if (!isDeleting && displayText === currentFeature) {
-      // Pause at full text, then start deleting
-      const timeout = setTimeout(() => setIsDeleting(true), pauseTime);
+    if (charIndex < currentFeature.length) {
+      // Still typing current feature
+      const timeout = setTimeout(() => {
+        setCurrentTyping(currentFeature.substring(0, charIndex + 1));
+        setCharIndex(charIndex + 1);
+      }, 70);
+      return () => clearTimeout(timeout);
+    } else {
+      // Finished typing, pause then move to next
+      const timeout = setTimeout(() => {
+        // Add completed feature to visible list
+        setVisibleFeatures(prev => {
+          const updated = [...prev, currentFeature];
+          // Keep only the last (maxVisible - 1) completed features
+          if (updated.length > maxVisible - 1) {
+            return updated.slice(-maxVisible + 1);
+          }
+          return updated;
+        });
+        // Reset for next feature
+        setCurrentTyping('');
+        setCharIndex(0);
+        setFeatureIndex(prev => prev + 1);
+      }, 1200);
       return () => clearTimeout(timeout);
     }
-    
-    if (isDeleting && displayText === '') {
-      // Move to next feature
-      setIsDeleting(false);
-      setCurrentIndex((prev) => (prev + 1) % features.length);
-      return;
-    }
-    
-    const timeout = setTimeout(() => {
-      if (isDeleting) {
-        setDisplayText(currentFeature.substring(0, displayText.length - 1));
-      } else {
-        setDisplayText(currentFeature.substring(0, displayText.length + 1));
-      }
-    }, typeSpeed);
-    
-    return () => clearTimeout(timeout);
-  }, [displayText, isDeleting, currentIndex, features]);
+  }, [charIndex, featureIndex, features]);
   
   return (
-    <span className="text-purple-400">
-      {displayText}
-      <span className="animate-pulse">|</span>
-    </span>
+    <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 overflow-hidden" ref={containerRef}>
+      {visibleFeatures.map((feature, index) => (
+        <span 
+          key={`${feature}-${index}`}
+          className="text-slate-400 transition-all duration-500 animate-fade-in"
+          style={{ 
+            opacity: Math.max(0.4, 1 - (visibleFeatures.length - index - 1) * 0.2)
+          }}
+        >
+          {feature}
+          <span className="text-purple-500 mx-1">•</span>
+        </span>
+      ))}
+      {currentTyping && (
+        <span className="text-purple-400 font-medium">
+          {currentTyping}
+          <span className="animate-pulse text-purple-300">|</span>
+        </span>
+      )}
+    </div>
   );
 };
 
@@ -115,11 +137,11 @@ const LandingPage: React.FC = () => {
             <GradientText>for Youth Sports</GradientText>
           </h1>
 
-          <div className="text-xl md:text-2xl text-slate-400 max-w-2xl mx-auto mb-8 osys-animate-slide-up h-20 flex flex-col items-center justify-center" style={{ animationDelay: '0.1s' }}>
-            <div className="h-8">
-              <TypewriterText />
+          <div className="text-xl md:text-2xl max-w-3xl mx-auto mb-8 osys-animate-slide-up" style={{ animationDelay: '0.1s' }}>
+            <div className="min-h-[2rem] mb-3">
+              <FeatureTicker />
             </div>
-            <span className="text-slate-500 text-lg mt-2">Everything your team needs in one powerful platform.</span>
+            <p className="text-slate-500 text-lg">Everything your team needs in one powerful platform.</p>
           </div>
 
           <div className="flex flex-wrap justify-center gap-4 mb-12 osys-animate-slide-up" style={{ animationDelay: '0.2s' }}>
