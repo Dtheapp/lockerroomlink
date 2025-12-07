@@ -1,21 +1,22 @@
 /* OSYS Design System v2.0 - World Class */
 /* The Operating System for Youth Sports */
+/* Colors updated to match mockup specification (indigo #6366f1) */
 
 /* ============================================
    ROOT VARIABLES - Premium Design Tokens
    ============================================ */
 :root {
-    /* Primary Palette - Electric Purple to Deep Blue */
-    --primary-50: #f5f3ff;
-    --primary-100: #ede9fe;
-    --primary-200: #ddd6fe;
-    --primary-300: #c4b5fd;
-    --primary-400: #a78bfa;
-    --primary-500: #8b5cf6;
-    --primary-600: #7c3aed;
-    --primary-700: #6d28d9;
-    --primary-800: #5b21b6;
-    --primary-900: #4c1d95;
+    /* Primary Palette - Indigo (from mockup) */
+    --primary-50: #eef2ff;
+    --primary-100: #e0e7ff;
+    --primary-200: #c7d2fe;
+    --primary-300: #a5b4fc;
+    --primary-400: #818cf8;
+    --primary-500: #6366f1;
+    --primary-600: #4f46e5;
+    --primary-700: #4338ca;
+    --primary-800: #3730a3;
+    --primary-900: #312e81;
     
     /* Secondary - Championship Gold */
     --gold-50: #fffbeb;
@@ -51,10 +52,10 @@
     --dark-100: #f1f5f9;
     --dark-50: #f8fafc;
     
-    /* Gradients - Premium */
-    --gradient-hero: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
-    --gradient-primary: linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%);
-    --gradient-gold: linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #f59e0b 100%);
+    /* Gradients - Premium (from mockup) */
+    --gradient-hero: linear-gradient(180deg, rgba(99, 102, 241, 0.3) 0%, transparent 50%);
+    --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    --gradient-gold: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
     --gradient-card: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
     --gradient-glass: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
     --gradient-mesh: radial-gradient(at 40% 20%, hsla(265, 89%, 50%, 0.15) 0px, transparent 50%),

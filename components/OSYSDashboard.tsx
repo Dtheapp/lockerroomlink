@@ -12,6 +12,7 @@ import {
   StatCard
 } from './ui/OSYSComponents';
 import { DemoNavigation } from './ui/DemoNavigation';
+import { useDemoToast } from '../hooks/useOSYSData';
 
 const upcomingEvents = [
   { day: '12', month: 'DEC', title: 'vs. Panthers', meta: '🏟️ Home • 7:00 PM', type: 'Game Day', typeVariant: 'primary' as const },
@@ -36,6 +37,8 @@ const recentActivity = [
 ];
 
 const OSYSDashboard: React.FC = () => {
+  const { showToast, ToastComponent } = useDemoToast();
+
   return (
     <div className="min-h-screen text-white">
       <AnimatedBackground />
@@ -123,7 +126,7 @@ const OSYSDashboard: React.FC = () => {
                 className="osys-input pl-10 w-64"
               />
             </div>
-            <button className="osys-btn osys-btn-ghost relative">
+            <button className="osys-btn osys-btn-ghost relative" onClick={() => showToast('No new notifications', 'info')}>
               🔔
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
             </button>
@@ -216,7 +219,7 @@ const OSYSDashboard: React.FC = () => {
           <GlassCard className="lg:col-span-1">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold">📰 Activity Feed</h2>
-              <button className="text-purple-400 text-sm">See All →</button>
+              <button className="text-purple-400 text-sm" onClick={() => showToast('Viewing all players...', 'info')}>See All →</button>
             </div>
             <div className="space-y-3">
               {recentActivity.map((activity, i) => (
@@ -249,7 +252,7 @@ const OSYSDashboard: React.FC = () => {
               <p className="text-slate-400 text-sm">Help us get to Orlando for the big game!</p>
             </div>
             <Link to="/fundraising">
-              <Button variant="gold">View Campaign</Button>
+              <Button variant="gold" onClick={() => showToast('Campaign page loading...', 'info')}>View Campaign</Button>
             </Link>
           </div>
           <div className="mt-4">
@@ -271,6 +274,7 @@ const OSYSDashboard: React.FC = () => {
 
       {/* Demo Navigation */}
       <DemoNavigation currentPage="coach-demo" />
+      {ToastComponent}
     </div>
   );
 };

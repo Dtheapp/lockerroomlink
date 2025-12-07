@@ -64,6 +64,7 @@ const OSYSCoachProfile = lazyWithRetry(() => import('./components/OSYSCoachProfi
 const OSYSEvents = lazyWithRetry(() => import('./components/OSYSEvents'));
 const OSYSPlaybook = lazyWithRetry(() => import('./components/OSYSPlaybook'));
 const OSYSMessenger = lazyWithRetry(() => import('./components/OSYSMessenger'));
+const OSYSRoster = lazyWithRetry(() => import('./components/OSYSRoster'));
 
 // Event System Pages
 const EventsPage = lazyWithRetry(() => import('./components/events/EventsPage'));
@@ -191,6 +192,7 @@ const AppContent: React.FC = () => {
           <Route path="/events" element={<OSYSEvents />} />
           <Route path="/playbook" element={<OSYSPlaybook />} />
           <Route path="/messages" element={<OSYSMessenger />} />
+          <Route path="/roster" element={<OSYSRoster />} />
           
           {!user ? (
             <>
@@ -224,17 +226,19 @@ const AppContent: React.FC = () => {
             // Fan-specific routes - simplified navigation
             <>
               <Route path="/" element={<Layout />}>
-                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route index element={<Navigate to="/fan-hub" replace />} />
                 <Route path="dashboard" element={<FanDashboard />} />
+                <Route path="fan-hub" element={<OSYSFanHub />} />
                 <Route path="profile" element={<FanProfile />} />
                 <Route path="events/:eventId/register" element={<RegistrationFlow />} />
               </Route>
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<Navigate to="/fan-hub" replace />} />
             </>
           ) : (
             <>
               <Route path="/" element={<Layout />}>
-                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route index element={<Navigate to="/coach-demo" replace />} />
+                <Route path="coach-demo" element={<OSYSDashboard />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="roster" element={<Roster />} />
                 {config.playbookEnabled && <Route path="playbook" element={<Playbook />} />}

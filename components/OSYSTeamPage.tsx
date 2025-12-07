@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AnimatedBackground, GlassCard, Button, Badge, ProgressBar } from './ui/OSYSComponents';
 import { DemoNavigation } from './ui/DemoNavigation';
 import { LiveGameBanner } from './ui/LiveGameBanner';
+import { useDemoToast } from '../hooks/useOSYSData';
 
 // Types
 interface Player {
@@ -137,7 +138,14 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: '60px'
+    marginTop: '60px',
+    overflow: 'hidden'
+  },
+  heroPattern: {
+    position: 'absolute' as const,
+    inset: 0,
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='50' font-size='60' opacity='0.05'%3E🦅%3C/text%3E%3C/svg%3E")`,
+    backgroundSize: '100px'
   },
   heroGradient: {
     position: 'absolute' as const,
@@ -489,6 +497,7 @@ const styles = {
 // Component
 export function OSYSTeamPage() {
   const [activeTab, setActiveTab] = useState('roster');
+  const { showToast, ToastComponent } = useDemoToast();
 
   const tabs = [
     { id: 'roster', label: '👥 Roster' },
@@ -516,8 +525,8 @@ export function OSYSTeamPage() {
           <span>OSYS</span>
         </a>
         <div style={styles.navRight}>
-          <Button variant="ghost">🔔</Button>
-          <Button variant="primary">Sign In</Button>
+          <Button variant="ghost" onClick={() => showToast('No new notifications', 'info')}>🔔</Button>
+          <Button variant="primary" onClick={() => showToast('Sign in coming soon!', 'info')}>Sign In</Button>
         </div>
       </nav>
 
@@ -537,11 +546,12 @@ export function OSYSTeamPage() {
         }}
         period="3rd Quarter"
         timeRemaining="8:42"
-        onWatch={() => console.log('Watch live')}
+        onWatch={() => showToast('Opening live stream...', 'success')}
       />
 
       {/* Hero Banner */}
       <div style={styles.heroBanner}>
+        <div style={styles.heroPattern} />
         <div style={styles.heroGradient} />
         <div style={styles.teamLogo}>{mockTeam.emoji}</div>
       </div>
@@ -557,9 +567,9 @@ export function OSYSTeamPage() {
           <span style={styles.metaItem}>👥 {mockTeam.playerCount} Players</span>
         </div>
         <div style={styles.teamActions}>
-          <Button variant="gold">🎟️ Buy Tickets</Button>
-          <Button variant="primary">👥 Join Team</Button>
-          <Button variant="ghost">🔗 Share</Button>
+          <Button variant="gold" onClick={() => showToast('Ticket purchase coming soon!', 'info')}>🎟️ Buy Tickets</Button>
+          <Button variant="primary" onClick={() => showToast('Team join request sent!', 'success')}>👥 Join Team</Button>
+          <Button variant="ghost" onClick={() => showToast('Link copied to clipboard!', 'success')}>🔗 Share</Button>
         </div>
       </div>
 
@@ -733,7 +743,7 @@ export function OSYSTeamPage() {
                 <span style={{ fontWeight: 700 }}>$13,600 raised</span>
                 <span style={{ opacity: 0.7 }}>84 donors</span>
               </div>
-              <Button variant="gold" style={{ width: '100%' }}>
+              <Button variant="gold" style={{ width: '100%' }} onClick={() => showToast('Donations coming soon!', 'info')}>
                 💝 Support the Team
               </Button>
             </div>
@@ -773,7 +783,7 @@ export function OSYSTeamPage() {
                 <div style={{ fontSize: '0.875rem', color: 'var(--osys-text-secondary)' }}>
                   ⏰ 7:00 PM • 📍 Home
                 </div>
-                <Button variant="gold" style={{ width: '100%', marginTop: '1rem' }}>
+                <Button variant="gold" style={{ width: '100%', marginTop: '1rem' }} onClick={() => showToast('Tickets coming soon!', 'info')}>
                   🎟️ Get Tickets
                 </Button>
               </div>
@@ -783,10 +793,10 @@ export function OSYSTeamPage() {
             <GlassCard>
               <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '1rem' }}>🔗 Quick Links</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <Button variant="ghost" style={{ justifyContent: 'flex-start' }}>📹 Watch Live Games</Button>
-                <Button variant="ghost" style={{ justifyContent: 'flex-start' }}>🎬 Highlight Reels</Button>
-                <Button variant="ghost" style={{ justifyContent: 'flex-start' }}>📊 Full Stats</Button>
-                <Button variant="ghost" style={{ justifyContent: 'flex-start' }}>📝 Team Playbook</Button>
+                <Button variant="ghost" style={{ justifyContent: 'flex-start' }} onClick={() => showToast('Live games coming soon!', 'info')}>📹 Watch Live Games</Button>
+                <Button variant="ghost" style={{ justifyContent: 'flex-start' }} onClick={() => showToast('Highlights coming soon!', 'info')}>🎬 Highlight Reels</Button>
+                <Button variant="ghost" style={{ justifyContent: 'flex-start' }} onClick={() => showToast('Full stats coming soon!', 'info')}>📊 Full Stats</Button>
+                <Button variant="ghost" style={{ justifyContent: 'flex-start' }} onClick={() => showToast('Playbook coming soon!', 'info')}>📝 Team Playbook</Button>
               </div>
             </GlassCard>
           </div>
@@ -815,6 +825,9 @@ export function OSYSTeamPage() {
 
       {/* Demo Navigation */}
       <DemoNavigation currentPage="team-demo" />
+      
+      {/* Toast Notifications */}
+      {ToastComponent}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AnimatedBackground, GlassCard, Button, Badge } from './ui/OSYSComponents';
 import { DemoNavigation } from './ui/DemoNavigation';
+import { useDemoToast } from '../hooks/useOSYSData';
 
 // Types
 interface Conversation {
@@ -582,6 +583,7 @@ export const OSYSMessenger: React.FC = () => {
   const [activeConversation, setActiveConversation] = useState(mockConversations[0]);
   const [messageText, setMessageText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const { showToast, ToastComponent } = useDemoToast();
 
   const getRoleBadge = (role?: string) => {
     switch (role) {
@@ -605,8 +607,8 @@ export const OSYSMessenger: React.FC = () => {
           <span>OSYS</span>
         </a>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Button variant="ghost">🔔</Button>
-          <Button variant="primary">My Profile</Button>
+          <Button variant="ghost" onClick={() => showToast('No new notifications', 'info')}>🔔</Button>
+          <Button variant="primary" onClick={() => showToast('Profile coming soon!', 'info')}>My Profile</Button>
         </div>
       </nav>
 
@@ -615,7 +617,7 @@ export const OSYSMessenger: React.FC = () => {
         <div style={styles.conversationList}>
           <div style={styles.conversationHeader}>
             <span style={styles.conversationTitle}>💬 Messages</span>
-            <Button variant="primary" style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
+            <Button variant="primary" style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }} onClick={() => showToast('New conversation coming soon!', 'info')}>
               + New
             </Button>
           </div>
@@ -682,9 +684,9 @@ export const OSYSMessenger: React.FC = () => {
               </div>
             </div>
             <div style={styles.chatActions}>
-              <button style={styles.chatActionBtn}>📞</button>
-              <button style={styles.chatActionBtn}>📹</button>
-              <button style={styles.chatActionBtn}>⋮</button>
+              <button style={styles.chatActionBtn} onClick={() => showToast('Voice call coming soon!', 'info')}>📞</button>
+              <button style={styles.chatActionBtn} onClick={() => showToast('Video call coming soon!', 'info')}>📹</button>
+              <button style={styles.chatActionBtn} onClick={() => showToast('More options coming soon!', 'info')}>⋮</button>
             </div>
           </div>
 
@@ -736,9 +738,9 @@ export const OSYSMessenger: React.FC = () => {
 
           <div style={styles.inputArea}>
             <div style={styles.inputActions}>
-              <button style={styles.inputBtn}>➕</button>
-              <button style={styles.inputBtn}>📷</button>
-              <button style={styles.inputBtn}>😊</button>
+              <button style={styles.inputBtn} onClick={() => showToast('Attachments coming soon!', 'info')}>➕</button>
+              <button style={styles.inputBtn} onClick={() => showToast('Camera coming soon!', 'info')}>📷</button>
+              <button style={styles.inputBtn} onClick={() => showToast('Emoji picker coming soon!', 'info')}>😊</button>
             </div>
             <textarea
               placeholder="Type a message..."
@@ -747,7 +749,7 @@ export const OSYSMessenger: React.FC = () => {
               style={styles.inputField}
               rows={1}
             />
-            <button style={styles.sendBtn}>➤</button>
+            <button style={styles.sendBtn} onClick={() => { if (messageText.trim()) { showToast('Message sent!', 'success'); setMessageText(''); } }}>➤</button>
           </div>
         </div>
 
@@ -804,6 +806,7 @@ export const OSYSMessenger: React.FC = () => {
       </div>
 
       <DemoNavigation />
+      {ToastComponent}
     </div>
   );
 };

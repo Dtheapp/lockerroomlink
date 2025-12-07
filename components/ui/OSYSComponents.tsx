@@ -112,7 +112,7 @@ export const Button: React.FC<ButtonProps> = ({
 // ============================================
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: 'default' | 'primary' | 'gold' | 'success' | 'live' | 'coming';
+  variant?: 'default' | 'primary' | 'gold' | 'success' | 'live' | 'coming' | 'warning' | 'error';
   className?: string;
 }
 
@@ -127,7 +127,9 @@ export const Badge: React.FC<BadgeProps> = ({
     gold: 'osys-badge-gold',
     success: 'osys-badge-success',
     live: 'osys-badge-live',
-    coming: 'osys-badge-coming'
+    coming: 'osys-badge-coming',
+    warning: 'osys-badge-warning',
+    error: 'osys-badge-error'
   }[variant];
 
   return (

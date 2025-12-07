@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AnimatedBackground, GlassCard, Button, Badge, ProgressBar } from './ui/OSYSComponents';
 import { DemoNavigation } from './ui/DemoNavigation';
+import { useDemoToast } from '../hooks/useOSYSData';
 
 // Types
 interface Event {
@@ -506,6 +507,7 @@ const styles: Record<string, React.CSSProperties> = {
 export const OSYSEvents: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [currentMonth] = useState('January 2025');
+  const { showToast, ToastComponent } = useDemoToast();
 
   const filters = [
     { id: 'all', label: 'All Events' },
@@ -541,9 +543,9 @@ export const OSYSEvents: React.FC = () => {
           <span>OSYS</span>
         </a>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Button variant="ghost">🔔</Button>
-          <Button variant="gold">+ Create Event</Button>
-          <Button variant="primary">Sign In</Button>
+          <Button variant="ghost" onClick={() => showToast('No new notifications', 'info')}>🔔</Button>
+          <Button variant="gold" onClick={() => showToast('Event creation coming soon!', 'info')}>+ Create Event</Button>
+          <Button variant="primary" onClick={() => showToast('Sign in coming soon!', 'info')}>Sign In</Button>
         </div>
       </nav>
 
@@ -587,9 +589,9 @@ export const OSYSEvents: React.FC = () => {
                     </div>
                   )}
                   <div style={styles.featuredActions}>
-                    <Button variant="gold">🎟️ Buy Tickets (${featuredEvent.ticketPrice})</Button>
-                    <Button variant="primary">📺 Watch Live</Button>
-                    <Button variant="ghost">🔗 Share</Button>
+                    <Button variant="gold" onClick={() => showToast('Ticket purchase coming soon!', 'info')}>🎫 Buy Tickets (${featuredEvent.ticketPrice})</Button>
+                    <Button variant="primary" onClick={() => showToast('Live stream coming soon!', 'info')}>📺 Watch Live</Button>
+                    <Button variant="ghost" onClick={() => showToast('Link copied!', 'success')}>🔗 Share</Button>
                   </div>
                 </div>
               </div>
@@ -651,14 +653,14 @@ export const OSYSEvents: React.FC = () => {
                 </div>
                 <div style={styles.eventActions}>
                   {event.ticketPrice && (
-                    <Button variant="primary" style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
+                    <Button variant="primary" style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }} onClick={() => showToast('Ticket purchase coming soon!', 'info')}>
                       🎟️ ${event.ticketPrice}
                     </Button>
                   )}
                   {event.ticketsAvailable && (
                     <div style={styles.ticketInfo}>{event.ticketsAvailable} left</div>
                   )}
-                  <Button variant="ghost" style={{ padding: '0.5rem 0.75rem', fontSize: '0.75rem' }}>
+                  <Button variant="ghost" style={{ padding: '0.5rem 0.75rem', fontSize: '0.75rem' }} onClick={() => showToast('Event details coming soon!', 'info')}>
                     Details →
                   </Button>
                 </div>
@@ -674,8 +676,8 @@ export const OSYSEvents: React.FC = () => {
             <div style={styles.calendarHeader}>
               <span style={styles.calendarMonth}>{currentMonth}</span>
               <div style={styles.calendarNav}>
-                <button style={styles.calendarNavBtn}>←</button>
-                <button style={styles.calendarNavBtn}>→</button>
+                <button style={styles.calendarNavBtn} onClick={() => showToast('Previous month coming soon!', 'info')}>←</button>
+                <button style={styles.calendarNavBtn} onClick={() => showToast('Next month coming soon!', 'info')}>→</button>
               </div>
             </div>
             
@@ -778,6 +780,7 @@ export const OSYSEvents: React.FC = () => {
       </div>
 
       <DemoNavigation />
+      {ToastComponent}
     </div>
   );
 };

@@ -6,7 +6,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
-import type { Team, UserProfile } from '../../types';
+import type { Team, UserProfile, SportType } from '../../types';
+import { getSportOptions, getSportConfig } from '../../config/sportConfig';
 import { Plus, Trash2, Edit2, Users, FileText, MessageCircle, AlertTriangle, Search, X, Check, UserX, UserCheck, Shield, Crown } from 'lucide-react';
 
 type ModalContent = 'roster' | 'posts' | 'chat';
@@ -41,12 +42,17 @@ const ManageTeams: React.FC = () => {
     // FORM STATES
     const [newTeamName, setNewTeamName] = useState('');
     const [newTeamId, setNewTeamId] = useState('');
+    const [newTeamSport, setNewTeamSport] = useState<SportType>('football');
     const [editTeamName, setEditTeamName] = useState('');
+    const [editTeamSport, setEditTeamSport] = useState<SportType>('football');
     const [editCoachId, setEditCoachId] = useState<string | null>(null);
     const [editHeadCoachId, setEditHeadCoachId] = useState<string | null>(null);
     const [teamCoaches, setTeamCoaches] = useState<CoachOption[]>([]); // Coaches currently on this team
     const [createError, setCreateError] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+    
+    // Get sport options for dropdowns
+    const sportOptions = getSportOptions();
 
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
     const [modalContent, setModalContent] = useState<ModalContent>('roster');
@@ -219,14 +225,15 @@ const ManageTeams: React.FC = () => {
         
         await setDoc(docRef, { 
             name: newTeamName, 
+            sport: newTeamSport,
             coachId: null,
             record: { wins: 0, losses: 0, ties: 0 } // Initialize record
         });
         
         // Log activity
-        await logActivity('CREATE', 'team', cleanId, `Created team "${newTeamName}"`);
+        await logActivity('CREATE', 'team', cleanId, `Created ${newTeamSport} team "${newTeamName}"`);
         
-        setNewTeamName(''); setNewTeamId(''); setCreateModalOpen(false);
+        setNewTeamName(''); setNewTeamId(''); setNewTeamSport('football'); setCreateModalOpen(false);
       } catch (error) { console.error(error); setCreateError("Failed to create team."); }
     };
 
@@ -249,6 +256,7 @@ const ManageTeams: React.FC = () => {
             // Update team document - also update coachIds array
             const teamUpdateData: any = { 
                 name: editTeamName,
+                sport: editTeamSport,
                 coachId: newCoachId,
                 headCoachId: newHeadCoachId
             };
@@ -395,6 +403,7 @@ const ManageTeams: React.FC = () => {
     const openEditModal = async (team: Team) => { 
         setSelectedTeam(team); 
         setEditTeamName(team.name); 
+        setEditTeamSport(team.sport || 'football'); // Default to football for existing teams
         setEditCoachId(team.coachId || null);
         setEditHeadCoachId(team.headCoachId || null);
         
@@ -580,12 +589,19 @@ const ManageTeams: React.FC = () => {
                   <p className="text-center text-slate-500 dark:text-slate-400 py-8">
                       {searchQuery ? `No teams matching "${searchQuery}"` : 'No teams found.'}
                   </p>
-              ) : filteredTeams.map(team => (
+              ) : filteredTeams.map(team => {
+                  const sportOption = sportOptions.find(s => s.value === team.sport);
+                  return (
                   <div key={team.id} className="bg-slate-50 dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-zinc-800 p-5 shadow-lg">
                       <div className="flex justify-between items-start mb-2">
                           <div>
                               <h3 className="text-xl font-bold text-slate-900 dark:text-white">{team.name}</h3>
-                              <p className="text-xs text-slate-500 font-mono">ID: {team.id}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-slate-300">
+                                      {sportOption?.emoji || '🏈'} {sportOption?.label || 'Football'}
+                                  </span>
+                                  <p className="text-xs text-slate-500 font-mono">ID: {team.id}</p>
+                              </div>
                           </div>
                           <div className="bg-slate-300 dark:bg-zinc-900 px-2 py-1 rounded text-xs text-orange-700 dark:text-orange-400 border border-slate-400 dark:border-zinc-700">
                               {teamCoachesMap[team.id]?.length > 0 ? (
@@ -627,7 +643,8 @@ const ManageTeams: React.FC = () => {
                       {/* RENDER ACTIONS (Mobile Mode) */}
                       {renderTeamActions(team, true)}
                   </div>
-              ))}
+                  );
+              })}
           </div>
 
           {/* --- DESKTOP VIEW: TABLE --- */}
@@ -637,6 +654,7 @@ const ManageTeams: React.FC = () => {
                       <thead className="text-xs text-slate-600 dark:text-slate-400 uppercase bg-white dark:bg-black">
                       <tr>
                           <th className="px-6 py-3">Team Name</th>
+                          <th className="px-6 py-3">Sport</th>
                           <th className="px-6 py-3">Team ID</th>
                           <th className="px-6 py-3 text-orange-600 dark:text-orange-400">Coaches</th>
                           <th className="px-6 py-3 text-center">Members</th>
@@ -645,15 +663,22 @@ const ManageTeams: React.FC = () => {
                       </thead>
                       <tbody className="divide-y divide-slate-200 dark:divide-zinc-800">
                       {loading ? (
-                          <tr><td colSpan={5} className="text-center p-4">Loading teams...</td></tr>
+                          <tr><td colSpan={6} className="text-center p-4">Loading teams...</td></tr>
                       ) : filteredTeams.length === 0 ? (
-                          <tr><td colSpan={5} className="text-center p-4 text-slate-500 dark:text-slate-400">
+                          <tr><td colSpan={6} className="text-center p-4 text-slate-500 dark:text-slate-400">
                               {searchQuery ? `No teams matching "${searchQuery}"` : 'No teams found.'}
                           </td></tr>
                       ) : (
-                          filteredTeams.map(team => (
+                          filteredTeams.map(team => {
+                          const sportOption = sportOptions.find(s => s.value === team.sport);
+                          return (
                           <tr key={team.id} className="bg-slate-50 dark:bg-zinc-950 hover:bg-slate-100 dark:hover:bg-black transition-colors">
                               <td className="px-6 py-4 font-medium text-slate-900 dark:text-white whitespace-nowrap">{team.name}</td>
+                              <td className="px-6 py-4">
+                                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-slate-300">
+                                      {sportOption?.emoji || '🏈'} {sportOption?.label || 'Football'}
+                                  </span>
+                              </td>
                               <td className="px-6 py-4 font-mono text-slate-700 dark:text-slate-300">{team.id}</td>
                               <td className="px-6 py-4">
                                   {teamCoachesMap[team.id]?.length > 0 ? (
@@ -691,7 +716,8 @@ const ManageTeams: React.FC = () => {
                                  {renderTeamActions(team, false)}
                               </td>
                           </tr>
-                          ))
+                          );
+                          })
                       )}
                       </tbody>
                   </table>
@@ -708,6 +734,23 @@ const ManageTeams: React.FC = () => {
                       <input value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="Team Name (e.g., The Mighty Ducks)" className="w-full bg-slate-50 dark:bg-zinc-900 p-3 rounded border border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500" required />
                       <input value={newTeamId} onChange={(e) => setNewTeamId(e.target.value)} placeholder="Team ID (e.g. LIONS24)" className="w-full bg-slate-50 dark:bg-zinc-900 p-3 rounded border border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500" required />
                       <p className="text-xs text-slate-500">The ID must be unique and is used for parent registration.</p>
+                      
+                      {/* Sport Selection */}
+                      <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Sport</label>
+                          <select
+                              value={newTeamSport}
+                              onChange={(e) => setNewTeamSport(e.target.value as SportType)}
+                              className="w-full bg-slate-50 dark:bg-zinc-900 p-3 rounded border border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500"
+                              required
+                          >
+                              {sportOptions.map(sport => (
+                                  <option key={sport.value} value={sport.value}>
+                                      {sport.emoji} {sport.label}
+                                  </option>
+                              ))}
+                          </select>
+                      </div>
                       <div className="flex justify-end gap-4 mt-6 pt-4 border-t border-slate-200 dark:border-zinc-800">
                           <button type="button" onClick={() => setCreateModalOpen(false)} className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">Cancel</button>
                           <button type="submit" className="px-6 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold shadow-lg shadow-orange-900/20">Create</button>
@@ -736,6 +779,22 @@ const ManageTeams: React.FC = () => {
                       
                       {/* Team ID (Read-only) */}
                       <p className="text-sm text-slate-500 dark:text-slate-500">Team ID: <span className="font-mono">{selectedTeam.id}</span> (cannot be changed)</p>
+                      
+                      {/* Sport Selection */}
+                      <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Sport</label>
+                          <select
+                              value={editTeamSport}
+                              onChange={(e) => setEditTeamSport(e.target.value as SportType)}
+                              className="w-full bg-slate-50 dark:bg-zinc-900 p-3 rounded border border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500"
+                          >
+                              {sportOptions.map(sport => (
+                                  <option key={sport.value} value={sport.value}>
+                                      {sport.emoji} {sport.label}
+                                  </option>
+                              ))}
+                          </select>
+                      </div>
                       
                       {/* Coach Assignment */}
                       <div>

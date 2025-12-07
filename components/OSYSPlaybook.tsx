@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AnimatedBackground, GlassCard, Button, Badge, ProgressBar } from './ui/OSYSComponents';
 import { DemoNavigation } from './ui/DemoNavigation';
+import { useDemoToast } from '../hooks/useOSYSData';
 
 // Types
 interface Play {
@@ -429,6 +430,7 @@ export const OSYSPlaybook: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFormation, setSelectedFormation] = useState('All Formations');
+  const { showToast, ToastComponent } = useDemoToast();
 
   const filteredPlays = mockPlays.filter(play => {
     if (activeCategory === 'favorites' && !play.isFavorite) return false;
@@ -454,9 +456,9 @@ export const OSYSPlaybook: React.FC = () => {
           <span>OSYS</span>
         </a>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Button variant="ghost">🔔</Button>
-          <Button variant="gold">+ New Play</Button>
-          <Button variant="primary">Sign In</Button>
+          <Button variant="ghost" onClick={() => showToast('No new notifications', 'info')}>🔔</Button>
+          <Button variant="gold" onClick={() => showToast('Play creation coming soon!', 'info')}>+ New Play</Button>
+          <Button variant="primary" onClick={() => showToast('Sign in coming soon!', 'info')}>Sign In</Button>
         </div>
       </nav>
 
@@ -556,8 +558,8 @@ export const OSYSPlaybook: React.FC = () => {
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
-              <Button variant="ghost">🔄 Refresh</Button>
-              <Button variant="primary">📤 Export</Button>
+              <Button variant="ghost" onClick={() => showToast('Plays refreshed!', 'success')}>🔄 Refresh</Button>
+              <Button variant="primary" onClick={() => showToast('Export coming soon!', 'info')}>📤 Export</Button>
             </div>
           </div>
 
@@ -597,7 +599,7 @@ export const OSYSPlaybook: React.FC = () => {
                   </div>
                   <div style={styles.playFooter}>
                     <span style={styles.playUsage}>Used {play.usageCount} times</span>
-                    <Button variant="primary" style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
+                    <Button variant="primary" style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }} onClick={() => showToast('Play details coming soon!', 'info')}>
                       View Details
                     </Button>
                   </div>
@@ -621,6 +623,7 @@ export const OSYSPlaybook: React.FC = () => {
       </div>
 
       <DemoNavigation />
+      {ToastComponent}
     </div>
   );
 };

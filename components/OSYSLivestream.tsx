@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatedBackground, GlassCard, Button, Badge } from './ui/OSYSComponents';
 import { DemoNavigation } from './ui/DemoNavigation';
+import { useDemoToast } from '../hooks/useOSYSData';
 
 // Types
 interface ChatMessage {
@@ -547,6 +548,7 @@ export const OSYSLivestream: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'stats' | 'roster' | 'play'>('stats');
   const [chatMessage, setChatMessage] = useState('');
   const [viewerCount, setViewerCount] = useState(1247);
+  const { showToast, ToastComponent } = useDemoToast();
 
   useEffect(() => {
     injectKeyframes();
@@ -577,9 +579,9 @@ export const OSYSLivestream: React.FC = () => {
           <span>OSYS</span>
         </a>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Button variant="ghost">🔔</Button>
-          <Button variant="gold">💰 Donate</Button>
-          <Button variant="primary">Share Stream</Button>
+          <Button variant="ghost" onClick={() => showToast('No new notifications', 'info')}>🔔</Button>
+          <Button variant="gold" onClick={() => showToast('Donation coming soon!', 'info')}>💰 Donate</Button>
+          <Button variant="primary" onClick={() => showToast('Link copied!', 'success')}>Share Stream</Button>
         </div>
       </nav>
 
@@ -606,17 +608,17 @@ export const OSYSLivestream: React.FC = () => {
 
             {/* Video Controls */}
             <div style={styles.videoControls}>
-              <button style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.25rem', cursor: 'pointer' }}>
+              <button style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.25rem', cursor: 'pointer' }} onClick={() => showToast('Play/Pause coming soon!', 'info')}>
                 ⏸
               </button>
-              <button style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.25rem', cursor: 'pointer' }}>
+              <button style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.25rem', cursor: 'pointer' }} onClick={() => showToast('Volume control coming soon!', 'info')}>
                 🔊
               </button>
               <div style={styles.progressBar}>
                 <div style={styles.progressFill} />
               </div>
               <span style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.6)' }}>LIVE</span>
-              <button style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.25rem', cursor: 'pointer' }}>
+              <button style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.25rem', cursor: 'pointer' }} onClick={() => showToast('Fullscreen coming soon!', 'info')}>
                 ⛶
               </button>
             </div>
@@ -746,7 +748,7 @@ export const OSYSLivestream: React.FC = () => {
               <div style={styles.donateTitle}>Support {mockGame.homeTeam.name}</div>
               <div style={styles.donateSubtitle}>Help fund new equipment for the team</div>
             </div>
-            <Button variant="gold">💰 Donate Now</Button>
+            <Button variant="gold" onClick={() => showToast('Donation coming soon! Thank you!', 'success')}>💰 Donate Now</Button>
           </div>
         </div>
 
@@ -787,7 +789,7 @@ export const OSYSLivestream: React.FC = () => {
                 onChange={(e) => setChatMessage(e.target.value)}
                 style={styles.chatInputField}
               />
-              <Button variant="primary">Send</Button>
+              <Button variant="primary" onClick={() => { showToast('Message sent!', 'success'); setChatMessage(''); }}>Send</Button>
             </div>
           </div>
 
@@ -795,16 +797,17 @@ export const OSYSLivestream: React.FC = () => {
           <GlassCard>
             <h4 style={{ margin: '0 0 0.75rem', fontWeight: 600, fontSize: '0.875rem' }}>⚡ Quick Actions</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <Button variant="ghost" style={{ justifyContent: 'flex-start' }}>📸 Share Screenshot</Button>
-              <Button variant="ghost" style={{ justifyContent: 'flex-start' }}>✂️ Create Clip</Button>
-              <Button variant="ghost" style={{ justifyContent: 'flex-start' }}>🎁 Send Gift</Button>
-              <Button variant="ghost" style={{ justifyContent: 'flex-start' }}>📅 Add to Calendar</Button>
+              <Button variant="ghost" style={{ justifyContent: 'flex-start' }} onClick={() => showToast('Screenshot saved!', 'success')}>📸 Share Screenshot</Button>
+              <Button variant="ghost" style={{ justifyContent: 'flex-start' }} onClick={() => showToast('Clip creator coming soon!', 'info')}>✂️ Create Clip</Button>
+              <Button variant="ghost" style={{ justifyContent: 'flex-start' }} onClick={() => showToast('Gifts coming soon!', 'info')}>🎁 Send Gift</Button>
+              <Button variant="ghost" style={{ justifyContent: 'flex-start' }} onClick={() => showToast('Added to calendar!', 'success')}>📅 Add to Calendar</Button>
             </div>
           </GlassCard>
         </div>
       </div>
 
       <DemoNavigation />
+      {ToastComponent}
     </div>
   );
 };

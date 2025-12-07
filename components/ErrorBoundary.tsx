@@ -35,14 +35,23 @@ export default class ErrorBoundary extends React.Component<Props, State> {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
   }
 
-  handleReload = () => {
-    // Clear any cached data and force a hard refresh
-    if ('caches' in window) {
-      caches.keys().then(names => {
-        names.forEach(name => caches.delete(name));
-      });
+  handleReload = async () => {
+    // Unregister service worker first
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const registration of registrations) {
+        await registration.unregister();
+      }
     }
-    window.location.reload();
+    
+    // Clear all caches
+    if ('caches' in window) {
+      const names = await caches.keys();
+      await Promise.all(names.map(name => caches.delete(name)));
+    }
+    
+    // Force hard refresh (bypass cache)
+    window.location.href = window.location.href.split('?')[0] + '?nocache=' + Date.now();
   };
 
   handleGoHome = () => {
@@ -66,7 +75,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
               </h1>
               
               <p className="text-zinc-600 dark:text-zinc-400 mb-6">
-                A new version of SidelineSync is available. Please refresh to load the latest version.
+                A new version of LockerRoomLink is available. Please refresh to load the latest version.
               </p>
 
               <button

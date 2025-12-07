@@ -9,6 +9,7 @@ import GameHistory from './stats/GameHistory';
 import type { Team, PlayerSeasonStats } from '../types';
 import { BarChart3, Users, TrendingUp, ArrowUpDown, ChevronDown, ChevronUp, Trophy, Shield, Sword, Calendar, ClipboardList, AlertTriangle, Save } from 'lucide-react';
 import NoAthleteBlock from './NoAthleteBlock';
+import { getStats, getSportConfig, type StatConfig } from '../config/sportConfig';
 
 const Stats: React.FC = () => {
   const { userData, teamData, players, loading: authLoading } = useAuth();
@@ -29,8 +30,23 @@ const Stats: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   // Sorting State for SuperAdmin view
-  const [sortField, setSortField] = useState<keyof PlayerSeasonStats>('tds');
+  const [sortField, setSortField] = useState<string>('gamesPlayed');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  
+  // Get sport config from selected team (for SuperAdmin) or teamData
+  const selectedTeam = useMemo(() => 
+    teams.find(t => t.id === selectedTeamId), 
+    [teams, selectedTeamId]
+  );
+  const sportStats = useMemo(() => getStats(selectedTeam?.sport || teamData?.sport), [selectedTeam?.sport, teamData?.sport]);
+  const sportConfig = useMemo(() => getSportConfig(selectedTeam?.sport || teamData?.sport), [selectedTeam?.sport, teamData?.sport]);
+
+  // Set initial sort field based on sport
+  useEffect(() => {
+    if (sportStats.length > 1) {
+      setSortField(sportStats[1].key); // Skip gamesPlayed, use first actual stat
+    }
+  }, [sportStats]);
 
   // Fetch all teams for SuperAdmin
   useEffect(() => {
@@ -64,31 +80,38 @@ const Stats: React.FC = () => {
     }
   }, [selectedTeamId, userData?.role, currentYear]);
 
-  // Calculate top stats for SuperAdmin view
-  const topStats = useMemo(() => {
-    if (teamStats.length === 0) return null;
-    const getTopPlayer = (getValue: (s: PlayerSeasonStats) => number) => {
-      return teamStats.reduce((prev, current) => 
-        getValue(current) > getValue(prev) ? current : prev
-      , teamStats[0]);
+  // Calculate top stats for SuperAdmin view (dynamic based on sport)
+  const topLeaders = useMemo(() => {
+    if (teamStats.length === 0 || sportStats.length < 3) return null;
+    
+    const getTopPlayer = (statKey: string) => {
+      return teamStats.reduce((prev, current) => {
+        const prevVal = (prev as any)[statKey] || 0;
+        const currVal = (current as any)[statKey] || 0;
+        return currVal > prevVal ? current : prev;
+      }, teamStats[0]);
     };
-    return {
-      rusher: getTopPlayer(s => (s.rushYards || 0) + (s.recYards || 0)),
-      tackler: getTopPlayer(s => s.tackles || 0),
-      scorer: getTopPlayer(s => s.tds || 0)
-    };
-  }, [teamStats]);
 
-  // Client-Side Sorting Logic for SuperAdmin
+    // Get top 3 stats for leaders (skip gamesPlayed)
+    const leaderStats = sportStats.filter(s => s.key !== 'gamesPlayed').slice(0, 3);
+    
+    return leaderStats.map((stat, idx) => ({
+      stat,
+      player: getTopPlayer(stat.key),
+      color: idx === 0 ? 'orange' : idx === 1 ? 'cyan' : 'emerald'
+    }));
+  }, [teamStats, sportStats]);
+
+  // Client-Side Sorting Logic for SuperAdmin (dynamic)
   const sortedStats = useMemo(() => {
     return [...teamStats].sort((a, b) => {
-      const aValue = a[sortField] as number || 0;
-      const bValue = b[sortField] as number || 0;
+      const aValue = (a as any)[sortField] || 0;
+      const bValue = (b as any)[sortField] || 0;
       return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
     });
   }, [teamStats, sortField, sortDirection]);
 
-  const handleSort = (field: keyof PlayerSeasonStats) => {
+  const handleSort = (field: string) => {
     if (sortField === field) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
@@ -97,7 +120,7 @@ const Stats: React.FC = () => {
     }
   };
 
-  const SortIcon = ({ field }: { field: keyof PlayerSeasonStats }) => {
+  const SortIcon = ({ field }: { field: string }) => {
     if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-zinc-600 opacity-50" />;
     return sortDirection === 'asc' ? <ChevronUp className="w-3 h-3 text-orange-500" /> : <ChevronDown className="w-3 h-3 text-orange-500" />;
   };
@@ -294,35 +317,28 @@ const Stats: React.FC = () => {
             </select>
           </div>
 
-          {/* Stat Leaders */}
-          {topStats && (
+          {/* Stat Leaders - Dynamic */}
+          {topLeaders && topLeaders.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-gradient-to-br from-cyan-900/30 to-cyan-950/50 p-4 rounded-xl border border-cyan-800/50">
-                <div className="flex items-center gap-2 text-cyan-400 mb-2">
-                  <Sword className="w-4 h-4" />
-                  <span className="text-xs font-bold uppercase">Top Yards</span>
+              {topLeaders.map((leader, idx) => (
+                <div 
+                  key={leader.stat.key}
+                  className="p-4 rounded-xl border"
+                  style={{
+                    background: `linear-gradient(to bottom right, ${idx === 0 ? 'rgb(124 45 18 / 0.3)' : idx === 1 ? 'rgb(22 78 99 / 0.3)' : 'rgb(6 78 59 / 0.3)'}, ${idx === 0 ? 'rgb(67 20 7 / 0.5)' : idx === 1 ? 'rgb(8 51 68 / 0.5)' : 'rgb(2 44 34 / 0.5)'})`,
+                    borderColor: idx === 0 ? 'rgb(154 52 18 / 0.5)' : idx === 1 ? 'rgb(21 94 117 / 0.5)' : 'rgb(6 95 70 / 0.5)'
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-2" style={{ color: idx === 0 ? '#fb923c' : idx === 1 ? '#22d3ee' : '#34d399' }}>
+                    <Trophy className="w-4 h-4" />
+                    <span className="text-xs font-bold uppercase">Top {leader.stat.label}</span>
+                  </div>
+                  <p className="text-2xl font-black" style={{ color: idx === 0 ? '#fb923c' : idx === 1 ? '#22d3ee' : '#34d399' }}>
+                    {(leader.player as any)[leader.stat.key] || 0}
+                  </p>
+                  <p className="text-sm text-white">{leader.player.playerName}</p>
                 </div>
-                <p className="text-2xl font-black text-cyan-400">
-                  {(topStats.rusher.rushYards || 0) + (topStats.rusher.recYards || 0)}
-                </p>
-                <p className="text-sm text-white">{topStats.rusher.playerName}</p>
-              </div>
-              <div className="bg-gradient-to-br from-emerald-900/30 to-emerald-950/50 p-4 rounded-xl border border-emerald-800/50">
-                <div className="flex items-center gap-2 text-emerald-400 mb-2">
-                  <Shield className="w-4 h-4" />
-                  <span className="text-xs font-bold uppercase">Top Tackler</span>
-                </div>
-                <p className="text-2xl font-black text-emerald-400">{topStats.tackler.tackles || 0}</p>
-                <p className="text-sm text-white">{topStats.tackler.playerName}</p>
-              </div>
-              <div className="bg-gradient-to-br from-orange-900/30 to-orange-950/50 p-4 rounded-xl border border-orange-800/50">
-                <div className="flex items-center gap-2 text-orange-400 mb-2">
-                  <Trophy className="w-4 h-4" />
-                  <span className="text-xs font-bold uppercase">Most TDs</span>
-                </div>
-                <p className="text-2xl font-black text-orange-400">{topStats.scorer.tds || 0}</p>
-                <p className="text-sm text-white">{topStats.scorer.playerName}</p>
-              </div>
+              ))}
             </div>
           )}
 
@@ -331,7 +347,7 @@ const Stats: React.FC = () => {
             <div className="p-4 border-b border-zinc-200 dark:border-zinc-800">
               <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-orange-500" />
-                Player Statistics ({currentYear})
+                {sportConfig.name} Statistics ({currentYear})
               </h2>
             </div>
 
@@ -345,10 +361,10 @@ const Stats: React.FC = () => {
               </div>
             ) : (
               <>
-                {/* MOBILE CARD VIEW */}
+                {/* MOBILE CARD VIEW - Dynamic */}
                 <div className="md:hidden divide-y divide-zinc-200 dark:divide-zinc-800">
                   {sortedStats.map((stat) => {
-                    const totalYards = (stat.rushYards || 0) + (stat.recYards || 0);
+                    const mobileStats = sportStats.slice(0, 4);
                     return (
                       <div key={stat.id} className="p-4 bg-white dark:bg-black">
                         <div className="flex justify-between items-center mb-3">
@@ -356,64 +372,48 @@ const Stats: React.FC = () => {
                             <h3 className="font-bold text-zinc-900 dark:text-white">{stat.playerName}</h3>
                             <span className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-500 px-2 py-1 rounded">#{stat.playerNumber}</span>
                           </div>
-                          <div className="text-right">
-                            <div className="text-2xl font-black text-orange-500">{stat.tds || 0} <span className="text-xs text-orange-300 font-normal uppercase">TDs</span></div>
-                          </div>
+                          {mobileStats[1] && (
+                            <div className="text-right">
+                              <div className="text-2xl font-black text-orange-500">
+                                {(stat as any)[mobileStats[1].key] || 0} 
+                                <span className="text-xs text-orange-300 font-normal uppercase ml-1">{mobileStats[1].shortLabel}</span>
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                          <div className="bg-zinc-50 dark:bg-zinc-900 p-2 rounded">
-                            <div className="text-zinc-400 uppercase tracking-wider text-[10px]">Yds</div>
-                            <div className="font-bold text-zinc-900 dark:text-white">{totalYards}</div>
-                          </div>
-                          <div className="bg-zinc-50 dark:bg-zinc-900 p-2 rounded">
-                            <div className="text-zinc-400 uppercase tracking-wider text-[10px]">Rec</div>
-                            <div className="font-bold text-zinc-900 dark:text-white">{stat.rec || 0}</div>
-                          </div>
-                          <div className="bg-zinc-50 dark:bg-zinc-900 p-2 rounded">
-                            <div className="text-zinc-400 uppercase tracking-wider text-[10px]">Tkl</div>
-                            <div className="font-bold text-zinc-900 dark:text-white">{stat.tackles || 0}</div>
-                          </div>
-                          <div className="bg-zinc-50 dark:bg-zinc-900 p-2 rounded">
-                            <div className="text-zinc-400 uppercase tracking-wider text-[10px]">INT</div>
-                            <div className="font-bold text-zinc-900 dark:text-white">{stat.int || 0}</div>
-                          </div>
+                          {mobileStats.map((statConfig, idx) => (
+                            <div key={statConfig.key} className="bg-zinc-50 dark:bg-zinc-900 p-2 rounded">
+                              <div className="text-zinc-400 uppercase tracking-wider text-[10px]">{statConfig.shortLabel}</div>
+                              <div className={`font-bold ${idx === 1 ? 'text-orange-500' : 'text-zinc-900 dark:text-white'}`}>
+                                {(stat as any)[statConfig.key] || 0}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     );
                   })}
                 </div>
 
-                {/* DESKTOP TABLE VIEW */}
+                {/* DESKTOP TABLE VIEW - Dynamic */}
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-white dark:bg-black text-zinc-600 dark:text-zinc-400 uppercase text-xs">
                       <tr>
                         <th className="px-4 py-3 text-left">#</th>
                         <th className="px-4 py-3 text-left">Player</th>
-                        <th className="px-4 py-3 text-center cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900" onClick={() => handleSort('gp')}>
-                          <div className="flex items-center justify-center gap-1">GP <SortIcon field="gp"/></div>
-                        </th>
-                        <th className="px-4 py-3 text-center cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900" onClick={() => handleSort('tds')}>
-                          <div className="flex items-center justify-center gap-1">TDs <SortIcon field="tds"/></div>
-                        </th>
-                        <th className="px-4 py-3 text-center cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900" onClick={() => handleSort('rushYards')}>
-                          <div className="flex items-center justify-center gap-1">Rush <SortIcon field="rushYards"/></div>
-                        </th>
-                        <th className="px-4 py-3 text-center cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900" onClick={() => handleSort('recYards')}>
-                          <div className="flex items-center justify-center gap-1">Rec <SortIcon field="recYards"/></div>
-                        </th>
-                        <th className="px-4 py-3 text-center cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900" onClick={() => handleSort('tackles')}>
-                          <div className="flex items-center justify-center gap-1">Tkl <SortIcon field="tackles"/></div>
-                        </th>
-                        <th className="px-4 py-3 text-center cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900" onClick={() => handleSort('sacks')}>
-                          <div className="flex items-center justify-center gap-1">Sacks <SortIcon field="sacks"/></div>
-                        </th>
-                        <th className="px-4 py-3 text-center cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900" onClick={() => handleSort('int')}>
-                          <div className="flex items-center justify-center gap-1">INT <SortIcon field="int"/></div>
-                        </th>
-                        <th className="px-4 py-3 text-center cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900" onClick={() => handleSort('ff')}>
-                          <div className="flex items-center justify-center gap-1">FF <SortIcon field="ff"/></div>
-                        </th>
+                        {sportStats.slice(0, 8).map(statConfig => (
+                          <th 
+                            key={statConfig.key}
+                            className="px-4 py-3 text-center cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900" 
+                            onClick={() => handleSort(statConfig.key)}
+                          >
+                            <div className="flex items-center justify-center gap-1">
+                              {statConfig.shortLabel} <SortIcon field={statConfig.key}/>
+                            </div>
+                          </th>
+                        ))}
                         <th className="px-4 py-3 text-center cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900" onClick={() => handleSort('spts')}>
                           <div className="flex items-center justify-center gap-1">SPTS <SortIcon field="spts"/></div>
                         </th>
@@ -424,14 +424,19 @@ const Stats: React.FC = () => {
                         <tr key={stat.id} className="hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
                           <td className="px-4 py-3 font-bold text-zinc-900 dark:text-white">{stat.playerNumber}</td>
                           <td className="px-4 py-3 font-medium text-zinc-900 dark:text-white">{stat.playerName}</td>
-                          <td className="px-4 py-3 text-center">{stat.gp || 0}</td>
-                          <td className="px-4 py-3 text-center text-orange-600 dark:text-orange-400 font-bold bg-orange-50/50 dark:bg-orange-900/10">{stat.tds || 0}</td>
-                          <td className="px-4 py-3 text-center text-cyan-600 dark:text-cyan-400 font-bold">{stat.rushYards || 0}</td>
-                          <td className="px-4 py-3 text-center">{stat.recYards || 0}</td>
-                          <td className="px-4 py-3 text-center text-emerald-600 dark:text-emerald-400 font-bold">{stat.tackles || 0}</td>
-                          <td className="px-4 py-3 text-center">{stat.sacks || 0}</td>
-                          <td className="px-4 py-3 text-center text-purple-600 dark:text-purple-400">{stat.int || 0}</td>
-                          <td className="px-4 py-3 text-center text-orange-600 dark:text-orange-400">{stat.ff || 0}</td>
+                          {sportStats.slice(0, 8).map((statConfig, idx) => (
+                            <td 
+                              key={statConfig.key}
+                              className={`px-4 py-3 text-center ${
+                                idx === 0 ? '' : 
+                                idx === 1 ? 'text-orange-600 dark:text-orange-400 font-bold bg-orange-50/50 dark:bg-orange-900/10' : 
+                                idx < 4 ? 'text-cyan-600 dark:text-cyan-400 font-bold' : 
+                                ''
+                              }`}
+                            >
+                              {(stat as any)[statConfig.key] || 0}
+                            </td>
+                          ))}
                           <td className="px-4 py-3 text-center">{stat.spts || 0}</td>
                         </tr>
                       ))}

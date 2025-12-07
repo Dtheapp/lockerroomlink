@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AnimatedBackground, GlassCard, Button, Badge, ProgressBar } from './ui/OSYSComponents';
 import { DemoNavigation } from './ui/DemoNavigation';
+import { useDemoToast } from '../hooks/useOSYSData';
 
 // Types
 interface Achievement {
@@ -398,6 +399,7 @@ const styles: Record<string, React.CSSProperties> = {
 
 export const OSYSCoachProfile: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'roster' | 'playbooks' | 'achievements'>('roster');
+  const { showToast, ToastComponent } = useDemoToast();
 
   const getStatusStyle = (status: string) => {
     switch (status) {
@@ -423,8 +425,8 @@ export const OSYSCoachProfile: React.FC = () => {
           <span>OSYS</span>
         </a>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Button variant="ghost">🔔</Button>
-          <Button variant="primary">Sign In</Button>
+          <Button variant="ghost" onClick={() => showToast('No new notifications', 'info')}>🔔</Button>
+          <Button variant="primary" onClick={() => showToast('Sign in coming soon!', 'info')}>Sign In</Button>
         </div>
       </nav>
 
@@ -471,9 +473,9 @@ export const OSYSCoachProfile: React.FC = () => {
         </div>
 
         <div style={styles.heroActions}>
-          <Button variant="gold">💬 Message Coach</Button>
-          <Button variant="primary">👥 Follow Team</Button>
-          <Button variant="ghost">🔗 Share Profile</Button>
+          <Button variant="gold" onClick={() => showToast('Messaging coming soon!', 'info')}>💬 Message Coach</Button>
+          <Button variant="primary" onClick={() => showToast('Now following team!', 'success')}>👥 Follow Team</Button>
+          <Button variant="ghost" onClick={() => showToast('Link copied!', 'success')}>🔗 Share Profile</Button>
         </div>
       </div>
 
@@ -621,7 +623,7 @@ export const OSYSCoachProfile: React.FC = () => {
               </tbody>
             </table>
             <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-              <Button variant="ghost">View Full Roster →</Button>
+              <Button variant="ghost" onClick={() => showToast('Full roster coming soon!', 'info')}>View Full Roster →</Button>
             </div>
           </GlassCard>
 
@@ -639,19 +641,20 @@ export const OSYSCoachProfile: React.FC = () => {
                     <span>⭐ {playbook.rating}</span>
                   </div>
                 </div>
-                <Button variant="primary" style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
+                <Button variant="primary" style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }} onClick={() => showToast('Playbook viewer coming soon!', 'info')}>
                   View
                 </Button>
               </div>
             ))}
             <div style={{ marginTop: '0.5rem', textAlign: 'center' }}>
-              <Button variant="ghost">Browse All Playbooks →</Button>
+              <Button variant="ghost" onClick={() => showToast('Playbook library coming soon!', 'info')}>Browse All Playbooks →</Button>
             </div>
           </GlassCard>
         </div>
       </div>
 
       <DemoNavigation />
+      {ToastComponent}
     </div>
   );
 };

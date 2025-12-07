@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AnimatedBackground, GlassCard, GlassPanel, Button, Badge, GradientText, ProgressBar } from './ui/OSYSComponents';
 import { DemoNavigation } from './ui/DemoNavigation';
+import { useAthleteData, useAthleteActions, useDemoToast, formatNumber } from '../hooks/useOSYSData';
 
 // Types
 interface AthleteStats {
@@ -184,113 +185,119 @@ const styles = {
     alignItems: 'center',
     gap: '1rem'
   },
-  heroBanner: {
-    height: '280px',
-    background: 'linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)',
+  heroSection: {
+    marginTop: '60px',
     position: 'relative' as const,
-    marginTop: '60px'
+    overflow: 'visible'
   },
-  heroGradient: {
+  heroBackground: {
     position: 'absolute' as const,
-    bottom: 0,
+    top: 0,
     left: 0,
     right: 0,
-    height: '150px',
-    background: 'linear-gradient(to top, var(--osys-bg-primary) 0%, transparent 100%)'
+    height: '220px',
+    background: 'linear-gradient(135deg, rgba(30, 58, 95, 0.7) 0%, rgba(15, 23, 42, 0.95) 100%)',
+    zIndex: 0
+  },
+  heroPattern: {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '220px',
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='50' font-size='60' opacity='0.05'%3E🏈%3C/text%3E%3C/svg%3E")`,
+    backgroundSize: '80px',
+    zIndex: 1
   },
   profileHeader: {
     maxWidth: '1200px',
     margin: '0 auto',
-    padding: '0 2rem',
+    padding: '2rem 2rem 1.5rem',
     position: 'relative' as const,
-    marginTop: '-100px',
     zIndex: 10
   },
   profileCard: {
     display: 'flex',
-    gap: '2rem',
-    alignItems: 'flex-end',
-    flexWrap: 'wrap' as const
+    gap: '1.5rem',
+    alignItems: 'flex-start'
   },
   avatar: {
-    width: '180px',
-    height: '180px',
-    borderRadius: '20px',
+    width: '120px',
+    height: '120px',
+    borderRadius: '16px',
     background: 'var(--osys-gradient-gold)',
     border: '4px solid var(--osys-bg-primary)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '4rem',
+    fontSize: '2.5rem',
     fontWeight: 800,
-    boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
     position: 'relative' as const,
-    color: 'var(--osys-bg-primary)'
+    color: 'var(--osys-bg-primary)',
+    flexShrink: 0
   },
   avatarBadge: {
     position: 'absolute' as const,
-    bottom: '-8px',
-    right: '-8px',
-    width: '48px',
-    height: '48px',
+    bottom: '-4px',
+    right: '-4px',
+    width: '32px',
+    height: '32px',
     background: 'var(--osys-gradient-primary)',
     borderRadius: '50%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '1.5rem',
-    border: '3px solid var(--osys-bg-primary)'
+    fontSize: '1rem',
+    border: '2px solid var(--osys-bg-primary)'
   },
   profileInfo: {
     flex: 1,
-    paddingBottom: '1rem',
-    minWidth: '300px'
+    minWidth: '280px'
   },
   teamBadge: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '0.5rem',
-    padding: '0.375rem 0.75rem',
+    padding: '0.25rem 0.625rem',
     background: 'rgba(255,255,255,0.1)',
     borderRadius: '20px',
-    fontSize: '0.75rem',
+    fontSize: '0.6875rem',
     fontWeight: 500,
-    marginBottom: '0.75rem'
+    marginBottom: '0.375rem'
   },
   profileName: {
-    fontSize: '2.5rem',
+    fontSize: '1.75rem',
     fontWeight: 800,
-    marginBottom: '0.25rem'
+    marginBottom: '0.125rem',
+    lineHeight: 1.2
   },
   profilePosition: {
-    fontSize: '1.125rem',
+    fontSize: '0.875rem',
     color: 'var(--osys-text-secondary)',
-    marginBottom: '1rem'
+    marginBottom: '0.5rem'
   },
   profileMeta: {
     display: 'flex',
-    gap: '2rem',
-    flexWrap: 'wrap' as const
+    gap: '0.875rem',
+    flexWrap: 'wrap' as const,
+    marginBottom: '0.25rem'
   },
   metaItem: {
     display: 'flex',
     alignItems: 'center',
-    gap: '0.5rem',
-    fontSize: '0.875rem',
+    gap: '0.25rem',
+    fontSize: '0.75rem',
     color: 'var(--osys-text-secondary)'
   },
   profileActions: {
     display: 'flex',
-    gap: '0.75rem',
-    paddingBottom: '1rem',
+    gap: '0.5rem',
     flexWrap: 'wrap' as const
   },
   socialStatsBar: {
     display: 'flex',
-    gap: '1.5rem',
-    marginTop: '1.5rem',
-    paddingTop: '1.5rem',
-    borderTop: '1px solid rgba(255,255,255,0.1)'
+    gap: '1.25rem'
   },
   socialStat: {
     display: 'flex',
@@ -300,18 +307,19 @@ const styles = {
     transition: 'all 0.2s'
   },
   socialStatValue: {
-    fontSize: '1.25rem',
+    fontSize: '1rem',
     fontWeight: 700
   },
   socialStatLabel: {
-    fontSize: '0.6875rem',
+    fontSize: '0.5625rem',
     color: 'var(--osys-text-tertiary)',
-    textTransform: 'uppercase' as const
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.03em'
   },
   content: {
     maxWidth: '1200px',
-    margin: '0 auto',
-    padding: '2rem',
+    margin: '-1rem auto 0 auto',
+    padding: '0 2rem 1.5rem 2rem',
     position: 'relative' as const,
     zIndex: 10
   },
@@ -319,7 +327,7 @@ const styles = {
     display: 'flex',
     gap: 0,
     borderBottom: '1px solid rgba(255,255,255,0.1)',
-    marginBottom: '1.5rem',
+    marginBottom: '1rem',
     overflowX: 'auto' as const
   },
   tab: {
@@ -632,7 +640,27 @@ const styles = {
 // Component
 export function OSYSAthleteProfile() {
   const [activeTab, setActiveTab] = useState('stats');
-  const [isFollowing, setIsFollowing] = useState(false);
+  
+  // Use hooks for data and actions
+  const { data: athleteData } = useAthleteData();
+  const { isFollowing, handleFollow, followLoading } = useAthleteActions();
+  const { showToast, ToastComponent } = useDemoToast();
+
+  // Handle follow button click
+  const onFollowClick = async () => {
+    await handleFollow(athleteData.username || '', athleteData.teamId, athleteData.id);
+    showToast(isFollowing ? 'Unfollowed athlete' : 'Now following ' + athleteData.name, 'success');
+  };
+
+  // Handle kudos button click
+  const onKudosClick = () => {
+    showToast('Kudos sent to ' + athleteData.name + '! 🎉', 'success');
+  };
+
+  // Handle message button click
+  const onMessageClick = () => {
+    showToast('Messages coming soon!', 'info');
+  };
 
   const tabs = [
     { id: 'stats', label: '📊 Stats' },
@@ -653,29 +681,29 @@ export function OSYSAthleteProfile() {
           <span>OSYS</span>
         </a>
         <div style={styles.navRight}>
-          <Button variant="ghost">🔔</Button>
-          <Button variant="primary">Sign In</Button>
+          <Button variant="ghost" onClick={() => showToast('Notifications coming soon!', 'info')}>🔔</Button>
+          <Button variant="primary" onClick={() => showToast('Sign in coming soon!', 'info')}>Sign In</Button>
         </div>
       </nav>
 
-      {/* Hero Banner */}
-      <div style={styles.heroBanner}>
-        <div style={styles.heroGradient} />
-      </div>
-
-      {/* Profile Header */}
-      <div style={styles.profileHeader}>
-        <div style={styles.profileCard}>
-          <div style={styles.avatar}>
-            {mockAthlete.number}
-            <div style={styles.avatarBadge}>⭐</div>
-          </div>
-          
-          <div style={styles.profileInfo}>
-            <div style={styles.teamBadge}>
-              <span>🦅</span>
-              {mockAthlete.team} • {mockAthlete.teamLevel}
+      {/* Hero Section with subtle background */}
+      <div style={styles.heroSection}>
+        <div style={styles.heroBackground} />
+        <div style={styles.heroPattern} />
+        
+        {/* Profile Header */}
+        <div style={styles.profileHeader}>
+          <div style={styles.profileCard}>
+            <div style={styles.avatar}>
+              {mockAthlete.number}
+              <div style={styles.avatarBadge}>⭐</div>
             </div>
+            
+            <div style={styles.profileInfo}>
+              <div style={styles.teamBadge}>
+                <span>🦅</span>
+                {mockAthlete.team} • {mockAthlete.teamLevel}
+              </div>
             <h1 style={styles.profileName}>{mockAthlete.name}</h1>
             <p style={styles.profilePosition}>
               {mockAthlete.position} • Class of {mockAthlete.classYear}
@@ -687,38 +715,43 @@ export function OSYSAthleteProfile() {
               <span style={styles.metaItem}>🎂 {mockAthlete.age} years old</span>
             </div>
             
-            <div style={styles.socialStatsBar}>
-              <div style={styles.socialStat}>
-                <span style={styles.socialStatValue}>{mockAthlete.followers}</span>
-                <span style={styles.socialStatLabel}>Followers</span>
+            {/* Stats & Actions Row */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={styles.socialStatsBar}>
+                <div style={styles.socialStat}>
+                  <span style={styles.socialStatValue}>{mockAthlete.followers}</span>
+                  <span style={styles.socialStatLabel}>Followers</span>
+                </div>
+                <div style={styles.socialStat}>
+                  <span style={styles.socialStatValue}>{mockAthlete.following}</span>
+                  <span style={styles.socialStatLabel}>Following</span>
+                </div>
+                <div style={styles.socialStat}>
+                  <span style={styles.socialStatValue}>{mockAthlete.posts}</span>
+                  <span style={styles.socialStatLabel}>Posts</span>
+                </div>
+                <div style={styles.socialStat}>
+                  <span style={styles.socialStatValue}>{mockAthlete.kudos}</span>
+                  <span style={styles.socialStatLabel}>Kudos</span>
+                </div>
               </div>
-              <div style={styles.socialStat}>
-                <span style={styles.socialStatValue}>{mockAthlete.following}</span>
-                <span style={styles.socialStatLabel}>Following</span>
-              </div>
-              <div style={styles.socialStat}>
-                <span style={styles.socialStatValue}>{mockAthlete.posts}</span>
-                <span style={styles.socialStatLabel}>Posts</span>
-              </div>
-              <div style={styles.socialStat}>
-                <span style={styles.socialStatValue}>{mockAthlete.kudos}</span>
-                <span style={styles.socialStatLabel}>Kudos</span>
+              
+              <div style={styles.profileActions}>
+                <Button 
+                  variant={isFollowing ? 'ghost' : 'primary'}
+                  onClick={onFollowClick}
+                  disabled={followLoading}
+                >
+                  {followLoading ? '...' : isFollowing ? '✓ Following' : '➕ Follow'}
+                </Button>
+                <Button variant="gold" onClick={onKudosClick}>💫 Send Kudos</Button>
+                <Button variant="primary" onClick={onMessageClick}>💬 Message</Button>
+                <Button variant="ghost" onClick={() => showToast('Link copied!', 'success')}>🔗 Share</Button>
               </div>
             </div>
           </div>
-
-          <div style={styles.profileActions}>
-            <Button 
-              variant={isFollowing ? 'ghost' : 'primary'}
-              onClick={() => setIsFollowing(!isFollowing)}
-            >
-              {isFollowing ? '✓ Following' : '➕ Follow'}
-            </Button>
-            <Button variant="gold">💫 Send Kudos</Button>
-            <Button variant="primary">💬 Message</Button>
-            <Button variant="ghost">🔗 Share</Button>
-          </div>
         </div>
+      </div>
       </div>
 
       {/* Content */}
@@ -830,10 +863,10 @@ export function OSYSAthleteProfile() {
                       <div style={styles.postMedia}>{post.media}</div>
                     )}
                     <div style={styles.postActions}>
-                      <button style={styles.postAction}>❤️ {post.likes}</button>
-                      <button style={styles.postAction}>💬 {post.comments}</button>
-                      <button style={styles.postAction}>🔄 {post.shares}</button>
-                      <button style={styles.postAction}>🔖</button>
+                      <button style={styles.postAction} onClick={() => showToast('Liked!', 'success')}>❤️ {post.likes}</button>
+                      <button style={styles.postAction} onClick={() => showToast('Comments coming soon!', 'info')}>💬 {post.comments}</button>
+                      <button style={styles.postAction} onClick={() => showToast('Shared!', 'success')}>🔄 {post.shares}</button>
+                      <button style={styles.postAction} onClick={() => showToast('Saved to bookmarks!', 'success')}>🔖</button>
                     </div>
                   </div>
                 ))}
@@ -913,7 +946,7 @@ export function OSYSAthleteProfile() {
                   <div style={styles.nilStatLabel}>Raised</div>
                 </div>
               </div>
-              <Button variant="primary" style={{ width: '100%', marginTop: '1rem', background: 'var(--osys-bg-primary)', color: 'white' }}>
+              <Button variant="primary" style={{ width: '100%', marginTop: '1rem', background: 'var(--osys-bg-primary)', color: 'white' }} onClick={() => showToast('Contribution page coming soon!', 'info')}>
                 💝 Contribute
               </Button>
             </div>
@@ -1001,6 +1034,9 @@ export function OSYSAthleteProfile() {
 
       {/* Demo Navigation */}
       <DemoNavigation currentPage="player" />
+      
+      {/* Toast Notifications */}
+      {ToastComponent}
     </div>
   );
 }

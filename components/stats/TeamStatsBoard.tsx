@@ -4,18 +4,30 @@ import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { PlayerSeasonStats, Player } from '../../types';
 import PlayerStatsModal from './PlayerStatsModal';
-import { TrendingUp, Eye, ArrowUpDown, Trophy, Sword, Shield, Search, Users, BarChart3 } from 'lucide-react';
+import { TrendingUp, Eye, ArrowUpDown, Trophy, Search, Users, BarChart3 } from 'lucide-react';
+import { getStats, getSportConfig, type StatConfig } from '../../config/sportConfig';
 
 const TeamStatsBoard: React.FC = () => {
   const { teamData } = useAuth();
   const currentYear = new Date().getFullYear();
   
+  // Sport-specific config
+  const sportStats = useMemo(() => getStats(teamData?.sport), [teamData?.sport]);
+  const sportConfig = useMemo(() => getSportConfig(teamData?.sport), [teamData?.sport]);
+  
   const [seasonStats, setSeasonStats] = useState<PlayerSeasonStats[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState<keyof PlayerSeasonStats>('tds');
+  const [sortBy, setSortBy] = useState<string>('gamesPlayed');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+
+  // Set initial sortBy based on sport's first stat
+  useEffect(() => {
+    if (sportStats.length > 1) {
+      setSortBy(sportStats[1].key); // Skip gamesPlayed, use first actual stat
+    }
+  }, [sportStats]);
 
   // Load players and current season stats
   useEffect(() => {
@@ -54,22 +66,27 @@ const TeamStatsBoard: React.FC = () => {
     };
   }, [teamData?.id, currentYear]);
 
-  // Calculate top stats for leaders section
-  const topStats = useMemo(() => {
-    if (seasonStats.length === 0) return null;
+  // Calculate top stats for leaders section (sport-aware)
+  const topLeaders = useMemo(() => {
+    if (seasonStats.length === 0 || sportStats.length < 3) return null;
 
-    const getTopPlayer = (getValue: (s: PlayerSeasonStats) => number) => {
-      return seasonStats.reduce((prev, current) => 
-        getValue(current) > getValue(prev) ? current : prev
-      , seasonStats[0]);
+    const getTopPlayer = (statKey: string) => {
+      return seasonStats.reduce((prev, current) => {
+        const prevVal = (prev as any)[statKey] || 0;
+        const currVal = (current as any)[statKey] || 0;
+        return currVal > prevVal ? current : prev;
+      }, seasonStats[0]);
     };
 
-    return {
-      rusher: getTopPlayer(s => (s.rushYards || 0) + (s.recYards || 0)),
-      tackler: getTopPlayer(s => s.tackles || 0),
-      scorer: getTopPlayer(s => s.tds || 0)
-    };
-  }, [seasonStats]);
+    // Get top 3 stats for leaders (skip gamesPlayed)
+    const leaderStats = sportStats.filter(s => s.key !== 'gamesPlayed').slice(0, 3);
+    
+    return leaderStats.map((stat, idx) => ({
+      stat,
+      player: getTopPlayer(stat.key),
+      color: idx === 0 ? 'orange' : idx === 1 ? 'cyan' : 'emerald'
+    }));
+  }, [seasonStats, sportStats]);
 
   // Filter and sort stats
   const displayStats = useMemo(() => {
@@ -84,10 +101,10 @@ const TeamStatsBoard: React.FC = () => {
       );
     }
 
-    // Sort
+    // Sort (dynamic key)
     return filtered.sort((a, b) => {
-      const aVal = a[sortBy] as number || 0;
-      const bVal = b[sortBy] as number || 0;
+      const aVal = (a as any)[sortBy] || 0;
+      const bVal = (b as any)[sortBy] || 0;
       return bVal - aVal;
     });
   }, [seasonStats, searchQuery, sortBy]);
@@ -97,7 +114,8 @@ const TeamStatsBoard: React.FC = () => {
     return players.find(p => p.id === stat.playerId) || null;
   };
 
-  const SortHeader = ({ field, label }: { field: keyof PlayerSeasonStats; label: string }) => (
+  // Dynamic SortHeader
+  const SortHeader = ({ field, label }: { field: string; label: string }) => (
     <th 
       className="px-3 py-2 text-center font-semibold text-zinc-400 cursor-pointer hover:bg-zinc-800 transition-colors"
       onClick={() => setSortBy(field)}
@@ -108,6 +126,14 @@ const TeamStatsBoard: React.FC = () => {
       </div>
     </th>
   );
+
+  // Get display stats for table (limit columns for mobile-friendliness)
+  const tableStats = useMemo(() => {
+    // Always show gamesPlayed first, then up to 7 more stats
+    const gp = sportStats.find(s => s.key === 'gamesPlayed');
+    const others = sportStats.filter(s => s.key !== 'gamesPlayed').slice(0, 7);
+    return gp ? [gp, ...others] : others;
+  }, [sportStats]);
 
   return (
     <div className="space-y-6">
@@ -120,43 +146,29 @@ const TeamStatsBoard: React.FC = () => {
         />
       )}
 
-      {/* Stat Leaders Cards */}
-      {topStats && (
+      {/* Stat Leaders Cards - Dynamic */}
+      {topLeaders && topLeaders.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Top Rusher */}
-          <div className="bg-gradient-to-br from-cyan-900/30 to-cyan-950/50 p-4 rounded-xl border border-cyan-800/50">
-            <div className="flex items-center gap-2 text-cyan-400 mb-2">
-              <Sword className="w-4 h-4" />
-              <span className="text-xs font-bold uppercase tracking-wider">Top Yards</span>
+          {topLeaders.map((leader, idx) => (
+            <div 
+              key={leader.stat.key}
+              className={`bg-gradient-to-br from-${leader.color}-900/30 to-${leader.color}-950/50 p-4 rounded-xl border border-${leader.color}-800/50`}
+              style={{
+                background: `linear-gradient(to bottom right, ${idx === 0 ? 'rgb(124 45 18 / 0.3)' : idx === 1 ? 'rgb(22 78 99 / 0.3)' : 'rgb(6 78 59 / 0.3)'}, ${idx === 0 ? 'rgb(67 20 7 / 0.5)' : idx === 1 ? 'rgb(8 51 68 / 0.5)' : 'rgb(2 44 34 / 0.5)'})`,
+                borderColor: idx === 0 ? 'rgb(154 52 18 / 0.5)' : idx === 1 ? 'rgb(21 94 117 / 0.5)' : 'rgb(6 95 70 / 0.5)'
+              }}
+            >
+              <div className="flex items-center gap-2 mb-2" style={{ color: idx === 0 ? '#fb923c' : idx === 1 ? '#22d3ee' : '#34d399' }}>
+                <Trophy className="w-4 h-4" />
+                <span className="text-xs font-bold uppercase tracking-wider">Top {leader.stat.label}</span>
+              </div>
+              <p className="text-3xl font-black" style={{ color: idx === 0 ? '#fb923c' : idx === 1 ? '#22d3ee' : '#34d399' }}>
+                {(leader.player as any)[leader.stat.key] || 0}
+              </p>
+              <p className="text-sm text-white font-medium mt-1">{leader.player.playerName}</p>
+              <p className="text-xs text-zinc-500">#{leader.player.playerNumber}</p>
             </div>
-            <p className="text-3xl font-black text-cyan-400">
-              {(topStats.rusher.rushYards || 0) + (topStats.rusher.recYards || 0)}
-            </p>
-            <p className="text-sm text-white font-medium mt-1">{topStats.rusher.playerName}</p>
-            <p className="text-xs text-zinc-500">#{topStats.rusher.playerNumber}</p>
-          </div>
-
-          {/* Top Tackler */}
-          <div className="bg-gradient-to-br from-emerald-900/30 to-emerald-950/50 p-4 rounded-xl border border-emerald-800/50">
-            <div className="flex items-center gap-2 text-emerald-400 mb-2">
-              <Shield className="w-4 h-4" />
-              <span className="text-xs font-bold uppercase tracking-wider">Top Tackler</span>
-            </div>
-            <p className="text-3xl font-black text-emerald-400">{topStats.tackler.tackles || 0}</p>
-            <p className="text-sm text-white font-medium mt-1">{topStats.tackler.playerName}</p>
-            <p className="text-xs text-zinc-500">#{topStats.tackler.playerNumber}</p>
-          </div>
-
-          {/* Top Scorer */}
-          <div className="bg-gradient-to-br from-orange-900/30 to-orange-950/50 p-4 rounded-xl border border-orange-800/50">
-            <div className="flex items-center gap-2 text-orange-400 mb-2">
-              <Trophy className="w-4 h-4" />
-              <span className="text-xs font-bold uppercase tracking-wider">Most TDs</span>
-            </div>
-            <p className="text-3xl font-black text-orange-400">{topStats.scorer.tds || 0}</p>
-            <p className="text-sm text-white font-medium mt-1">{topStats.scorer.playerName}</p>
-            <p className="text-xs text-zinc-500">#{topStats.scorer.playerNumber}</p>
-          </div>
+          ))}
         </div>
       )}
 
@@ -166,7 +178,7 @@ const TeamStatsBoard: React.FC = () => {
           <div className="flex items-center gap-3">
             <TrendingUp className="w-5 h-5 text-orange-500" />
             <div>
-              <h3 className="text-lg font-bold text-white">Team Stats</h3>
+              <h3 className="text-lg font-bold text-white">{sportConfig.name} Stats</h3>
               <p className="text-xs text-zinc-500">{currentYear} Season</p>
             </div>
           </div>
@@ -198,11 +210,11 @@ const TeamStatsBoard: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* MOBILE CARD VIEW */}
+            {/* MOBILE CARD VIEW - Dynamic */}
             <div className="md:hidden divide-y divide-zinc-800">
               {displayStats.map(stat => {
                 const player = getPlayerObject(stat);
-                const totalYards = (stat.rushYards || 0) + (stat.recYards || 0);
+                const mobileStats = tableStats.slice(0, 4); // First 4 stats for mobile
                 
                 return (
                   <div 
@@ -215,28 +227,24 @@ const TeamStatsBoard: React.FC = () => {
                         <h4 className="font-bold text-white">{stat.playerName}</h4>
                         <span className="text-xs text-zinc-500">#{stat.playerNumber}</span>
                       </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-black text-orange-400">{stat.tds || 0}</p>
-                        <p className="text-[10px] uppercase text-zinc-500">TDs</p>
-                      </div>
+                      {mobileStats[1] && (
+                        <div className="text-right">
+                          <p className="text-2xl font-black text-orange-400">
+                            {(stat as any)[mobileStats[1].key] || 0}
+                          </p>
+                          <p className="text-[10px] uppercase text-zinc-500">{mobileStats[1].shortLabel}</p>
+                        </div>
+                      )}
                     </div>
                     <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                      <div className="bg-zinc-800 p-2 rounded">
-                        <p className="text-zinc-500 text-[10px]">GP</p>
-                        <p className="font-bold text-white">{stat.gp || 0}</p>
-                      </div>
-                      <div className="bg-zinc-800 p-2 rounded">
-                        <p className="text-zinc-500 text-[10px]">YDS</p>
-                        <p className="font-bold text-cyan-400">{totalYards}</p>
-                      </div>
-                      <div className="bg-zinc-800 p-2 rounded">
-                        <p className="text-zinc-500 text-[10px]">TKL</p>
-                        <p className="font-bold text-emerald-400">{stat.tackles || 0}</p>
-                      </div>
-                      <div className="bg-zinc-800 p-2 rounded">
-                        <p className="text-zinc-500 text-[10px]">INT</p>
-                        <p className="font-bold text-red-400">{stat.int || 0}</p>
-                      </div>
+                      {mobileStats.map((statConfig, idx) => (
+                        <div key={statConfig.key} className="bg-zinc-800 p-2 rounded">
+                          <p className="text-zinc-500 text-[10px]">{statConfig.shortLabel}</p>
+                          <p className={`font-bold ${idx === 0 ? 'text-white' : idx === 1 ? 'text-orange-400' : idx === 2 ? 'text-cyan-400' : 'text-emerald-400'}`}>
+                            {(stat as any)[statConfig.key] || 0}
+                          </p>
+                        </div>
+                      ))}
                     </div>
                     <div className="mt-2 flex items-center justify-center gap-1 text-[10px] text-orange-500">
                       <Eye className="w-3 h-3" /> Tap to view full stats
@@ -246,21 +254,16 @@ const TeamStatsBoard: React.FC = () => {
               })}
             </div>
 
-            {/* DESKTOP TABLE */}
+            {/* DESKTOP TABLE - Dynamic */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-zinc-800/50 text-xs uppercase">
                   <tr>
                     <th className="px-3 py-2 text-left font-semibold text-zinc-400">#</th>
                     <th className="px-3 py-2 text-left font-semibold text-zinc-400">Player</th>
-                    <SortHeader field="gp" label="GP" />
-                    <SortHeader field="tds" label="TDs" />
-                    <SortHeader field="rushYards" label="RUSH" />
-                    <SortHeader field="recYards" label="REC" />
-                    <SortHeader field="tackles" label="TKL" />
-                    <SortHeader field="sacks" label="SACKS" />
-                    <SortHeader field="int" label="INT" />
-                    <SortHeader field="ff" label="FF" />
+                    {tableStats.map(statConfig => (
+                      <SortHeader key={statConfig.key} field={statConfig.key} label={statConfig.shortLabel} />
+                    ))}
                     <th className="px-3 py-2 text-center font-semibold text-zinc-400">VIEW</th>
                   </tr>
                 </thead>
@@ -272,14 +275,19 @@ const TeamStatsBoard: React.FC = () => {
                       <tr key={stat.id} className="hover:bg-zinc-800/50 transition-colors">
                         <td className="px-3 py-3 text-zinc-400 font-mono">{stat.playerNumber}</td>
                         <td className="px-3 py-3 text-white font-medium">{stat.playerName}</td>
-                        <td className="px-3 py-3 text-center text-zinc-300">{stat.gp || 0}</td>
-                        <td className="px-3 py-3 text-center text-orange-400 font-bold">{stat.tds || 0}</td>
-                        <td className="px-3 py-3 text-center text-cyan-400">{stat.rushYards || 0}</td>
-                        <td className="px-3 py-3 text-center text-cyan-400">{stat.recYards || 0}</td>
-                        <td className="px-3 py-3 text-center text-emerald-400 font-bold">{stat.tackles || 0}</td>
-                        <td className="px-3 py-3 text-center text-purple-400">{stat.sacks || 0}</td>
-                        <td className="px-3 py-3 text-center text-red-400">{stat.int || 0}</td>
-                        <td className="px-3 py-3 text-center text-orange-400">{stat.ff || 0}</td>
+                        {tableStats.map((statConfig, idx) => (
+                          <td 
+                            key={statConfig.key} 
+                            className={`px-3 py-3 text-center ${
+                              idx === 0 ? 'text-zinc-300' : 
+                              idx === 1 ? 'text-orange-400 font-bold' : 
+                              idx < 4 ? 'text-cyan-400' : 
+                              'text-zinc-300'
+                            }`}
+                          >
+                            {(stat as any)[statConfig.key] || 0}
+                          </td>
+                        ))}
                         <td className="px-3 py-3 text-center">
                           {player && (
                             <button
@@ -301,12 +309,11 @@ const TeamStatsBoard: React.FC = () => {
         )}
       </div>
 
-      {/* Legend */}
+      {/* Legend - Dynamic */}
       <div className="bg-cyan-900/20 p-4 rounded-xl border border-cyan-800/30">
         <p className="text-xs font-bold text-cyan-400 uppercase mb-2">Stat Key</p>
         <p className="text-sm text-cyan-200/80">
-          GP (Games Played) • TDs (Touchdowns) • RUSH (Rushing Yards) • REC (Receiving Yards) • 
-          TKL (Tackles) • SACKS • INT (Interceptions) • FF (Forced Fumbles)
+          {sportStats.map(s => `${s.shortLabel} (${s.label})`).join(' • ')}
         </p>
         <p className="text-xs text-cyan-500 mt-2">
           Tap/click the eye icon or any player row to view their complete stat history.

@@ -1,28 +1,52 @@
 import React from 'react';
 
+// Support both simple string/number format and object format
+interface TeamInfo {
+  name: string;
+  abbreviation?: string;
+  score: number;
+  primaryColor?: string;
+}
+
 interface LiveBannerProps {
-  team1: string;
-  team2: string;
-  score1: number;
-  score2: number;
-  period: string;
-  time: string;
+  // New object format
+  homeTeam?: TeamInfo;
+  awayTeam?: TeamInfo;
+  period?: string;
+  timeRemaining?: string;
+  // Legacy string format
+  team1?: string;
+  team2?: string;
+  score1?: number;
+  score2?: number;
+  time?: string;
+  // Shared
   sport?: string;
   viewers?: number;
   onWatch?: () => void;
 }
 
 export function LiveGameBanner({
+  homeTeam,
+  awayTeam,
+  period = '1st',
+  timeRemaining,
   team1,
   team2,
   score1,
   score2,
-  period,
   time,
   sport = '🏈',
   viewers = 1247,
   onWatch
 }: LiveBannerProps) {
+  // Normalize to use consistent values
+  const displayTeam1 = homeTeam?.name || team1 || 'Home';
+  const displayTeam2 = awayTeam?.name || team2 || 'Away';
+  const displayScore1 = homeTeam?.score ?? score1 ?? 0;
+  const displayScore2 = awayTeam?.score ?? score2 ?? 0;
+  const displayTime = timeRemaining || time || '0:00';
+
   return (
     <div
       style={{
@@ -36,7 +60,10 @@ export function LiveGameBanner({
         boxShadow: '0 10px 30px rgba(220, 38, 38, 0.3)',
         animation: 'pulse-border 2s infinite',
         position: 'relative',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        marginTop: '80px',
+        marginLeft: '1.5rem',
+        marginRight: '1.5rem'
       }}
     >
       {/* Animated Background */}
@@ -85,7 +112,7 @@ export function LiveGameBanner({
       {/* Matchup */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', zIndex: 1 }}>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '1rem', fontWeight: 700 }}>{team1}</div>
+          <div style={{ fontSize: '1rem', fontWeight: 700 }}>{displayTeam1}</div>
         </div>
         <div
           style={{
@@ -97,12 +124,12 @@ export function LiveGameBanner({
             borderRadius: '8px'
           }}
         >
-          <span style={{ fontSize: '1.5rem', fontWeight: 800 }}>{score1}</span>
+          <span style={{ fontSize: '1.5rem', fontWeight: 800 }}>{displayScore1}</span>
           <span style={{ fontSize: '1rem', opacity: 0.6 }}>-</span>
-          <span style={{ fontSize: '1.5rem', fontWeight: 800 }}>{score2}</span>
+          <span style={{ fontSize: '1.5rem', fontWeight: 800 }}>{displayScore2}</span>
         </div>
         <div style={{ textAlign: 'left' }}>
-          <div style={{ fontSize: '1rem', fontWeight: 700 }}>{team2}</div>
+          <div style={{ fontSize: '1rem', fontWeight: 700 }}>{displayTeam2}</div>
         </div>
       </div>
 
@@ -110,7 +137,7 @@ export function LiveGameBanner({
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', zIndex: 1 }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '0.875rem', fontWeight: 700 }}>{period}</div>
-          <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{time}</div>
+          <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{displayTime}</div>
         </div>
         <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>
           👁 {viewers.toLocaleString()}
@@ -155,15 +182,25 @@ export function LiveGameBanner({
 
 // Compact version for sidebars
 export function LiveGameCard({
+  homeTeam,
+  awayTeam,
+  period = '1st',
+  timeRemaining,
   team1,
   team2,
   score1,
   score2,
-  period,
   time,
   sport = '🏈',
   viewers = 847
 }: LiveBannerProps) {
+  // Normalize values
+  const displayTeam1 = homeTeam?.name || team1 || 'Home';
+  const displayTeam2 = awayTeam?.name || team2 || 'Away';
+  const displayScore1 = homeTeam?.score ?? score1 ?? 0;
+  const displayScore2 = awayTeam?.score ?? score2 ?? 0;
+  const displayTime = timeRemaining || time || '0:00';
+
   return (
     <div
       style={{
@@ -179,12 +216,12 @@ export function LiveGameCard({
           <div style={{ width: '6px', height: '6px', background: 'white', borderRadius: '50%', animation: 'pulse 1.5s infinite' }} />
           LIVE
         </div>
-        <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>👁 {viewers.toLocaleString()}</div>
+        <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>👁 {viewers?.toLocaleString()}</div>
       </div>
-      <div style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.25rem' }}>{sport} {team1} vs {team2}</div>
+      <div style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.25rem' }}>{sport} {displayTeam1} vs {displayTeam2}</div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontSize: '1.25rem', fontWeight: 800 }}>{score1} - {score2}</div>
-        <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{period} {time}</div>
+        <div style={{ fontSize: '1.25rem', fontWeight: 800 }}>{displayScore1} - {displayScore2}</div>
+        <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{period} {displayTime}</div>
       </div>
     </div>
   );

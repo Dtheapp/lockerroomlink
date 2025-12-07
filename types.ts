@@ -90,9 +90,13 @@ export interface UserProfile {
   followerCount?: number; // Number of followers (for coaches/athletes)
 }
 
+// Sport Types - expandable for future sports
+export type SportType = 'football' | 'basketball' | 'soccer' | 'baseball' | 'cheer' | 'volleyball' | 'other';
+
 export interface Team {
   id: string;
   name: string;
+  sport?: SportType; // Sport type for multi-sport support (default: 'football')
   coachId: string | null;
   headCoachId?: string | null; // Designated head coach who can manage other coaches
   coachIds?: string[]; // All coaches assigned to this team (head + assistants)

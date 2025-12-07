@@ -4,7 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc, getDocs, where, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { sanitizeText, sanitizeNumber, sanitizeDate } from '../services/sanitize';
-import type { Player, UserProfile, Team } from '../types';
+import type { Player, UserProfile, Team, SportType } from '../types';
+import { getPositions } from '../config/sportConfig';
 import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link as LinkIcon, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera, UserPlus, ArrowRightLeft, BarChart3, Eye, AtSign, Copy, Check, ExternalLink, Zap } from 'lucide-react';
 import PlayerStatsModal from './stats/PlayerStatsModal';
 
@@ -88,6 +89,12 @@ const Roster: React.FC = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchFilter]);
+
+  // Get sport-specific positions for team
+  const sportPositions = useMemo(() => {
+    const sport = teamData?.sport as SportType | undefined;
+    return getPositions(sport);
+  }, [teamData?.sport]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
@@ -1641,7 +1648,20 @@ const Roster: React.FC = () => {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Position *</label>
-                      <input name="position" value={newPlayer.position} onChange={handleInputChange} placeholder="QB" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" required />
+                      <select 
+                        name="position" 
+                        value={newPlayer.position} 
+                        onChange={handleInputChange} 
+                        className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white w-full" 
+                        required
+                      >
+                        <option value="">Select position...</option>
+                        {sportPositions.map(pos => (
+                          <option key={pos.value} value={pos.value}>
+                            {pos.label} {pos.category ? `(${pos.category})` : ''}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                   
@@ -2074,13 +2094,18 @@ const Roster: React.FC = () => {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Position</label>
-                      <input 
-                        type="text"
+                      <select 
                         value={editingPlayer.position || ''}
                         onChange={(e) => setEditingPlayer({...editingPlayer, position: e.target.value})}
-                        placeholder="QB, RB, WR..."
                         className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
-                      />
+                      >
+                        <option value="">Select position...</option>
+                        {sportPositions.map(pos => (
+                          <option key={pos.value} value={pos.value}>
+                            {pos.label} {pos.category ? `(${pos.category})` : ''}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>

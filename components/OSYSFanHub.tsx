@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AnimatedBackground, GlassCard, Button, Badge, ProgressBar } from './ui/OSYSComponents';
 import { DemoNavigation } from './ui/DemoNavigation';
 import { LiveGameBanner } from './ui/LiveGameBanner';
+import { useDemoToast } from '../hooks/useOSYSData';
 
 // Types
 interface Athlete {
@@ -481,6 +482,7 @@ const getTypeIcon = (type: string) => {
 // Component
 export function OSYSFanHub() {
   const [activeFilter, setActiveFilter] = useState('all');
+  const { showToast, ToastComponent } = useDemoToast();
 
   const filters = [
     { id: 'all', label: 'All' },
@@ -501,8 +503,8 @@ export function OSYSFanHub() {
           <span>OSYS</span>
         </a>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Button variant="ghost">🔔</Button>
-          <Button variant="primary">My Profile</Button>
+          <Button variant="ghost" onClick={() => showToast('No new notifications', 'info')}>🔔</Button>
+          <Button variant="primary" onClick={() => showToast('Profile coming soon!', 'info')}>My Profile</Button>
         </div>
       </nav>
 
@@ -522,7 +524,7 @@ export function OSYSFanHub() {
         }}
         period="4th Quarter"
         timeRemaining="2:15"
-        onWatch={() => console.log('Watch live')}
+        onWatch={() => showToast('Opening live stream...', 'success')}
       />
 
       {/* Header */}
@@ -599,7 +601,7 @@ export function OSYSFanHub() {
                     <div style={styles.suggestedName}>{athlete.name}</div>
                     <div style={styles.suggestedMeta}>{athlete.position} • {athlete.team}</div>
                   </div>
-                  <button style={styles.followBtn}>Follow</button>
+                  <button style={styles.followBtn} onClick={() => showToast(`Following ${athlete.name}!`, 'success')}>Follow</button>
                 </div>
               ))}
             </GlassCard>
@@ -626,10 +628,10 @@ export function OSYSFanHub() {
                   <div style={styles.activityMedia}>{activity.media}</div>
                 )}
                 <div style={styles.activityActions}>
-                  <button style={styles.activityAction}>❤️ {activity.stats?.likes || 0}</button>
-                  <button style={styles.activityAction}>💬 {activity.stats?.comments || 0}</button>
-                  <button style={styles.activityAction}>🔄 Share</button>
-                  <button style={styles.activityAction}>🔖 Save</button>
+                  <button style={styles.activityAction} onClick={() => showToast('Liked!', 'success')}>❤️ {activity.stats?.likes || 0}</button>
+                  <button style={styles.activityAction} onClick={() => showToast('Comments coming soon', 'info')}>💬 {activity.stats?.comments || 0}</button>
+                  <button style={styles.activityAction} onClick={() => showToast('Link copied!', 'success')}>🔄 Share</button>
+                  <button style={styles.activityAction} onClick={() => showToast('Saved to collection!', 'success')}>🔖 Save</button>
                 </div>
               </div>
             ))}
@@ -662,7 +664,7 @@ export function OSYSFanHub() {
                   </div>
                 </div>
               ))}
-              <Button variant="ghost" style={{ width: '100%', marginTop: '0.5rem' }}>
+              <Button variant="ghost" style={{ width: '100%', marginTop: '0.5rem' }} onClick={() => showToast('Live games coming soon!', 'info')}>
                 📺 View All Live Games
               </Button>
             </GlassCard>
@@ -691,7 +693,7 @@ export function OSYSFanHub() {
                 <p style={{ fontSize: '0.8125rem', color: 'var(--osys-text-secondary)', marginBottom: '1rem' }}>
                   Make highlight clips of your favorite moments
                 </p>
-                <Button variant="gold" style={{ width: '100%' }}>
+                <Button variant="gold" style={{ width: '100%' }} onClick={() => showToast('Clip creator coming soon!', 'info')}>
                   ✂️ Start Creating
                 </Button>
               </div>
@@ -720,6 +722,9 @@ export function OSYSFanHub() {
 
       {/* Demo Navigation */}
       <DemoNavigation currentPage="fan-hub" />
+      
+      {/* Toast Notifications */}
+      {ToastComponent}
     </div>
   );
 }

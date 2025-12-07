@@ -3,6 +3,8 @@ import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import type { PlayerSeasonStats, Player, Game, GamePlayerStats } from '../../types';
 import { X, TrendingUp, Calendar, Trophy, Shield, Sword, Target, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { getStats, getSportConfig, type StatConfig } from '../../config/sportConfig';
 
 // Helper: Format date string without timezone issues
 const formatEventDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
@@ -23,6 +25,7 @@ interface PlayerStatsModalProps {
 }
 
 const PlayerStatsModal: React.FC<PlayerStatsModalProps> = ({ player, teamName, onClose }) => {
+  const { teamData } = useAuth();
   const [seasonStats, setSeasonStats] = useState<PlayerSeasonStats[]>([]);
   const [gameStats, setGameStats] = useState<GameWithStats[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +33,15 @@ const PlayerStatsModal: React.FC<PlayerStatsModalProps> = ({ player, teamName, o
   const [showGameBreakdown, setShowGameBreakdown] = useState(false);
 
   const currentYear = new Date().getFullYear();
+  
+  // Sport-specific config
+  const sportStats = useMemo(() => getStats(teamData?.sport), [teamData?.sport]);
+  const sportConfig = useMemo(() => getSportConfig(teamData?.sport), [teamData?.sport]);
+  
+  // Get key stats for career totals (first 6 excluding gamesPlayed)
+  const careerStatKeys = useMemo(() => {
+    return sportStats.filter(s => s.key !== 'gamesPlayed').slice(0, 6);
+  }, [sportStats]);
 
   useEffect(() => {
     const fetchPlayerStats = async () => {
@@ -61,11 +73,8 @@ const PlayerStatsModal: React.FC<PlayerStatsModalProps> = ({ player, teamName, o
           
           if (playerStatsDoc.docs.length > 0) {
             const playerGameStats = { id: playerStatsDoc.docs[0].id, ...playerStatsDoc.docs[0].data() } as GamePlayerStats;
-            // Only include if player had some stats in this game
-            const hasStats = (playerGameStats.tds || 0) > 0 || (playerGameStats.rushYards || 0) > 0 || 
-              (playerGameStats.recYards || 0) > 0 || (playerGameStats.tackles || 0) > 0 ||
-              (playerGameStats.rec || 0) > 0 || (playerGameStats.sacks || 0) > 0 ||
-              (playerGameStats.int || 0) > 0;
+            // Only include if player had some stats in this game (check any stat > 0)
+            const hasStats = sportStats.some(s => (playerGameStats as any)[s.key] > 0);
             if (hasStats) {
               gamesWithStats.push({ game, stats: playerGameStats });
             }
@@ -90,19 +99,27 @@ const PlayerStatsModal: React.FC<PlayerStatsModalProps> = ({ player, teamName, o
     };
 
     fetchPlayerStats();
-  }, [player.id, player.teamId, currentYear]);
+  }, [player.id, player.teamId, currentYear, sportStats]);
 
-  // Calculate career totals
+  // Calculate career totals dynamically based on sport
   const careerTotals = useMemo(() => {
-    return seasonStats.reduce((totals, season) => ({
-      gp: totals.gp + (season.gp || 0),
-      tds: totals.tds + (season.tds || 0),
-      totalYards: totals.totalYards + (season.rushYards || 0) + (season.recYards || 0) + (season.passYards || 0),
-      tackles: totals.tackles + (season.tackles || 0),
-      sacks: totals.sacks + (season.sacks || 0),
-      int: totals.int + (season.int || 0),
-    }), { gp: 0, tds: 0, totalYards: 0, tackles: 0, sacks: 0, int: 0 });
-  }, [seasonStats]);
+    const totals: Record<string, number> = { gp: 0 };
+    
+    // Initialize all stat keys to 0
+    careerStatKeys.forEach(stat => {
+      totals[stat.key] = 0;
+    });
+    
+    // Sum up all seasons
+    seasonStats.forEach(season => {
+      totals.gp += (season.gp || 0);
+      careerStatKeys.forEach(stat => {
+        totals[stat.key] += ((season as any)[stat.key] || 0);
+      });
+    });
+    
+    return totals;
+  }, [seasonStats, careerStatKeys]);
 
   const StatBox = ({ label, value, color }: { label: string; value: number; color: string }) => (
     <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
@@ -159,20 +176,23 @@ const PlayerStatsModal: React.FC<PlayerStatsModalProps> = ({ player, teamName, o
             </div>
           ) : (
             <>
-              {/* Career Totals */}
+              {/* Career Totals - Dynamic */}
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-4">
                   <Trophy className="w-5 h-5 text-yellow-500" />
                   <h3 className="text-lg font-bold text-white">Career Totals</h3>
                   <span className="text-xs text-zinc-500">({seasonStats.length} season{seasonStats.length !== 1 ? 's' : ''})</span>
                 </div>
-                <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                  <StatBox label="Games" value={careerTotals.gp} color="text-white" />
-                  <StatBox label="TDs" value={careerTotals.tds} color="text-orange-400" />
-                  <StatBox label="Yards" value={careerTotals.totalYards} color="text-cyan-400" />
-                  <StatBox label="Tackles" value={careerTotals.tackles} color="text-emerald-400" />
-                  <StatBox label="Sacks" value={careerTotals.sacks} color="text-purple-400" />
-                  <StatBox label="INTs" value={careerTotals.int} color="text-red-400" />
+                <div className="grid grid-cols-3 md:grid-cols-7 gap-2">
+                  <StatBox label="Games" value={careerTotals.gp || 0} color="text-white" />
+                  {careerStatKeys.map((stat, idx) => (
+                    <StatBox 
+                      key={stat.key}
+                      label={stat.shortLabel} 
+                      value={careerTotals[stat.key] || 0} 
+                      color={idx === 0 ? 'text-orange-400' : idx === 1 ? 'text-cyan-400' : idx === 2 ? 'text-emerald-400' : idx === 3 ? 'text-purple-400' : 'text-red-400'} 
+                    />
+                  ))}
                 </div>
               </div>
 
@@ -186,7 +206,6 @@ const PlayerStatsModal: React.FC<PlayerStatsModalProps> = ({ player, teamName, o
                 <div className="space-y-3">
                   {seasonStats.map(season => {
                     const isExpanded = expandedSeason === season.season;
-                    const totalYards = (season.rushYards || 0) + (season.recYards || 0) + (season.passYards || 0);
                     
                     return (
                       <div 
@@ -204,14 +223,19 @@ const PlayerStatsModal: React.FC<PlayerStatsModalProps> = ({ player, teamName, o
                             </div>
                             <div className="text-left">
                               <p className="text-white font-medium">{season.teamName || teamName || 'Team'}</p>
-                              <p className="text-xs text-zinc-500">{season.gp || 0} games played</p>
+                              <p className="text-xs text-zinc-500">{season.gp || 0} {sportConfig.labels.game}s played</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-4">
                             <div className="text-right hidden sm:block">
-                              <span className="text-orange-400 font-bold">{season.tds || 0} TDs</span>
-                              <span className="text-zinc-500 mx-2">|</span>
-                              <span className="text-cyan-400 font-bold">{totalYards} YDS</span>
+                              {careerStatKeys.slice(0, 2).map((stat, idx) => (
+                                <span key={stat.key}>
+                                  <span className={idx === 0 ? 'text-orange-400 font-bold' : 'text-cyan-400 font-bold'}>
+                                    {(season as any)[stat.key] || 0} {stat.shortLabel}
+                                  </span>
+                                  {idx === 0 && <span className="text-zinc-500 mx-2">|</span>}
+                                </span>
+                              ))}
                             </div>
                             {isExpanded ? (
                               <ChevronUp className="w-5 h-5 text-zinc-500" />
@@ -221,112 +245,25 @@ const PlayerStatsModal: React.FC<PlayerStatsModalProps> = ({ player, teamName, o
                           </div>
                         </button>
 
-                        {/* Expanded Stats */}
+                        {/* Expanded Stats - Dynamic */}
                         {isExpanded && (
                           <div className="border-t border-zinc-700 p-4 space-y-4 animate-in slide-in-from-top-2">
-                            {/* Offensive Stats */}
-                            <div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <Sword className="w-4 h-4 text-orange-500" />
-                                <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Offense</span>
-                              </div>
-                              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 text-sm">
-                                <div className="bg-zinc-900 p-2 rounded">
-                                  <p className="text-zinc-500 text-[10px] uppercase">TDs</p>
-                                  <p className="text-orange-400 font-bold">{season.tds || 0}</p>
+                            {/* All Stats in Grid */}
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 text-sm">
+                              {sportStats.filter(s => s.key !== 'gamesPlayed').map((stat, idx) => (
+                                <div key={stat.key} className="bg-zinc-900 p-2 rounded">
+                                  <p className="text-zinc-500 text-[10px] uppercase">{stat.shortLabel}</p>
+                                  <p className={`font-bold ${
+                                    idx === 0 ? 'text-orange-400' : 
+                                    idx < 3 ? 'text-cyan-400' : 
+                                    idx < 5 ? 'text-emerald-400' : 
+                                    'text-zinc-300'
+                                  }`}>
+                                    {(season as any)[stat.key] || 0}
+                                  </p>
                                 </div>
-                                <div className="bg-zinc-900 p-2 rounded">
-                                  <p className="text-zinc-500 text-[10px] uppercase">Rush Yds</p>
-                                  <p className="text-cyan-400 font-bold">{season.rushYards || 0}</p>
-                                </div>
-                                <div className="bg-zinc-900 p-2 rounded">
-                                  <p className="text-zinc-500 text-[10px] uppercase">Rush Att</p>
-                                  <p className="text-white font-bold">{season.rushAttempts || 0}</p>
-                                </div>
-                                <div className="bg-zinc-900 p-2 rounded">
-                                  <p className="text-zinc-500 text-[10px] uppercase">Rec</p>
-                                  <p className="text-white font-bold">{season.rec || 0}</p>
-                                </div>
-                                <div className="bg-zinc-900 p-2 rounded">
-                                  <p className="text-zinc-500 text-[10px] uppercase">Rec Yds</p>
-                                  <p className="text-cyan-400 font-bold">{season.recYards || 0}</p>
-                                </div>
-                                <div className="bg-zinc-900 p-2 rounded">
-                                  <p className="text-zinc-500 text-[10px] uppercase">Pass Yds</p>
-                                  <p className="text-cyan-400 font-bold">{season.passYards || 0}</p>
-                                </div>
-                                <div className="bg-zinc-900 p-2 rounded">
-                                  <p className="text-zinc-500 text-[10px] uppercase">Pass Comp</p>
-                                  <p className="text-white font-bold">{season.passCompletions || 0}/{season.passAttempts || 0}</p>
-                                </div>
-                              </div>
+                              ))}
                             </div>
-
-                            {/* Defensive Stats */}
-                            <div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <Shield className="w-4 h-4 text-emerald-500" />
-                                <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Defense</span>
-                              </div>
-                              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 text-sm">
-                                <div className="bg-zinc-900 p-2 rounded">
-                                  <p className="text-zinc-500 text-[10px] uppercase">Tackles</p>
-                                  <p className="text-emerald-400 font-bold">{season.tackles || 0}</p>
-                                </div>
-                                <div className="bg-zinc-900 p-2 rounded">
-                                  <p className="text-zinc-500 text-[10px] uppercase">Solo</p>
-                                  <p className="text-white font-bold">{season.soloTackles || 0}</p>
-                                </div>
-                                <div className="bg-zinc-900 p-2 rounded">
-                                  <p className="text-zinc-500 text-[10px] uppercase">Sacks</p>
-                                  <p className="text-purple-400 font-bold">{season.sacks || 0}</p>
-                                </div>
-                                <div className="bg-zinc-900 p-2 rounded">
-                                  <p className="text-zinc-500 text-[10px] uppercase">INTs</p>
-                                  <p className="text-red-400 font-bold">{season.int || 0}</p>
-                                </div>
-                                <div className="bg-zinc-900 p-2 rounded">
-                                  <p className="text-zinc-500 text-[10px] uppercase">FF</p>
-                                  <p className="text-orange-400 font-bold">{season.ff || 0}</p>
-                                </div>
-                                <div className="bg-zinc-900 p-2 rounded">
-                                  <p className="text-zinc-500 text-[10px] uppercase">FR</p>
-                                  <p className="text-white font-bold">{season.fr || 0}</p>
-                                </div>
-                                <div className="bg-zinc-900 p-2 rounded">
-                                  <p className="text-zinc-500 text-[10px] uppercase">Pass Def</p>
-                                  <p className="text-white font-bold">{season.passDefended || 0}</p>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Special Teams */}
-                            {((season.kickReturnYards || 0) > 0 || (season.puntReturnYards || 0) > 0) && (
-                              <div>
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Target className="w-4 h-4 text-yellow-500" />
-                                  <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Special Teams</span>
-                                </div>
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-                                  <div className="bg-zinc-900 p-2 rounded">
-                                    <p className="text-zinc-500 text-[10px] uppercase">KR Yds</p>
-                                    <p className="text-yellow-400 font-bold">{season.kickReturnYards || 0}</p>
-                                  </div>
-                                  <div className="bg-zinc-900 p-2 rounded">
-                                    <p className="text-zinc-500 text-[10px] uppercase">KR TDs</p>
-                                    <p className="text-orange-400 font-bold">{season.kickReturnTds || 0}</p>
-                                  </div>
-                                  <div className="bg-zinc-900 p-2 rounded">
-                                    <p className="text-zinc-500 text-[10px] uppercase">PR Yds</p>
-                                    <p className="text-yellow-400 font-bold">{season.puntReturnYards || 0}</p>
-                                  </div>
-                                  <div className="bg-zinc-900 p-2 rounded">
-                                    <p className="text-zinc-500 text-[10px] uppercase">PR TDs</p>
-                                    <p className="text-orange-400 font-bold">{season.puntReturnTds || 0}</p>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
 
                             {/* Sportsmanship */}
                             {(season.spts || 0) > 0 && (

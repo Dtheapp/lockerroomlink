@@ -1,8 +1,8 @@
-const CACHE_NAME = 'lockerroom-v2';
+const CACHE_NAME = 'lockerroom-v4';
 const OFFLINE_URL = '/offline.html';
-const STATIC_ASSETS = [
-  '/',
-  '/index.html',
+
+// Only cache truly static assets needed for offline
+const OFFLINE_ASSETS = [
   '/offline.html',
   '/manifest.json',
   '/icons/icon.svg',
@@ -10,19 +10,19 @@ const STATIC_ASSETS = [
   '/icons/icon-512.png'
 ];
 
-// Install event - cache static assets
+// Install event - cache only offline assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Caching static assets');
-      return cache.addAll(STATIC_ASSETS);
+      console.log('[SW] Caching offline assets');
+      return cache.addAll(OFFLINE_ASSETS);
     })
   );
   // Activate immediately
   self.skipWaiting();
 });
 
-// Activate event - clean up old caches
+// Activate event - clean up ALL old caches aggressively
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -40,68 +40,52 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch event - network first, fallback to cache
+// Fetch event - NETWORK ONLY for app, cache only for offline fallback
 self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (event.request.method !== 'GET') return;
   
-  // Skip non-http(s) requests (chrome-extension://, etc.)
+  // Skip non-http(s) requests
   const url = new URL(event.request.url);
-  if (!url.protocol.startsWith('http')) {
-    return;
-  }
-  
-  // Skip Firebase and external API requests (always need fresh data)
-  if (
-    url.hostname.includes('firebaseio.com') ||
-    url.hostname.includes('googleapis.com') ||
-    url.hostname.includes('firebase') ||
-    url.hostname.includes('aistudiocdn.com')
-  ) {
+  if (!url.protocol.startsWith('http')) return;
+
+  // For navigation requests (page loads) - ALWAYS go to network
+  // Only show offline page if network completely fails
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        return caches.match(OFFLINE_URL);
+      })
+    );
     return;
   }
 
-  event.respondWith(
-    // Try network first
-    fetch(event.request)
-      .then((response) => {
-        // Clone the response before caching
-        const responseClone = response.clone();
-        
-        // Cache successful responses
-        if (response.status === 200) {
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
-        }
-        
-        return response;
+  // For JS/CSS chunks - ALWAYS network, no caching
+  // This prevents stale chunk errors
+  if (
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css') ||
+    url.pathname.includes('/assets/')
+  ) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // For static assets (icons, manifest) - cache with network fallback
+  if (OFFLINE_ASSETS.some(asset => url.pathname.endsWith(asset.replace('/', '')))) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        return cached || fetch(event.request);
       })
-      .catch(() => {
-        // Network failed, try cache
-        return caches.match(event.request).then((cachedResponse) => {
-          if (cachedResponse) {
-            return cachedResponse;
-          }
-          
-          // If it's a navigation request, return the offline page
-          if (event.request.mode === 'navigate') {
-            return caches.match(OFFLINE_URL).then((offlineResponse) => {
-              return offlineResponse || caches.match('/index.html');
-            });
-          }
-          
-          // Return a fallback for other requests
-          return new Response('Offline', {
-            status: 503,
-            statusText: 'Service Unavailable'
-          });
-        });
-      })
-  );
+    );
+    return;
+  }
+
+  // Everything else - just use network
+  // Don't cache anything else to avoid stale data
 });
 
-// Handle messages from the app
+// Handle skip waiting message
 self.addEventListener('message', (event) => {
   if (event.data === 'skipWaiting') {
     self.skipWaiting();

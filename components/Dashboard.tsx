@@ -6,6 +6,8 @@ import { uploadFile, deleteFile } from '../services/storage';
 import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
+import { getSportConfig } from '../config/sportConfig';
+import type { SportType } from '../types';
 import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle, Minus, ExternalLink, Copy, Link as LinkIcon, Users, Crown, User, Image, FileText, Paperclip, Zap, Radio } from 'lucide-react';
 import type { BulletinPost, PlayerSeasonStats, TeamEvent, UserProfile, LiveStream } from '../types';
 import { GoLiveModal, LiveStreamBanner, LiveStreamViewer, SaveStreamToLibraryModal } from './livestream';
@@ -1073,7 +1075,21 @@ const Dashboard: React.FC = () => {
         <div className="bg-gradient-to-br from-slate-200 to-slate-300 dark:from-zinc-800 dark:to-black rounded-2xl p-8 border border-slate-300 dark:border-zinc-700 relative overflow-hidden shadow-2xl">
           <div className="absolute top-0 right-0 p-8 opacity-5"><Trophy className="w-64 h-64 text-white" /></div>
           <div className="relative z-10">
-                <h1 className="text-4xl font-black tracking-tighter text-zinc-900 dark:text-white mb-2 uppercase italic">{teamData?.name || 'Loading...'}</h1>
+                <div className="flex items-center gap-3 mb-2">
+                  <h1 className="text-4xl font-black tracking-tighter text-zinc-900 dark:text-white uppercase italic">{teamData?.name || 'Loading...'}</h1>
+                  {/* Sport Badge */}
+                  {teamData?.sport && (() => {
+                    const sportConfig = getSportConfig(teamData.sport as SportType);
+                    return (
+                      <span 
+                        className="px-3 py-1 rounded-full text-sm font-bold text-white shadow-lg"
+                        style={{ backgroundColor: sportConfig.color }}
+                      >
+                        {sportConfig.emoji} {sportConfig.name}
+                      </span>
+                    );
+                  })()}
+                </div>
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-3 flex-wrap">
                     {/* Team ID Badge - Visible to all users */}

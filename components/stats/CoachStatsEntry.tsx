@@ -3,7 +3,8 @@ import { collection, query, onSnapshot, orderBy, doc, setDoc, getDoc, serverTime
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { PlayerSeasonStats, Player } from '../../types';
-import { Save, TrendingUp, Users, ChevronDown, ChevronUp, Check, Search, Sword, Shield, Target, AlertCircle, AtSign } from 'lucide-react';
+import { Save, TrendingUp, Users, ChevronDown, ChevronUp, Check, Search, Sword, Shield, Target, AlertCircle, AtSign, Trophy, Star } from 'lucide-react';
+import { getStats, getSportConfig, type StatConfig } from '../../config/sportConfig';
 
 // Stat Input Component - defined OUTSIDE main component to prevent re-renders
 interface StatInputProps {
@@ -130,13 +131,69 @@ const CoachStatsEntry: React.FC = () => {
     return getDefaultStats();
   };
 
-  const getDefaultStats = (): Partial<PlayerSeasonStats> => ({
-    gp: 0, tds: 0, rushYards: 0, rushAttempts: 0, passYards: 0, passAttempts: 0,
-    passCompletions: 0, rec: 0, recYards: 0, tackles: 0, soloTackles: 0,
-    assistTackles: 0, sacks: 0, int: 0, intYards: 0, ff: 0, fr: 0,
-    passDefended: 0, kickReturnYards: 0, puntReturnYards: 0, kickReturnTds: 0,
-    puntReturnTds: 0, spts: 0
-  });
+  // Get sport-specific stats config
+  const sportStats = useMemo(() => getStats(teamData?.sport), [teamData?.sport]);
+  const sportConfig = useMemo(() => getSportConfig(teamData?.sport), [teamData?.sport]);
+
+  // Generate default stats based on sport
+  const getDefaultStats = (): Partial<PlayerSeasonStats> => {
+    const defaults: Record<string, number> = {};
+    sportStats.forEach(stat => {
+      defaults[stat.key] = 0;
+    });
+    // Always include gamesPlayed and sportsmanship
+    defaults.gp = 0;
+    defaults.spts = 0;
+    return defaults as Partial<PlayerSeasonStats>;
+  };
+
+  // Group stats by category for display
+  const groupedStats = useMemo(() => {
+    const groups: { category: string; stats: StatConfig[]; icon: React.ReactNode; color: string }[] = [];
+    const uncategorized: StatConfig[] = [];
+    const categories = new Map<string, StatConfig[]>();
+    
+    sportStats.forEach(stat => {
+      if (stat.key === 'gamesPlayed') return; // Handle separately
+      if (stat.category) {
+        if (!categories.has(stat.category)) {
+          categories.set(stat.category, []);
+        }
+        categories.get(stat.category)!.push(stat);
+      } else {
+        uncategorized.push(stat);
+      }
+    });
+
+    // Map categories to icons/colors based on sport
+    const categoryConfig: Record<string, { icon: React.ReactNode; color: string }> = {
+      'Offense': { icon: <Sword className="w-4 h-4 text-orange-500" />, color: 'orange' },
+      'Defense': { icon: <Shield className="w-4 h-4 text-emerald-500" />, color: 'emerald' },
+      'Special Teams': { icon: <Target className="w-4 h-4 text-yellow-500" />, color: 'yellow' },
+      // Basketball
+      'Scoring': { icon: <Trophy className="w-4 h-4 text-orange-500" />, color: 'orange' },
+      'Rebounds': { icon: <Target className="w-4 h-4 text-cyan-500" />, color: 'cyan' },
+      // Cheer
+      'Competition': { icon: <Trophy className="w-4 h-4 text-orange-500" />, color: 'orange' },
+      'Skills': { icon: <Star className="w-4 h-4 text-purple-500" />, color: 'purple' },
+    };
+
+    categories.forEach((stats, category) => {
+      const config = categoryConfig[category] || { icon: <Target className="w-4 h-4 text-zinc-500" />, color: 'zinc' };
+      groups.push({ category, stats, ...config });
+    });
+
+    if (uncategorized.length > 0) {
+      groups.push({ 
+        category: 'Stats', 
+        stats: uncategorized, 
+        icon: <TrendingUp className="w-4 h-4 text-cyan-500" />, 
+        color: 'cyan' 
+      });
+    }
+
+    return groups;
+  }, [sportStats]);
 
   // Handle stat change - now accepts number directly
   const handleStatChange = (playerId: string, field: keyof PlayerSeasonStats, value: number) => {
@@ -170,14 +227,18 @@ const CoachStatsEntry: React.FC = () => {
         updatedBy: userData.uid,
       }, { merge: true });
 
-      // Also update the player's quick stats on their profile
+      // Also update the player's quick stats on their profile (sport-aware)
       const playerRef = doc(db, 'teams', teamData.id, 'players', player.id);
-      await setDoc(playerRef, {
-        stats: {
-          td: stats.tds || 0,
-          tkl: stats.tackles || 0,
+      const quickStats: Record<string, number> = {};
+      
+      // Get the first 2 stats from sportStats for quick display
+      sportStats.slice(0, 2).forEach(stat => {
+        if (stat.key !== 'gamesPlayed') {
+          quickStats[stat.key] = (stats as any)[stat.key] || 0;
         }
-      }, { merge: true });
+      });
+      
+      await setDoc(playerRef, { stats: quickStats }, { merge: true });
 
       // Clear local edits for this player
       setEditedStats(prev => {
@@ -268,7 +329,9 @@ const CoachStatsEntry: React.FC = () => {
             const stats = getPlayerStats(player.id);
             const isExpanded = expandedPlayerId === player.id;
             const hasChanges = hasUnsavedChanges(player.id);
-            const totalYards = (stats.rushYards || 0) + (stats.recYards || 0);
+            
+            // Get first 3 stats for quick preview (sport-specific)
+            const previewStats = sportStats.slice(0, 3).filter(s => s.key !== 'gamesPlayed');
 
             return (
               <div 
@@ -307,20 +370,16 @@ const CoachStatsEntry: React.FC = () => {
                   </div>
                   
                   <div className="flex items-center gap-4">
-                    {/* Quick Stats Preview */}
+                    {/* Quick Stats Preview - Dynamic */}
                     <div className="hidden sm:flex items-center gap-4 text-sm">
-                      <div className="text-center">
-                        <p className="text-orange-400 font-bold">{stats.tds || 0}</p>
-                        <p className="text-[10px] text-zinc-500">TDs</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-cyan-400 font-bold">{totalYards}</p>
-                        <p className="text-[10px] text-zinc-500">YDS</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-emerald-400 font-bold">{stats.tackles || 0}</p>
-                        <p className="text-[10px] text-zinc-500">TKL</p>
-                      </div>
+                      {previewStats.slice(0, 3).map((statConfig, idx) => (
+                        <div key={statConfig.key} className="text-center">
+                          <p className={`font-bold ${idx === 0 ? 'text-orange-400' : idx === 1 ? 'text-cyan-400' : 'text-emerald-400'}`}>
+                            {(stats as any)[statConfig.key] || 0}
+                          </p>
+                          <p className="text-[10px] text-zinc-500">{statConfig.shortLabel}</p>
+                        </div>
+                      ))}
                     </div>
                     
                     {isExpanded ? (
@@ -331,10 +390,10 @@ const CoachStatsEntry: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Expanded Stats Entry */}
+                {/* Expanded Stats Entry - Dynamic based on sport */}
                 {isExpanded && (
                   <div className="border-t border-zinc-800 p-4 space-y-4 animate-in slide-in-from-top-2">
-                    {/* Games Played */}
+                    {/* Games Played (universal) */}
                     <div className="flex items-center gap-4">
                       <div className="w-32">
                         <StatInput 
@@ -346,55 +405,32 @@ const CoachStatsEntry: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Offensive Stats */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <Sword className="w-4 h-4 text-orange-500" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Offense</span>
+                    {/* Dynamic Stats by Category */}
+                    {groupedStats.map((group) => (
+                      <div key={group.category}>
+                        <div className="flex items-center gap-2 mb-3">
+                          {group.icon}
+                          <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">{group.category}</span>
+                        </div>
+                        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                          {group.stats.map((statConfig, idx) => {
+                            const colorClass = idx === 0 ? `text-${group.color}-400` : 
+                                              idx < 3 ? 'text-cyan-400' : 'text-zinc-300';
+                            return (
+                              <StatInput 
+                                key={statConfig.key}
+                                label={statConfig.shortLabel} 
+                                value={(stats as any)[statConfig.key] || 0} 
+                                onChange={(v) => handleStatChange(player.id, statConfig.key as keyof PlayerSeasonStats, v)} 
+                                color={colorClass}
+                              />
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
-                        <StatInput label="TDs" value={stats.tds || 0} onChange={(v) => handleStatChange(player.id, 'tds', v)} color="text-orange-400" />
-                        <StatInput label="Rush Yds" value={stats.rushYards || 0} onChange={(v) => handleStatChange(player.id, 'rushYards', v)} color="text-cyan-400" />
-                        <StatInput label="Rush Att" value={stats.rushAttempts || 0} onChange={(v) => handleStatChange(player.id, 'rushAttempts', v)} />
-                        <StatInput label="Rec" value={stats.rec || 0} onChange={(v) => handleStatChange(player.id, 'rec', v)} />
-                        <StatInput label="Rec Yds" value={stats.recYards || 0} onChange={(v) => handleStatChange(player.id, 'recYards', v)} color="text-cyan-400" />
-                        <StatInput label="Pass Yds" value={stats.passYards || 0} onChange={(v) => handleStatChange(player.id, 'passYards', v)} color="text-cyan-400" />
-                        <StatInput label="Comp/Att" value={stats.passCompletions || 0} onChange={(v) => handleStatChange(player.id, 'passCompletions', v)} />
-                      </div>
-                    </div>
+                    ))}
 
-                    {/* Defensive Stats */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <Shield className="w-4 h-4 text-emerald-500" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Defense</span>
-                      </div>
-                      <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
-                        <StatInput label="Tackles" value={stats.tackles || 0} onChange={(v) => handleStatChange(player.id, 'tackles', v)} color="text-emerald-400" />
-                        <StatInput label="Solo" value={stats.soloTackles || 0} onChange={(v) => handleStatChange(player.id, 'soloTackles', v)} />
-                        <StatInput label="Assists" value={stats.assistTackles || 0} onChange={(v) => handleStatChange(player.id, 'assistTackles', v)} />
-                        <StatInput label="Sacks" value={stats.sacks || 0} onChange={(v) => handleStatChange(player.id, 'sacks', v)} color="text-purple-400" />
-                        <StatInput label="INTs" value={stats.int || 0} onChange={(v) => handleStatChange(player.id, 'int', v)} color="text-red-400" />
-                        <StatInput label="FF" value={stats.ff || 0} onChange={(v) => handleStatChange(player.id, 'ff', v)} color="text-orange-400" />
-                        <StatInput label="FR" value={stats.fr || 0} onChange={(v) => handleStatChange(player.id, 'fr', v)} />
-                      </div>
-                    </div>
-
-                    {/* Special Teams */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <Target className="w-4 h-4 text-yellow-500" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Special Teams</span>
-                      </div>
-                      <div className="grid grid-cols-4 gap-2">
-                        <StatInput label="KR Yds" value={stats.kickReturnYards || 0} onChange={(v) => handleStatChange(player.id, 'kickReturnYards', v)} color="text-yellow-400" />
-                        <StatInput label="KR TDs" value={stats.kickReturnTds || 0} onChange={(v) => handleStatChange(player.id, 'kickReturnTds', v)} color="text-orange-400" />
-                        <StatInput label="PR Yds" value={stats.puntReturnYards || 0} onChange={(v) => handleStatChange(player.id, 'puntReturnYards', v)} color="text-yellow-400" />
-                        <StatInput label="PR TDs" value={stats.puntReturnTds || 0} onChange={(v) => handleStatChange(player.id, 'puntReturnTds', v)} color="text-orange-400" />
-                      </div>
-                    </div>
-
-                    {/* Sportsmanship */}
+                    {/* Sportsmanship (universal) */}
                     <div className="pt-3 border-t border-zinc-800">
                       <div className="flex items-center justify-between">
                         <div className="w-40">

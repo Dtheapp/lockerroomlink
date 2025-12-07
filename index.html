@@ -6,7 +6,7 @@
     
     <!-- PWA Meta Tags -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#7c3aed" />
+    <meta name="theme-color" content="#6366f1" />
     <meta name="description" content="OSYS - The Operating System for Youth Sports" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -60,16 +60,20 @@
 <link rel="stylesheet" href="/index.css">
     <style>
       /* OSYS Design System - Critical CSS */
+      /* VALUES MATCHED TO design-preview MOCKUPS - DO NOT CHANGE WITHOUT MOCKUP UPDATE */
       :root {
-        --osys-primary-400: #a78bfa;
-        --osys-primary-500: #8b5cf6;
-        --osys-primary-600: #7c3aed;
+        /* Primary Colors - EXACT from mockup */
+        --osys-primary-400: #818cf8;
+        --osys-primary-500: #6366f1;
+        --osys-primary-600: #4f46e5;
         --osys-gold-400: #fbbf24;
         --osys-gold-500: #f59e0b;
         --osys-success-400: #34d399;
         --osys-success-500: #10b981;
         --osys-danger-400: #f87171;
         --osys-danger-500: #ef4444;
+        
+        /* Dark Palette - EXACT from mockup */
         --osys-dark-950: #020617;
         --osys-dark-900: #0f172a;
         --osys-dark-800: #1e293b;
@@ -81,17 +85,60 @@
         --osys-dark-200: #e2e8f0;
         --osys-dark-100: #f1f5f9;
         --osys-dark-50: #f8fafc;
-        --osys-gradient-primary: linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%);
-        --osys-gradient-gold: linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #f59e0b 100%);
+        
+        /* Semantic Aliases - maps to mockup variable names */
+        --osys-bg-primary: #0f172a;
+        --osys-bg-secondary: #1e293b;
+        --osys-bg-tertiary: #334155;
+        --osys-bg-dark: #020617;
+        --osys-bg-light: #f1f5f9;
+        
+        /* Text Colors - EXACT from mockup */
+        --osys-text-primary: #ffffff;
+        --osys-text-secondary: #f1f5f9;
+        --osys-text-tertiary: #94a3b8;
+        --osys-text-muted: #64748b;
+        
+        /* Primary Color Shortcuts - EXACT from mockup */
+        --osys-primary: #6366f1;
+        --osys-primary-light: #818cf8;
+        --osys-primary-dark: #4f46e5;
+        --osys-secondary: #f59e0b;
+        --osys-purple: #8b5cf6;
+        
+        /* Glass Effect Variables */
+        --osys-glass-bg: rgba(30, 41, 59, 0.6);
+        --osys-glass-border: rgba(255, 255, 255, 0.1);
+        
+        /* Border Colors */
+        --osys-border-primary: rgba(255, 255, 255, 0.1);
+        --osys-border-secondary: rgba(255, 255, 255, 0.2);
+        
+        /* Gradients - EXACT from mockup */
+        --osys-gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        --osys-gradient-gold: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
         --osys-gradient-card: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+        --osys-gradient-hero: linear-gradient(180deg, rgba(99, 102, 241, 0.3) 0%, transparent 50%);
+        
+        /* Spacing & Sizing - EXACT from mockup */
+        --osys-radius: 12px;
         --osys-radius-sm: 6px;
-        --osys-radius-md: 10px;
-        --osys-radius-lg: 16px;
-        --osys-radius-xl: 24px;
+        --osys-radius-md: 12px;
+        --osys-radius-lg: 20px;
+        --osys-radius-xl: 20px;
         --osys-radius-full: 9999px;
         --osys-ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
         --osys-duration-fast: 150ms;
-        --osys-duration-normal: 300ms;
+        --osys-duration-normal: 200ms;
+        --osys-duration-slow: 500ms;
+        
+        /* Shadows */
+        --osys-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+        --osys-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        --osys-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+        --osys-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+        --osys-shadow-glow: 0 0 40px rgba(124, 58, 237, 0.3);
+        --osys-shadow-glow-gold: 0 0 40px rgba(245, 158, 11, 0.3);
       }
 
       /* Animated Background */
@@ -269,6 +316,8 @@
       .osys-badge-success { background: rgba(16, 185, 129, 0.2); color: var(--osys-success-400); }
       .osys-badge-live { background: rgba(239, 68, 68, 0.2); color: var(--osys-danger-400); animation: osys-pulse-badge 2s infinite; }
       .osys-badge-coming { background: rgba(100, 116, 139, 0.3); color: var(--osys-dark-300); border: 1px dashed rgba(255, 255, 255, 0.2); }
+      .osys-badge-warning { background: rgba(245, 158, 11, 0.2); color: var(--osys-gold-400); }
+      .osys-badge-error { background: rgba(239, 68, 68, 0.2); color: var(--osys-danger-400); }
 
       @keyframes osys-pulse-badge {
         0%, 100% { opacity: 1; }
