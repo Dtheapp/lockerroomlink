@@ -244,6 +244,12 @@ const FundraisingPage: React.FC = () => {
           <span className="text-xl font-bold">OSYS</span>
         </Link>
         
+        <div className="hidden md:flex items-center gap-4">
+          <Link to="/nil-marketplace" className="text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-purple-600 dark:hover:text-orange-400 transition">
+            NIL Marketplace
+          </Link>
+        </div>
+        
         <div className="flex items-center gap-3 ml-auto">
           {user ? (
             <Link to="/dashboard">
