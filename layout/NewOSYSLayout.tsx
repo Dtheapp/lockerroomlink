@@ -108,6 +108,7 @@ const NewOSYSLayout: React.FC = () => {
       { icon: '📋', label: 'Playbook', path: '/playbook', section: 'Main', configKey: 'playbookEnabled', hideForParent: true },
       { icon: '👥', label: 'Roster', path: '/roster', section: 'Main' },
       { icon: '📅', label: 'Schedule', path: '/events', section: 'Main' },
+      { icon: '🎨', label: 'Design Studio', path: '/design', section: 'Create', coachOnly: true },
       { icon: '💬', label: 'Messages', path: '/messenger', section: 'Engage', configKey: 'messengerEnabled', unreadKey: 'messenger' },
       { icon: '🗨️', label: 'Team Chat', path: '/chat', section: 'Engage', configKey: 'chatEnabled', unreadKey: 'teamChat' },
       { icon: '🛡️', label: 'Strategy', path: '/strategies', section: 'Engage', configKey: 'chatEnabled', coachOnly: true, unreadKey: 'strategy' },
