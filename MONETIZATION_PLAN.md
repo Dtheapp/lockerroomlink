@@ -25,6 +25,7 @@ This isn't just a team management app. This is:
 | **Coach Subscriptions** | Coaches | Monthly recurring | Phase 1 |
 | **System Playbooks** | Coaches | One-time purchase | Phase 1 |
 | **Event Registration** | Teams/Parents | % of transaction | Phase 1 |
+| **AI Customer Service** | Included | Reduces support costs | Phase 1 |
 | **Fundraising Platform** | Teams | % of donations | Phase 2 |
 | **Game Tickets** | Fans/Parents | % of ticket sales | Phase 2 |
 | **Private Coaching Sessions** | Parents/Players | % of booking | Phase 2 |

@@ -10,14 +10,15 @@ This document outlines features that will make LockerRoomLink the **#1 youth spo
 
 # 📋 TABLE OF CONTENTS
 
-1. [Tier 0: Platform Revenue Streams (NEW!)](#tier-0-platform-revenue-streams)
-2. [Tier 1: Revolutionary Features](#tier-1-revolutionary-features-industry-first)
-3. [Tier 2: Engagement & Gamification](#tier-2-engagement--gamification)
-4. [Tier 3: Monetization & Sustainability](#tier-3-monetization--sustainability)
-5. [Tier 4: Futuristic AR/VR Features](#tier-4-futuristic--ar--vr)
-6. [Tier 5: Community & Social](#tier-5-community--social)
-7. [Tier 6: Quick Wins](#tier-6-quick-wins-easier-to-implement)
-8. [Implementation Priority Matrix](#implementation-priority-matrix)
+1. [Tier 0: Platform Revenue Streams](#tier-0-platform-revenue-streams)
+2. [Tier 0.5: Growth & Trust Infrastructure](#tier-05-growth--trust-infrastructure) 🆕
+3. [Tier 1: Revolutionary Features](#tier-1-revolutionary-features-industry-first)
+4. [Tier 2: Engagement & Gamification](#tier-2-engagement--gamification)
+5. [Tier 3: Monetization & Sustainability](#tier-3-monetization--sustainability)
+6. [Tier 4: Futuristic AR/VR Features](#tier-4-futuristic--ar--vr)
+7. [Tier 5: Community & Social](#tier-5-community--social)
+8. [Tier 6: Quick Wins](#tier-6-quick-wins-easier-to-implement)
+9. [Implementation Priority Matrix](#implementation-priority-matrix)
 
 ---
 
@@ -160,6 +161,281 @@ Replace League Lineup with modern league management that uses AI to auto-fill st
 | Starter | $49/season | Up to 8 teams |
 | Pro | $99/season | Up to 16 teams |
 | Enterprise | $199/season | Unlimited |
+
+---
+
+# TIER 0.5: GROWTH & TRUST INFRASTRUCTURE
+
+These are **non-negotiable** features that enable growth and protect our users (especially children).
+
+---
+
+## 0.7 🌐 WORLD-CLASS LANDING PAGE & CONVERSION FUNNEL
+
+### What Is It?
+A stunning, high-converting marketing website that makes visitors immediately understand our value and sign up.
+
+### Why It's Critical
+- **First impression** determines if someone signs up or bounces
+- **SEO** - rank for "youth sports app", "team management", etc.
+- **Trust** - professional landing page = professional product
+- **Conversion** - optimize for maximum signups
+
+### Landing Page Sections
+1. **Hero Section**
+   - Bold headline: "The Operating System for Youth Sports"
+   - Sub-headline: "One app for everything your team needs"
+   - CTA: "Start Free" button
+   - Hero image/video showing app in action
+   - Trust badges: "Used by 10,000+ teams"
+
+2. **Problem/Solution**
+   - "Tired of juggling 5 different apps?"
+   - Show pain points with visuals
+   - Position LockerRoomLink as the solution
+
+3. **Feature Showcase**
+   - Interactive feature cards
+   - Sport-specific tabs (Football, Basketball, Cheer, etc.)
+   - Screenshots/GIFs of each feature
+
+4. **Social Proof**
+   - Testimonials from real coaches and parents
+   - Video testimonials
+   - League/organization logos
+   - Star ratings and review counts
+
+5. **Pricing Section**
+   - Clear tier comparison
+   - "Free Forever" highlighted
+   - FAQ accordion
+
+6. **Final CTA**
+   - "Join 10,000+ teams already winning with LockerRoomLink"
+   - Email capture for non-ready visitors
+
+### Conversion Funnel
+```
+Landing Page → Sign Up Form → Email Verification → 
+Sport Selection → Team Creation → Onboarding Tour → 
+First Action (Add Player/Create Announcement) → 
+Value Delivered → Upgrade Prompt (Day 7)
+```
+
+### Funnel Optimization
+| Stage | Goal | Metric to Track |
+|-------|------|-----------------|
+| Visit → Sign Up | 5-8% conversion | Signup rate |
+| Sign Up → Verified | 80%+ completion | Email verification rate |
+| Verified → Team Created | 70%+ completion | Activation rate |
+| Day 1 → Day 7 | 40%+ retention | Week 1 retention |
+| Free → Paid | 5-10% conversion | Conversion rate |
+
+### Landing Page Tech Stack
+- **Framework:** Next.js (for SEO, SSR)
+- **Hosting:** Vercel (fast, global CDN)
+- **Analytics:** PostHog + Google Analytics
+- **A/B Testing:** Built into PostHog
+- **Forms:** React Hook Form + validation
+- **CMS:** Optional - for blog/testimonials
+
+### SEO Strategy
+| Target Keyword | Search Volume | Difficulty |
+|----------------|---------------|------------|
+| "youth sports app" | 1,900/mo | Medium |
+| "team management app" | 2,400/mo | High |
+| "football playbook app" | 880/mo | Low |
+| "cheer team app" | 320/mo | Very Low |
+| "youth sports software" | 720/mo | Medium |
+
+---
+
+## 0.8 🛡️ AI CONTENT MODERATION (Child Safety)
+
+### What Is It?
+Automated AI-powered system that scans ALL user-generated content to protect children from harmful, inappropriate, or dangerous content.
+
+### Why It's CRITICAL
+- **Legal liability** - We're responsible for content involving minors
+- **Parent trust** - Parents won't use an unsafe platform
+- **Brand reputation** - One incident can destroy us
+- **App store compliance** - Apple/Google require child safety measures
+- **COPPA compliance** - Legal requirement for apps with children
+
+### What Gets Moderated
+| Content Type | Moderation Method |
+|--------------|-------------------|
+| Chat messages | Real-time AI scan |
+| Profile photos | AI image analysis |
+| Profile bios | Text analysis |
+| Team announcements | Text analysis |
+| Video titles/descriptions | Text analysis |
+| Uploaded images | AI image analysis |
+| Public posts | Text + image analysis |
+| Comments | Real-time AI scan |
+
+### AI Moderation Capabilities
+1. **Text Analysis (NLP)**
+   - Profanity detection
+   - Bullying/harassment detection
+   - Hate speech detection
+   - Sexual content detection
+   - Violence/threat detection
+   - Personal information exposure (phone, address)
+   - Grooming behavior patterns
+
+2. **Image Analysis (Computer Vision)**
+   - Nudity/sexual content detection
+   - Violence detection
+   - Weapons detection
+   - Drug/alcohol detection
+   - Age-inappropriate content
+
+3. **Pattern Detection**
+   - Repeated harassment
+   - Coordinated bullying
+   - Suspicious adult-child interactions
+   - Account behavior anomalies
+
+### Moderation Actions
+| Severity | Action | Example |
+|----------|--------|---------|
+| Low | Warning + edit prompt | Mild profanity |
+| Medium | Content hidden + review | Potential bullying |
+| High | Content blocked + user warned | Explicit content |
+| Critical | Account suspended + report | Threats, illegal content |
+
+### Human Review Queue
+- AI-flagged content goes to human review
+- 24-hour SLA for high-severity items
+- Escalation path for legal issues
+- Appeals process for users
+
+### Moderation Dashboard (Admin)
+- Real-time flagged content queue
+- User history and patterns
+- Ban/warn management
+- Analytics (volume, types, response time)
+- Export for legal/compliance
+
+### Third-Party Services to Consider
+| Service | What It Does | Cost |
+|---------|--------------|------|
+| **Perspective API** (Google) | Text toxicity scoring | Free (quota limits) |
+| **Amazon Rekognition** | Image moderation | $0.001/image |
+| **Azure Content Moderator** | Text + image | Pay per use |
+| **Hive Moderation** | Comprehensive | $0.001/request |
+| **OpenAI Moderation** | Text analysis | Free with API |
+
+### Implementation Priority
+1. **Phase 1 (Before Pilot):**
+   - Basic profanity filter
+   - Keyword blocklist
+   - Report button on all content
+   - Admin review queue
+
+2. **Phase 2 (After Pilot):**
+   - AI text moderation (Perspective API)
+   - AI image moderation (Rekognition)
+   - Automated actions
+
+3. **Phase 3 (Scale):**
+   - Advanced pattern detection
+   - Predictive flagging
+   - Full moderation dashboard
+
+---
+
+## 0.9 🤖 AI CUSTOMER SERVICE
+
+### What Is It?
+24/7 AI-powered customer support that handles common questions, troubleshooting, and account issues without human intervention.
+
+### Why It's Critical
+- **Scale** - Can't afford human support at startup
+- **24/7 availability** - Coaches use app at night/weekends
+- **Instant response** - Users expect immediate help
+- **Cost reduction** - AI handles 70-80% of tickets
+- **Data collection** - Learn what users struggle with
+
+### AI Support Capabilities
+
+#### Tier 1: Instant Answers (No Human Needed)
+| Question Type | Example | AI Response |
+|---------------|---------|-------------|
+| How-to | "How do I add a player?" | Step-by-step guide + video link |
+| Feature discovery | "Can I track stats?" | Feature explanation + navigation |
+| Pricing | "What does Pro include?" | Pricing table + comparison |
+| Account | "How do I change my email?" | Direct link to settings |
+| Technical | "Why won't video upload?" | Troubleshooting steps |
+
+#### Tier 2: Assisted Resolution (AI + Backend Access)
+| Issue Type | AI Action |
+|------------|-----------|
+| Password reset | Send reset email |
+| Subscription issue | Check status, provide info |
+| Missing content | Search database, explain |
+| Bug report | Log issue, provide workaround |
+
+#### Tier 3: Human Escalation
+| Issue Type | Escalation Trigger |
+|------------|-------------------|
+| Billing dispute | "refund", "charged wrong" |
+| Safety concern | "harassment", "inappropriate" |
+| Technical emergency | "data lost", "account hacked" |
+| Unresolved after 3 attempts | Frustration detected |
+
+### AI Support Interface
+
+**In-App Chat Widget:**
+```
+┌─────────────────────────────────┐
+│ 🤖 LockerRoom Assistant         │
+├─────────────────────────────────┤
+│                                 │
+│ Hi Coach! How can I help?       │
+│                                 │
+│ Quick Actions:                  │
+│ • How do I add players?         │
+│ • Subscription questions        │
+│ • Report a problem              │
+│ • Contact human support         │
+│                                 │
+├─────────────────────────────────┤
+│ Type your question...      [➤]  │
+└─────────────────────────────────┘
+```
+
+### Knowledge Base Integration
+- AI trained on all help articles
+- Surfaces relevant docs in responses
+- Suggests related topics
+- Learns from successful resolutions
+
+### AI Support Tech Stack
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| Chat UI | Custom React component | User interface |
+| AI Engine | OpenAI GPT-4 / Claude | Understanding + response |
+| Knowledge Base | Vector database (Pinecone) | Document retrieval |
+| Ticketing | Custom + webhook to email | Escalation |
+| Analytics | PostHog | Track resolution rates |
+
+### Success Metrics
+| Metric | Target |
+|--------|--------|
+| AI resolution rate | 70%+ |
+| Response time | < 5 seconds |
+| User satisfaction | 4.5+ stars |
+| Escalation rate | < 30% |
+| Cost per ticket | < $0.50 |
+
+### Cost Analysis
+| Support Model | Cost per 1000 Users/Month |
+|---------------|---------------------------|
+| Human only | $2,000-5,000 |
+| AI + Human | $200-500 |
+| AI primary | $50-100 |
 
 ---
 

@@ -101,11 +101,14 @@ One platform that handles EVERYTHING:
 | Feature | Priority | Phase |
 |---------|----------|-------|
 | Multi-sport support | 🔴 CRITICAL | 1 |
+| **Landing page (world-class)** | 🔴 CRITICAL | 1 |
+| **AI content moderation (child safety)** | 🔴 CRITICAL | 1 |
 | Onboarding flow | 🔴 CRITICAL | 1 |
 | Coach subscriptions (Stripe) | 🔴 CRITICAL | 2 |
 | Feature gating | 🔴 CRITICAL | 2 |
 | Fundraising platform | 🟡 HIGH | 2 |
 | Digital tickets | 🟡 HIGH | 2 |
+| **AI customer service** | 🟡 HIGH | 2 |
 | Private coaching bookings | 🟡 HIGH | 3 |
 | NIL marketplace | 🟢 MEDIUM | 3 |
 | League management | 🟢 MEDIUM | 3 |

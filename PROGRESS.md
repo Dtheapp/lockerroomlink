@@ -215,6 +215,8 @@ TOTAL PROGRESS     ████████████░░░░░░░░�
 |------|----------|--------|-------|
 | Multi-sport (Basketball/Cheer positions) | 🔴 Critical | ⬜ | Blocks pilot |
 | Multi-sport (Basketball/Cheer stats) | 🔴 Critical | ⬜ | Blocks pilot |
+| **Landing page (world-class)** | 🔴 Critical | ⬜ | First impression, conversion funnel |
+| **AI content moderation** | 🔴 Critical | ⬜ | Child safety, auto-flag harmful content |
 | Onboarding welcome modal | 🔴 Critical | ⬜ | First impression |
 | Getting started checklist | 🔴 Critical | ⬜ | Guide new users |
 | Empty states upgrade | 🟡 High | ⬜ | Design polish |
@@ -279,6 +281,7 @@ TOTAL PROGRESS     ████████████░░░░░░░░�
 ### Phase 6: AI Features (Q3 2026)
 | Task | Priority | Status | Notes |
 |------|----------|--------|-------|
+| **AI customer service chatbot** | 🟡 High | ⬜ | 24/7 support, reduce tickets |
 | AI highlight reel generator | 🟢 Medium | ⬜ | Auto-create highlights |
 | AI play suggestion | 🟢 Medium | ⬜ | Recommend plays |
 | AI scouting reports | 🟢 Medium | ⬜ | Analyze opponents |

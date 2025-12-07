@@ -80,7 +80,13 @@ Become the operating system → Exit or IPO
 - Hide playbook for non-football (or show generic)
 - Core features work for all (roster, chat, events, video, messaging)
 
-### Phase 1B: Pilot Polish & Design (NEXT WEEK)
+### Phase 1B: Landing Page & Safety (THIS WEEK)
+- **World-class landing page** (conversion funnel, SEO)
+- **Basic content moderation** (profanity filter, report button)
+- **AI content moderation Phase 1** (keyword blocklist, admin review queue)
+- Child safety measures (required for app stores + parent trust)
+
+### Phase 1C: Pilot Polish & Design (NEXT WEEK)
 - Onboarding flow (Welcome modal, getting started checklist)
 - Error monitoring (Sentry)
 - Basic analytics (PostHog)
@@ -88,6 +94,7 @@ Become the operating system → Exit or IPO
 - Empty states upgrade (beautiful, actionable)
 - Skeleton loaders (replace spinners)
 - Success celebrations (confetti on key moments)
+- AI customer service (basic FAQ bot)
 - Testing
 
 ### Phase 2: Football Enhancement (By February)
@@ -115,6 +122,35 @@ Become the operating system → Exit or IPO
 | Basketball stats template | Critical | 2 hours | ⬜ |
 | Cheer stats template | Critical | 2 hours | ⬜ |
 | Test all flows for basketball/cheer | Critical | 2 hours | ⬜ |
+
+### Landing Page & Conversion Funnel
+| Task | Priority | Est. Time | Status |
+|------|----------|-----------|--------|
+| Landing page hero section | Critical | 3 hours | ⬜ |
+| Feature showcase section | Critical | 3 hours | ⬜ |
+| Pricing section | Critical | 2 hours | ⬜ |
+| Social proof/testimonials | High | 2 hours | ⬜ |
+| Signup flow optimization | Critical | 2 hours | ⬜ |
+| SEO meta tags & structure | High | 1 hour | ⬜ |
+| Mobile responsive check | Critical | 1 hour | ⬜ |
+
+### Child Safety & Content Moderation
+| Task | Priority | Est. Time | Status |
+|------|----------|-----------|--------|
+| Profanity filter (basic) | Critical | 2 hours | ⬜ |
+| Report button on all content | Critical | 2 hours | ⬜ |
+| Admin moderation queue | Critical | 3 hours | ⬜ |
+| AI text moderation (Perspective API) | High | 3 hours | ⬜ |
+| AI image moderation (Rekognition) | High | 3 hours | ⬜ |
+| User warning/ban system | Critical | 2 hours | ⬜ |
+
+### AI Customer Service
+| Task | Priority | Est. Time | Status |
+|------|----------|-----------|--------|
+| Help/FAQ knowledge base | High | 3 hours | ⬜ |
+| Chat widget UI | High | 2 hours | ⬜ |
+| OpenAI/Claude integration | High | 3 hours | ⬜ |
+| Human escalation flow | High | 2 hours | ⬜ |
 
 ### Design Upgrades (Trait #24 - Make Users Fall In Love)
 | Task | Priority | Est. Time | Status |
