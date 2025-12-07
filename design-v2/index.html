@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSYS - The Operating System for Youth Sports</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav glass">
+        <a href="index.html" class="nav-logo">
+            <div class="logo-icon">⚡</div>
+            <span class="logo-text">OSYS</span>
+        </a>
+        <div class="nav-links hide-mobile">
+            <a href="#features">Features</a>
+            <a href="#sports">Sports</a>
+            <a href="#pricing">Pricing</a>
+            <a href="fundraising.html">Fundraising</a>
+        </div>
+        <div class="nav-actions">
+            <a href="coach-dashboard.html" class="btn btn-ghost btn-sm">Sign In</a>
+            <a href="#" class="btn btn-primary btn-sm">Get Started Free</a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-bg">
+            <div class="hero-orb hero-orb-1"></div>
+            <div class="hero-orb hero-orb-2"></div>
+            <div class="hero-orb hero-orb-3"></div>
+            <div class="hero-grid"></div>
+        </div>
+        
+        <div class="container hero-content">
+            <div class="hero-badge animate-slide-down">
+                <span class="badge badge-primary">🚀 Now supporting 5 sports</span>
+            </div>
+            
+            <h1 class="text-hero animate-slide-up">
+                The Operating System<br>
+                <span class="text-gradient">for Youth Sports</span>
+            </h1>
+            
+            <p class="hero-subtitle animate-slide-up" style="animation-delay: 0.1s">
+                Playbooks. Stats. Livestreams. Fundraising. Fan engagement.<br>
+                Everything your team needs in one powerful platform.
+            </p>
+            
+            <div class="hero-cta animate-slide-up" style="animation-delay: 0.2s">
+                <a href="#" class="btn btn-primary btn-lg">
+                    Start Free Trial
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </a>
+                <a href="#" class="btn btn-ghost btn-lg">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Watch Demo
+                </a>
+            </div>
+            
+            <div class="hero-stats animate-slide-up" style="animation-delay: 0.3s">
+                <div class="hero-stat">
+                    <span class="hero-stat-value">50K+</span>
+                    <span class="hero-stat-label">Athletes</span>
+                </div>
+                <div class="hero-stat-divider"></div>
+                <div class="hero-stat">
+                    <span class="hero-stat-value">2,500+</span>
+                    <span class="hero-stat-label">Teams</span>
+                </div>
+                <div class="hero-stat-divider"></div>
+                <div class="hero-stat">
+                    <span class="hero-stat-value">$1.2M</span>
+                    <span class="hero-stat-label">Raised</span>
+                </div>
+                <div class="hero-stat-divider"></div>
+                <div class="hero-stat">
+                    <span class="hero-stat-value">4.9★</span>
+                    <span class="hero-stat-label">Rating</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Hero Device Mockup -->
+        <div class="hero-mockup animate-float">
+            <div class="mockup-phone">
+                <div class="phone-screen">
+                    <div class="phone-app">
+                        <div class="app-header">
+                            <span>🏈 Eagles vs Panthers</span>
+                            <span class="badge badge-live">● LIVE</span>
+                        </div>
+                        <div class="app-score">
+                            <div class="team-score">
+                                <span class="team-name">Eagles</span>
+                                <span class="score">28</span>
+                            </div>
+                            <span class="game-time">Q4 2:34</span>
+                            <div class="team-score">
+                                <span class="team-name">Panthers</span>
+                                <span class="score">21</span>
+                            </div>
+                        </div>
+                        <div class="app-activity">
+                            <div class="activity-item">
+                                <span class="activity-icon">🏆</span>
+                                <span>TD Pass - M. Johnson → D. Smith</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Logos Section -->
+    <section class="logos-section">
+        <div class="container">
+            <p class="logos-label text-tiny">Trusted by organizations nationwide</p>
+            <div class="logos-grid">
+                <div class="logo-item">🏫 Atlanta Youth League</div>
+                <div class="logo-item">⚡ Texas Elite Sports</div>
+                <div class="logo-item">🌟 SoCal Athletics</div>
+                <div class="logo-item">🏆 Midwest Champions</div>
+                <div class="logo-item">🎯 East Coast Elite</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="section">
+        <div class="container">
+            <div class="section-header">
+                <span class="badge badge-primary">Features</span>
+                <h2 class="text-display">Everything your<br><span class="text-gradient">team needs</span></h2>
+                <p class="text-subtitle">One platform. Infinite possibilities.</p>
+            </div>
+            
+            <div class="features-grid stagger">
+                <div class="feature-card card card-glow">
+                    <div class="feature-icon">📋</div>
+                    <h3>Smart Playbooks</h3>
+                    <p>Drag-and-drop play designer with animated routes. Share instantly with your team.</p>
+                    <a href="playbook.html" class="feature-link">Explore →</a>
+                </div>
+                
+                <div class="feature-card card card-glow">
+                    <div class="feature-icon">📊</div>
+                    <h3>Live Stats</h3>
+                    <p>Real-time stat tracking during games. Auto-generated box scores and season analytics.</p>
+                    <a href="#" class="feature-link">Explore →</a>
+                </div>
+                
+                <div class="feature-card card card-glow">
+                    <div class="feature-icon">📺</div>
+                    <h3>Livestreaming</h3>
+                    <p>Stream games directly to fans and family. Built-in scoreboard overlay.</p>
+                    <a href="#" class="feature-link">Explore →</a>
+                </div>
+                
+                <div class="feature-card card card-glow highlight">
+                    <div class="feature-icon">💰</div>
+                    <h3>Fundraising</h3>
+                    <p>Crowdfund for tournaments, equipment, and travel. Built-in donor management.</p>
+                    <a href="fundraising.html" class="feature-link">Explore →</a>
+                </div>
+                
+                <div class="feature-card card card-glow">
+                    <div class="feature-icon">💬</div>
+                    <h3>Team Messenger</h3>
+                    <p>Secure group chat for coaches, players, and parents. Schedule announcements.</p>
+                    <a href="#" class="feature-link">Explore →</a>
+                </div>
+                
+                <div class="feature-card card card-glow">
+                    <div class="feature-icon">🏅</div>
+                    <h3>Athlete Profiles</h3>
+                    <p>NIL-ready profiles with stats, highlights, and social engagement tools.</p>
+                    <a href="athlete-profile.html" class="feature-link">Explore →</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Sports Section -->
+    <section id="sports" class="section sports-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="badge badge-gold">Multi-Sport</span>
+                <h2 class="text-display">Built for <span class="text-gradient-gold">every sport</span></h2>
+            </div>
+            
+            <div class="sports-carousel">
+                <div class="sport-card active">
+                    <span class="sport-icon">🏈</span>
+                    <span class="sport-name">Football</span>
+                </div>
+                <div class="sport-card">
+                    <span class="sport-icon">🏀</span>
+                    <span class="sport-name">Basketball</span>
+                </div>
+                <div class="sport-card">
+                    <span class="sport-icon">⚽</span>
+                    <span class="sport-name">Soccer</span>
+                </div>
+                <div class="sport-card">
+                    <span class="sport-icon">🏐</span>
+                    <span class="sport-name">Volleyball</span>
+                </div>
+                <div class="sport-card">
+                    <span class="sport-icon">📣</span>
+                    <span class="sport-name">Cheer</span>
+                </div>
+                <div class="sport-card coming-soon">
+                    <span class="sport-icon">⚾</span>
+                    <span class="sport-name">Baseball</span>
+                    <span class="badge">Soon</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="section cta-section">
+        <div class="container">
+            <div class="cta-card glass">
+                <div class="cta-content">
+                    <h2 class="text-title">Ready to transform your team?</h2>
+                    <p class="text-subtitle">Join thousands of teams already using OSYS.</p>
+                    <div class="cta-buttons">
+                        <a href="#" class="btn btn-gold btn-lg">Start Free Trial</a>
+                        <a href="#" class="btn btn-ghost btn-lg">Schedule Demo</a>
+                    </div>
+                </div>
+                <div class="cta-visual">
+                    <div class="cta-avatar-stack">
+                        <div class="avatar avatar-lg avatar-gold">C</div>
+                        <div class="avatar avatar-lg">P</div>
+                        <div class="avatar avatar-lg avatar-gold">F</div>
+                    </div>
+                    <p class="text-small">Join 50,000+ athletes</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Page Navigation -->
+    <nav class="page-nav glass">
+        <a href="index.html" class="active">Home</a>
+        <a href="coach-dashboard.html">Dashboard</a>
+        <a href="playbook.html">Playbook</a>
+        <a href="athlete-profile.html">Athlete</a>
+        <a href="team-page.html">Team</a>
+        <a href="fundraising.html">Fundraise</a>
+        <a href="fan-hub.html">Fans</a>
+    </nav>
+
+    <style>
+    /* Page-specific styles */
+    .nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: var(--z-fixed);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 2rem;
+        margin: 1rem;
+        border-radius: var(--radius-2xl);
+    }
+    
+    .nav-logo {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        text-decoration: none;
+        color: var(--dark-100);
+        font-weight: 800;
+        font-size: 1.25rem;
+    }
+    
+    .logo-icon {
+        width: 40px;
+        height: 40px;
+        background: var(--gradient-primary);
+        border-radius: var(--radius-lg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+    
+    .nav-links {
+        display: flex;
+        gap: 2rem;
+    }
+    
+    .nav-links a {
+        color: var(--dark-400);
+        text-decoration: none;
+        font-size: 0.9375rem;
+        font-weight: 500;
+        transition: color var(--duration-fast);
+    }
+    
+    .nav-links a:hover {
+        color: var(--dark-100);
+    }
+    
+    .nav-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+    
+    /* Hero */
+    .hero {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        padding: 8rem 0 4rem;
+        overflow: hidden;
+    }
+    
+    .hero-bg {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+    }
+    
+    .hero-orb {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(80px);
+        opacity: 0.5;
+    }
+    
+    .hero-orb-1 {
+        width: 600px;
+        height: 600px;
+        background: var(--primary-600);
+        top: -200px;
+        left: -200px;
+    }
+    
+    .hero-orb-2 {
+        width: 400px;
+        height: 400px;
+        background: var(--gold-500);
+        bottom: -100px;
+        right: -100px;
+        opacity: 0.3;
+    }
+    
+    .hero-orb-3 {
+        width: 300px;
+        height: 300px;
+        background: var(--primary-400);
+        top: 50%;
+        right: 20%;
+        opacity: 0.2;
+    }
+    
+    .hero-grid {
+        position: absolute;
+        inset: 0;
+        background-image: 
+            linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+        background-size: 60px 60px;
+    }
+    
+    .hero-content {
+        text-align: center;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .hero-subtitle {
+        font-size: 1.25rem;
+        color: var(--dark-400);
+        max-width: 600px;
+        margin: 1.5rem auto 2rem;
+        line-height: 1.7;
+    }
+    
+    .hero-cta {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .hero-stats {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 2rem;
+        margin-top: 4rem;
+        padding: 1.5rem 2rem;
+        background: rgba(30, 41, 59, 0.5);
+        backdrop-filter: blur(20px);
+        border-radius: var(--radius-2xl);
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .hero-stat {
+        text-align: center;
+    }
+    
+    .hero-stat-value {
+        display: block;
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--dark-100);
+    }
+    
+    .hero-stat-label {
+        font-size: 0.75rem;
+        color: var(--dark-500);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .hero-stat-divider {
+        width: 1px;
+        height: 40px;
+        background: rgba(255,255,255,0.1);
+    }
+    
+    /* Hero Mockup */
+    .hero-mockup {
+        position: absolute;
+        bottom: -50px;
+        right: 10%;
+        z-index: 2;
+    }
+    
+    .mockup-phone {
+        width: 280px;
+        height: 560px;
+        background: var(--dark-900);
+        border-radius: 40px;
+        padding: 12px;
+        border: 3px solid var(--dark-700);
+        box-shadow: var(--shadow-2xl);
+    }
+    
+    .phone-screen {
+        width: 100%;
+        height: 100%;
+        background: var(--dark-950);
+        border-radius: 32px;
+        overflow: hidden;
+    }
+    
+    .phone-app {
+        padding: 1rem;
+    }
+    
+    .app-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+    
+    .app-score {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.5rem;
+        background: var(--dark-800);
+        border-radius: var(--radius-xl);
+        margin-bottom: 1rem;
+    }
+    
+    .team-score {
+        text-align: center;
+    }
+    
+    .team-name {
+        display: block;
+        font-size: 0.75rem;
+        color: var(--dark-400);
+        margin-bottom: 0.25rem;
+    }
+    
+    .score {
+        font-size: 2rem;
+        font-weight: 800;
+    }
+    
+    .game-time {
+        font-size: 0.875rem;
+        color: var(--gold-400);
+        font-weight: 600;
+    }
+    
+    .app-activity {
+        background: var(--dark-800);
+        border-radius: var(--radius-lg);
+        padding: 0.75rem;
+    }
+    
+    .activity-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8125rem;
+    }
+    
+    /* Logos */
+    .logos-section {
+        padding: 3rem 0;
+        border-top: 1px solid rgba(255,255,255,0.05);
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    
+    .logos-label {
+        text-align: center;
+        color: var(--dark-500);
+        margin-bottom: 1.5rem;
+    }
+    
+    .logos-grid {
+        display: flex;
+        justify-content: center;
+        gap: 3rem;
+        flex-wrap: wrap;
+    }
+    
+    .logo-item {
+        font-size: 0.9375rem;
+        color: var(--dark-500);
+        font-weight: 500;
+    }
+    
+    /* Section Header */
+    .section-header {
+        text-align: center;
+        max-width: 700px;
+        margin: 0 auto 4rem;
+    }
+    
+    .section-header .badge {
+        margin-bottom: 1rem;
+    }
+    
+    .section-header p {
+        margin-top: 1rem;
+    }
+    
+    /* Features */
+    .features-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+    }
+    
+    .feature-card {
+        padding: 2rem;
+    }
+    
+    .feature-card.highlight {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(30, 41, 59, 0.8) 100%);
+        border-color: rgba(245, 158, 11, 0.2);
+    }
+    
+    .feature-icon {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .feature-card h3 {
+        font-size: 1.125rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .feature-card p {
+        font-size: 0.9375rem;
+        color: var(--dark-400);
+        line-height: 1.6;
+        margin-bottom: 1rem;
+    }
+    
+    .feature-link {
+        color: var(--primary-400);
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-decoration: none;
+    }
+    
+    /* Sports */
+    .sports-section {
+        background: var(--dark-900);
+    }
+    
+    .sports-carousel {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    
+    .sport-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 1.5rem 2rem;
+        background: var(--dark-800);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: var(--radius-xl);
+        cursor: pointer;
+        transition: all var(--duration-normal);
+    }
+    
+    .sport-card:hover,
+    .sport-card.active {
+        background: var(--gradient-primary);
+        border-color: transparent;
+        transform: translateY(-4px);
+    }
+    
+    .sport-icon {
+        font-size: 2rem;
+    }
+    
+    .sport-name {
+        font-weight: 600;
+        font-size: 0.9375rem;
+    }
+    
+    .sport-card.coming-soon {
+        opacity: 0.6;
+    }
+    
+    /* CTA */
+    .cta-section {
+        padding-bottom: 8rem;
+    }
+    
+    .cta-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 3rem;
+        gap: 2rem;
+    }
+    
+    .cta-buttons {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+    
+    .cta-visual {
+        text-align: center;
+    }
+    
+    .cta-avatar-stack {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 0.75rem;
+    }
+    
+    .cta-avatar-stack .avatar {
+        margin-left: -12px;
+        border: 3px solid var(--dark-800);
+    }
+    
+    .cta-avatar-stack .avatar:first-child {
+        margin-left: 0;
+    }
+    
+    /* Page Nav */
+    .page-nav {
+        position: fixed;
+        bottom: 1.5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 0.25rem;
+        padding: 0.5rem;
+        border-radius: var(--radius-full);
+        z-index: var(--z-fixed);
+    }
+    
+    .page-nav a {
+        padding: 0.625rem 1rem;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--dark-400);
+        text-decoration: none;
+        border-radius: var(--radius-full);
+        transition: all var(--duration-fast);
+    }
+    
+    .page-nav a:hover {
+        color: var(--dark-200);
+    }
+    
+    .page-nav a.active {
+        background: var(--gradient-primary);
+        color: white;
+    }
+    
+    @media (max-width: 1024px) {
+        .features-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .hero-mockup {
+            display: none;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .nav {
+            margin: 0.5rem;
+            padding: 0.75rem 1rem;
+        }
+        .features-grid {
+            grid-template-columns: 1fr;
+        }
+        .cta-card {
+            flex-direction: column;
+            text-align: center;
+        }
+        .hero-stats {
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .hero-stat-divider {
+            display: none;
+        }
+    }
+    </style>
+</body>
+</html>

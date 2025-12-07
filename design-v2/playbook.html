@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playbook Editor | OSYS</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="playbook-layout">
+        <!-- Sidebar - Plays List -->
+        <aside class="plays-sidebar">
+            <div class="sidebar-header">
+                <a href="coach-dashboard.html" class="back-link">← Back</a>
+                <h2>📋 Playbook</h2>
+            </div>
+            
+            <div class="plays-search">
+                <input type="text" placeholder="Search plays..." class="input">
+            </div>
+            
+            <div class="plays-filter">
+                <button class="filter-btn active">All</button>
+                <button class="filter-btn">Offense</button>
+                <button class="filter-btn">Defense</button>
+                <button class="filter-btn">Special</button>
+            </div>
+            
+            <div class="plays-list">
+                <div class="play-item active">
+                    <div class="play-thumb">
+                        <div class="mini-field">🏈</div>
+                    </div>
+                    <div class="play-info">
+                        <span class="play-name">Shotgun Y-Cross</span>
+                        <span class="play-meta">Passing • Red Zone</span>
+                    </div>
+                </div>
+                <div class="play-item">
+                    <div class="play-thumb">
+                        <div class="mini-field">🏈</div>
+                    </div>
+                    <div class="play-info">
+                        <span class="play-name">I-Form Power</span>
+                        <span class="play-meta">Running • Goal Line</span>
+                    </div>
+                </div>
+                <div class="play-item">
+                    <div class="play-thumb">
+                        <div class="mini-field">🏈</div>
+                    </div>
+                    <div class="play-info">
+                        <span class="play-name">4-3 Cover 2</span>
+                        <span class="play-meta">Defense • Base</span>
+                    </div>
+                </div>
+                <div class="play-item">
+                    <div class="play-thumb">
+                        <div class="mini-field">🏈</div>
+                    </div>
+                    <div class="play-info">
+                        <span class="play-name">Trips Right Fade</span>
+                        <span class="play-meta">Passing • Deep</span>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="btn btn-primary new-play-btn">+ New Play</button>
+        </aside>
+
+        <!-- Main Editor -->
+        <main class="editor-main">
+            <!-- Toolbar -->
+            <div class="editor-toolbar glass">
+                <div class="toolbar-left">
+                    <h1>Shotgun Y-Cross</h1>
+                    <span class="badge badge-primary">Offense</span>
+                    <span class="badge">Passing</span>
+                </div>
+                <div class="toolbar-center">
+                    <div class="tool-group">
+                        <button class="tool-btn" title="Select"><span>↖️</span></button>
+                        <button class="tool-btn active" title="Draw Route"><span>✏️</span></button>
+                        <button class="tool-btn" title="Add Player"><span>👤</span></button>
+                        <button class="tool-btn" title="Add Zone"><span>⬡</span></button>
+                        <button class="tool-btn" title="Add Text"><span>T</span></button>
+                    </div>
+                    <div class="tool-divider"></div>
+                    <div class="tool-group">
+                        <button class="tool-btn" title="Undo"><span>↩️</span></button>
+                        <button class="tool-btn" title="Redo"><span>↪️</span></button>
+                    </div>
+                </div>
+                <div class="toolbar-right">
+                    <button class="btn btn-ghost btn-sm">Preview</button>
+                    <button class="btn btn-ghost btn-sm">Share</button>
+                    <button class="btn btn-primary btn-sm">💾 Save</button>
+                </div>
+            </div>
+
+            <!-- Field Canvas -->
+            <div class="field-container">
+                <div class="field">
+                    <!-- Yard Lines -->
+                    <div class="yard-lines">
+                        <div class="yard-line"><span>G</span></div>
+                        <div class="yard-line"><span>10</span></div>
+                        <div class="yard-line"><span>20</span></div>
+                        <div class="yard-line"><span>30</span></div>
+                        <div class="yard-line"><span>40</span></div>
+                        <div class="yard-line"><span>50</span></div>
+                    </div>
+                    
+                    <!-- Hash Marks -->
+                    <div class="hash-marks left"></div>
+                    <div class="hash-marks right"></div>
+                    
+                    <!-- Line of Scrimmage -->
+                    <div class="line-of-scrimmage"></div>
+                    
+                    <!-- Players -->
+                    <div class="players offense">
+                        <!-- O-Line -->
+                        <div class="player" style="left: 35%; top: 58%;">LT</div>
+                        <div class="player" style="left: 42%; top: 58%;">LG</div>
+                        <div class="player center" style="left: 50%; top: 58%;">C</div>
+                        <div class="player" style="left: 58%; top: 58%;">RG</div>
+                        <div class="player" style="left: 65%; top: 58%;">RT</div>
+                        
+                        <!-- Skill Positions -->
+                        <div class="player qb" style="left: 50%; top: 70%;">QB</div>
+                        <div class="player rb" style="left: 50%; top: 80%;">RB</div>
+                        <div class="player wr" style="left: 15%; top: 55%;">X</div>
+                        <div class="player wr" style="left: 85%; top: 55%;">Z</div>
+                        <div class="player te" style="left: 75%; top: 58%;">Y</div>
+                    </div>
+                    
+                    <!-- Routes -->
+                    <svg class="routes-layer" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <!-- X Receiver Route - Post -->
+                        <path d="M 15 55 L 15 35 L 35 20" class="route" stroke-dasharray="4,2"/>
+                        
+                        <!-- Y Receiver Route - Cross -->
+                        <path d="M 75 58 L 75 45 L 40 45" class="route primary" stroke-dasharray="4,2"/>
+                        
+                        <!-- Z Receiver Route - Out -->
+                        <path d="M 85 55 L 85 40 L 95 40" class="route" stroke-dasharray="4,2"/>
+                        
+                        <!-- RB Route - Flat -->
+                        <path d="M 50 80 L 30 80 L 30 70" class="route secondary" stroke-dasharray="4,2"/>
+                    </svg>
+                    
+                    <!-- Route Endpoints (arrows) -->
+                    <div class="route-arrow" style="left: 35%; top: 20%; transform: rotate(-45deg);">▶</div>
+                    <div class="route-arrow primary" style="left: 40%; top: 45%;">◀</div>
+                    <div class="route-arrow" style="left: 95%; top: 40%;">▶</div>
+                </div>
+            </div>
+
+            <!-- Play Details Panel -->
+            <div class="details-panel glass">
+                <div class="panel-section">
+                    <h3>Play Details</h3>
+                    <div class="detail-row">
+                        <label>Formation</label>
+                        <select class="input">
+                            <option>Shotgun</option>
+                            <option>I-Form</option>
+                            <option>Single Back</option>
+                            <option>Empty</option>
+                        </select>
+                    </div>
+                    <div class="detail-row">
+                        <label>Category</label>
+                        <select class="input">
+                            <option>Red Zone</option>
+                            <option>Goal Line</option>
+                            <option>3rd Down</option>
+                            <option>2-Minute</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="panel-section">
+                    <h3>Key Reads</h3>
+                    <div class="reads-list">
+                        <div class="read-item">
+                            <span class="read-num">1</span>
+                            <span class="read-desc">Y on the cross - Primary read</span>
+                        </div>
+                        <div class="read-item">
+                            <span class="read-num">2</span>
+                            <span class="read-desc">RB in the flat</span>
+                        </div>
+                        <div class="read-item">
+                            <span class="read-num">3</span>
+                            <span class="read-desc">X on the post</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="panel-section">
+                    <h3>Notes</h3>
+                    <textarea class="input notes-input" placeholder="Add coaching notes...">Works best vs Cover 2. Key is the Y receiver selling the out route before breaking across.</textarea>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Page Nav -->
+    <nav class="page-nav glass">
+        <a href="index.html">Home</a>
+        <a href="coach-dashboard.html">Dashboard</a>
+        <a href="playbook.html" class="active">Playbook</a>
+        <a href="athlete-profile.html">Athlete</a>
+        <a href="team-page.html">Team</a>
+        <a href="fundraising.html">Fundraise</a>
+        <a href="fan-hub.html">Fans</a>
+    </nav>
+
+    <style>
+    .playbook-layout { display: flex; min-height: 100vh; }
+
+    /* Plays Sidebar */
+    .plays-sidebar { width: 300px; background: var(--dark-900); border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; position: fixed; top: 0; bottom: 0; left: 0; z-index: var(--z-fixed); }
+    .plays-sidebar .sidebar-header { padding: 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .back-link { font-size: 0.8125rem; color: var(--dark-400); text-decoration: none; display: block; margin-bottom: 0.5rem; }
+    .plays-sidebar h2 { font-size: 1.25rem; }
+    
+    .plays-search { padding: 1rem; }
+    .plays-search .input { width: 100%; }
+    
+    .plays-filter { display: flex; gap: 0.5rem; padding: 0 1rem 1rem; overflow-x: auto; }
+    .filter-btn { padding: 0.375rem 0.75rem; font-size: 0.75rem; font-weight: 500; background: transparent; border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-full); color: var(--dark-400); cursor: pointer; white-space: nowrap; transition: all var(--duration-fast); }
+    .filter-btn:hover, .filter-btn.active { background: var(--primary-600); border-color: var(--primary-600); color: white; }
+    
+    .plays-list { flex: 1; overflow-y: auto; padding: 0 0.75rem; }
+    .play-item { display: flex; gap: 0.75rem; padding: 0.75rem; border-radius: var(--radius-lg); cursor: pointer; transition: all var(--duration-fast); margin-bottom: 0.5rem; }
+    .play-item:hover { background: rgba(255,255,255,0.05); }
+    .play-item.active { background: var(--gradient-primary); }
+    .play-thumb { width: 48px; height: 48px; background: var(--dark-800); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; }
+    .play-item.active .play-thumb { background: rgba(255,255,255,0.2); }
+    .mini-field { font-size: 1.25rem; }
+    .play-info { flex: 1; }
+    .play-name { display: block; font-weight: 600; font-size: 0.9375rem; margin-bottom: 0.125rem; }
+    .play-meta { font-size: 0.75rem; color: var(--dark-500); }
+    .play-item.active .play-meta { color: rgba(255,255,255,0.7); }
+    
+    .new-play-btn { margin: 1rem; }
+
+    /* Editor Main */
+    .editor-main { flex: 1; margin-left: 300px; display: flex; flex-direction: column; height: 100vh; }
+
+    /* Toolbar */
+    .editor-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1.5rem; margin: 1rem; border-radius: var(--radius-xl); }
+    .toolbar-left { display: flex; align-items: center; gap: 0.75rem; }
+    .toolbar-left h1 { font-size: 1.125rem; }
+    .toolbar-center { display: flex; align-items: center; gap: 0.75rem; }
+    .tool-group { display: flex; gap: 0.25rem; background: var(--dark-900); padding: 0.25rem; border-radius: var(--radius-lg); }
+    .tool-btn { width: 40px; height: 40px; background: transparent; border: none; border-radius: var(--radius-md); cursor: pointer; font-size: 1rem; transition: all var(--duration-fast); display: flex; align-items: center; justify-content: center; }
+    .tool-btn:hover { background: rgba(255,255,255,0.1); }
+    .tool-btn.active { background: var(--primary-600); }
+    .tool-divider { width: 1px; height: 32px; background: rgba(255,255,255,0.1); }
+    .toolbar-right { display: flex; gap: 0.5rem; }
+
+    /* Field Container */
+    .field-container { flex: 1; padding: 0 1.5rem; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    
+    .field { position: relative; width: 100%; max-width: 900px; aspect-ratio: 16/10; background: linear-gradient(180deg, #1a472a 0%, #15381f 50%, #1a472a 100%); border-radius: var(--radius-xl); border: 4px solid white; overflow: hidden; box-shadow: var(--shadow-2xl), inset 0 0 100px rgba(0,0,0,0.3); }
+    
+    /* Yard Lines */
+    .yard-lines { position: absolute; inset: 0; display: flex; }
+    .yard-line { flex: 1; border-right: 2px solid rgba(255,255,255,0.3); display: flex; flex-direction: column; justify-content: space-between; padding: 0.5rem 0; }
+    .yard-line:last-child { border-right: none; }
+    .yard-line span { font-size: 0.875rem; font-weight: 700; color: rgba(255,255,255,0.4); text-align: center; }
+    
+    /* Hash Marks */
+    .hash-marks { position: absolute; top: 0; bottom: 0; width: 2px; }
+    .hash-marks.left { left: 35%; background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.2) 0px, rgba(255,255,255,0.2) 8px, transparent 8px, transparent 24px); }
+    .hash-marks.right { right: 35%; background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.2) 0px, rgba(255,255,255,0.2) 8px, transparent 8px, transparent 24px); }
+    
+    /* Line of Scrimmage */
+    .line-of-scrimmage { position: absolute; left: 0; right: 0; top: 55%; height: 3px; background: var(--primary-400); box-shadow: 0 0 10px var(--primary-400); }
+    
+    /* Players */
+    .player { position: absolute; width: 36px; height: 36px; background: var(--primary-500); border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.6875rem; font-weight: 700; color: white; transform: translate(-50%, -50%); cursor: move; transition: transform var(--duration-fast), box-shadow var(--duration-fast); z-index: 10; }
+    .player:hover { transform: translate(-50%, -50%) scale(1.1); box-shadow: 0 0 20px rgba(124, 58, 237, 0.5); }
+    .player.qb { background: var(--gold-500); color: var(--dark-900); width: 40px; height: 40px; }
+    .player.wr { background: var(--primary-400); }
+    .player.rb { background: var(--success-500); }
+    .player.te { background: var(--primary-600); }
+    
+    /* Routes Layer */
+    .routes-layer { position: absolute; inset: 0; pointer-events: none; }
+    .route { fill: none; stroke: rgba(255,255,255,0.6); stroke-width: 0.5; }
+    .route.primary { stroke: var(--gold-400); stroke-width: 0.7; }
+    .route.secondary { stroke: var(--success-400); stroke-width: 0.5; }
+    
+    .route-arrow { position: absolute; font-size: 0.875rem; color: rgba(255,255,255,0.6); transform: translate(-50%, -50%); }
+    .route-arrow.primary { color: var(--gold-400); }
+
+    /* Details Panel */
+    .details-panel { position: fixed; top: 80px; right: 1rem; width: 280px; padding: 1.25rem; border-radius: var(--radius-xl); }
+    .panel-section { margin-bottom: 1.5rem; }
+    .panel-section:last-child { margin-bottom: 0; }
+    .panel-section h3 { font-size: 0.8125rem; font-weight: 600; color: var(--dark-400); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .detail-row { margin-bottom: 0.75rem; }
+    .detail-row label { display: block; font-size: 0.75rem; color: var(--dark-500); margin-bottom: 0.25rem; }
+    .detail-row .input { width: 100%; }
+    
+    .reads-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .read-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem; background: var(--dark-900); border-radius: var(--radius-md); }
+    .read-num { width: 24px; height: 24px; background: var(--gradient-primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; }
+    .read-desc { font-size: 0.8125rem; color: var(--dark-300); }
+    
+    .notes-input { width: 100%; min-height: 100px; resize: vertical; }
+
+    /* Page Nav */
+    .page-nav { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%); display: flex; gap: 0.25rem; padding: 0.5rem; border-radius: var(--radius-full); z-index: var(--z-fixed); }
+    .page-nav a { padding: 0.625rem 1rem; font-size: 0.8125rem; font-weight: 500; color: var(--dark-400); text-decoration: none; border-radius: var(--radius-full); transition: all var(--duration-fast); }
+    .page-nav a:hover { color: var(--dark-200); }
+    .page-nav a.active { background: var(--gradient-primary); color: white; }
+
+    @media (max-width: 1200px) {
+        .details-panel { display: none; }
+    }
+    @media (max-width: 768px) {
+        .plays-sidebar { display: none; }
+        .editor-main { margin-left: 0; }
+    }
+    </style>
+</body>
+</html>

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coach Dashboard | OSYS</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar-nav">
+            <div class="sidebar-header">
+                <a href="index.html" class="nav-logo">
+                    <div class="logo-icon">⚡</div>
+                    <span>OSYS</span>
+                </a>
+            </div>
+            
+            <nav class="sidebar-menu">
+                <div class="menu-section">
+                    <span class="menu-label">Main</span>
+                    <a href="#" class="menu-item active">
+                        <span class="menu-icon">📊</span>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="playbook.html" class="menu-item">
+                        <span class="menu-icon">📋</span>
+                        <span>Playbook</span>
+                    </a>
+                    <a href="#" class="menu-item">
+                        <span class="menu-icon">👥</span>
+                        <span>Roster</span>
+                    </a>
+                    <a href="#" class="menu-item">
+                        <span class="menu-icon">📅</span>
+                        <span>Schedule</span>
+                    </a>
+                </div>
+                
+                <div class="menu-section">
+                    <span class="menu-label">Engage</span>
+                    <a href="#" class="menu-item">
+                        <span class="menu-icon">💬</span>
+                        <span>Messages</span>
+                        <span class="menu-badge">3</span>
+                    </a>
+                    <a href="#" class="menu-item">
+                        <span class="menu-icon">📺</span>
+                        <span>Livestream</span>
+                    </a>
+                    <a href="fundraising.html" class="menu-item">
+                        <span class="menu-icon">💰</span>
+                        <span>Fundraising</span>
+                    </a>
+                </div>
+                
+                <div class="menu-section">
+                    <span class="menu-label">Analyze</span>
+                    <a href="#" class="menu-item">
+                        <span class="menu-icon">📈</span>
+                        <span>Stats</span>
+                    </a>
+                    <a href="#" class="menu-item">
+                        <span class="menu-icon">🎬</span>
+                        <span>Film Room</span>
+                    </a>
+                </div>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="team-switcher glass">
+                    <div class="avatar avatar-sm avatar-gold">EE</div>
+                    <div class="team-info">
+                        <span class="team-name">Eastside Eagles</span>
+                        <span class="team-role">Head Coach</span>
+                    </div>
+                    <span class="switcher-icon">⌄</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="dashboard-main">
+            <!-- Top Bar -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <h1>Good morning, Coach Davis 👋</h1>
+                    <p>Here's what's happening with your team.</p>
+                </div>
+                <div class="topbar-right">
+                    <div class="search-input">
+                        <span class="icon">🔍</span>
+                        <input type="text" placeholder="Search..." class="input">
+                    </div>
+                    <button class="btn btn-ghost btn-icon">🔔<span class="notif-dot"></span></button>
+                    <div class="avatar avatar-md">CD</div>
+                </div>
+            </header>
+
+            <!-- Stats Overview -->
+            <section class="stats-overview">
+                <div class="stat-card-lg">
+                    <div class="stat-icon">🏆</div>
+                    <div class="stat-content">
+                        <span class="stat-value">8-2</span>
+                        <span class="stat-label">Season Record</span>
+                    </div>
+                    <span class="stat-trend up">↑ 2nd in Region</span>
+                </div>
+                <div class="stat-card-lg">
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-content">
+                        <span class="stat-value">32</span>
+                        <span class="stat-label">Active Players</span>
+                    </div>
+                    <span class="stat-trend">28 confirmed for practice</span>
+                </div>
+                <div class="stat-card-lg">
+                    <div class="stat-icon">📋</div>
+                    <div class="stat-content">
+                        <span class="stat-value">47</span>
+                        <span class="stat-label">Plays Created</span>
+                    </div>
+                    <span class="stat-trend">12 new this week</span>
+                </div>
+                <div class="stat-card-lg highlight">
+                    <div class="stat-icon">💰</div>
+                    <div class="stat-content">
+                        <span class="stat-value text-gradient-gold">$8,450</span>
+                        <span class="stat-label">Funds Raised</span>
+                    </div>
+                    <span class="stat-trend up">70% of goal</span>
+                </div>
+            </section>
+
+            <!-- Main Grid -->
+            <div class="dashboard-grid">
+                <!-- Upcoming Events -->
+                <section class="card">
+                    <div class="card-header">
+                        <h2>📅 Upcoming</h2>
+                        <a href="#" class="card-link">View All</a>
+                    </div>
+                    <div class="events-list">
+                        <div class="event-item">
+                            <div class="event-date">
+                                <span class="date-day">12</span>
+                                <span class="date-month">DEC</span>
+                            </div>
+                            <div class="event-info">
+                                <span class="event-title">vs. Panthers</span>
+                                <span class="event-meta">🏟️ Home • 7:00 PM</span>
+                            </div>
+                            <span class="badge badge-primary">Game Day</span>
+                        </div>
+                        <div class="event-item">
+                            <div class="event-date">
+                                <span class="date-day">10</span>
+                                <span class="date-month">DEC</span>
+                            </div>
+                            <div class="event-info">
+                                <span class="event-title">Practice</span>
+                                <span class="event-meta">📍 Main Field • 4:00 PM</span>
+                            </div>
+                            <span class="badge">Practice</span>
+                        </div>
+                        <div class="event-item">
+                            <div class="event-date">
+                                <span class="date-day">14</span>
+                                <span class="date-month">DEC</span>
+                            </div>
+                            <div class="event-info">
+                                <span class="event-title">Film Review Session</span>
+                                <span class="event-meta">🎬 Team Room • 5:00 PM</span>
+                            </div>
+                            <span class="badge">Meeting</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Quick Actions -->
+                <section class="card">
+                    <div class="card-header">
+                        <h2>⚡ Quick Actions</h2>
+                    </div>
+                    <div class="quick-actions">
+                        <a href="playbook.html" class="action-card">
+                            <span class="action-icon">📋</span>
+                            <span class="action-label">New Play</span>
+                        </a>
+                        <a href="#" class="action-card">
+                            <span class="action-icon">📺</span>
+                            <span class="action-label">Go Live</span>
+                        </a>
+                        <a href="#" class="action-card">
+                            <span class="action-icon">📢</span>
+                            <span class="action-label">Announce</span>
+                        </a>
+                        <a href="#" class="action-card">
+                            <span class="action-icon">📊</span>
+                            <span class="action-label">Log Stats</span>
+                        </a>
+                        <a href="fundraising.html" class="action-card">
+                            <span class="action-icon">💰</span>
+                            <span class="action-label">Fundraise</span>
+                        </a>
+                        <a href="#" class="action-card">
+                            <span class="action-icon">💫</span>
+                            <span class="action-label">Send Kudos</span>
+                        </a>
+                    </div>
+                </section>
+
+                <!-- Recent Activity -->
+                <section class="card">
+                    <div class="card-header">
+                        <h2>📰 Activity Feed</h2>
+                        <a href="#" class="card-link">See All</a>
+                    </div>
+                    <div class="activity-feed">
+                        <div class="activity-item">
+                            <div class="avatar avatar-sm avatar-gold">MJ</div>
+                            <div class="activity-content">
+                                <p><strong>Marcus Johnson</strong> posted a new highlight video</p>
+                                <span class="activity-time">2 hours ago</span>
+                            </div>
+                        </div>
+                        <div class="activity-item">
+                            <div class="avatar avatar-sm">DS</div>
+                            <div class="activity-content">
+                                <p><strong>DeAndre Smith</strong> confirmed attendance for practice</p>
+                                <span class="activity-time">3 hours ago</span>
+                            </div>
+                        </div>
+                        <div class="activity-item">
+                            <div class="avatar avatar-sm">💰</div>
+                            <div class="activity-content">
+                                <p>New donation: <strong>$150</strong> from Johnson Family</p>
+                                <span class="activity-time">5 hours ago</span>
+                            </div>
+                        </div>
+                        <div class="activity-item">
+                            <div class="avatar avatar-sm">📋</div>
+                            <div class="activity-content">
+                                <p>Play "Shotgun Y-Cross" was viewed by <strong>28 players</strong></p>
+                                <span class="activity-time">Yesterday</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Roster Preview -->
+                <section class="card roster-card">
+                    <div class="card-header">
+                        <h2>👥 Roster</h2>
+                        <a href="#" class="card-link">Manage</a>
+                    </div>
+                    <div class="roster-grid">
+                        <div class="player-card">
+                            <div class="avatar avatar-md avatar-gold">12</div>
+                            <span class="player-name">M. Johnson</span>
+                            <span class="player-pos">QB</span>
+                        </div>
+                        <div class="player-card">
+                            <div class="avatar avatar-md">88</div>
+                            <span class="player-name">D. Smith</span>
+                            <span class="player-pos">WR</span>
+                        </div>
+                        <div class="player-card">
+                            <div class="avatar avatar-md">24</div>
+                            <span class="player-name">J. Williams</span>
+                            <span class="player-pos">RB</span>
+                        </div>
+                        <div class="player-card">
+                            <div class="avatar avatar-md">55</div>
+                            <span class="player-name">T. Brown</span>
+                            <span class="player-pos">LB</span>
+                        </div>
+                        <div class="player-card add-player">
+                            <span class="add-icon">+</span>
+                            <span class="player-name">Add Player</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Page Nav -->
+    <nav class="page-nav glass">
+        <a href="index.html">Home</a>
+        <a href="coach-dashboard.html" class="active">Dashboard</a>
+        <a href="playbook.html">Playbook</a>
+        <a href="athlete-profile.html">Athlete</a>
+        <a href="team-page.html">Team</a>
+        <a href="fundraising.html">Fundraise</a>
+        <a href="fan-hub.html">Fans</a>
+    </nav>
+
+    <style>
+    .dashboard-layout { display: flex; min-height: 100vh; }
+    
+    /* Sidebar */
+    .sidebar-nav { width: 260px; background: var(--dark-900); border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; position: fixed; top: 0; bottom: 0; left: 0; z-index: var(--z-fixed); }
+    .sidebar-header { padding: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .nav-logo { display: flex; align-items: center; gap: 0.75rem; text-decoration: none; color: var(--dark-100); font-weight: 800; font-size: 1.25rem; }
+    .logo-icon { width: 40px; height: 40px; background: var(--gradient-primary); border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; }
+    
+    .sidebar-menu { flex: 1; padding: 1rem 0; overflow-y: auto; }
+    .menu-section { padding: 0.5rem 1rem; }
+    .menu-label { display: block; font-size: 0.6875rem; font-weight: 600; color: var(--dark-500); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.75rem; padding: 0 0.75rem; }
+    .menu-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-radius: var(--radius-lg); color: var(--dark-400); text-decoration: none; font-size: 0.9375rem; font-weight: 500; transition: all var(--duration-fast); margin-bottom: 0.25rem; }
+    .menu-item:hover { color: var(--dark-200); background: rgba(255,255,255,0.05); }
+    .menu-item.active { color: white; background: var(--gradient-primary); }
+    .menu-icon { font-size: 1.125rem; }
+    .menu-badge { margin-left: auto; background: var(--danger-500); color: white; font-size: 0.6875rem; font-weight: 600; padding: 0.125rem 0.5rem; border-radius: var(--radius-full); }
+    
+    .sidebar-footer { padding: 1rem; border-top: 1px solid rgba(255,255,255,0.06); }
+    .team-switcher { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-radius: var(--radius-lg); cursor: pointer; }
+    .team-info { flex: 1; }
+    .team-name { display: block; font-size: 0.875rem; font-weight: 600; }
+    .team-role { font-size: 0.75rem; color: var(--dark-500); }
+    .switcher-icon { color: var(--dark-500); }
+
+    /* Main Content */
+    .dashboard-main { flex: 1; margin-left: 260px; padding: 1.5rem 2rem 6rem; }
+    
+    /* Topbar */
+    .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+    .topbar-left h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+    .topbar-left p { color: var(--dark-400); font-size: 0.9375rem; }
+    .topbar-right { display: flex; align-items: center; gap: 1rem; }
+    .topbar-right .search-input { position: relative; }
+    .topbar-right .search-input .icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); }
+    .topbar-right .search-input .input { padding-left: 2.75rem; width: 240px; }
+    .topbar-right .btn-icon { position: relative; }
+    .notif-dot { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; background: var(--danger-500); border-radius: 50%; }
+
+    /* Stats Overview */
+    .stats-overview { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem; }
+    .stat-card-lg { display: flex; align-items: center; gap: 1rem; padding: 1.25rem; background: var(--gradient-card); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--radius-xl); }
+    .stat-card-lg.highlight { background: linear-gradient(135deg, rgba(245,158,11,0.1) 0%, var(--dark-800) 100%); border-color: rgba(245,158,11,0.2); }
+    .stat-icon { width: 48px; height: 48px; background: var(--dark-800); border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+    .stat-content { flex: 1; }
+    .stat-content .stat-value { display: block; font-size: 1.5rem; font-weight: 700; }
+    .stat-content .stat-label { font-size: 0.75rem; color: var(--dark-500); }
+    .stat-trend { font-size: 0.75rem; color: var(--dark-500); }
+    .stat-trend.up { color: var(--success-400); }
+
+    /* Dashboard Grid */
+    .dashboard-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+    .card-header h2 { font-size: 1rem; }
+    .card-link { font-size: 0.8125rem; color: var(--primary-400); text-decoration: none; }
+
+    /* Events */
+    .events-list { display: flex; flex-direction: column; gap: 0.75rem; }
+    .event-item { display: flex; align-items: center; gap: 1rem; padding: 1rem; background: var(--dark-900); border-radius: var(--radius-lg); }
+    .event-date { text-align: center; min-width: 50px; }
+    .date-day { display: block; font-size: 1.5rem; font-weight: 700; line-height: 1; }
+    .date-month { font-size: 0.6875rem; color: var(--dark-500); text-transform: uppercase; }
+    .event-info { flex: 1; }
+    .event-title { display: block; font-weight: 600; margin-bottom: 0.125rem; }
+    .event-meta { font-size: 0.75rem; color: var(--dark-500); }
+
+    /* Quick Actions */
+    .quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+    .action-card { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 1.25rem; background: var(--dark-900); border-radius: var(--radius-lg); text-decoration: none; color: var(--dark-300); transition: all var(--duration-fast); }
+    .action-card:hover { background: var(--gradient-primary); color: white; transform: translateY(-2px); }
+    .action-icon { font-size: 1.5rem; }
+    .action-label { font-size: 0.8125rem; font-weight: 500; }
+
+    /* Activity Feed */
+    .activity-feed { display: flex; flex-direction: column; gap: 0.75rem; }
+    .activity-item { display: flex; gap: 0.75rem; padding: 0.75rem; background: var(--dark-900); border-radius: var(--radius-lg); }
+    .activity-content { flex: 1; }
+    .activity-content p { font-size: 0.875rem; margin-bottom: 0.125rem; }
+    .activity-time { font-size: 0.75rem; color: var(--dark-500); }
+
+    /* Roster */
+    .roster-grid { display: flex; gap: 0.75rem; overflow-x: auto; padding-bottom: 0.5rem; }
+    .player-card { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 1rem; background: var(--dark-900); border-radius: var(--radius-lg); min-width: 100px; }
+    .player-name { font-size: 0.8125rem; font-weight: 500; }
+    .player-pos { font-size: 0.6875rem; color: var(--dark-500); }
+    .player-card.add-player { border: 2px dashed var(--dark-700); background: transparent; cursor: pointer; }
+    .add-icon { font-size: 1.5rem; color: var(--dark-500); }
+
+    /* Page Nav */
+    .page-nav { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%); display: flex; gap: 0.25rem; padding: 0.5rem; border-radius: var(--radius-full); z-index: var(--z-fixed); }
+    .page-nav a { padding: 0.625rem 1rem; font-size: 0.8125rem; font-weight: 500; color: var(--dark-400); text-decoration: none; border-radius: var(--radius-full); transition: all var(--duration-fast); }
+    .page-nav a:hover { color: var(--dark-200); }
+    .page-nav a.active { background: var(--gradient-primary); color: white; }
+
+    @media (max-width: 1200px) {
+        .stats-overview { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 1024px) {
+        .sidebar-nav { display: none; }
+        .dashboard-main { margin-left: 0; }
+        .dashboard-grid { grid-template-columns: 1fr; }
+    }
+    </style>
+</body>
+</html>

@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSYS - Fundraising Hub</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav glass">
+        <a href="index.html" class="nav-logo">
+            <div class="logo-icon">⚡</div>
+            <span>OSYS</span>
+        </a>
+        <div class="nav-actions">
+            <a href="#" class="btn btn-ghost btn-sm">Sign In</a>
+            <a href="#" class="btn btn-gold btn-sm">Start Fundraiser</a>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="fund-hero">
+        <div class="hero-bg">
+            <div class="hero-orb hero-orb-1"></div>
+            <div class="hero-orb hero-orb-2"></div>
+        </div>
+        <div class="container">
+            <div class="fund-hero-content">
+                <span class="badge badge-gold">💰 Fundraising</span>
+                <h1 class="text-display">Fund your<br><span class="text-gradient-gold">dreams</span></h1>
+                <p class="text-subtitle">Raise money for tournaments, equipment, travel, and more. Zero platform fees for youth sports.</p>
+                <a href="#" class="btn btn-gold btn-lg">Create Campaign</a>
+            </div>
+            
+            <div class="fund-stats glass">
+                <div class="fund-stat">
+                    <span class="fund-stat-value text-gradient-gold">$1.2M+</span>
+                    <span class="fund-stat-label">Total Raised</span>
+                </div>
+                <div class="fund-stat">
+                    <span class="fund-stat-value">847</span>
+                    <span class="fund-stat-label">Campaigns</span>
+                </div>
+                <div class="fund-stat">
+                    <span class="fund-stat-value">15K+</span>
+                    <span class="fund-stat-label">Donors</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Active Campaigns -->
+    <section class="section">
+        <div class="container">
+            <div class="section-header-row">
+                <div>
+                    <h2 class="text-title">Active Campaigns</h2>
+                    <p class="text-small" style="color: var(--dark-400);">Support young athletes reaching for their dreams</p>
+                </div>
+                <div class="filter-pills">
+                    <button class="pill active">All</button>
+                    <button class="pill">Tournaments</button>
+                    <button class="pill">Equipment</button>
+                    <button class="pill">Travel</button>
+                </div>
+            </div>
+
+            <div class="campaigns-grid">
+                <!-- Campaign 1 - Featured -->
+                <div class="campaign-card featured">
+                    <div class="campaign-badge">⭐ Featured</div>
+                    <div class="campaign-image">
+                        <div class="campaign-sport">🏈</div>
+                    </div>
+                    <div class="campaign-content">
+                        <div class="campaign-team">
+                            <div class="avatar avatar-sm avatar-gold">EE</div>
+                            <span>Eastside Eagles</span>
+                            <span class="badge badge-success">Verified</span>
+                        </div>
+                        <h3>National Championship Trip - Orlando 2026</h3>
+                        <p>Help our JV team compete at the National Youth Football Championship! We need to cover travel, hotel, and entry fees.</p>
+                        
+                        <div class="campaign-progress">
+                            <div class="progress-header">
+                                <span class="raised"><strong>$8,450</strong> raised</span>
+                                <span class="goal">of $12,000</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-bar-fill gold" style="width: 70%"></div>
+                            </div>
+                            <div class="progress-footer">
+                                <span>🎯 70% funded</span>
+                                <span>⏰ 12 days left</span>
+                            </div>
+                        </div>
+                        
+                        <div class="campaign-donors">
+                            <div class="avatar-stack">
+                                <div class="avatar avatar-xs">J</div>
+                                <div class="avatar avatar-xs">M</div>
+                                <div class="avatar avatar-xs">S</div>
+                                <div class="avatar avatar-xs">+</div>
+                            </div>
+                            <span>147 supporters</span>
+                        </div>
+                        
+                        <div class="campaign-actions">
+                            <a href="#" class="btn btn-gold">Donate Now</a>
+                            <button class="btn btn-ghost btn-icon"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"/></svg></button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campaign 2 -->
+                <div class="campaign-card">
+                    <div class="campaign-image">
+                        <div class="campaign-sport">🏀</div>
+                    </div>
+                    <div class="campaign-content">
+                        <div class="campaign-team">
+                            <div class="avatar avatar-sm">WH</div>
+                            <span>Westside Hoops</span>
+                        </div>
+                        <h3>New Uniforms & Equipment</h3>
+                        <p>Our team needs new jerseys and practice equipment for the upcoming season.</p>
+                        
+                        <div class="campaign-progress">
+                            <div class="progress-header">
+                                <span class="raised"><strong>$2,100</strong></span>
+                                <span class="goal">of $3,500</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-bar-fill" style="width: 60%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="campaign-actions">
+                            <a href="#" class="btn btn-primary btn-sm">Donate</a>
+                            <span class="donors-count">89 donors</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campaign 3 -->
+                <div class="campaign-card">
+                    <div class="campaign-image">
+                        <div class="campaign-sport">⚽</div>
+                    </div>
+                    <div class="campaign-content">
+                        <div class="campaign-team">
+                            <div class="avatar avatar-sm avatar-gold">SU</div>
+                            <span>Striker United</span>
+                        </div>
+                        <h3>Regional Tournament Travel Fund</h3>
+                        <p>Help us get to the Southwest Regional Championship in Phoenix!</p>
+                        
+                        <div class="campaign-progress">
+                            <div class="progress-header">
+                                <span class="raised"><strong>$4,800</strong></span>
+                                <span class="goal">of $6,000</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-bar-fill gold" style="width: 80%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="campaign-actions">
+                            <a href="#" class="btn btn-primary btn-sm">Donate</a>
+                            <span class="donors-count">112 donors</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campaign 4 - Individual Athlete -->
+                <div class="campaign-card athlete-campaign">
+                    <div class="campaign-image athlete">
+                        <div class="athlete-avatar avatar avatar-xl avatar-gold">MJ</div>
+                        <div class="athlete-badge">⭐ 4-Star</div>
+                    </div>
+                    <div class="campaign-content">
+                        <div class="campaign-team">
+                            <span class="badge badge-primary">Individual Athlete</span>
+                        </div>
+                        <h3>Marcus Johnson - Elite Camp Fund</h3>
+                        <p>Help me attend the Elite QB Academy this summer to develop my skills!</p>
+                        
+                        <div class="campaign-progress">
+                            <div class="progress-header">
+                                <span class="raised"><strong>$1,850</strong></span>
+                                <span class="goal">of $2,500</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-bar-fill gold" style="width: 74%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="campaign-actions">
+                            <a href="athlete-profile.html" class="btn btn-gold btn-sm">View Profile</a>
+                            <a href="#" class="btn btn-primary btn-sm">Donate</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="load-more">
+                <button class="btn btn-ghost">Load More Campaigns</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="section how-it-works">
+        <div class="container">
+            <div class="section-header">
+                <span class="badge badge-primary">How It Works</span>
+                <h2 class="text-title">Start raising in minutes</h2>
+            </div>
+            
+            <div class="steps-grid">
+                <div class="step-card">
+                    <div class="step-number">1</div>
+                    <h3>Create Campaign</h3>
+                    <p>Set your goal, add photos, tell your story. Takes less than 5 minutes.</p>
+                </div>
+                <div class="step-arrow">→</div>
+                <div class="step-card">
+                    <div class="step-number">2</div>
+                    <h3>Share & Promote</h3>
+                    <p>Share with family, friends, and your OSYS community. We'll help amplify.</p>
+                </div>
+                <div class="step-arrow">→</div>
+                <div class="step-card">
+                    <div class="step-number">3</div>
+                    <h3>Collect Funds</h3>
+                    <p>Donations go directly to your account. 0% platform fee for youth sports!</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Donor Wall -->
+    <section class="section donor-wall-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="badge badge-gold">🏆 Top Supporters</span>
+                <h2 class="text-title">Community champions</h2>
+            </div>
+            
+            <div class="donor-wall">
+                <div class="top-donor gold">
+                    <div class="donor-rank">👑</div>
+                    <div class="avatar avatar-lg avatar-gold">JS</div>
+                    <div class="donor-info">
+                        <span class="donor-name">Johnson Family</span>
+                        <span class="donor-amount">$5,200 donated</span>
+                    </div>
+                </div>
+                <div class="top-donor silver">
+                    <div class="donor-rank">🥈</div>
+                    <div class="avatar avatar-lg">MC</div>
+                    <div class="donor-info">
+                        <span class="donor-name">Mike's Auto Shop</span>
+                        <span class="donor-amount">$3,800 donated</span>
+                    </div>
+                </div>
+                <div class="top-donor bronze">
+                    <div class="donor-rank">🥉</div>
+                    <div class="avatar avatar-lg">AA</div>
+                    <div class="donor-info">
+                        <span class="donor-name">Atlanta Athletics</span>
+                        <span class="donor-amount">$2,500 donated</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Page Nav -->
+    <nav class="page-nav glass">
+        <a href="index.html">Home</a>
+        <a href="coach-dashboard.html">Dashboard</a>
+        <a href="playbook.html">Playbook</a>
+        <a href="athlete-profile.html">Athlete</a>
+        <a href="team-page.html">Team</a>
+        <a href="fundraising.html" class="active">Fundraise</a>
+        <a href="fan-hub.html">Fans</a>
+    </nav>
+
+    <style>
+    .nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: var(--z-fixed);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 2rem;
+        margin: 1rem;
+        border-radius: var(--radius-2xl);
+    }
+    
+    .nav-logo {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        text-decoration: none;
+        color: var(--dark-100);
+        font-weight: 800;
+        font-size: 1.25rem;
+    }
+    
+    .logo-icon {
+        width: 40px;
+        height: 40px;
+        background: var(--gradient-primary);
+        border-radius: var(--radius-lg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .nav-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    /* Fund Hero */
+    .fund-hero {
+        padding: 10rem 0 4rem;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .hero-bg {
+        position: absolute;
+        inset: 0;
+    }
+    
+    .hero-orb {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(100px);
+    }
+    
+    .hero-orb-1 {
+        width: 500px;
+        height: 500px;
+        background: var(--gold-500);
+        top: -200px;
+        right: -100px;
+        opacity: 0.3;
+    }
+    
+    .hero-orb-2 {
+        width: 400px;
+        height: 400px;
+        background: var(--primary-600);
+        bottom: -100px;
+        left: -100px;
+        opacity: 0.2;
+    }
+    
+    .fund-hero .container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 4rem;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .fund-hero-content {
+        max-width: 500px;
+    }
+    
+    .fund-hero-content .badge {
+        margin-bottom: 1rem;
+    }
+    
+    .fund-hero-content p {
+        margin: 1.5rem 0 2rem;
+    }
+    
+    .fund-stats {
+        display: flex;
+        gap: 3rem;
+        padding: 2rem 3rem;
+        border-radius: var(--radius-2xl);
+    }
+    
+    .fund-stat {
+        text-align: center;
+    }
+    
+    .fund-stat-value {
+        display: block;
+        font-size: 2rem;
+        font-weight: 800;
+    }
+    
+    .fund-stat-label {
+        font-size: 0.75rem;
+        color: var(--dark-400);
+        text-transform: uppercase;
+    }
+
+    /* Section Header Row */
+    .section-header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-bottom: 2rem;
+    }
+    
+    .filter-pills {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .pill {
+        padding: 0.5rem 1rem;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--dark-400);
+        background: transparent;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: var(--radius-full);
+        cursor: pointer;
+        transition: all var(--duration-fast);
+    }
+    
+    .pill:hover, .pill.active {
+        background: var(--primary-600);
+        border-color: var(--primary-600);
+        color: white;
+    }
+
+    /* Campaigns Grid */
+    .campaigns-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+    }
+    
+    .campaign-card {
+        background: var(--gradient-card);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: var(--radius-xl);
+        overflow: hidden;
+        transition: all var(--duration-normal);
+    }
+    
+    .campaign-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-xl);
+    }
+    
+    .campaign-card.featured {
+        grid-column: span 2;
+        display: grid;
+        grid-template-columns: 1fr 1.5fr;
+    }
+    
+    .campaign-badge {
+        position: absolute;
+        top: 1rem;
+        left: 1rem;
+        background: var(--gradient-gold);
+        color: var(--dark-900);
+        padding: 0.375rem 0.75rem;
+        border-radius: var(--radius-full);
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .campaign-image {
+        height: 200px;
+        background: linear-gradient(135deg, var(--dark-800) 0%, var(--dark-900) 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+    }
+    
+    .campaign-card.featured .campaign-image {
+        height: 100%;
+    }
+    
+    .campaign-sport {
+        font-size: 4rem;
+    }
+    
+    .campaign-image.athlete {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .athlete-badge {
+        position: absolute;
+        bottom: 1rem;
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(10px);
+        padding: 0.25rem 0.75rem;
+        border-radius: var(--radius-full);
+        font-size: 0.75rem;
+    }
+    
+    .campaign-content {
+        padding: 1.5rem;
+    }
+    
+    .campaign-team {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+        font-size: 0.8125rem;
+        color: var(--dark-400);
+    }
+    
+    .campaign-content h3 {
+        font-size: 1.125rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .campaign-content p {
+        font-size: 0.875rem;
+        color: var(--dark-400);
+        line-height: 1.5;
+        margin-bottom: 1rem;
+    }
+    
+    .campaign-progress {
+        margin-bottom: 1rem;
+    }
+    
+    .progress-header {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .raised strong {
+        color: var(--gold-400);
+    }
+    
+    .goal {
+        color: var(--dark-500);
+    }
+    
+    .progress-footer {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.75rem;
+        color: var(--dark-500);
+        margin-top: 0.5rem;
+    }
+    
+    .campaign-donors {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+        font-size: 0.8125rem;
+        color: var(--dark-400);
+    }
+    
+    .campaign-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .donors-count {
+        font-size: 0.75rem;
+        color: var(--dark-500);
+    }
+    
+    .load-more {
+        text-align: center;
+        margin-top: 2rem;
+    }
+
+    /* How It Works */
+    .how-it-works {
+        background: var(--dark-900);
+    }
+    
+    .steps-grid {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 2rem;
+    }
+    
+    .step-card {
+        text-align: center;
+        padding: 2rem;
+        max-width: 280px;
+    }
+    
+    .step-number {
+        width: 48px;
+        height: 48px;
+        background: var(--gradient-primary);
+        border-radius: var(--radius-full);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin: 0 auto 1rem;
+    }
+    
+    .step-card h3 {
+        margin-bottom: 0.5rem;
+    }
+    
+    .step-card p {
+        font-size: 0.875rem;
+        color: var(--dark-400);
+    }
+    
+    .step-arrow {
+        font-size: 1.5rem;
+        color: var(--dark-600);
+    }
+
+    /* Donor Wall */
+    .donor-wall {
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+    }
+    
+    .top-donor {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+        padding: 2rem;
+        background: var(--gradient-card);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: var(--radius-xl);
+        min-width: 200px;
+    }
+    
+    .top-donor.gold {
+        border-color: rgba(245, 158, 11, 0.3);
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, var(--dark-800) 100%);
+    }
+    
+    .donor-rank {
+        font-size: 2rem;
+    }
+    
+    .donor-info {
+        text-align: center;
+    }
+    
+    .donor-name {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+    
+    .donor-amount {
+        font-size: 0.8125rem;
+        color: var(--gold-400);
+    }
+
+    /* Page Nav */
+    .page-nav {
+        position: fixed;
+        bottom: 1.5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 0.25rem;
+        padding: 0.5rem;
+        border-radius: var(--radius-full);
+        z-index: var(--z-fixed);
+    }
+    
+    .page-nav a {
+        padding: 0.625rem 1rem;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--dark-400);
+        text-decoration: none;
+        border-radius: var(--radius-full);
+        transition: all var(--duration-fast);
+    }
+    
+    .page-nav a:hover {
+        color: var(--dark-200);
+    }
+    
+    .page-nav a.active {
+        background: var(--gradient-gold);
+        color: var(--dark-900);
+    }
+    
+    @media (max-width: 1024px) {
+        .campaigns-grid {
+            grid-template-columns: 1fr;
+        }
+        .campaign-card.featured {
+            grid-column: span 1;
+            display: block;
+        }
+        .fund-hero .container {
+            flex-direction: column;
+            text-align: center;
+        }
+        .steps-grid {
+            flex-direction: column;
+        }
+        .step-arrow {
+            transform: rotate(90deg);
+        }
+        .donor-wall {
+            flex-direction: column;
+            align-items: center;
+        }
+    }
+    </style>
+</body>
+</html>
