@@ -399,7 +399,7 @@ const AuthScreen: React.FC = () => {
               </div>
               <div>
                 <h1 className="text-3xl font-black text-white tracking-tight">
-                  LEVEL<span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">UP</span>
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">OSYS</span>
                 </h1>
               </div>
             </div>
@@ -455,7 +455,7 @@ const AuthScreen: React.FC = () => {
                   <Trophy className="w-5 h-5 text-white" />
                 </div>
                 <h1 className="text-2xl font-black text-white tracking-tight">
-                  LEVEL<span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">UP</span>
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">OSYS</span>
                 </h1>
               </div>
               <p className="text-white/40 text-xs tracking-wide">OSYS — everything your team needs in one powerful platform</p>
@@ -620,7 +620,7 @@ const AuthScreen: React.FC = () => {
           <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowIOSInstall(false)}>
             <div className="w-full max-w-md bg-[#12121a] rounded-2xl p-6 border border-white/10" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-white font-bold text-lg">Install LevelUp</h3>
+                <h3 className="text-white font-bold text-lg">Install OSYS</h3>
                 <button onClick={() => setShowIOSInstall(false)} className="text-white/50 hover:text-white">
                   <X className="w-5 h-5" />
                 </button>

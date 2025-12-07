@@ -679,7 +679,7 @@ const PublicTeamProfile: React.FC = () => {
 
         {/* Footer */}
         <footer className="mt-12 text-center text-zinc-600 text-sm">
-          <p>Powered by <span className="text-orange-500 font-bold">LevelUp</span></p>
+          <p>Powered by <span className="text-purple-500 font-bold">OSYS</span></p>
         </footer>
       </main>
 

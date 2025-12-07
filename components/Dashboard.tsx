@@ -524,7 +524,7 @@ const Dashboard: React.FC = () => {
             <div className="w-20 h-20 bg-orange-100 dark:bg-orange-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
               <Plus className="w-10 h-10 text-orange-600 dark:text-orange-400" />
             </div>
-            <h1 className="text-3xl font-black text-zinc-900 dark:text-white mb-2">Welcome to LevelUp!</h1>
+            <h1 className="text-3xl font-black text-zinc-900 dark:text-white mb-2">Welcome to OSYS!</h1>
             <p className="text-zinc-600 dark:text-zinc-400 text-lg">Let's get started by adding your first athlete</p>
           </div>
           
@@ -1108,7 +1108,7 @@ const Dashboard: React.FC = () => {
                       <LinkIcon className="w-3 h-3 text-purple-400" />
                       <span className="text-xs text-purple-300 font-medium">Public Page:</span>
                       <span className="text-xs text-purple-400 font-mono truncate max-w-[200px]">
-                        lockerroomlink.com/#/team/{teamData.id}
+                        osys.team/#/team/{teamData.id}
                       </span>
                     </div>
                     <button
@@ -1151,7 +1151,7 @@ const Dashboard: React.FC = () => {
                       <LinkIcon className="w-3 h-3 text-purple-400" />
                       <span className="text-xs text-purple-300 font-medium">Share Team Page:</span>
                       <span className="text-xs text-purple-400 font-mono truncate max-w-[200px]">
-                        lockerroomlink.com/#/team/{teamData.id}
+                        osys.team/#/team/{teamData.id}
                       </span>
                     </div>
                     <button

@@ -11,6 +11,7 @@ import ForcePasswordChange from './components/ForcePasswordChange';
 // Layouts (loaded immediately as they're structural)
 import Layout from './layout/Layout';
 import AdminLayout from './layout/AdminLayout';
+import NewOSYSLayout from './layout/NewOSYSLayout';
 
 // Auth Screen (loaded immediately as it's the entry point)
 import AuthScreen from './components/AuthScreen';
@@ -65,6 +66,9 @@ const OSYSEvents = lazyWithRetry(() => import('./components/OSYSEvents'));
 const OSYSPlaybook = lazyWithRetry(() => import('./components/OSYSPlaybook'));
 const OSYSMessenger = lazyWithRetry(() => import('./components/OSYSMessenger'));
 const OSYSRoster = lazyWithRetry(() => import('./components/OSYSRoster'));
+
+// New OSYS Dashboard with real data
+const NewOSYSDashboard = lazyWithRetry(() => import('./components/NewOSYSDashboard'));
 
 // Event System Pages
 const EventsPage = lazyWithRetry(() => import('./components/events/EventsPage'));
@@ -236,11 +240,11 @@ const AppContent: React.FC = () => {
               <Route path="*" element={<Navigate to="/fan-hub" replace />} />
             </>
           ) : (
+            // Coach/Parent routes - NEW OSYS Layout
             <>
-              <Route path="/" element={<Layout />}>
-                <Route index element={<Navigate to="/coach-demo" replace />} />
-                <Route path="coach-demo" element={<OSYSDashboard />} />
-                <Route path="dashboard" element={<Dashboard />} />
+              <Route path="/" element={<NewOSYSLayout />}>
+                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route path="dashboard" element={<NewOSYSDashboard />} />
                 <Route path="roster" element={<Roster />} />
                 {config.playbookEnabled && <Route path="playbook" element={<Playbook />} />}
                 {config.chatEnabled && <Route path="chat" element={<Chat />} />}
@@ -257,6 +261,10 @@ const AppContent: React.FC = () => {
                 <Route path="events/:eventId/edit" element={<EventCreatorPage />} />
                 <Route path="events/:eventId/manage" element={<EventManagement />} />
                 <Route path="events/:eventId/register" element={<RegistrationFlow />} />
+              </Route>
+              {/* Keep old demo route for reference */}
+              <Route path="/old-dashboard" element={<Layout />}>
+                <Route index element={<Dashboard />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </>

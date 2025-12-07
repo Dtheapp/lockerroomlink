@@ -1,16 +1,30 @@
 # 🔥 THE DISRUPTOR'S AI - Master Training File
 
-> ⚠️ **AI AUTO-LOAD INSTRUCTIONS**
-> 
-> When you read this file, also read `PROGRESS.md` yourself (don't ask user to share).
-> The user should NOT have to share multiple MD files. This one file + PROGRESS.md = full context.
+---
+## 🚀 NEW CHAT STARTUP INSTRUCTIONS (FOR USER)
 
-> 🚨 **VERIFICATION CONTRACT**
+**When starting a fresh chat, copy-paste this:**
+```
+Read AI_TRAINER.md - it has all context from previous sessions.
+```
+
+**That's it.** The AI will read this file and have full context.
+
+---
+
+> 🚨 **VERIFICATION CONTRACT (FOR AI)**
 > 
-> AI MUST say **"Training loaded. Ready to build great."** at the start of every session.
+> After reading this file, AI MUST say:
+> **"Training loaded. Session [X] context received. Ready to build great."**
 > Then ask: **"What are we building?"**
 > 
-> **User:** If you don't see this acknowledgment, say **"load training"** - AI is operating untrained.
+> If user doesn't see this → say **"load training"**
+
+> 📋 **MULTI-PROJECT NOTE (FOR AI)**
+> 
+> This file contains UNIVERSAL training (developer profile, traits, lessons) + PROJECT-SPECIFIC context (OSYS).
+> - **If working on OSYS:** Use everything in this file
+> - **If working on a NEW project:** Use all universal sections (profile, traits, lessons learned), IGNORE the SESSION HANDOFF section (it's OSYS-specific). The lessons and patterns still apply!
 
 ---
 
@@ -294,6 +308,12 @@ When catching amateur thinking:
 - **Amateur:** Code compiles = done
 - **Great:** Always verify visually at http://localhost:3001/ before marking complete
 
+**L007 - Session Context Preservation** (Dec 7, 2025)
+- **Amateur:** Long chats break, context lost between sessions
+- **Great:** Update SESSION HANDOFF section in AI_TRAINER.md before ending session
+- **User says:** "save training" or "update handoff" → AI updates this file
+- **New chat:** User pastes `Read AI_TRAINER.md` → AI has full context
+
 ---
 
 ## 🏆 THE STANDARD
@@ -321,6 +341,91 @@ Every app we build together must:
 | Dec 7, 2025 | Added ZERO TOLERANCE FOR AMATEUR + COMPOUND LEARNING |
 | Dec 7, 2025 | **CONSOLIDATED**: Merged DISRUPTOR_AI.md + FEGROX_DEVELOPER_CONTEXT.md into single file |
 | Dec 7, 2025 | Added AUTO-READ instruction (AI reads PROGRESS.md itself) |
+
+---
+
+## 📦 SESSION HANDOFF - CURRENT STATE
+
+> **This section is the "brain dump" from the last session. New AI: Read this first!**
+
+### Last Session: December 7, 2025 (Session 3)
+
+#### ✅ COMPLETED THIS SESSION
+
+1. **New OSYS UI System Built**
+   - Created `layout/NewOSYSLayout.tsx` - Full OSYS-styled layout wrapper
+   - Created `components/NewOSYSDashboard.tsx` - Dashboard with real Firebase data
+   - Dark theme with animated gradient background
+   - Sidebar with team selector, navigation grouped by sections
+
+2. **Routing Updated**
+   - `App.tsx` now uses `NewOSYSLayout` for all coach routes
+   - `/dashboard` → `NewOSYSDashboard` (real data)
+   - All other pages (Roster, Stats, Playbook, etc.) render inside new layout
+   - Old layout still at `/old-dashboard` for reference
+
+3. **Service Worker Fixed**
+   - `sw.js` updated to v4
+   - No longer caches HTML/JS (was causing old UI flash)
+   - Only caches offline.html and icons
+
+4. **Multi-Sport Support**
+   - `config/sportConfig.ts` has `getStats()`, `getPositions()`, `getSportConfig()`
+   - Basketball and Cheer configs completed
+   - All stat tables/forms now dynamic based on sport
+
+5. **Training Files Consolidated**
+   - Deleted: `DISRUPTOR_AI.md`, `FEGROX_DEVELOPER_CONTEXT.md`, `SESSION_BOOT.md`
+   - Everything now in this file (`AI_TRAINER.md`)
+
+#### 🔧 KEY FILES CHANGED
+
+| File | What Changed |
+|------|--------------|
+| `layout/NewOSYSLayout.tsx` | NEW - OSYS sidebar, team selector, nav |
+| `components/NewOSYSDashboard.tsx` | NEW - Real data dashboard |
+| `App.tsx` | Coach routes use NewOSYSLayout |
+| `sw.js` | v4 - stopped caching HTML/JS |
+| `config/sportConfig.ts` | Multi-sport configs |
+
+#### 🚧 IN PROGRESS / NEXT UP
+
+1. **OSYS-style all pages** - Roster, Stats, Playbook still use old light/dark theme styling. Need OSYS dark theme versions.
+2. **Test the new UI** - User needs to verify at http://localhost:3001/
+3. **Demo is Tuesday 10am** - Team president, 20-team pilot
+
+#### 📍 CURRENT ARCHITECTURE
+
+```
+App.tsx
+├── Coach/Parent Routes → NewOSYSLayout (OSYS UI)
+│   ├── /dashboard → NewOSYSDashboard (real Firebase data)
+│   ├── /roster → Roster.tsx (old styling, works)
+│   ├── /stats → Stats.tsx (multi-sport ready)
+│   ├── /playbook → Playbook.tsx
+│   ├── /events → EventsPage.tsx
+│   ├── /chat → Chat.tsx
+│   ├── /messenger → Messenger.tsx
+│   └── /videos → VideoLibrary.tsx
+│
+├── Fan Routes → Layout (old)
+│   └── /fan-hub, etc.
+│
+└── Admin Routes → AdminLayout
+    └── /admin/*
+```
+
+#### 💡 IMPORTANT CONTEXT
+
+- **Team data**: `teamData.name` (not `teamName`), `teamData.record.wins/losses`
+- **User data**: `userData.name` (not `displayName`)
+- **Sport config**: `sportConfig.emoji` (not `icon`)
+- **Unread messages**: Returns `boolean`, not number
+- **Dev server**: http://localhost:3001/
+
+#### 🎯 USER'S LAST REQUEST
+
+"Make everything work in new OSYS UI - never look at old UI again"
 
 ---
 

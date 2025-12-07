@@ -1,0 +1,372 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { signOut } from 'firebase/auth';
+import { auth } from '../services/firebase';
+import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { useAppConfig } from '../contexts/AppConfigContext';
+import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
+import { useUnreadMessages } from '../hooks/useUnreadMessages';
+import TeamSelector from '../components/TeamSelector';
+import PlayerSelector from '../components/PlayerSelector';
+import { AnimatedBackground, Avatar } from '../components/ui/OSYSComponents';
+import { Menu, X, LogOut, Sun, Moon, ChevronDown } from 'lucide-react';
+
+const NewOSYSLayout: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { teamData, userData } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const { config } = useAppConfig();
+  const { hasUnsavedChanges, setHasUnsavedChanges } = useUnsavedChanges();
+  const { unread, markAsRead } = useUnreadMessages();
+  
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showTeamSelector, setShowTeamSelector] = useState(false);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [pendingNavPath, setPendingNavPath] = useState<string | null>(null);
+  
+  // Ref for scrolling main content
+  const mainContentRef = useRef<HTMLDivElement>(null);
+
+  // Mark chats as read when visiting those pages
+  useEffect(() => {
+    if (location.pathname === '/chat') {
+      markAsRead('teamChat');
+    } else if (location.pathname === '/strategies') {
+      markAsRead('strategy');
+    }
+  }, [location.pathname, markAsRead]);
+
+  // Handle navigation click with unsaved changes check
+  const handleNavClick = (e: React.MouseEvent, path: string) => {
+    if (location.pathname === path) {
+      setIsSidebarOpen(false);
+      return;
+    }
+    
+    if (hasUnsavedChanges) {
+      e.preventDefault();
+      setPendingNavPath(path);
+      setShowUnsavedModal(true);
+    } else {
+      setIsSidebarOpen(false);
+    }
+  };
+
+  // Handle confirm leave (discard changes)
+  const handleConfirmLeave = () => {
+    setHasUnsavedChanges(false);
+    setShowUnsavedModal(false);
+    setIsSidebarOpen(false);
+    if (pendingNavPath) {
+      navigate(pendingNavPath);
+      setPendingNavPath(null);
+    }
+  };
+
+  // Handle cancel (stay on page)
+  const handleCancelLeave = () => {
+    setShowUnsavedModal(false);
+    setPendingNavPath(null);
+  };
+
+  // Handle logo click - navigate to dashboard AND scroll to top
+  const handleLogoClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    
+    if (hasUnsavedChanges && location.pathname !== '/dashboard') {
+      setPendingNavPath('/dashboard');
+      setShowUnsavedModal(true);
+      return;
+    }
+    
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    
+    if (location.pathname !== '/dashboard') {
+      navigate('/dashboard');
+    }
+    
+    setIsSidebarOpen(false);
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      navigate('/auth');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
+  // Navigation items based on role and config
+  const getNavItems = () => {
+    const items = [
+      { icon: '📊', label: 'Dashboard', path: '/dashboard', section: 'Main' },
+      { icon: '📋', label: 'Playbook', path: '/playbook', section: 'Main', configKey: 'playbookEnabled', hideForParent: true },
+      { icon: '👥', label: 'Roster', path: '/roster', section: 'Main' },
+      { icon: '📅', label: 'Schedule', path: '/events', section: 'Main' },
+      { icon: '💬', label: 'Messages', path: '/messenger', section: 'Engage', configKey: 'messengerEnabled', unreadKey: 'messenger' },
+      { icon: '🗨️', label: 'Team Chat', path: '/chat', section: 'Engage', configKey: 'chatEnabled', unreadKey: 'teamChat' },
+      { icon: '🛡️', label: 'Strategy', path: '/strategies', section: 'Engage', configKey: 'chatEnabled', coachOnly: true, unreadKey: 'strategy' },
+      { icon: '📺', label: 'Film Room', path: '/videos', section: 'Engage', configKey: 'videoLibraryEnabled' },
+      { icon: '📈', label: 'Stats', path: '/stats', section: 'Analyze', configKey: 'statsEnabled' },
+      { icon: '📓', label: 'My Plays', path: '/coaching', section: 'Analyze', configKey: 'playbookEnabled', coachOnly: true },
+    ];
+
+    // Filter by config and role
+    return items.filter(item => {
+      if (item.configKey && !config[item.configKey as keyof typeof config]) return false;
+      if (item.coachOnly && userData?.role !== 'Coach') return false;
+      if (item.hideForParent && userData?.role === 'Parent') return false;
+      return true;
+    });
+  };
+
+  const navItems = getNavItems();
+  const sections = ['Main', 'Engage', 'Analyze'];
+
+  const hasUnread = (key?: string): boolean => {
+    if (!key) return false;
+    return !!unread[key as keyof typeof unread];
+  };
+
+  return (
+    <div className={`min-h-screen transition-colors duration-300 ${
+      theme === 'dark' 
+        ? 'bg-slate-950 text-white' 
+        : 'bg-slate-100 text-slate-900'
+    }`}>
+      {theme === 'dark' && <AnimatedBackground />}
+
+      {/* Mobile Header */}
+      <div className={`lg:hidden fixed top-0 left-0 right-0 h-16 backdrop-blur-xl border-b flex items-center justify-between px-4 z-50 ${
+        theme === 'dark'
+          ? 'bg-slate-900/80 border-white/10'
+          : 'bg-white/80 border-slate-200'
+      }`}>
+        <button onClick={handleLogoClick} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-lg text-white">
+            ⚡
+          </div>
+          <span className="font-bold text-lg">OSYS</span>
+        </button>
+        <button 
+          onClick={() => setIsSidebarOpen(true)} 
+          className={`p-2 rounded-lg transition ${
+            theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-200'
+          }`}
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+      </div>
+
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 bg-black/60 z-50"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside className={`
+        fixed inset-y-0 left-0 z-50 w-64 backdrop-blur-xl border-r
+        transform transition-transform duration-300 ease-in-out
+        lg:translate-x-0 overflow-y-auto
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        ${theme === 'dark' 
+          ? 'bg-slate-900/95 border-white/10' 
+          : 'bg-white/95 border-slate-200'
+        }
+      `}>
+        {/* Logo */}
+        <div className={`flex items-center justify-between p-4 border-b ${
+          theme === 'dark' ? 'border-white/10' : 'border-slate-200'
+        }`}>
+          <button onClick={handleLogoClick} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-xl shadow-lg shadow-purple-500/30 text-white">
+              ⚡
+            </div>
+            <span className="font-bold text-xl tracking-tight">OSYS</span>
+          </button>
+          <button 
+            onClick={() => setIsSidebarOpen(false)}
+            className={`lg:hidden p-2 rounded-lg ${
+              theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-200'
+            }`}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Team Selector (for Coaches) or Player Selector (for Parents) */}
+        <div className={`p-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'}`}>
+          {userData?.role === 'Parent' ? (
+            // Player Selector for Parents
+            <PlayerSelector />
+          ) : (
+            // Team Selector for Coaches
+            <>
+              <button 
+                onClick={() => setShowTeamSelector(!showTeamSelector)}
+                className={`w-full p-3 rounded-xl border transition flex items-center gap-3 ${
+                  theme === 'dark'
+                    ? 'bg-white/5 hover:bg-white/10 border-white/10'
+                    : 'bg-slate-100 hover:bg-slate-200 border-slate-200'
+                }`}
+              >
+                <Avatar name={teamData?.name || 'Team'} size="sm" />
+                <div className="flex-1 text-left min-w-0">
+                  <div className="font-medium truncate">{teamData?.name || 'Select Team'}</div>
+                  <div className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>{userData?.role || 'Coach'}</div>
+                </div>
+                <ChevronDown className={`w-4 h-4 transition ${
+                  theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                } ${showTeamSelector ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {showTeamSelector && (
+                <div className="mt-2">
+                  <TeamSelector />
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 p-4">
+          {sections.map(section => {
+            const sectionItems = navItems.filter(item => item.section === section);
+            if (sectionItems.length === 0) return null;
+            
+            return (
+              <div key={section} className="mb-6">
+                <div className="text-xs text-slate-500 uppercase tracking-wider mb-2 px-3">{section}</div>
+                {sectionItems.map(item => {
+                  const isActive = location.pathname === item.path;
+                  const showUnread = hasUnread(item.unreadKey);
+                  
+                  return (
+                    <NavLink
+                      key={item.path + item.label}
+                      to={item.path}
+                      onClick={(e) => handleNavClick(e, item.path)}
+                      className={`
+                        flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1 transition-all
+                        ${isActive 
+                          ? theme === 'dark'
+                            ? 'bg-gradient-to-r from-purple-600/30 to-pink-600/30 text-white border border-purple-500/30 shadow-lg shadow-purple-500/10' 
+                            : 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 border border-purple-300'
+                          : theme === 'dark'
+                            ? 'text-slate-400 hover:text-white hover:bg-white/5'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }
+                      `}
+                    >
+                      <span className="text-lg">{item.icon}</span>
+                      <span className="flex-1">{item.label}</span>
+                      {showUnread && (
+                        <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                      )}
+                    </NavLink>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </nav>
+
+        {/* Bottom Actions */}
+        <div className={`p-4 border-t space-y-2 ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'}`}>
+          <NavLink
+            to="/profile"
+            onClick={(e) => handleNavClick(e, '/profile')}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all
+              ${location.pathname === '/profile' 
+                ? theme === 'dark' ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-900'
+                : theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }
+            `}
+          >
+            <span className="text-lg">⚙️</span>
+            <span>Settings</span>
+          </NavLink>
+          
+          <button
+            onClick={toggleTheme}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+              theme === 'dark' 
+                ? 'text-slate-400 hover:text-white hover:bg-white/5' 
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+          </button>
+          
+          <button
+            onClick={handleSignOut}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+              theme === 'dark'
+                ? 'text-slate-400 hover:text-red-400 hover:bg-red-500/10'
+                : 'text-slate-600 hover:text-red-600 hover:bg-red-50'
+            }`}
+          >
+            <LogOut className="w-5 h-5" />
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <main ref={mainContentRef} className="lg:ml-64 min-h-screen pt-16 lg:pt-0 overflow-y-auto">
+        <div className="p-4 lg:p-8">
+          <Outlet />
+        </div>
+      </main>
+
+      {/* Unsaved Changes Modal */}
+      {showUnsavedModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100]">
+          <div className={`p-6 rounded-2xl max-w-sm mx-4 ${
+            theme === 'dark' 
+              ? 'bg-slate-900 border border-white/10' 
+              : 'bg-white border border-slate-200 shadow-xl'
+          }`}>
+            <div className="text-2xl mb-2">⚠️</div>
+            <h3 className={`text-lg font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+              Unsaved Changes
+            </h3>
+            <p className={`text-sm mb-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+              You have unsaved changes. Are you sure you want to leave? Your changes will be lost.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleCancelLeave}
+                className={`flex-1 px-4 py-2 rounded-lg transition ${
+                  theme === 'dark' 
+                    ? 'bg-white/10 hover:bg-white/20 text-white' 
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-900'
+                }`}
+              >
+                Stay
+              </button>
+              <button
+                onClick={handleConfirmLeave}
+                className="flex-1 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white transition"
+              >
+                Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default NewOSYSLayout;

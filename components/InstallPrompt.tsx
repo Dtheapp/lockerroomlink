@@ -80,11 +80,11 @@ const InstallPrompt: React.FC = () => {
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-4 max-w-md mx-auto">
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
-                <span className="text-white font-black text-lg">LU</span>
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
+                <span className="text-white font-black text-lg">⚡</span>
               </div>
               <div>
-                <h3 className="text-white font-bold">Install LevelUp</h3>
+                <h3 className="text-white font-bold">Install OSYS</h3>
                 <p className="text-zinc-400 text-sm">Add to your home screen</p>
               </div>
             </div>
@@ -136,11 +136,11 @@ const InstallPrompt: React.FC = () => {
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-4 max-w-md mx-auto">
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
-                <span className="text-white font-black text-lg">LU</span>
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
+                <span className="text-white font-black text-lg">⚡</span>
               </div>
               <div>
-                <h3 className="text-white font-bold">Install LevelUp</h3>
+                <h3 className="text-white font-bold">Install OSYS</h3>
                 <p className="text-zinc-400 text-sm">Get the full app experience</p>
               </div>
             </div>
@@ -153,7 +153,7 @@ const InstallPrompt: React.FC = () => {
           </div>
           
           <p className="text-zinc-400 text-sm mb-4">
-            Install LevelUp for quick access, offline support, and a native app experience.
+            Install OSYS for quick access, offline support, and a native app experience.
           </p>
           
           <div className="flex gap-2">

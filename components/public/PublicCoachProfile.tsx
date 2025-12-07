@@ -388,7 +388,7 @@ We have received your report and our administration team will review it promptly
 
 You will receive updates in this chat as your grievance is reviewed.
 
-— LevelUp Administration`;
+— OSYS Administration`;
       
       await addDoc(collection(db, 'grievance_chats', grievanceChatRef.id, 'messages'), {
         text: acknowledgmentMessage,
@@ -746,7 +746,7 @@ You will receive updates in this chat as your grievance is reviewed.
 
         {/* Footer */}
         <footer className="mt-12 text-center text-zinc-600 text-sm">
-          <p>Powered by <span className="text-orange-500 font-bold">LevelUp</span></p>
+          <p>Powered by <span className="text-purple-500 font-bold">OSYS</span></p>
         </footer>
       </main>
 

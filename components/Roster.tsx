@@ -831,7 +831,7 @@ const Roster: React.FC = () => {
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <div className="flex-1 sm:flex-none bg-white dark:bg-zinc-800 rounded px-3 py-2 text-xs text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 truncate max-w-[220px]">
-                lockerroomlink.com/#/team/{teamData.id}
+                osys.team/#/team/{teamData.id}
               </div>
               <button
                 onClick={copyTeamLink}

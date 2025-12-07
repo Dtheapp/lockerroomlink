@@ -1,6 +1,6 @@
 {
-  "name": "LevelUp",
-  "short_name": "LevelUp",
+  "name": "OSYS",
+  "short_name": "OSYS",
   "description": "Youth sports team management app for coaches and parents",
   "start_url": "/",
   "display": "standalone",

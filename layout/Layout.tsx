@@ -145,7 +145,7 @@ const Layout: React.FC = () => {
       {/* MOBILE HEADER */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-900 flex items-center justify-between px-4 z-40 shadow-sm">
           <button onClick={handleLogoClick} className="text-xl font-black tracking-tighter hover:opacity-80 transition-opacity">
-            <span className="text-orange-500">LEVEL</span><span className="text-zinc-900 dark:text-white">UP</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500">OSYS</span>
           </button>
           <button onClick={() => setIsSidebarOpen(true)} className="text-zinc-600 dark:text-zinc-300">
               <Menu className="w-8 h-8" />
@@ -164,17 +164,14 @@ const Layout: React.FC = () => {
         <div className="flex items-center justify-between mb-8 h-10">
             {!isDesktopCollapsed && (
                 <button onClick={handleLogoClick} className="min-w-0 hover:opacity-80 transition-opacity text-left">
-                    {/* FIX: Split Logo Color Logic */}
                     <div className="text-2xl font-black tracking-tighter truncate leading-none">
-                        <span className="text-orange-500">LEVEL</span>
-                        <span className="text-zinc-900 dark:text-white">UP</span>
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500">OSYS</span>
                     </div>
                 </button>
             )}
             {isDesktopCollapsed && (
                 <button onClick={handleLogoClick} className="mx-auto hover:opacity-80 transition-opacity" title="Go to Dashboard">
-                    <span className="text-xl font-black text-orange-500">L</span>
-                    <span className="text-xl font-black text-zinc-900 dark:text-white">U</span>
+                    <span className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500">OS</span>
                 </button>
             )}
             
