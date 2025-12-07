@@ -9,7 +9,9 @@ const pages = [
   { id: 'player', label: '🏃 Athlete', path: '/player' },
   { id: 'team-demo', label: '🏈 Team', path: '/team-demo' },
   { id: 'fan-hub', label: '🏟️ Fan Hub', path: '/fan-hub' },
-  { id: 'coach-demo', label: '📊 Coach', path: '/coach-demo' },
+  { id: 'live', label: '📺 Live', path: '/live' },
+  { id: 'coach-profile', label: '👨‍🏫 Coach', path: '/coach-profile' },
+  { id: 'coach-demo', label: '📊 Dashboard', path: '/coach-demo' },
   { id: 'fundraising', label: '💰 Fundraise', path: '/fundraising' },
 ];
 

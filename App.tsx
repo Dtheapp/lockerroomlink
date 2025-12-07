@@ -59,6 +59,8 @@ const OSYSAthleteProfile = lazyWithRetry(() => import('./components/OSYSAthleteP
 const OSYSTeamPage = lazyWithRetry(() => import('./components/OSYSTeamPage'));
 const OSYSFanHub = lazyWithRetry(() => import('./components/OSYSFanHub'));
 const OSYSDashboard = lazyWithRetry(() => import('./components/OSYSDashboard'));
+const OSYSLivestream = lazyWithRetry(() => import('./components/OSYSLivestream'));
+const OSYSCoachProfile = lazyWithRetry(() => import('./components/OSYSCoachProfile'));
 
 // Event System Pages
 const EventsPage = lazyWithRetry(() => import('./components/events/EventsPage'));
@@ -181,6 +183,8 @@ const AppContent: React.FC = () => {
           <Route path="/team-demo" element={<OSYSTeamPage />} />
           <Route path="/fan-hub" element={<OSYSFanHub />} />
           <Route path="/coach-demo" element={<OSYSDashboard />} />
+          <Route path="/live" element={<OSYSLivestream />} />
+          <Route path="/coach-profile" element={<OSYSCoachProfile />} />
           
           {!user ? (
             <>

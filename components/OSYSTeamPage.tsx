@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AnimatedBackground, GlassCard, Button, Badge, ProgressBar } from './ui/OSYSComponents';
 import { DemoNavigation } from './ui/DemoNavigation';
+import { LiveGameBanner } from './ui/LiveGameBanner';
 
 // Types
 interface Player {
@@ -519,6 +520,25 @@ export function OSYSTeamPage() {
           <Button variant="primary">Sign In</Button>
         </div>
       </nav>
+
+      {/* Live Game Banner */}
+      <LiveGameBanner 
+        homeTeam={{
+          name: "Wildcats",
+          abbreviation: "WLD",
+          score: 21,
+          primaryColor: "#667eea"
+        }}
+        awayTeam={{
+          name: "Tigers",
+          abbreviation: "TGR",
+          score: 14,
+          primaryColor: "#f59e0b"
+        }}
+        period="3rd Quarter"
+        timeRemaining="8:42"
+        onWatch={() => console.log('Watch live')}
+      />
 
       {/* Hero Banner */}
       <div style={styles.heroBanner}>

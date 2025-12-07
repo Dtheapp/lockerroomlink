@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AnimatedBackground, GlassCard, Button, Badge, ProgressBar } from './ui/OSYSComponents';
 import { DemoNavigation } from './ui/DemoNavigation';
+import { LiveGameBanner } from './ui/LiveGameBanner';
 
 // Types
 interface Athlete {
@@ -504,6 +505,25 @@ export function OSYSFanHub() {
           <Button variant="primary">My Profile</Button>
         </div>
       </nav>
+
+      {/* Live Game Banner */}
+      <LiveGameBanner 
+        homeTeam={{
+          name: "Eagles",
+          abbreviation: "EGL",
+          score: 35,
+          primaryColor: "#22c55e"
+        }}
+        awayTeam={{
+          name: "Hawks",
+          abbreviation: "HWK",
+          score: 28,
+          primaryColor: "#ef4444"
+        }}
+        period="4th Quarter"
+        timeRemaining="2:15"
+        onWatch={() => console.log('Watch live')}
+      />
 
       {/* Header */}
       <div style={styles.header}>
