@@ -4,6 +4,7 @@ import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { uploadFile } from '../services/storage';
+import { moderateText, getModerationWarning } from '../services/moderation';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnreadMessages } from '../hooks/useUnreadMessages';
 import { Search, Send, MessageSquare, AlertCircle, Edit2, Trash2, X, Check, AlertTriangle, CheckCheck, Reply, CornerUpLeft } from 'lucide-react';
@@ -258,7 +259,21 @@ const Messenger: React.FC = () => {
         return;
       }
       
-      // SECURITY: Sanitize message before storing
+      // SECURITY: Moderate and sanitize message before storing
+      const moderationResult = moderateText(newMessage);
+      if (!moderationResult.isAllowed) {
+        setRateLimitError('Message contains inappropriate content and cannot be sent.');
+        setTimeout(() => setRateLimitError(null), 5000);
+        return;
+      }
+      if (moderationResult.requiresReview) {
+        // Allow but warn user
+        const warning = getModerationWarning(moderationResult);
+        if (warning) {
+          console.warn('Message flagged for review:', warning);
+        }
+      }
+      
       const text = sanitizeText(newMessage, 2000);
       setNewMessage('');
       setSending(true);

@@ -17,18 +17,18 @@ import { DemoNavigation } from './ui/DemoNavigation';
 // Scrolling feature ticker with typewriter effect - types left, scrolls right
 const FeatureTicker: React.FC = () => {
   const features = [
-    'Social Media',
-    'Fundraising', 
-    'Livestreams',
-    'Ticketing',
-    'Playbooks',
-    'Registration',
-    'Team Stats',
-    'Video Library',
+    'Livestreaming',
+    'Zero-Fee Fundraising',
+    'Game Ticketing',
+    'Team Registration',
+    'Design Studio',
+    'Smart Playbooks',
+    'Live Stats',
+    'Film Room',
+    'AI Safety',
     'Fan Engagement',
-    'Messaging',
     'Player Profiles',
-    'Events'
+    'Messaging'
   ];
   
   const [visibleFeatures, setVisibleFeatures] = useState<string[]>([]);
@@ -235,6 +235,79 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
+      {/* How It Works - Parent-Athlete Connection */}
+      <section className="py-24 px-6 border-t border-white/5">
+        <div className="max-w-6xl mx-auto">
+          <SectionHeader
+            badge="How It Works"
+            title="Built for"
+            highlight="the whole family"
+            subtitle="Parents link directly to their athletes for a connected experience."
+          />
+
+          <div className="grid md:grid-cols-3 gap-8 mt-12">
+            <GlassCard className="text-center">
+              <div className="text-4xl mb-4">👨‍👩‍👧‍👦</div>
+              <h3 className="text-xl font-bold mb-2">Parents Link to Athletes</h3>
+              <p className="text-slate-400">One account connects to all your children. See their stats, games, and team updates in one dashboard.</p>
+            </GlassCard>
+            <GlassCard className="text-center">
+              <div className="text-4xl mb-4">🔗</div>
+              <h3 className="text-xl font-bold mb-2">Full Play Traceability</h3>
+              <p className="text-slate-400">Every stat links back to the play it came from. Watch the film, see the play diagram, review the details.</p>
+            </GlassCard>
+            <GlassCard className="text-center">
+              <div className="text-4xl mb-4">🛡️</div>
+              <h3 className="text-xl font-bold mb-2">AI-Monitored Safety</h3>
+              <p className="text-slate-400">All chats and posts are scanned for harmful content. Profanity filters, grooming detection, and 24/7 monitoring.</p>
+            </GlassCard>
+          </div>
+
+          <div className="mt-12 osys-glass rounded-2xl p-8">
+            <div className="grid md:grid-cols-2 gap-8 items-center">
+              <div>
+                <Badge variant="gold" className="mb-4">World-Class Traceability</Badge>
+                <h3 className="text-2xl font-bold mb-4">From Stats to Plays to Film</h3>
+                <p className="text-slate-400 mb-4">
+                  OSYS connects everything. When you record a touchdown, you can tag the exact play from your playbook and link to the game film. Parents and scouts can trace any stat back to its source.
+                </p>
+                <ul className="space-y-2 text-slate-300">
+                  <li className="flex items-center gap-2">
+                    <span className="text-purple-400">✓</span> Stats linked to specific plays
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-purple-400">✓</span> Video clips tagged by player and play
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-purple-400">✓</span> Formation success rates calculated automatically
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-purple-400">✓</span> Parent dashboard with all child stats
+                  </li>
+                </ul>
+              </div>
+              <div className="osys-glass rounded-xl p-6">
+                <div className="text-sm text-slate-400 mb-3">Example Stat Trace</div>
+                <div className="space-y-3">
+                  <div className="bg-slate-800/50 rounded-lg p-3 flex items-center justify-between">
+                    <span>🏈 TD Pass</span>
+                    <span className="text-purple-400">→</span>
+                  </div>
+                  <div className="bg-slate-800/50 rounded-lg p-3 flex items-center justify-between">
+                    <span>📋 "Power Sweep Right"</span>
+                    <span className="text-purple-400">→</span>
+                  </div>
+                  <div className="bg-slate-800/50 rounded-lg p-3 flex items-center justify-between">
+                    <span>🎬 Game Film 2:34</span>
+                    <span className="text-emerald-400">✓</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Features Section */}
       <section id="features" className="py-24 px-6">
         <div className="max-w-6xl mx-auto">
@@ -247,47 +320,59 @@ const LandingPage: React.FC = () => {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 osys-stagger">
             <FeatureCard
+              icon="📡"
+              title="Live Game Streaming"
+              description="One-tap broadcasts with real-time scores. Multi-camera support, instant highlights, and donation tipping during streams."
+              link="/livestream"
+            />
+            <FeatureCard
+              icon="💰"
+              title="Zero-Fee Fundraising"
+              description="100% goes to the team. Individual athlete campaigns, team equipment drives, and tournament travel funds."
+              link="/fundraising"
+            />
+            <FeatureCard
+              icon="🎟️"
+              title="Game Ticketing"
+              description="Sell tickets online, scan at the gate with QR codes. Reserved seating, season passes, and family bundles."
+              link="/events"
+            />
+            <FeatureCard
+              icon="📝"
+              title="Team Registration"
+              description="Online signups with waivers, payment collection, and roster management. Parents link directly to their athletes."
+              link="/events"
+            />
+            <FeatureCard
+              icon="🎨"
+              title="Design Studio"
+              description="Create professional graphics, team posters, player cards, and social media content with our drag-and-drop editor."
+              link="/design"
+            />
+            <FeatureCard
               icon="📋"
               title="Smart Playbooks"
-              description="Drag-and-drop play designer with animated routes. Share instantly with your team."
+              description="Drag-and-drop play designer with animated routes. Assign positions and share instantly with your team."
               link="/playbook"
             />
             <FeatureCard
               icon="📊"
-              title="Live Stats"
-              description="Real-time stat tracking during games. Automated analytics and player insights."
+              title="Live Stats & Analytics"
+              description="Real-time stat tracking with per-play traceability. Know exactly which plays are working."
               link="/stats"
             />
             <FeatureCard
               icon="📹"
-              title="Video Library"
-              description="Upload game film, create highlights, and organize footage by player or play."
+              title="Video Film Room"
+              description="Upload game film, tag players, create highlights, and trace plays back to your playbook."
               link="/videos"
             />
             <FeatureCard
-              icon="💰"
-              title="Fundraising"
-              description="Zero-fee fundraising for teams and individual athletes. Travel to nationals, buy equipment."
-              link="/fundraising"
-              comingSoon
-            />
-            <FeatureCard
-              icon="📡"
-              title="Livestreaming"
-              description="One-tap live broadcasts. Fans can watch from anywhere. Automatic highlight clips."
-              link="/livestream"
-              comingSoon
-            />
-            <FeatureCard
-              icon="💬"
-              title="Team Chat"
-              description="Secure messaging for coaches, players, and parents. Announcements and direct messages."
+              icon="🛡️"
+              title="AI Safety Monitoring"
+              description="All content is monitored by AI to protect kids. Profanity filters, grooming detection, and real-time moderation."
               link="/chat"
             />
-            <div className="osys-glass px-6 py-8 rounded-2xl flex items-center justify-center text-slate-400">
-              <span className="text-2xl mr-3">✨</span>
-              <span className="text-lg">& more coming soon...</span>
-            </div>
           </div>
         </div>
       </section>
