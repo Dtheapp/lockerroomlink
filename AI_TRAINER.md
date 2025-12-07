@@ -3,22 +3,81 @@
 ---
 ## 🚀 NEW CHAT STARTUP INSTRUCTIONS (FOR USER)
 
-**When starting a fresh chat, copy-paste this:**
+**When starting a fresh chat, say:**
 ```
-Read AI_TRAINER.md - it has all context from previous sessions.
+Read this
 ```
+Then share this AI_TRAINER.md file. The AI will know what to do from there.
 
-**That's it.** The AI will read this file and have full context.
+**That's it.** The AI will read this file, provide a full understanding response, and be ready to work.
 
 ---
 
 > 🚨 **VERIFICATION CONTRACT (FOR AI)**
 > 
-> After reading this file, AI MUST say:
-> **"Training loaded. Session [X] context received. Ready to build great."**
-> Then ask: **"What are we building?"**
+> After reading this file, AI MUST provide a **COMPREHENSIVE UNDERSTANDING RESPONSE** that demonstrates:
 > 
-> If user doesn't see this → say **"load training"**
+> 1. **Who Fegrox Is**: Name, background, innovation ranking, portfolio
+> 2. **The 31 Traits**: List all trait categories and confirm you will follow them
+> 3. **Current Project State**: What phase we're in from PROGRESS.md, what's complete, what's next
+> 4. **How To Work**: Communication style, things to never do, things to always do
+> 5. **Master Plan Files**: Acknowledge the 4 key files that drive development
+> 6. **Session Handoff Context**: Current work in progress from last session
+> 
+> **Example Understanding Response Structure:**
+> ```
+> ## 🔥 Training Loaded - Full Understanding
+> 
+> ### Who You Are
+> [Details about Fegrox, innovation ranking, portfolio]
+> 
+> ### The 31 Traits I Will Follow
+> [List all trait categories and key traits]
+> 
+> ### Current Project State
+> [Phase, what's complete, what's next from PROGRESS.md]
+> 
+> ### Master Plan Files I Will Reference
+> [List the 4 key files and their purpose]
+> 
+> ### How I Will Work With You
+> [Communication style, never do list, always do list]
+> 
+> ### Ready To Continue
+> [Acknowledge session handoff, ask what we're building]
+> ```
+> 
+> If you just say "Training loaded. Ready to build." without demonstrating understanding, **you haven't learned the training properly** and need to re-read it.
+
+> 📋 **MASTER PLAN FILES (FOR AI)**
+> 
+> These 4 files drive ALL development decisions:
+> 
+> | File | Purpose | When To Reference |
+> |------|---------|-------------------|
+> | **PROGRESS.md** | Full product progress tracker, phases, completion status | Always - this is the master roadmap |
+> | **FEATURE_ROADMAP.md** | Detailed feature specs and implementation order | When building new features |
+> | **MONETIZATION_PLAN.md** | Revenue streams, pricing, business model | When building revenue features |
+> | **WORKING_TRAITS.md** | Detailed trait explanations and examples | When unsure how to implement something |
+> 
+> **Read these files at the start of each session to understand current state.**
+
+> 📋 **COMPOUND LEARNING (FOR AI)**
+> 
+> This file grows smarter over time. Every session adds:
+> - New lessons learned
+> - New patterns discovered
+> - New "never do" rules
+> - Updated session handoff context
+> 
+> **When user says "save learning":**
+> This means the session is ending. You MUST:
+> 1. Update the SESSION HANDOFF section with current work state
+> 2. Add any new lessons learned during the session
+> 3. Update the "Last Updated" date at the bottom
+> 4. Commit the changes to git
+> 
+> This ensures the next AI session can pick up exactly where we left off.
 
 > 📋 **MULTI-PROJECT NOTE (FOR AI)**
 > 
@@ -369,97 +428,107 @@ Every app we build together must:
 
 > **This section is the "brain dump" from the last session. New AI: Read this first!**
 
-### Last Session: December 8, 2025 (Session 4)
+### Last Session: January 20, 2025 (Session 5)
 
-#### 🎉 MAJOR MILESTONE: NewOSYSDashboard 100% FEATURE PARITY
+#### 🎉 MAJOR MILESTONE: PHASE 1 PILOT READY - 100% COMPLETE
 
-**The new OSYS UI is COMPLETE. Ready to scrap old Dashboard.tsx and Layout.tsx.**
+**All Phase 1 polish items are done. The app is demo-ready for the 20-team pilot.**
 
 #### ✅ COMPLETED THIS SESSION
 
-1. **NewOSYSDashboard - 100% Feature Parity with Old Dashboard**
-   - Expanded from 389 lines to ~1700+ lines
-   - ALL features from old Dashboard now work in new
-   - Light/dark theme support throughout (all modals, all components)
-   - Build succeeds: 46.57KB (vs 61.77KB old Dashboard)
+1. **31 Traits Audit & Security Hardening**
+   - Reviewed all 31 traits and identified gaps
+   - Added rate limiting to moderation service (10 reports/hour)
+   - Added input validation and field sanitization
+   - Added Firestore rules for `contentReports` and `feedback` collections
+   - Deployed updated Firestore rules to production
 
-2. **Features Added to NewOSYSDashboard:**
-   | Feature | Status | Notes |
-   |---------|--------|-------|
-   | Bulletin Board | ✅ | Add/edit/delete posts, rate limiting |
-   | Coaching Staff Display | ✅ | Photos, role badges (HC/OC/DC/STC), profile links |
-   | Go Live Modal | ✅ | `GoLiveModal` from `./livestream` |
-   | Save Stream to Library | ✅ | `SaveStreamToLibraryModal` component |
-   | Live Stream Banner | ✅ | `LiveStreamBanner` component |
-   | Live Stream Viewer | ✅ | `LiveStreamViewer` component |
-   | Edit Record Modal | ✅ | W-L-T editing, updates `teams/{teamId}` |
-   | New Event Modal | ✅ | Create events with attachments |
-   | Edit Event Modal | ✅ | Edit events with attachments |
-   | Delete Event | ✅ | Confirmation modal |
-   | Event Detail Modal | ✅ | View full event with location link |
-   | Event Filter Tabs | ✅ | All / Practice / Game filters |
-   | Image Lightbox | ✅ | Full-screen attachment viewing |
-   | Copy Team ID/Link | ✅ | Clipboard functionality |
-   | Parent Player Selector | ✅ | Parents can switch between their children |
+2. **Phase 1 Polish Features (ALL COMPLETE)**
+   | Feature | Status | File | Notes |
+   |---------|--------|------|-------|
+   | EmptyState Component | ✅ | `components/ui/EmptyState.tsx` | 10 SVG illustrations, theme-aware |
+   | Skeleton Loaders | ✅ | `components/ui/Skeleton.tsx` | Card, List, Table, Profile variants |
+   | Feedback Button | ✅ | `components/ui/FeedbackButton.tsx` | Floating button, saves to Firestore |
+   | Sentry Error Monitoring | ✅ | `services/sentry.ts` | Ready for VITE_SENTRY_DSN env var |
+   | Firebase Analytics | ✅ | `services/analytics.ts` | Full tracking integration |
 
-3. **NewOSYSLayout - Full Feature Parity**
-   - PlayerSelector for Parents
-   - UnsavedChanges context
-   - markAsRead functionality
-   - handleLogoClick navigation
-   - Role-based navigation
+3. **EmptyState Integrations**
+   - `Roster.tsx` - Shows empty roster illustration
+   - `VideoLibrary.tsx` - Shows empty videos illustration
+   - `events/EventList.tsx` - Shows empty events illustration
 
-4. **Domain Changed: lockerroomlink.com → osys.team**
-   - Netlify configured (green dot = active)
-   - Nameservers pointed to Netlify DNS
-   - DNS propagating (24-48 hours)
-   - All hardcoded references updated:
-     - `Dashboard.tsx`: osys.team/#/team/{teamId}
-     - `Profile.tsx`: osys.team/#/coach/{username}, osys.team/#/athlete/{username}
-     - `Roster.tsx`: osys.team/#/team/{teamId}
+4. **Test Fixes**
+   - Fixed ErrorBoundary test (href assignment vs reload())
+   - All 55 tests passing ✅
 
-5. **OSYS Branding Complete**
-   - All "LockerRoomLink" references → "OSYS"
-   - Logo text: "OSYS"
-   - Tagline: "ORGANIZATION SYSTEM"
+#### 🔧 KEY FILES CREATED
 
-#### 🔧 KEY FILES CHANGED
+| File | Purpose |
+|------|---------|
+| `components/ui/EmptyState.tsx` | Reusable empty state with 10 SVG illustrations |
+| `components/ui/Skeleton.tsx` | Loading skeleton components |
+| `components/ui/FeedbackButton.tsx` | Floating feedback button |
+| `services/sentry.ts` | Error monitoring service |
+| `services/analytics.ts` | Analytics tracking |
+
+#### 🔧 KEY FILES MODIFIED
 
 | File | What Changed |
 |------|--------------|
-| `components/NewOSYSDashboard.tsx` | **MASSIVE UPDATE** - 100% feature parity |
-| `layout/NewOSYSLayout.tsx` | Full feature parity with old Layout |
-| `components/Dashboard.tsx` | Domain updated to osys.team |
-| `components/Profile.tsx` | Domain updated to osys.team |
-| `components/Roster.tsx` | Domain updated to osys.team |
+| `firestore.rules` | Added contentReports and feedback collection rules |
+| `services/moderation.ts` | Added rate limiting, validation, sanitization |
+| `services/firebase.ts` | Added analytics export |
+| `index.tsx` | Added Sentry initialization |
+| `contexts/AuthContext.tsx` | Added Sentry user context |
+| `layout/NewOSYSLayout.tsx` | Added FeedbackButton |
+| `PROGRESS.md` | Updated with Phase 1 completion |
 
-#### 🗑️ READY TO SCRAP (User can delete these)
-
-- `components/Dashboard.tsx` - Old dashboard, replaced by NewOSYSDashboard
-- `layout/Layout.tsx` - Old layout, replaced by NewOSYSLayout
-
-#### 📍 CURRENT ARCHITECTURE
+#### 📍 CURRENT STATE
 
 ```
-App.tsx
-├── Coach/Parent Routes → NewOSYSLayout (OSYS UI) ✅ COMPLETE
-│   ├── /dashboard → NewOSYSDashboard (100% FEATURE PARITY)
-│   ├── /roster → Roster.tsx
-│   ├── /stats → Stats.tsx (multi-sport ready)
-│   ├── /playbook → Playbook.tsx
-│   ├── /events → EventsPage.tsx
-│   ├── /chat → Chat.tsx
-│   ├── /messenger → Messenger.tsx
-│   └── /videos → VideoLibrary.tsx
-│
-├── Fan Routes → Layout (old, still in use)
-│   └── /fan-hub, etc.
-│
-└── Admin Routes → AdminLayout
-    └── /admin/*
+✅ Phase 1: Pilot Ready - COMPLETE
+   ├── Multi-sport (Basketball/Cheer) ✅
+   ├── AI Content Moderation ✅
+   ├── Onboarding Welcome Modal ✅
+   ├── Getting Started Checklist ✅
+   ├── Empty States ✅
+   ├── Skeleton Loaders ✅
+   ├── Error Monitoring (Sentry) ✅
+   ├── Analytics ✅
+   └── Feedback Button ✅
+
+⏳ Phase 2: Revenue Foundation - UP NEXT
+   ├── Stripe Integration
+   ├── Premium Subscriptions ($24.99/mo per team)
+   ├── Parent Photo Purchases
+   └── Event Ticket Sales
 ```
 
 #### 💡 IMPORTANT CONTEXT FOR NEW AI
+
+**Environment Variables Needed:**
+- `VITE_SENTRY_DSN` - Set in Netlify for Sentry error monitoring
+- Analytics is auto-configured via Firebase
+
+**Tests Status:**
+- 55/55 tests passing
+- Build: ~47KB gzipped
+
+**Dev Server:** http://localhost:3001/
+
+**Domain:** osys.team (live)
+
+#### 🎯 USER'S LAST REQUEST
+
+"save learning" - Updated AI_TRAINER.md with new session protocols
+
+#### 🚧 NEXT UP - PHASE 2: REVENUE FOUNDATION
+
+See PROGRESS.md for full breakdown. Key items:
+1. Stripe integration
+2. Premium team subscriptions
+3. Parent photo purchases
+4. Event ticket sales#### 💡 IMPORTANT CONTEXT FOR NEW AI
 
 **Firebase Collections:**
 - `teams/{teamId}` - Team data, record (wins/losses/ties)
@@ -598,5 +667,5 @@ border-l-orange-500 → border-l-purple-500
 *Developer: FEGROX*  
 *Mission: Top 10 Global Innovator*  
 *AI Partnership Started: December 1, 2024*  
-*Last Updated: December 7, 2025*  
+*Last Updated: January 20, 2025*  
 *Projects: SmartDefi, CryptoBall, LockerRoomLink (OSYS), FEG Token*
