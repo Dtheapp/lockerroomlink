@@ -189,10 +189,11 @@ const AppContent: React.FC = () => {
           <Route path="/coach-demo" element={<OSYSDashboard />} />
           <Route path="/live" element={<OSYSLivestream />} />
           <Route path="/coach-profile" element={<OSYSCoachProfile />} />
-          <Route path="/events" element={<OSYSEvents />} />
-          <Route path="/playbook" element={<OSYSPlaybook />} />
-          <Route path="/messages" element={<OSYSMessenger />} />
-          <Route path="/roster" element={<OSYSRoster />} />
+          {/* OSYS Demo routes - prefixed to not conflict with real app routes */}
+          <Route path="/demo/events" element={<OSYSEvents />} />
+          <Route path="/demo/playbook" element={<OSYSPlaybook />} />
+          <Route path="/demo/messages" element={<OSYSMessenger />} />
+          <Route path="/demo/roster" element={<OSYSRoster />} />
           
           {!user ? (
             <>
