@@ -58,7 +58,7 @@ const LandingPage: React.FC = () => {
           </h1>
 
           <p className="text-xl text-slate-400 max-w-2xl mx-auto mb-8 osys-animate-slide-up" style={{ animationDelay: '0.1s' }}>
-            Playbooks. Stats. Livestreams. Fundraising. Fan engagement.
+            Social Media. Fundraising. Livestreams. Game Ticketing. Playbooks. Player Registration, and more.
             <br />
             Everything your team needs in one powerful platform.
           </p>
