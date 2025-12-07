@@ -1747,7 +1747,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                 ...prev,
                 settings: { ...prev.settings, visible: !prev.settings.visible }
               } : null); }}
-              className={`p-1.5 rounded transition-colors ${traceBackground.settings.visible ? 'bg-slate-700 text-white' : 'bg-purple-600 text-white'}`}
+              className={`p-1.5 rounded transition-colors ${traceBackground.settings.visible ? 'bg-slate-700 text-white' : 'bg-purple-600 dark:bg-orange-500 text-white'}`}
               title={traceBackground.settings.visible ? 'Hide background' : 'Show background'}
             >
               {traceBackground.settings.visible ? <Eye className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -2026,7 +2026,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                 ...prev,
                 settings: { ...prev.settings, visible: !prev.settings.visible }
               } : null); }}
-              className={`p-1.5 rounded transition-colors ${formationTraceBackground.settings.visible ? 'bg-slate-700 text-white' : 'bg-purple-600 text-white'}`}
+              className={`p-1.5 rounded transition-colors ${formationTraceBackground.settings.visible ? 'bg-slate-700 text-white' : 'bg-purple-600 dark:bg-orange-500 text-white'}`}
               title={formationTraceBackground.settings.visible ? 'Hide background' : 'Show background'}
             >
               {formationTraceBackground.settings.visible ? <Eye className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -2172,7 +2172,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
         className={`w-full py-3 flex items-center justify-center gap-2 font-semibold transition-colors ${
           showAddPlayers 
             ? 'bg-slate-700 text-white' 
-            : 'bg-purple-600 hover:bg-purple-700 text-white'
+            : 'bg-purple-600 dark:bg-orange-500 hover:bg-purple-700 dark:hover:bg-orange-600 text-white'
         }`}
       >
         {showAddPlayers ? <ChevronDown className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
@@ -2187,7 +2187,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
             <button
               onClick={() => { setDrawingMode('select'); cancelDrawing(); }}
               className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1 ${
-                drawingMode === 'select' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                drawingMode === 'select' ? 'bg-purple-600 dark:bg-orange-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
               }`}
             >
               <MousePointer className="w-3 h-3" /> Select
@@ -2195,7 +2195,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
             <button
               onClick={() => { setDrawingMode('line'); cancelDrawing(); }}
               className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1 ${
-                drawingMode === 'line' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                drawingMode === 'line' ? 'bg-purple-600 dark:bg-orange-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
               }`}
             >
               <Minus className="w-3 h-3" /> Lines
@@ -2203,7 +2203,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
             <button
               onClick={() => { setDrawingMode('shape'); cancelDrawing(); }}
               className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1 ${
-                drawingMode === 'shape' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                drawingMode === 'shape' ? 'bg-purple-600 dark:bg-orange-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
               }`}
             >
               <Square className="w-3 h-3" /> Shapes
@@ -2813,8 +2813,8 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                               filterCategory === cat
                                 ? cat === 'Offense' ? 'bg-blue-500 text-white'
                                 : cat === 'Defense' ? 'bg-red-500 text-white'
-                                : cat === 'Special Teams' ? 'bg-purple-500 text-white'
-                                : 'bg-purple-500 text-white'
+                                : cat === 'Special Teams' ? 'bg-purple-500 dark:bg-orange-500 text-white'
+                                : 'bg-purple-500 dark:bg-orange-500 text-white'
                                 : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                             }`}
                           >
@@ -2827,7 +2827,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                       <div className="flex gap-2">
                         <button
                           onClick={() => setIsFormationDesignMode(true)}
-                          className="flex-1 py-3 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg text-slate-500 hover:border-purple-400 hover:text-purple-500 flex items-center justify-center gap-2 transition-colors"
+                          className="flex-1 py-3 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg text-slate-500 hover:border-purple-400 dark:hover:border-orange-400 hover:text-purple-500 dark:hover:text-orange-400 flex items-center justify-center gap-2 transition-colors"
                         >
                           <Plus className="w-4 h-4" /> Create
                         </button>
@@ -2853,7 +2853,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                             return (
                               <div 
                                 key={formation.id}
-                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3 group hover:border-purple-300 dark:hover:border-purple-600 transition-colors"
+                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3 group hover:border-purple-300 dark:hover:border-orange-600 transition-colors"
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex-1 min-w-0">
@@ -2861,7 +2861,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                                       <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                                         formation.category === 'Offense' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'
                                         : formation.category === 'Defense' ? 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400'
-                                        : 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'
+                                        : 'bg-purple-100 dark:bg-orange-900/50 text-purple-600 dark:text-orange-400'
                                       }`}>{formation.category}</span>
                                       <p className="font-bold text-slate-900 dark:text-white text-sm truncate">{formation.name}</p>
                                     </div>
@@ -2904,7 +2904,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                                 {/* Quick action to create play */}
                                 <button
                                   onClick={() => startPlayFromFormation(formation)}
-                                  className="w-full mt-2 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-purple-100 dark:hover:bg-purple-900/30 text-slate-600 dark:text-slate-400 hover:text-purple-600 rounded text-xs font-medium flex items-center justify-center gap-1 transition-colors"
+                                  className="w-full mt-2 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-purple-100 dark:hover:bg-orange-900/30 text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-orange-400 rounded text-xs font-medium flex items-center justify-center gap-1 transition-colors"
                                 >
                                   <ChevronRight className="w-3 h-3" /> Create Play
                                 </button>
@@ -2937,9 +2937,9 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                       
                       {/* Formation Info */}
                       {playFormationId ? (
-                        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
-                          <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">Formation</p>
-                          <p className="font-bold text-purple-800 dark:text-purple-300">{playFormationName}</p>
+                        <div className="bg-purple-50 dark:bg-orange-900/20 border border-purple-200 dark:border-orange-800 rounded-lg p-3">
+                          <p className="text-xs text-purple-600 dark:text-orange-400 font-medium">Formation</p>
+                          <p className="font-bold text-purple-800 dark:text-orange-300">{playFormationName}</p>
                         </div>
                       ) : formations.length > 0 ? (
                         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
@@ -2966,7 +2966,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                                 {' '} | {' '}
                                 <button 
                                   onClick={() => setShowCloneModal(true)} 
-                                  className="underline font-medium text-purple-600 dark:text-purple-400 inline-flex items-center gap-1"
+                                  className="underline font-medium text-purple-600 dark:text-orange-400 inline-flex items-center gap-1"
                                 >
                                   <Sparkles className="w-3 h-3" /> clone from image (AI)
                                 </button>
@@ -3129,7 +3129,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                             <button
                               onClick={() => { setDrawingMode('select'); }}
                               className={`flex-1 py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 ${
-                                drawingMode === 'select' ? 'bg-purple-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                drawingMode === 'select' ? 'bg-purple-600 dark:bg-orange-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                               }`}
                             >
                               <MousePointer className="w-3 h-3" /> Select
@@ -3137,7 +3137,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                             <button
                               onClick={() => { setDrawingMode('line'); }}
                               className={`flex-1 py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 ${
-                                drawingMode === 'line' ? 'bg-purple-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                drawingMode === 'line' ? 'bg-purple-600 dark:bg-orange-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                               }`}
                             >
                               <Minus className="w-3 h-3" /> Lines
@@ -3145,7 +3145,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                             <button
                               onClick={() => { setDrawingMode('shape'); }}
                               className={`flex-1 py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 ${
-                                drawingMode === 'shape' ? 'bg-purple-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                drawingMode === 'shape' ? 'bg-purple-600 dark:bg-orange-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                               }`}
                             >
                               <Square className="w-3 h-3" /> Shapes
@@ -3182,7 +3182,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                                   <button
                                     key={color}
                                     onClick={() => setSelectedLineColor(color)}
-                                    className={`w-5 h-5 rounded border-2 ${selectedLineColor === color ? 'border-purple-500 scale-110' : 'border-transparent'}`}
+                                    className={`w-5 h-5 rounded border-2 ${selectedLineColor === color ? 'border-purple-500 dark:border-orange-500 scale-110' : 'border-transparent'}`}
                                     style={{ backgroundColor: color }}
                                   />
                                 ))}
@@ -3199,7 +3199,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                                   <button
                                     key={type}
                                     onClick={() => setSelectedShapeType(type)}
-                                    className={`p-1.5 rounded text-[10px] font-medium capitalize ${selectedShapeType === type ? 'bg-purple-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
+                                    className={`p-1.5 rounded text-[10px] font-medium capitalize ${selectedShapeType === type ? 'bg-purple-500 dark:bg-orange-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
                                   >
                                     {type}
                                   </button>
@@ -3210,7 +3210,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                                   <button
                                     key={color}
                                     onClick={() => setSelectedShapeColor(color)}
-                                    className={`w-5 h-5 rounded border-2 ${selectedShapeColor === color ? 'border-purple-500 scale-110' : 'border-transparent'}`}
+                                    className={`w-5 h-5 rounded border-2 ${selectedShapeColor === color ? 'border-purple-500 dark:border-orange-500 scale-110' : 'border-transparent'}`}
                                     style={{ backgroundColor: color }}
                                   />
                                 ))}
@@ -3270,8 +3270,8 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                               filterCategory === cat
                                 ? cat === 'Offense' ? 'bg-blue-500 text-white'
                                 : cat === 'Defense' ? 'bg-red-500 text-white'
-                                : cat === 'Special Teams' ? 'bg-purple-500 text-white'
-                                : 'bg-purple-500 text-white'
+                                : cat === 'Special Teams' ? 'bg-purple-500 dark:bg-orange-500 text-white'
+                                : 'bg-purple-500 dark:bg-orange-500 text-white'
                                 : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700'
                             }`}
                           >
@@ -3343,7 +3343,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                           {formations.length === 0 && (
                             <button
                               onClick={() => setActiveTab('formations')}
-                              className="mt-2 text-xs bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded font-medium"
+                              className="mt-2 text-xs bg-purple-500 dark:bg-orange-500 hover:bg-purple-600 dark:hover:bg-orange-600 text-white px-3 py-1.5 rounded font-medium"
                             >
                               Go to Formations
                             </button>
@@ -3354,7 +3354,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                           <div 
                             key={play.id} 
                             onClick={() => setPreviewPlay(play)} 
-                            className={`p-3 rounded-lg border cursor-pointer group transition-colors ${selectedPlayId === play.id ? 'bg-purple-100 dark:bg-purple-900/20 border-purple-300 dark:border-purple-500/50' : play.isSystemPlay ? 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-600'}`}
+                            className={`p-3 rounded-lg border cursor-pointer group transition-colors ${selectedPlayId === play.id ? 'bg-purple-100 dark:bg-orange-900/20 border-purple-300 dark:border-orange-500/50' : play.isSystemPlay ? 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-purple-300 dark:hover:border-orange-600'}`}
                           >
                               <div className="flex justify-between items-start">
                                 <div className="flex-1 min-w-0">
@@ -3387,10 +3387,10 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                                         <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                                           play.category === 'Offense' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'
                                           : play.category === 'Defense' ? 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400'
-                                          : 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'
+                                          : 'bg-purple-100 dark:bg-orange-900/50 text-purple-600 dark:text-orange-400'
                                         }`}>{play.category}</span>
                                         {play.formationName && (
-                                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 font-medium">
+                                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 dark:bg-orange-900/50 text-purple-600 dark:text-orange-400 font-medium">
                                             {play.formationName}
                                           </span>
                                         )}
@@ -3410,7 +3410,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                                   {!play.isSystemPlay && (
                                     <button 
                                       onClick={(e) => { e.stopPropagation(); loadPlay(play); }} 
-                                      className="text-slate-400 hover:text-purple-500 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                      className="text-slate-400 hover:text-purple-500 dark:hover:text-orange-500 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                                       title="Edit Play"
                                     >
                                       <Edit2 className="w-4 h-4" />
@@ -3453,7 +3453,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                         return (
                           <div 
                             key={pb.id} 
-                            className={`p-3 rounded-lg border transition-colors ${isImported ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-purple-300'}`}
+                            className={`p-3 rounded-lg border transition-colors ${isImported ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-purple-300 dark:hover:border-orange-600'}`}
                           >
                             <div className="flex items-start justify-between mb-2">
                               <div className="flex-1">
@@ -3469,7 +3469,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                                   <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                                     pb.category === 'Offense' ? 'bg-blue-100 text-blue-600' 
                                     : pb.category === 'Defense' ? 'bg-red-100 text-red-600'
-                                    : 'bg-purple-100 text-purple-600'
+                                    : 'bg-purple-100 dark:bg-orange-900/50 text-purple-600 dark:text-orange-400'
                                   }`}>{pb.category}</span>
                                   <span className="text-[10px] text-slate-500">{getActualPlaybookPlayCount(pb)} plays</span>
                                 </div>
@@ -3490,7 +3490,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                                   <button
                                     onClick={() => importPlaybook(pb)}
                                     disabled={importingPlaybook}
-                                    className="flex-1 py-1.5 text-xs font-medium bg-purple-500 hover:bg-purple-600 text-white rounded flex items-center justify-center gap-1 disabled:opacity-50"
+                                    className="flex-1 py-1.5 text-xs font-medium bg-purple-500 dark:bg-orange-500 hover:bg-purple-600 dark:hover:bg-orange-600 text-white rounded flex items-center justify-center gap-1 disabled:opacity-50"
                                   >
                                     {importingPlaybook ? (
                                       <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -3636,7 +3636,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
           
           <div className="bg-slate-100 dark:bg-zinc-800 rounded-lg p-4 mb-4">
             <div className="flex items-center gap-3">
-              <BookOpen className="w-5 h-5 text-purple-500" />
+              <BookOpen className="w-5 h-5 text-purple-500 dark:text-orange-500" />
               <p className="font-bold text-slate-900 dark:text-white">{deletePlayConfirm.name}</p>
             </div>
           </div>
@@ -3696,7 +3696,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
           
           <div className="bg-slate-100 dark:bg-zinc-800 rounded-lg p-4 mb-4">
             <div className="flex items-center gap-3">
-              <Layers className="w-5 h-5 text-purple-500" />
+              <Layers className="w-5 h-5 text-purple-500 dark:text-orange-500" />
               <p className="font-bold text-slate-900 dark:text-white">{deleteFormationConfirm.name}</p>
             </div>
           </div>
@@ -3755,7 +3755,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                   selectedSystemPlaybook.category === 'Offense' ? 'bg-blue-100 text-blue-600' 
                   : selectedSystemPlaybook.category === 'Defense' ? 'bg-red-100 text-red-600'
-                  : 'bg-purple-100 text-purple-600'
+                  : 'bg-purple-100 dark:bg-orange-900/50 text-purple-600 dark:text-orange-400'
                 }`}>{selectedSystemPlaybook.category}</span>
                 <span className="text-xs text-slate-500">{getActualPlaybookPlayCount(selectedSystemPlaybook)} plays</span>
               </div>
@@ -3780,7 +3780,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                   <div 
                     key={play.id} 
                     onClick={() => setPreviewingPlay(play)}
-                    className="p-3 bg-slate-50 dark:bg-zinc-800 rounded-lg cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors border border-transparent hover:border-purple-300 dark:hover:border-purple-600"
+                    className="p-3 bg-slate-50 dark:bg-zinc-800 rounded-lg cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors border border-transparent hover:border-purple-300 dark:hover:border-orange-600"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -3817,7 +3817,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
               <button 
                 onClick={() => importPlaybook(selectedSystemPlaybook)}
                 disabled={importingPlaybook}
-                className="flex-1 py-2.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex-1 py-2.5 bg-purple-500 dark:bg-orange-500 hover:bg-purple-600 dark:hover:bg-orange-600 text-white rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {importingPlaybook ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -3859,10 +3859,10 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                   previewingPlay.category === 'Offense' ? 'bg-blue-100 text-blue-600' 
                   : previewingPlay.category === 'Defense' ? 'bg-red-100 text-red-600'
-                  : 'bg-purple-100 text-purple-600'
+                  : 'bg-purple-100 dark:bg-orange-900/50 text-purple-600 dark:text-orange-400'
                 }`}>{previewingPlay.category}</span>
                 {previewingPlay.formationName && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-600">{previewingPlay.formationName}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 dark:bg-orange-900/50 text-purple-600 dark:text-orange-400">{previewingPlay.formationName}</span>
                 )}
                 <span className="text-[10px] text-slate-500">{previewingPlay.elements?.length || 0} players</span>
               </div>
@@ -4005,8 +4005,8 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
           {/* Header */}
           <div className="p-4 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center">
-                <Eye className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              <div className="w-10 h-10 bg-purple-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
+                <Eye className="w-5 h-5 text-purple-600 dark:text-orange-400" />
               </div>
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">{previewPlay.name}</h3>
@@ -4014,7 +4014,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                   <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                     previewPlay.category === 'Offense' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'
                     : previewPlay.category === 'Defense' ? 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400'
-                    : 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'
+                    : 'bg-purple-100 dark:bg-orange-900/50 text-purple-600 dark:text-orange-400'
                   }`}>{previewPlay.category}</span>
                   {previewPlay.isSystemPlay && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 flex items-center gap-0.5">
@@ -4219,7 +4219,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
             {!previewPlay.isSystemPlay && (
               <button 
                 onClick={() => { loadPlay(previewPlay); setPreviewPlay(null); }}
-                className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+                className="flex-1 py-2.5 bg-purple-600 dark:bg-orange-500 hover:bg-purple-700 dark:hover:bg-orange-600 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
               >
                 <Edit2 className="w-4 h-4" /> Edit Play
               </button>
@@ -4236,8 +4236,8 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
           {/* Header */}
           <div className="p-4 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center">
-                <Layers className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              <div className="w-10 h-10 bg-purple-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
+                <Layers className="w-5 h-5 text-purple-600 dark:text-orange-400" />
               </div>
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">{previewFormation.name}</h3>
@@ -4245,7 +4245,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                   <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                     previewFormation.category === 'Offense' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'
                     : previewFormation.category === 'Defense' ? 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400'
-                    : 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'
+                    : 'bg-purple-100 dark:bg-orange-900/50 text-purple-600 dark:text-orange-400'
                   }`}>{previewFormation.category}</span>
                   <span className="text-xs text-slate-500">{previewFormation.elements?.length || 0} players</span>
                 </div>
@@ -4327,7 +4327,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
             </button>
             <button 
               onClick={() => { loadFormationForEdit(previewFormation); setPreviewFormation(null); }}
-              className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+              className="flex-1 py-2.5 bg-purple-600 dark:bg-orange-500 hover:bg-purple-700 dark:hover:bg-orange-600 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
             >
               <Edit2 className="w-4 h-4" /> Edit
             </button>
@@ -4360,7 +4360,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
           
           <div className="bg-slate-100 dark:bg-zinc-800 rounded-lg p-4 mb-4">
             <div className="flex items-center gap-3">
-              <BookOpen className="w-5 h-5 text-purple-500" />
+              <BookOpen className="w-5 h-5 text-purple-500 dark:text-orange-500" />
               <p className="font-bold text-slate-900 dark:text-white">{unimportConfirm.playbookName}</p>
             </div>
           </div>
@@ -4430,7 +4430,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => toggleSelectAllPlays(addPlaysFromPlaybook)}
-                className="text-xs font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
+                className="text-xs font-medium text-purple-600 dark:text-orange-400 hover:text-purple-700 dark:hover:text-orange-300"
               >
                 {addPlaysFromPlaybook.playIds.every(id => selectedPlaysToAdd.includes(id)) 
                   ? 'Deselect All' 
@@ -4488,7 +4488,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
                           <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                             play.category === 'Offense' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'
                             : play.category === 'Defense' ? 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400'
-                            : 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'
+                            : 'bg-purple-100 dark:bg-orange-900/50 text-purple-600 dark:text-orange-400'
                           }`}>{play.category}</span>
                           {play.category === 'Offense' && play.offenseType && (
                             <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
