@@ -8,6 +8,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
 import { useAppConfig } from '../contexts/AppConfigContext';
 import { useUnreadMessages } from '../hooks/useUnreadMessages';
+import { useSportConfig } from '../hooks/useSportConfig';
 import PlayerSelector from '../components/PlayerSelector';
 import TeamSelector from '../components/TeamSelector';
 
@@ -19,6 +20,7 @@ const Layout: React.FC = () => {
   const { hasUnsavedChanges, setHasUnsavedChanges } = useUnsavedChanges();
   const { config } = useAppConfig();
   const { unread, markAsRead } = useUnreadMessages();
+  const { hasPlaybook } = useSportConfig();
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
@@ -132,6 +134,8 @@ const Layout: React.FC = () => {
       if ((item as any).coachOnly && userData?.role !== 'Coach') return false;
       // Filter by config toggle
       if (item.configKey && !config[item.configKey]) return false;
+      // Check sport-specific playbook feature
+      if (item.configKey === 'playbookEnabled' && !hasPlaybook) return false;
       return true;
   });
 

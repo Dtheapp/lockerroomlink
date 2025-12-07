@@ -7,10 +7,12 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAppConfig } from '../contexts/AppConfigContext';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
 import { useUnreadMessages } from '../hooks/useUnreadMessages';
+import { useSportConfig } from '../hooks/useSportConfig';
 import TeamSelector from '../components/TeamSelector';
 import PlayerSelector from '../components/PlayerSelector';
 import { AnimatedBackground, Avatar } from '../components/ui/OSYSComponents';
 import { Menu, X, LogOut, Sun, Moon, ChevronDown } from 'lucide-react';
+import WelcomeModal from '../components/WelcomeModal';
 
 const NewOSYSLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -20,14 +22,28 @@ const NewOSYSLayout: React.FC = () => {
   const { config } = useAppConfig();
   const { hasUnsavedChanges, setHasUnsavedChanges } = useUnsavedChanges();
   const { unread, markAsRead } = useUnreadMessages();
+  const { hasPlaybook } = useSportConfig();
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showTeamSelector, setShowTeamSelector] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [pendingNavPath, setPendingNavPath] = useState<string | null>(null);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   
   // Ref for scrolling main content
   const mainContentRef = useRef<HTMLDivElement>(null);
+
+  // Check if user has seen welcome modal
+  useEffect(() => {
+    if (userData?.uid) {
+      const hasSeenWelcome = localStorage.getItem(`osys_welcome_seen_${userData.uid}`);
+      if (!hasSeenWelcome) {
+        // Small delay to let the app settle
+        const timer = setTimeout(() => setShowWelcomeModal(true), 500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [userData?.uid]);
 
   // Mark chats as read when visiting those pages
   useEffect(() => {
@@ -120,6 +136,8 @@ const NewOSYSLayout: React.FC = () => {
     // Filter by config and role
     return items.filter(item => {
       if (item.configKey && !config[item.configKey as keyof typeof config]) return false;
+      // Check sport-specific playbook feature
+      if (item.configKey === 'playbookEnabled' && !hasPlaybook) return false;
       if (item.coachOnly && userData?.role !== 'Coach') return false;
       if (item.hideForParent && userData?.role === 'Parent') return false;
       return true;
@@ -365,6 +383,11 @@ const NewOSYSLayout: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Welcome Modal for new users */}
+      {showWelcomeModal && (
+        <WelcomeModal onClose={() => setShowWelcomeModal(false)} />
       )}
     </div>
   );

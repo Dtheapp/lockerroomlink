@@ -432,52 +432,52 @@ const Messenger: React.FC = () => {
     <div className="flex h-[calc(100vh-140px)] gap-6">
       
       {/* LEFT SIDEBAR */}
-      <div className={`w-full md:w-1/3 flex flex-col bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 rounded-xl border border-white/10 overflow-hidden shadow-2xl ${activeChat ? 'hidden md:flex' : 'flex'}`}>
-          <div className="p-4 border-b border-white/10 bg-black/40 backdrop-blur-xl">
-              <h2 className="text-xl font-bold text-white mb-3">Messenger</h2>
+      <div className={`w-full md:w-1/3 flex flex-col bg-white dark:bg-gradient-to-br dark:from-zinc-900 dark:via-zinc-900 dark:to-zinc-950 rounded-xl border border-zinc-200 dark:border-white/10 overflow-hidden shadow-lg dark:shadow-2xl ${activeChat ? 'hidden md:flex' : 'flex'}`}>
+          <div className="p-4 border-b border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-black/40 backdrop-blur-xl">
+              <h2 className="text-xl font-bold text-zinc-900 dark:text-white mb-3">Messenger</h2>
               
               {/* ALWAYS VISIBLE SEARCH */}
               <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 dark:text-slate-500" />
                   <input 
                       value={searchQuery} 
                       onChange={e => setSearchQuery(e.target.value)} 
                       placeholder="Search teammates..." 
-                      className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-3 py-2 text-white text-sm placeholder-slate-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500/50 outline-none"
+                      className="w-full bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-lg pl-10 pr-3 py-2 text-zinc-900 dark:text-white text-sm placeholder-zinc-400 dark:placeholder-slate-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500/50 outline-none"
                   />
               </div>
           </div>
 
           {/* LIVE SEARCH RESULTS */}
           {searchQuery.trim() && (
-              <div className="p-4 bg-black/30 border-b border-white/10 max-h-64 overflow-y-auto">
+              <div className="p-4 bg-zinc-50 dark:bg-black/30 border-b border-zinc-200 dark:border-white/10 max-h-64 overflow-y-auto">
                   {searchResults.length > 0 ? (
                   <div className="space-y-2">
                       {searchResults.map(u => (
                           <div 
                               key={u.uid} 
                               onClick={() => startChat(u)} 
-                              className="p-3 bg-white/5 hover:bg-purple-500/20 border border-white/10 rounded-lg cursor-pointer transition-all hover:border-purple-500/50"
+                              className="p-3 bg-white dark:bg-white/5 hover:bg-purple-50 dark:hover:bg-purple-500/20 border border-zinc-200 dark:border-white/10 rounded-lg cursor-pointer transition-all hover:border-purple-300 dark:hover:border-purple-500/50"
                           >
                               <div className="flex items-center justify-between">
                                   <div>
-                                      <p className="font-bold text-white text-sm">{u.name}</p>
-                                      <p className="text-xs text-slate-400">@{u.username || 'No username'}</p>
+                                      <p className="font-bold text-zinc-900 dark:text-white text-sm">{u.name}</p>
+                                      <p className="text-xs text-zinc-500 dark:text-slate-400">@{u.username || 'No username'}</p>
                                   </div>
-                                  <span className={`text-xs px-2 py-1 rounded ${u.role === 'Coach' ? 'bg-purple-500/20 text-purple-400' : 'bg-emerald-500/20 text-emerald-400'}`}>{u.role}</span>
+                                  <span className={`text-xs px-2 py-1 rounded ${u.role === 'Coach' ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400' : 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'}`}>{u.role}</span>
                               </div>
                           </div>
                       ))}
                   </div>
                   ) : (
-                      <p className="text-slate-500 text-sm text-center py-4">No users found</p>
+                      <p className="text-zinc-500 dark:text-slate-500 text-sm text-center py-4">No users found</p>
                   )}
               </div>
           )}
 
           <div className="flex-1 overflow-y-auto custom-scrollbar">
               {allChats.length === 0 ? (
-                  <div className="p-8 text-center text-slate-500 text-sm"><MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50"/>No conversations.</div>
+                  <div className="p-8 text-center text-zinc-500 dark:text-slate-500 text-sm"><MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50"/>No conversations.</div>
               ) : (
                   allChats.map(chat => {
                       const other = getOtherParticipant(chat);
@@ -487,14 +487,14 @@ const Messenger: React.FC = () => {
                       const hasUnread = lastSenderId && lastSenderId !== user?.uid;
                       
                       return (
-                        <div key={chat.id} className={`p-4 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors ${activeChat?.id === chat.id ? 'bg-white/10 border-l-4 border-l-purple-500' : ''} ${chat.isGrievance ? 'bg-amber-500/5' : ''}`}>
+                        <div key={chat.id} className={`p-4 border-b border-zinc-100 dark:border-white/5 cursor-pointer hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors ${activeChat?.id === chat.id ? 'bg-purple-50 dark:bg-white/10 border-l-4 border-l-purple-500' : ''} ${chat.isGrievance ? 'bg-amber-50 dark:bg-amber-500/5' : ''}`}>
                             {deleteChatConfirm === chat.id ? (
                               <div className="flex flex-col gap-2">
-                                <p className="text-xs text-red-400">Delete this conversation?</p>
+                                <p className="text-xs text-red-500 dark:text-red-400">Delete this conversation?</p>
                                 <div className="flex gap-2">
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setDeleteChatConfirm(null); }}
-                                    className="flex-1 px-2 py-1 text-xs text-slate-400 bg-white/10 rounded hover:bg-white/20"
+                                    className="flex-1 px-2 py-1 text-xs text-zinc-500 dark:text-slate-400 bg-zinc-100 dark:bg-white/10 rounded hover:bg-zinc-200 dark:hover:bg-white/20"
                                   >
                                     Cancel
                                   </button>
@@ -511,8 +511,8 @@ const Messenger: React.FC = () => {
                               <div onClick={() => setActiveChat(chat)}>
                                 <div className="flex justify-between items-start mb-1">
                                     <div className="flex items-center gap-2">
-                                        {chat.isGrievance && <AlertTriangle className="w-4 h-4 text-amber-400" />}
-                                        <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                                        {chat.isGrievance && <AlertTriangle className="w-4 h-4 text-amber-500 dark:text-amber-400" />}
+                                        <h3 className="font-bold text-zinc-900 dark:text-white text-sm flex items-center gap-2">
                                           {other.username}
                                           {/* Unread indicator - pulsing red dot */}
                                           {hasUnread && activeChat?.id !== chat.id && (
@@ -524,17 +524,17 @@ const Messenger: React.FC = () => {
                                         </h3>
                                     </div>
                                     <div className="flex items-center gap-1">
-                                      <span className={`text-[10px] uppercase px-1.5 rounded ${chat.isGrievance ? 'bg-amber-500/20 text-amber-400' : 'bg-white/10 text-slate-400'}`}>{other.role}</span>
+                                      <span className={`text-[10px] uppercase px-1.5 rounded ${chat.isGrievance ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400' : 'bg-zinc-100 dark:bg-white/10 text-zinc-500 dark:text-slate-400'}`}>{other.role}</span>
                                       <button
                                         onClick={(e) => { e.stopPropagation(); setDeleteChatConfirm(chat.id); }}
-                                        className="p-1 text-slate-500 hover:text-red-400 transition-colors"
+                                        className="p-1 text-zinc-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                                         title="Delete conversation"
                                       >
                                         <Trash2 className="w-3.5 h-3.5" />
                                       </button>
                                     </div>
                                 </div>
-                                <p className={`text-xs truncate ${hasUnread && activeChat?.id !== chat.id ? 'text-white font-medium' : 'text-slate-500'}`}>{chat.lastMessage}</p>
+                                <p className={`text-xs truncate ${hasUnread && activeChat?.id !== chat.id ? 'text-zinc-900 dark:text-white font-medium' : 'text-zinc-500 dark:text-slate-500'}`}>{chat.lastMessage}</p>
                               </div>
                             )}
                         </div>
@@ -545,21 +545,21 @@ const Messenger: React.FC = () => {
       </div>
 
       {/* RIGHT SIDE */}
-      <div className={`w-full md:w-2/3 flex flex-col bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 rounded-xl border border-white/10 overflow-hidden shadow-2xl ${!activeChat ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`w-full md:w-2/3 flex flex-col bg-white dark:bg-gradient-to-br dark:from-zinc-900 dark:via-zinc-900 dark:to-zinc-950 rounded-xl border border-zinc-200 dark:border-white/10 overflow-hidden shadow-lg dark:shadow-2xl ${!activeChat ? 'hidden md:flex' : 'flex'}`}>
           {activeChat ? (
               <>
-                <div className={`p-4 border-b border-white/10 flex items-center gap-3 bg-black/40 backdrop-blur-xl ${activeChat.isGrievance ? 'bg-amber-500/10' : ''}`}>
-                    <button onClick={() => setActiveChat(null)} className="md:hidden text-slate-400 mr-2">←</button>
+                <div className={`p-4 border-b border-zinc-200 dark:border-white/10 flex items-center gap-3 bg-zinc-50 dark:bg-black/40 backdrop-blur-xl ${activeChat.isGrievance ? 'bg-amber-50 dark:bg-amber-500/10' : ''}`}>
+                    <button onClick={() => setActiveChat(null)} className="md:hidden text-zinc-500 dark:text-slate-400 mr-2">←</button>
                     <div className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-white ${activeChat.isGrievance ? 'bg-gradient-to-br from-amber-500 to-orange-600' : 'bg-gradient-to-br from-purple-500 to-purple-600'}`}>
                         {activeChat.isGrievance ? <AlertTriangle className="w-5 h-5" /> : getOtherParticipant(activeChat).username.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                        <h3 className="text-white font-bold">{getOtherParticipant(activeChat).username}</h3>
-                        <p className={`text-xs uppercase tracking-wider ${activeChat.isGrievance ? 'text-amber-400' : 'text-purple-400'}`}>{activeChat.isGrievance ? 'Grievance Chat with Admin' : getOtherParticipant(activeChat).role}</p>
+                        <h3 className="text-zinc-900 dark:text-white font-bold">{getOtherParticipant(activeChat).username}</h3>
+                        <p className={`text-xs uppercase tracking-wider ${activeChat.isGrievance ? 'text-amber-600 dark:text-amber-400' : 'text-purple-600 dark:text-purple-400'}`}>{activeChat.isGrievance ? 'Grievance Chat with Admin' : getOtherParticipant(activeChat).role}</p>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-black/20 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-zinc-50 dark:bg-black/20 custom-scrollbar">
                     {messages.map((msg) => {
                         const isMe = msg.senderId === user?.uid;
                         const isEditing = editingMessageId === msg.id;
@@ -581,7 +581,7 @@ const Messenger: React.FC = () => {
                                 {!isSystemMessage && !isMe && (
                                   <button
                                     onClick={() => setReplyingTo(msg)}
-                                    className="opacity-0 group-hover:opacity-100 self-center mr-1 p-1 text-slate-500 hover:text-purple-400 transition-all"
+                                    className="opacity-0 group-hover:opacity-100 self-center mr-1 p-1 text-zinc-400 dark:text-slate-500 hover:text-purple-600 dark:hover:text-purple-400 transition-all"
                                     title="Reply"
                                   >
                                     <Reply className="w-4 h-4" />
@@ -589,10 +589,10 @@ const Messenger: React.FC = () => {
                                 )}
                                 <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${
                                   isSystemMessage 
-                                    ? 'bg-amber-500/20 border border-amber-500/30 text-amber-100'
+                                    ? 'bg-amber-100 dark:bg-amber-500/20 border border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-100'
                                     : isMe 
                                       ? 'bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-br-none' 
-                                      : 'bg-white/10 backdrop-blur-sm text-white border border-white/10 rounded-bl-none'
+                                      : 'bg-white dark:bg-white/10 backdrop-blur-sm text-zinc-900 dark:text-white border border-zinc-200 dark:border-white/10 rounded-bl-none'
                                 }`}>
                                     {isEditing ? (
                                       <div className="flex flex-col gap-2">
@@ -666,7 +666,7 @@ const Messenger: React.FC = () => {
                                           </div>
                                         )}
                                         {/* Footer with timestamp, read receipts, and actions */}
-                                        <div className={`flex items-center justify-between mt-1 gap-2 text-[10px] ${isMe ? 'text-purple-200' : 'text-slate-500'}`}>
+                                        <div className={`flex items-center justify-between mt-1 gap-2 text-[10px] ${isMe ? 'text-purple-200' : 'text-zinc-500 dark:text-slate-500'}`}>
                                           <span>{isEdited && '(edited)'}</span>
                                           <div className="flex items-center gap-1">
                                             {/* Read receipt checkmarks for sender's own messages */}
@@ -706,7 +706,7 @@ const Messenger: React.FC = () => {
                                 {!isSystemMessage && isMe && (
                                   <button
                                     onClick={() => setReplyingTo(msg)}
-                                    className="opacity-0 group-hover:opacity-100 self-center ml-1 p-1 text-slate-500 hover:text-purple-400 transition-all"
+                                    className="opacity-0 group-hover:opacity-100 self-center ml-1 p-1 text-zinc-400 dark:text-slate-500 hover:text-purple-600 dark:hover:text-purple-400 transition-all"
                                     title="Reply"
                                   >
                                     <Reply className="w-4 h-4" />
@@ -720,12 +720,12 @@ const Messenger: React.FC = () => {
 
                 {/* Delete Confirmation */}
                 {deleteConfirm && (
-                  <div className="px-4 py-3 bg-red-500/10 border-t border-red-500/30 flex items-center justify-between">
-                    <p className="text-sm text-red-400">Delete this message?</p>
+                  <div className="px-4 py-3 bg-red-50 dark:bg-red-500/10 border-t border-red-200 dark:border-red-500/30 flex items-center justify-between">
+                    <p className="text-sm text-red-600 dark:text-red-400">Delete this message?</p>
                     <div className="flex gap-2">
                       <button
                         onClick={() => setDeleteConfirm(null)}
-                        className="px-3 py-1 text-sm text-slate-400 hover:bg-white/10 rounded"
+                        className="px-3 py-1 text-sm text-zinc-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-white/10 rounded"
                       >
                         Cancel
                       </button>
@@ -742,28 +742,28 @@ const Messenger: React.FC = () => {
 
                 {/* Rate limit warning */}
                 {rateLimitError && (
-                  <div className="px-4 py-2 flex items-center gap-2 text-amber-400 text-sm bg-amber-500/10 border-t border-amber-500/30">
+                  <div className="px-4 py-2 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm bg-amber-50 dark:bg-amber-500/10 border-t border-amber-200 dark:border-amber-500/30">
                     <AlertCircle className="w-4 h-4 flex-shrink-0" />
                     {rateLimitError}
                   </div>
                 )}
 
-                <form onSubmit={sendMessage} className="p-4 border-t border-white/10 bg-black/40 backdrop-blur-xl">
+                <form onSubmit={sendMessage} className="p-4 border-t border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-black/40 backdrop-blur-xl">
                     {/* Reply preview - shows what message you're replying to */}
                     {replyingTo && (
-                      <div className="mb-2 p-2 bg-purple-500/20 border-l-4 border-purple-500 rounded flex items-center justify-between">
+                      <div className="mb-2 p-2 bg-purple-100 dark:bg-purple-500/20 border-l-4 border-purple-500 rounded flex items-center justify-between">
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-purple-400">
+                          <p className="text-xs font-semibold text-purple-600 dark:text-purple-400">
                             Replying to {replyingTo.senderId === user?.uid ? 'yourself' : (allUsers.find(u => u.uid === replyingTo.senderId)?.name || 'Unknown')}
                           </p>
-                          <p className="text-xs text-slate-400 truncate">
+                          <p className="text-xs text-zinc-500 dark:text-slate-400 truncate">
                             {replyingTo.text}
                           </p>
                         </div>
                         <button
                           type="button"
                           onClick={() => setReplyingTo(null)}
-                          className="ml-2 p-1 text-slate-500 hover:text-white"
+                          className="ml-2 p-1 text-zinc-400 dark:text-slate-500 hover:text-zinc-700 dark:hover:text-white"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -774,20 +774,20 @@ const Messenger: React.FC = () => {
                     {attachments.length > 0 && (
                       <div className="mb-2 flex gap-2 items-center overflow-x-auto">
                         {attachments.map((f, idx) => (
-                          <div key={idx} className="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/10">
-                            <span className="text-xs text-white">{f.name}</span>
-                            <button type="button" onClick={() => removeAttachment(idx)} className="text-slate-400 hover:text-white ml-2">✕</button>
+                          <div key={idx} className="flex items-center gap-2 bg-zinc-100 dark:bg-white/5 px-3 py-1 rounded-full border border-zinc-200 dark:border-white/10">
+                            <span className="text-xs text-zinc-700 dark:text-white">{f.name}</span>
+                            <button type="button" onClick={() => removeAttachment(idx)} className="text-zinc-400 dark:text-slate-400 hover:text-zinc-700 dark:hover:text-white ml-2">✕</button>
                           </div>
                         ))}
                       </div>
                     )}
 
                     <div className="flex items-center gap-2">
-                        <input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Type a message..." className="flex-1 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-colors"/>
+                        <input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Type a message..." className="flex-1 bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-full px-4 py-2 text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-colors"/>
 
-                        <label className="relative inline-flex items-center justify-center p-2 rounded-full bg-white/5 border border-white/10 cursor-pointer hover:bg-white/10 transition-colors">
+                        <label className="relative inline-flex items-center justify-center p-2 rounded-full bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 cursor-pointer hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors">
                           <input type="file" accept="image/*,application/pdf" multiple onChange={handleFileChange} className="hidden" />
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828L18 9.828M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-zinc-500 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828L18 9.828M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
                         </label>
 
                         <button type="submit" disabled={(attachments.length === 0 && !newMessage.trim()) || sending} aria-label="Send message" className="bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white p-2 rounded-full transition-colors disabled:opacity-50">
@@ -801,9 +801,9 @@ const Messenger: React.FC = () => {
                 </form>
               </>
           ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-slate-500">
-                  <div className="bg-white/5 p-6 rounded-full mb-4"><MessageSquare className="w-12 h-12 text-slate-600" /></div>
-                  <p className="text-lg text-slate-400">Select a conversation</p>
+              <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 dark:text-slate-500">
+                  <div className="bg-zinc-100 dark:bg-white/5 p-6 rounded-full mb-4"><MessageSquare className="w-12 h-12 text-zinc-400 dark:text-slate-600" /></div>
+                  <p className="text-lg text-zinc-500 dark:text-slate-400">Select a conversation</p>
               </div>
           )}
       </div>

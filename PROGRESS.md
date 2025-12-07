@@ -206,7 +206,10 @@ TOTAL PROGRESS     ████████████████░░░░�
 | **TeamStatsBoard dynamic** | ✅ COMPLETE | AI | Shows sport-specific stats table |
 | **PlayerStatsModal dynamic** | ✅ COMPLETE | AI | Career totals by sport |
 | **Stats.tsx SuperAdmin dynamic** | ✅ COMPLETE | AI | Dynamic stats for all sports |
-| Conditional features by sport | 🔄 In Progress | AI | Hide playbook for non-ball sports |
+| **Conditional features by sport** | ✅ COMPLETE | AI | Playbook hidden for Cheer teams |
+| **Trait Audit: Security hardening** | ✅ COMPLETE | AI | Rate limiting & validation on reports |
+| **Trait Audit: Firestore rules** | ✅ COMPLETE | AI | contentReports collection secured |
+| **Trait Audit: Analytics service** | ✅ COMPLETE | AI | Firebase Analytics for all events |
 | Test basketball end-to-end | ⬜ Not Started | AI | Full flow test |
 | Test cheer end-to-end | ⬜ Not Started | AI | Full flow test |
 
@@ -219,14 +222,14 @@ TOTAL PROGRESS     ████████████████░░░░�
 |------|----------|--------|-------|
 | Multi-sport (Basketball/Cheer positions) | 🔴 Critical | ✅ | Done! sportConfig.ts |
 | Multi-sport (Basketball/Cheer stats) | 🔴 Critical | ✅ | Done! Dynamic rendering |
-| **Landing page (world-class)** | 🔴 Critical | ⬜ | First impression, conversion funnel |
-| **AI content moderation** | 🔴 Critical | ⬜ | Child safety, auto-flag harmful content |
-| Onboarding welcome modal | 🔴 Critical | ⬜ | First impression |
-| Getting started checklist | 🔴 Critical | ⬜ | Guide new users |
+| **Landing page (world-class)** | 🔴 Critical | ✅ | LandingPage.tsx exists |
+| **AI content moderation Phase 1** | 🔴 Critical | ✅ | moderation.ts + ReportContentModal.tsx |
+| **Onboarding welcome modal** | 🔴 Critical | ✅ | WelcomeModal.tsx - shows on first login |
+| **Getting started checklist** | 🔴 Critical | ✅ | GettingStartedChecklist.tsx on dashboard |
 | Empty states upgrade | 🟡 High | ⬜ | Design polish |
 | Skeleton loaders | 🟡 High | ⬜ | Replace spinners |
 | Error monitoring (Sentry) | 🟡 High | ⬜ | Know when things break |
-| Analytics (PostHog) | 🟡 High | ⬜ | Track user behavior |
+| Analytics (PostHog) | 🟡 High | ✅ | Firebase Analytics service created |
 | Feedback button | 🟡 High | ⬜ | Collect bug reports |
 | Full testing pass | 🔴 Critical | ⬜ | Before go-live |
 | **Phase 1 Complete** | | ⬜ | → Launch Pilot |

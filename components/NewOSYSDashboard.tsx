@@ -14,6 +14,7 @@ import {
 import { GoLiveModal, LiveStreamBanner, LiveStreamViewer, SaveStreamToLibraryModal } from './livestream';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { sanitizeText } from '../services/sanitize';
+import GettingStartedChecklist from './GettingStartedChecklist';
 import type { LiveStream, BulletinPost, UserProfile } from '../types';
 import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image } from 'lucide-react';
 
@@ -108,6 +109,12 @@ const NewOSYSDashboard: React.FC = () => {
   const [isEditingRecord, setIsEditingRecord] = useState(false);
   const [editRecord, setEditRecord] = useState({ wins: 0, losses: 0, ties: 0 });
   const [savingRecord, setSavingRecord] = useState(false);
+
+  // Getting Started checklist state
+  const [showChecklist, setShowChecklist] = useState(() => {
+    const dismissed = localStorage.getItem(`osys_checklist_dismissed_${userData?.uid}`);
+    return dismissed !== 'true';
+  });
 
   // Event management state
   const [showNewEventForm, setShowNewEventForm] = useState(false);
@@ -827,6 +834,14 @@ const NewOSYSDashboard: React.FC = () => {
           <div className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Upcoming Events</div>
         </div>
       </div>
+
+      {/* Getting Started Checklist - show for coaches who haven't dismissed */}
+      {showChecklist && userData?.role === 'Coach' && (
+        <GettingStartedChecklist 
+          compact 
+          onDismiss={() => setShowChecklist(false)} 
+        />
+      )}
 
       {/* Main Grid */}
       <div className="grid lg:grid-cols-3 gap-6">

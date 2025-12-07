@@ -143,6 +143,25 @@ service cloud.firestore {
     }
 
     // =============================================================================
+    // CONTENT REPORTS COLLECTION (Moderation System)
+    // =============================================================================
+    match /contentReports/{reportId} {
+      // Only admins and team coaches can read reports
+      allow read: if isAdmin() || isTeamCoach(resource.data.teamId);
+      
+      // Any authenticated user can create a report (for their own team's content)
+      allow create: if isAuthenticated() && 
+                       request.resource.data.reportedBy == request.auth.uid &&
+                       request.resource.data.status == 'pending';
+      
+      // Only admins can update reports (for review process)
+      allow update: if isAdmin();
+      
+      // Only admins can delete reports
+      allow delete: if isAdmin();
+    }
+
+    // =============================================================================
     // EXISTING COLLECTIONS (keep your existing rules here)
     // =============================================================================
     

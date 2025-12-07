@@ -307,7 +307,7 @@ export const SPORT_CONFIGS: Record<SportType, SportConfig> = {
     positions: CHEER_POSITIONS,
     stats: CHEER_STATS,
     features: {
-      playbook: true, // Routine designer
+      playbook: false, // Cheer doesn't use playbook - uses routines/videos instead
       statsTracking: true, // Competition scores
       livestream: true,
       videoLibrary: true, // Routine videos

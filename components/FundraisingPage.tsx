@@ -107,11 +107,12 @@ const FundraisingPage: React.FC = () => {
         : campaigns;
 
   return (
-    <div className="min-h-screen text-white">
-      <AnimatedBackground />
+    <div className="min-h-screen text-zinc-900 dark:text-white bg-white dark:bg-transparent">
+      <div className="hidden dark:block"><AnimatedBackground /></div>
+      <div className="dark:hidden fixed inset-0 bg-gradient-to-br from-purple-50 via-white to-indigo-50 -z-10" />
 
       {/* Navigation */}
-      <nav className="osys-glass fixed top-4 left-1/2 -translate-x-1/2 z-50 px-6 py-3 flex items-center gap-8">
+      <nav className="bg-white/80 dark:bg-transparent dark:backdrop-blur-xl border border-zinc-200 dark:border-white/10 dark:osys-glass fixed top-4 left-1/2 -translate-x-1/2 z-50 px-6 py-3 flex items-center gap-8 rounded-2xl shadow-lg dark:shadow-none">
         <Link to="/" className="flex items-center gap-2">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-xl">
             ⚡
@@ -137,27 +138,27 @@ const FundraisingPage: React.FC = () => {
                 Fund your<br />
                 <GradientText variant="gold">dreams</GradientText>
               </h1>
-              <p className="text-lg text-slate-400 mb-8">
+              <p className="text-lg text-zinc-600 dark:text-slate-400 mb-8">
                 Raise money for tournaments, equipment, travel, and more. 
-                <strong className="text-white"> Zero platform fees</strong> for youth sports.
+                <strong className="text-zinc-900 dark:text-white"> Zero platform fees</strong> for youth sports.
               </p>
               <Button variant="gold" size="lg">Create Campaign</Button>
             </div>
 
             {/* Stats Card */}
-            <GlassPanel className="p-8 osys-animate-slide-up">
+            <GlassPanel className="p-8 osys-animate-slide-up bg-zinc-50 dark:bg-transparent border border-zinc-200 dark:border-white/10">
               <div className="grid grid-cols-3 gap-6 text-center">
                 <div>
                   <div className="text-3xl font-bold osys-text-gradient-gold">$1.2M+</div>
-                  <div className="text-sm text-slate-400 mt-1">Total Raised</div>
+                  <div className="text-sm text-zinc-500 dark:text-slate-400 mt-1">Total Raised</div>
                 </div>
                 <div>
-                  <div className="text-3xl font-bold text-white">847</div>
-                  <div className="text-sm text-slate-400 mt-1">Campaigns</div>
+                  <div className="text-3xl font-bold text-zinc-900 dark:text-white">847</div>
+                  <div className="text-sm text-zinc-500 dark:text-slate-400 mt-1">Campaigns</div>
                 </div>
                 <div>
-                  <div className="text-3xl font-bold text-white">15K+</div>
-                  <div className="text-sm text-slate-400 mt-1">Donors</div>
+                  <div className="text-3xl font-bold text-zinc-900 dark:text-white">15K+</div>
+                  <div className="text-sm text-zinc-500 dark:text-slate-400 mt-1">Donors</div>
                 </div>
               </div>
             </GlassPanel>
@@ -171,7 +172,7 @@ const FundraisingPage: React.FC = () => {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
             <div>
               <h2 className="text-2xl font-bold">Active Campaigns</h2>
-              <p className="text-slate-400 text-sm">Support young athletes reaching for their dreams</p>
+              <p className="text-zinc-500 dark:text-slate-400 text-sm">Support young athletes reaching for their dreams</p>
             </div>
             
             {/* Filter Pills */}
@@ -183,7 +184,7 @@ const FundraisingPage: React.FC = () => {
                   className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                     filter === f
                       ? 'bg-purple-600 text-white'
-                      : 'bg-slate-800/50 text-slate-400 hover:bg-slate-700/50'
+                      : 'bg-zinc-100 dark:bg-slate-800/50 text-zinc-600 dark:text-slate-400 hover:bg-zinc-200 dark:hover:bg-slate-700/50'
                   }`}
                 >
                   {f}
@@ -201,7 +202,7 @@ const FundraisingPage: React.FC = () => {
                 )}
                 
                 {/* Sport Icon Header */}
-                <div className="flex items-center justify-center text-6xl mb-4 py-4 rounded-xl bg-slate-800/50">
+                <div className="flex items-center justify-center text-6xl mb-4 py-4 rounded-xl bg-zinc-100 dark:bg-slate-800/50">
                   {campaign.sport}
                 </div>
 
@@ -222,22 +223,22 @@ const FundraisingPage: React.FC = () => {
 
                 {/* Title & Description */}
                 <h3 className="text-lg font-bold mb-2">{campaign.title}</h3>
-                <p className="text-slate-400 text-sm mb-4 line-clamp-2">{campaign.description}</p>
+                <p className="text-zinc-500 dark:text-slate-400 text-sm mb-4 line-clamp-2">{campaign.description}</p>
 
                 {/* Progress */}
                 <div className="mb-4">
                   <div className="flex justify-between text-sm mb-2">
                     <span>
-                      <strong className="text-white">${campaign.raised.toLocaleString()}</strong>
-                      <span className="text-slate-500"> raised</span>
+                      <strong className="text-zinc-900 dark:text-white">${campaign.raised.toLocaleString()}</strong>
+                      <span className="text-zinc-400 dark:text-slate-500"> raised</span>
                     </span>
-                    <span className="text-slate-500">of ${campaign.goal.toLocaleString()}</span>
+                    <span className="text-zinc-400 dark:text-slate-500">of ${campaign.goal.toLocaleString()}</span>
                   </div>
                   <ProgressBar 
                     value={Math.round((campaign.raised / campaign.goal) * 100)} 
                     variant="gold" 
                   />
-                  <div className="flex justify-between text-xs text-slate-500 mt-2">
+                  <div className="flex justify-between text-xs text-zinc-400 dark:text-slate-500 mt-2">
                     <span>🎯 {Math.round((campaign.raised / campaign.goal) * 100)}% funded</span>
                     <span>⏰ {campaign.daysLeft} days left</span>
                   </div>
@@ -245,7 +246,7 @@ const FundraisingPage: React.FC = () => {
 
                 {/* Actions */}
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-400">{campaign.donors} donors</span>
+                  <span className="text-sm text-zinc-500 dark:text-slate-400">{campaign.donors} donors</span>
                   <div className="flex gap-2">
                     {campaign.type === 'athlete' && (
                       <Button variant="ghost" size="sm">View Profile</Button>
@@ -266,7 +267,7 @@ const FundraisingPage: React.FC = () => {
       </section>
 
       {/* How It Works */}
-      <section className="py-16 px-6 border-t border-white/5">
+      <section className="py-16 px-6 border-t border-zinc-200 dark:border-white/5">
         <div className="max-w-5xl mx-auto">
           <SectionHeader
             badge="How It Works"
@@ -281,11 +282,11 @@ const FundraisingPage: React.FC = () => {
               { step: '3', title: 'Collect Funds', desc: 'Donations go directly to your account. 0% platform fee for youth sports!' },
             ].map((item, i) => (
               <div key={i} className="text-center">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-2xl font-bold mx-auto mb-4">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-2xl font-bold mx-auto mb-4 text-white">
                   {item.step}
                 </div>
                 <h3 className="text-xl font-bold mb-2">{item.title}</h3>
-                <p className="text-slate-400">{item.desc}</p>
+                <p className="text-zinc-500 dark:text-slate-400">{item.desc}</p>
               </div>
             ))}
           </div>
@@ -311,7 +312,7 @@ const FundraisingPage: React.FC = () => {
                   <div>
                     <div className="font-semibold">{donor.name}</div>
                     {donor.badge && (
-                      <span className="text-xs text-amber-400">{donor.badge}</span>
+                      <span className="text-xs text-amber-600 dark:text-amber-400">{donor.badge}</span>
                     )}
                   </div>
                 </div>
@@ -332,7 +333,7 @@ const FundraisingPage: React.FC = () => {
             <h2 className="text-3xl font-bold mb-4">
               <GradientText variant="gold">0% Platform Fees</GradientText>
             </h2>
-            <p className="text-lg text-slate-400 mb-6 max-w-xl mx-auto">
+            <p className="text-lg text-zinc-600 dark:text-slate-400 mb-6 max-w-xl mx-auto">
               Every dollar goes to young athletes. We believe in supporting youth sports, not profiting from it.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
@@ -344,22 +345,22 @@ const FundraisingPage: React.FC = () => {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-6 border-t border-white/5">
+      <footer className="py-12 px-6 border-t border-zinc-200 dark:border-white/5">
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-white">
                 ⚡
               </div>
               <span className="font-bold">OSYS</span>
             </div>
-            <div className="flex gap-6 text-sm text-slate-400">
-              <Link to="/" className="hover:text-white transition">Home</Link>
-              <a href="#" className="hover:text-white transition">Privacy</a>
-              <a href="#" className="hover:text-white transition">Terms</a>
-              <a href="#" className="hover:text-white transition">Contact</a>
+            <div className="flex gap-6 text-sm text-zinc-500 dark:text-slate-400">
+              <Link to="/" className="hover:text-zinc-900 dark:hover:text-white transition">Home</Link>
+              <a href="#" className="hover:text-zinc-900 dark:hover:text-white transition">Privacy</a>
+              <a href="#" className="hover:text-zinc-900 dark:hover:text-white transition">Terms</a>
+              <a href="#" className="hover:text-zinc-900 dark:hover:text-white transition">Contact</a>
             </div>
-            <div className="text-sm text-slate-500">
+            <div className="text-sm text-zinc-400 dark:text-slate-500">
               © 2025 OSYS. All rights reserved.
             </div>
           </div>

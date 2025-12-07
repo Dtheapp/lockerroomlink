@@ -67,11 +67,19 @@ describe('ErrorBoundary', () => {
     expect(screen.getByRole('button', { name: /Refresh/i })).toBeInTheDocument();
   });
 
-  it('calls window.location.reload when Refresh is clicked', () => {
-    const reloadMock = vi.fn();
+  it('calls window.location.reload when Refresh is clicked', async () => {
+    // The ErrorBoundary uses href assignment with nocache param, not reload()
+    const originalHref = window.location.href;
+    let newHref = '';
+    
     Object.defineProperty(window, 'location', {
       writable: true,
-      value: { ...window.location, reload: reloadMock },
+      value: {
+        ...window.location,
+        href: originalHref,
+        get href() { return newHref || originalHref; },
+        set href(val) { newHref = val; },
+      },
     });
 
     render(
@@ -81,6 +89,11 @@ describe('ErrorBoundary', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /Refresh/i }));
-    expect(reloadMock).toHaveBeenCalled();
+    
+    // Wait for async operations in handleReload
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // The implementation sets href with nocache param
+    expect(newHref).toMatch(/\?nocache=\d+/);
   });
 });

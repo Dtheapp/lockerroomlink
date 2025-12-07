@@ -4,9 +4,12 @@ import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timest
 import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
+import { moderateText, getModerationWarning } from '../services/moderation';
+import { trackModeration } from '../services/analytics';
 import type { Message } from '../types';
-import { Send, AlertCircle, VolumeX, Volume2, MoreVertical, X, Trash2, Edit2, Check, CheckCheck, Reply, Pin, PinOff, Clock, Image, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, AlertCircle, VolumeX, Volume2, MoreVertical, X, Trash2, Edit2, Check, CheckCheck, Reply, Pin, PinOff, Clock, Image, ChevronDown, ChevronUp, Flag } from 'lucide-react';
 import NoAthleteBlock from './NoAthleteBlock';
+import ReportContentModal from './ReportContentModal';
 import { uploadFile } from '../services/storage';
 
 // Extended message type with reply and read receipt support
@@ -104,6 +107,15 @@ const Chat: React.FC = () => {
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+
+  // Content moderation state
+  const [moderationWarning, setModerationWarning] = useState<string | null>(null);
+  const [reportModalData, setReportModalData] = useState<{
+    contentId: string;
+    contentText: string;
+    contentAuthor: string;
+    contentAuthorId: string;
+  } | null>(null);
 
   // Check if current user can moderate (Coach or SuperAdmin)
   const canModerate = userData?.role === 'Coach' || userData?.role === 'SuperAdmin';
@@ -234,6 +246,28 @@ const Chat: React.FC = () => {
       setRateLimitError("You are muted and cannot send messages.");
       setTimeout(() => setRateLimitError(null), 3000);
       return;
+    }
+
+    // Content moderation check
+    if (newMessage.trim()) {
+      const moderationResult = moderateText(newMessage);
+      if (!moderationResult.isAllowed) {
+        // Track blocked content
+        trackModeration.contentBlocked('message', moderationResult.severity);
+        setModerationWarning(getModerationWarning(moderationResult) || 'Message blocked');
+        setTimeout(() => setModerationWarning(null), 5000);
+        return;
+      }
+      if (moderationResult.requiresReview) {
+        // Track flagged content
+        trackModeration.contentFlagged('message', moderationResult.severity);
+        // Allow but show warning
+        const warning = getModerationWarning(moderationResult);
+        if (warning) {
+          setModerationWarning(warning);
+          setTimeout(() => setModerationWarning(null), 5000);
+        }
+      }
     }
 
     // Rate limit check
@@ -555,13 +589,13 @@ const Chat: React.FC = () => {
 
   return (
     <NoAthleteBlock featureName="Team Chat">
-    <div className="h-full flex flex-col bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 rounded-xl shadow-2xl border border-white/10 overflow-hidden">
+    <div className="h-full flex flex-col bg-white dark:bg-gradient-to-br dark:from-zinc-900 dark:via-zinc-900 dark:to-zinc-950 rounded-xl shadow-lg dark:shadow-2xl border border-zinc-200 dark:border-white/10 overflow-hidden">
       
       {/* HEADER */}
-      <div className="sticky top-0 z-10 p-4 border-b border-white/10 bg-black/40 backdrop-blur-xl">
+      <div className="sticky top-0 z-10 p-4 border-b border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-black/40 backdrop-blur-xl">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            The Huddle <span className="text-purple-400 text-sm font-mono uppercase tracking-wider">(Team Chat)</span>
+          <h1 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+            The Huddle <span className="text-purple-600 dark:text-purple-400 text-sm font-mono uppercase tracking-wider">(Team Chat)</span>
           </h1>
           
           {/* Muted Users Count Badge - Only for moderators */}
@@ -696,7 +730,7 @@ const Chat: React.FC = () => {
       })()}
       
       {/* MESSAGES AREA */}
-      <div className="flex-1 p-4 overflow-y-auto overflow-x-visible space-y-4 bg-black/20">
+      <div className="flex-1 p-4 overflow-y-auto overflow-x-visible space-y-4 bg-zinc-50 dark:bg-black/20">
         {/* Multi-select controls */}
         {multiSelectMode && (
           <div className="sticky top-0 z-10 bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 flex items-center justify-between mb-2 shadow-lg backdrop-blur-sm">
@@ -788,7 +822,7 @@ const Chat: React.FC = () => {
               <div className={`max-w-xs lg:max-w-md p-3 rounded-2xl shadow-lg relative ${
                 isMe 
                   ? 'bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-br-none'
-                  : 'bg-white/10 backdrop-blur-sm text-white rounded-bl-none border border-white/10'
+                  : 'bg-white dark:bg-white/10 backdrop-blur-sm text-zinc-900 dark:text-white rounded-bl-none border border-zinc-200 dark:border-white/10'
               } ${msg.isPinned ? 'ring-2 ring-amber-400' : ''} ${isSelected ? 'ring-2 ring-purple-500' : ''}`}>
                 {/* Pinned indicator */}
                 {msg.isPinned && (
@@ -823,7 +857,7 @@ const Chat: React.FC = () => {
                         </button>
                         
                         {activeMessageMenu === msg.id && (
-                          <div className="absolute left-full top-0 ml-1 bg-zinc-900 border border-white/20 rounded-lg shadow-xl z-50 py-1 min-w-[160px]">
+                          <div className="absolute left-full top-0 ml-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/20 rounded-lg shadow-xl z-50 py-1 min-w-[160px]">
                             {/* Delete Message - Available for all messages from others */}
                             <button
                               onClick={() => {
@@ -881,6 +915,28 @@ const Chat: React.FC = () => {
                                 <Pin className="w-4 h-4" />
                                 Pin Message
                               </button>
+                            )}
+                            
+                            {/* Report Message - for non-moderators or anyone */}
+                            {msg.sender.uid !== user?.uid && (
+                              <>
+                                <div className="border-t border-white/10 my-1" />
+                                <button
+                                  onClick={() => {
+                                    setReportModalData({
+                                      contentId: msg.id,
+                                      contentText: msg.text,
+                                      contentAuthor: msg.sender.name,
+                                      contentAuthorId: msg.sender.uid,
+                                    });
+                                    setActiveMessageMenu(null);
+                                  }}
+                                  className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/20 flex items-center gap-2"
+                                >
+                                  <Flag className="w-4 h-4" />
+                                  Report Message
+                                </button>
+                              </>
                             )}
                           </div>
                         )}
@@ -1032,22 +1088,22 @@ const Chat: React.FC = () => {
       </div>
 
       {/* INPUT AREA */}
-      <div className="p-4 border-t border-white/10 bg-black/40 backdrop-blur-xl">
+      <div className="p-4 border-t border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-black/40 backdrop-blur-xl">
         {/* Reply preview bar */}
         {replyingTo && (
-          <div className="mb-3 p-2 bg-purple-500/20 border-l-4 border-purple-500 rounded flex items-center justify-between">
+          <div className="mb-3 p-2 bg-purple-100 dark:bg-purple-500/20 border-l-4 border-purple-500 rounded flex items-center justify-between">
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-purple-400">
+              <p className="text-xs font-semibold text-purple-600 dark:text-purple-400">
                 Replying to {replyingTo.sender.uid === user?.uid ? 'yourself' : replyingTo.sender.name}
               </p>
-              <p className="text-xs text-slate-400 truncate">
+              <p className="text-xs text-zinc-500 dark:text-slate-400 truncate">
                 {replyingTo.text || (replyingTo.imageUrl ? '📷 Image' : '')}
               </p>
             </div>
             <button
               type="button"
               onClick={() => setReplyingTo(null)}
-              className="ml-2 p-1 text-slate-500 hover:text-white"
+              className="ml-2 p-1 text-zinc-400 dark:text-slate-500 hover:text-zinc-700 dark:hover:text-white"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1056,15 +1112,15 @@ const Chat: React.FC = () => {
         
         {/* Image preview bar */}
         {imagePreview && (
-          <div className="mb-3 p-2 bg-white/5 rounded-lg flex items-center gap-3 border border-white/10">
+          <div className="mb-3 p-2 bg-zinc-100 dark:bg-white/5 rounded-lg flex items-center gap-3 border border-zinc-200 dark:border-white/10">
             <img src={imagePreview} alt="Preview" className="w-16 h-16 object-cover rounded-lg" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{selectedImage?.name}</p>
-              <p className="text-xs text-slate-500">
+              <p className="text-sm font-medium text-zinc-900 dark:text-white truncate">{selectedImage?.name}</p>
+              <p className="text-xs text-zinc-500 dark:text-slate-500">
                 {selectedImage && (selectedImage.size / 1024).toFixed(1)} KB
               </p>
               {uploadingImage && (
-                <div className="mt-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div className="mt-1 h-1.5 bg-zinc-200 dark:bg-white/10 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-purple-500 transition-all duration-300"
                     style={{ width: `${uploadProgress}%` }}
@@ -1075,7 +1131,7 @@ const Chat: React.FC = () => {
             <button
               type="button"
               onClick={() => { setSelectedImage(null); setImagePreview(null); }}
-              className="p-1 text-slate-500 hover:text-red-400"
+              className="p-1 text-zinc-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400"
               disabled={uploadingImage}
             >
               <X className="w-5 h-5" />
@@ -1090,6 +1146,14 @@ const Chat: React.FC = () => {
             {rateLimitError}
           </div>
         )}
+
+        {/* Content moderation warning */}
+        {moderationWarning && (
+          <div className="mb-3 flex items-center gap-2 text-red-400 text-sm bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/30">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            {moderationWarning}
+          </div>
+        )}
         
         <form onSubmit={handleSendMessage} className="flex items-center gap-2">
           {/* Multi-select button */}
@@ -1100,7 +1164,7 @@ const Chat: React.FC = () => {
               className={`p-2.5 rounded-full transition-colors ${
                 multiSelectMode 
                   ? 'bg-purple-500 text-white' 
-                  : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
+                  : 'bg-zinc-100 dark:bg-white/5 text-zinc-500 dark:text-slate-400 hover:bg-zinc-200 dark:hover:bg-white/10 hover:text-zinc-700 dark:hover:text-white'
               }`}
               title="Select multiple messages to delete"
             >
@@ -1122,7 +1186,7 @@ const Chat: React.FC = () => {
                 type="button"
                 onClick={() => imageInputRef.current?.click()}
                 disabled={uploadingImage}
-                className="p-2.5 bg-white/5 rounded-full text-slate-400 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50"
+                className="p-2.5 bg-zinc-100 dark:bg-white/5 rounded-full text-zinc-500 dark:text-slate-400 hover:bg-zinc-200 dark:hover:bg-white/10 hover:text-zinc-700 dark:hover:text-white transition-colors disabled:opacity-50"
                 title="Attach image"
               >
                 <Image className="w-5 h-5" />
@@ -1136,7 +1200,7 @@ const Chat: React.FC = () => {
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder={isMuted ? "You are muted..." : replyingTo ? "Type your reply..." : selectedImage ? "Add a caption..." : "Type your message..."}
             disabled={isMuted}
-            className={`flex-1 bg-white/5 border border-white/10 rounded-full py-3 px-5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all ${
+            className={`flex-1 bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-full py-3 px-5 text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all ${
               isMuted ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           />
@@ -1372,6 +1436,20 @@ const Chat: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Report Content Modal */}
+      {reportModalData && teamData?.id && (
+        <ReportContentModal
+          isOpen={!!reportModalData}
+          onClose={() => setReportModalData(null)}
+          contentId={reportModalData.contentId}
+          contentType="message"
+          contentText={reportModalData.contentText}
+          contentAuthor={reportModalData.contentAuthor}
+          contentAuthorId={reportModalData.contentAuthorId}
+          teamId={teamData.id}
+        />
       )}
     </div>
     </NoAthleteBlock>
