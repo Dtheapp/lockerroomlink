@@ -429,6 +429,12 @@ When catching amateur thinking:
 - **Button variants:** `'primary' | 'gold' | 'ghost'` (NO 'outline')
 - **Pattern:** 'outline' → 'ghost'
 
+**L015 - Self-Rating Communication** (Dec 7, 2025)
+- **Amateur:** Complete task without providing self-rating
+- **Great:** ALWAYS provide 1-10 rating after EVERY task completion
+- **Format:** Rating X/10, What went well, What could be better, Why not 9-10, Would I redo?
+- **Rule:** If rating < 7, redo the work. User expects to see the rating without asking.
+
 ---
 
 ## 🏆 THE STANDARD
@@ -458,6 +464,8 @@ Every app we build together must:
 | Dec 7, 2025 | Added AUTO-READ instruction (AI reads PROGRESS.md itself) |
 | Dec 8, 2025 | **SESSION 4**: NewOSYSDashboard 100% feature parity achieved |
 | Dec 8, 2025 | Added lessons L008-L010 (Feature Audits, Component Props, Firebase Queries) |
+| Dec 7, 2025 | **SESSION 7**: OSYS Theme Migration (Roster, Profile, Stats) |
+| Dec 7, 2025 | Added lesson L015 (Self-Rating Communication - ALWAYS show rating after tasks) |
 | Dec 8, 2025 | Domain changed: lockerroomlink.com → osys.team |
 | Jan 21, 2025 | **SESSION 6**: NIL Marketplace complete, TypeScript errors fixed |
 | Jan 21, 2025 | Added lessons L011-L014 (Badge constraints, UserRole case, Required fields, Button variants) |
