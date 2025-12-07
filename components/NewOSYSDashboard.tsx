@@ -5,15 +5,34 @@ import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getStats, getSportConfig } from '../config/sportConfig';
+import { uploadFile, deleteFile } from '../services/storage';
 import {
   GlassCard,
   Badge,
   Avatar,
 } from './ui/OSYSComponents';
-import { LiveStreamBanner, LiveStreamViewer } from './livestream';
+import { GoLiveModal, LiveStreamBanner, LiveStreamViewer, SaveStreamToLibraryModal } from './livestream';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { sanitizeText } from '../services/sanitize';
 import type { LiveStream, BulletinPost, UserProfile } from '../types';
+import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image } from 'lucide-react';
+
+// Extended event type with attachments
+interface EventWithAttachments {
+  id: string;
+  title: string;
+  date?: string;
+  eventStartDate?: string;
+  time?: string;
+  eventStartTime?: string;
+  type?: string;
+  eventType?: string;
+  location?: string;
+  description?: string;
+  attachments?: { name: string; url: string; type: string }[];
+  createdBy?: string;
+  createdAt?: any;
+}
 
 interface PlayerData {
   id: string;
@@ -80,6 +99,34 @@ const NewOSYSDashboard: React.FC = () => {
   // Coaching staff state
   const [coaches, setCoaches] = useState<CoachDisplay[]>([]);
   const [coachesLoading, setCoachesLoading] = useState(true);
+
+  // Go Live & Save Stream state
+  const [showGoLiveModal, setShowGoLiveModal] = useState(false);
+  const [endedStream, setEndedStream] = useState<LiveStream | null>(null);
+
+  // Edit Record state
+  const [isEditingRecord, setIsEditingRecord] = useState(false);
+  const [editRecord, setEditRecord] = useState({ wins: 0, losses: 0, ties: 0 });
+  const [savingRecord, setSavingRecord] = useState(false);
+
+  // Event management state
+  const [showNewEventForm, setShowNewEventForm] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<EventWithAttachments | null>(null);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [editingEvent, setEditingEvent] = useState<Partial<EventWithAttachments>>({});
+  const [newEvent, setNewEvent] = useState<Partial<EventWithAttachments>>({
+    title: '', date: '', time: '', location: '', description: '', type: 'Practice',
+  });
+  const [addingEvent, setAddingEvent] = useState(false);
+  const [deleteEventConfirm, setDeleteEventConfirm] = useState<{ id: string; title: string } | null>(null);
+  const [deletingEvent, setDeletingEvent] = useState(false);
+  const [eventFilter, setEventFilter] = useState<'All' | 'Practice' | 'Game'>('All');
+  
+  // Event attachments
+  const [newEventAttachments, setNewEventAttachments] = useState<File[]>([]);
+  const [editingEventAttachments, setEditingEventAttachments] = useState<File[]>([]);
+  const [uploadingEventFiles, setUploadingEventFiles] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null);
 
   // Get sport config
   const sportConfig = getSportConfig(teamData?.sport);
@@ -406,6 +453,192 @@ const NewOSYSDashboard: React.FC = () => {
     return post.authorId === userData?.uid || userData?.role === 'SuperAdmin';
   };
 
+  // ====== TEAM RECORD HANDLERS ======
+  const handleSaveRecord = async () => {
+    if (!teamData?.id) return;
+    setSavingRecord(true);
+    try {
+      const teamRef = doc(db, 'teams', teamData.id);
+      await updateDoc(teamRef, {
+        record: {
+          wins: editRecord.wins,
+          losses: editRecord.losses,
+          ties: editRecord.ties
+        }
+      });
+      setIsEditingRecord(false);
+    } catch (error) {
+      console.error('Error saving record:', error);
+    } finally {
+      setSavingRecord(false);
+    }
+  };
+
+  // ====== EVENT HANDLERS ======
+  const handleAddEvent = async () => {
+    if (!newEvent.title || !newEvent.date || !teamData?.id || !userData) return;
+    setAddingEvent(true);
+    
+    try {
+      let attachments: { name: string; url: string; type: string }[] = [];
+      
+      // Upload attachments if any
+      if (newEventAttachments.length > 0) {
+        setUploadingEventFiles(true);
+        for (const file of newEventAttachments) {
+          const path = `teams/${teamData.id}/events/${Date.now()}_${file.name}`;
+          const uploaded = await uploadFile(file, path);
+          attachments.push({ name: file.name, url: uploaded.url, type: file.type });
+        }
+        setUploadingEventFiles(false);
+      }
+      
+      const eventsRef = collection(db, 'teams', teamData.id, 'events');
+      await addDoc(eventsRef, {
+        title: sanitizeText(newEvent.title),
+        eventStartDate: newEvent.date,
+        eventStartTime: newEvent.time || '',
+        location: sanitizeText(newEvent.location || ''),
+        description: sanitizeText(newEvent.description || ''),
+        eventType: newEvent.type || 'Practice',
+        attachments,
+        createdBy: userData.uid,
+        createdAt: serverTimestamp()
+      });
+      
+      setNewEvent({ title: '', date: '', time: '', location: '', description: '', type: 'Practice' });
+      setNewEventAttachments([]);
+      setShowNewEventForm(false);
+    } catch (error) {
+      console.error('Error adding event:', error);
+    } finally {
+      setAddingEvent(false);
+    }
+  };
+
+  const handleEditEvent = async (eventId: string) => {
+    if (!teamData?.id || !editingEvent.title) return;
+    
+    try {
+      let attachments = selectedEvent?.attachments || [];
+      
+      // Upload new attachments
+      if (editingEventAttachments.length > 0) {
+        setUploadingEventFiles(true);
+        for (const file of editingEventAttachments) {
+          const path = `teams/${teamData.id}/events/${Date.now()}_${file.name}`;
+          const uploaded = await uploadFile(file, path);
+          attachments = [...attachments, { name: file.name, url: uploaded.url, type: file.type }];
+        }
+        setUploadingEventFiles(false);
+      }
+      
+      const eventRef = doc(db, 'teams', teamData.id, 'events', eventId);
+      await updateDoc(eventRef, {
+        title: sanitizeText(editingEvent.title || ''),
+        eventStartDate: editingEvent.date || selectedEvent?.date,
+        eventStartTime: editingEvent.time || '',
+        location: sanitizeText(editingEvent.location || ''),
+        description: sanitizeText(editingEvent.description || ''),
+        eventType: editingEvent.type || 'Practice',
+        attachments
+      });
+      
+      setEditingEventId(null);
+      setEditingEvent({});
+      setEditingEventAttachments([]);
+      setSelectedEvent(null);
+    } catch (error) {
+      console.error('Error editing event:', error);
+    }
+  };
+
+  const handleDeleteEvent = async () => {
+    if (!deleteEventConfirm || !teamData?.id) return;
+    setDeletingEvent(true);
+    
+    try {
+      // Delete attachments from storage
+      const eventToDelete = events.find(e => e.id === deleteEventConfirm.id);
+      if (eventToDelete?.attachments) {
+        for (const att of eventToDelete.attachments) {
+          try {
+            await deleteFile(att.url);
+          } catch (e) {
+            console.warn('Could not delete attachment:', e);
+          }
+        }
+      }
+      
+      const eventRef = doc(db, 'teams', teamData.id, 'events', deleteEventConfirm.id);
+      await deleteDoc(eventRef);
+      setDeleteEventConfirm(null);
+      setSelectedEvent(null);
+    } catch (error) {
+      console.error('Error deleting event:', error);
+    } finally {
+      setDeletingEvent(false);
+    }
+  };
+
+  const removeNewEventAttachment = (index: number) => {
+    setNewEventAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const removeEditingEventAttachment = (index: number) => {
+    setEditingEventAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingEventAttachment = async (eventId: string, attIndex: number) => {
+    if (!teamData?.id || !selectedEvent) return;
+    
+    const att = selectedEvent.attachments?.[attIndex];
+    if (att) {
+      try {
+        await deleteFile(att.url);
+      } catch (e) {
+        console.warn('Could not delete file:', e);
+      }
+    }
+    
+    const newAttachments = selectedEvent.attachments?.filter((_, i) => i !== attIndex) || [];
+    const eventRef = doc(db, 'teams', teamData.id, 'events', eventId);
+    await updateDoc(eventRef, { attachments: newAttachments });
+    setSelectedEvent({ ...selectedEvent, attachments: newAttachments });
+  };
+
+  // Format event date
+  const formatEventDateDisplay = (dateStr: string) => {
+    if (!dateStr) return { day: '--', month: '---', full: '' };
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return {
+      day: day.toString(),
+      month: date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+      full: date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+    };
+  };
+
+  // Format time to 12-hour
+  const formatTime12Hour = (time24: string) => {
+    if (!time24) return '';
+    const [hourStr, minute] = time24.split(':');
+    let hour = parseInt(hourStr, 10);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12 || 12;
+    return `${hour}:${minute} ${ampm}`;
+  };
+
+  // Filter events by type
+  const filteredEvents = events.filter(event => {
+    if (eventFilter === 'All') return true;
+    return event.eventType?.toLowerCase() === eventFilter.toLowerCase();
+  });
+
+  // Check if user is a coach for this team (can go live)
+  const canGoLive = userData?.role === 'Coach' && teamData?.id;
+  const hasOwnLiveStream = liveStreams.some(s => s.coachId === userData?.uid);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
@@ -491,6 +724,22 @@ const NewOSYSDashboard: React.FC = () => {
         />
       )}
 
+      {/* Go Live Button for Coaches */}
+      {canGoLive && !hasOwnLiveStream && (
+        <button
+          onClick={() => setShowGoLiveModal(true)}
+          className={`w-full p-4 rounded-2xl border-2 border-dashed transition flex items-center justify-center gap-3 ${
+            theme === 'dark'
+              ? 'border-red-500/50 bg-red-500/10 hover:bg-red-500/20 text-red-400'
+              : 'border-red-400 bg-red-50 hover:bg-red-100 text-red-600'
+          }`}
+        >
+          <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+          <span className="font-bold">Go Live</span>
+          <span className={`text-sm ${theme === 'dark' ? 'text-red-400/70' : 'text-red-500'}`}>Start streaming to your team</span>
+        </button>
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -530,9 +779,28 @@ const NewOSYSDashboard: React.FC = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Record Card */}
-        <div className={`p-4 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border ${theme === 'dark' ? 'border-white/10' : 'border-amber-200'}`}>
-          <div className="text-2xl mb-1">🏆</div>
+        {/* Record Card - Clickable for coaches */}
+        <div 
+          className={`p-4 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border ${theme === 'dark' ? 'border-white/10' : 'border-amber-200'} ${
+            userData?.role === 'Coach' ? 'cursor-pointer hover:scale-105 transition' : ''
+          }`}
+          onClick={() => {
+            if (userData?.role === 'Coach') {
+              setEditRecord({
+                wins: teamData?.record?.wins || 0,
+                losses: teamData?.record?.losses || 0,
+                ties: teamData?.record?.ties || 0
+              });
+              setIsEditingRecord(true);
+            }
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <div className="text-2xl mb-1">🏆</div>
+            {userData?.role === 'Coach' && (
+              <Edit2 className="w-4 h-4 text-amber-400 opacity-50" />
+            )}
+          </div>
           <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{getTeamRecord()}</div>
           <div className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Season Record</div>
         </div>
@@ -568,22 +836,52 @@ const NewOSYSDashboard: React.FC = () => {
             <h2 className={`text-lg font-bold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
               <span>📅</span> Upcoming
             </h2>
-            <Link to="/events" className="text-purple-500 text-sm hover:text-purple-400 transition">
-              View All →
-            </Link>
+            <div className="flex items-center gap-2">
+              {userData?.role === 'Coach' && (
+                <button
+                  onClick={() => setShowNewEventForm(true)}
+                  className="p-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white transition"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              )}
+              <Link to="/events" className="text-purple-500 text-sm hover:text-purple-400 transition">
+                View All →
+              </Link>
+            </div>
           </div>
+          
+          {/* Event Filter Tabs */}
+          {userData?.role === 'Coach' && (
+            <div className="flex gap-1 mb-3">
+              {(['All', 'Practice', 'Game'] as const).map(filter => (
+                <button
+                  key={filter}
+                  onClick={() => setEventFilter(filter)}
+                  className={`px-3 py-1 text-xs rounded-lg transition ${
+                    eventFilter === filter
+                      ? 'bg-purple-600 text-white'
+                      : theme === 'dark' ? 'bg-white/10 text-slate-400 hover:bg-white/20' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                  }`}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+          )}
+          
           <div className="space-y-3">
-            {events.length === 0 ? (
+            {filteredEvents.length === 0 ? (
               <p className={`text-center py-4 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>No upcoming events</p>
             ) : (
-              events.slice(0, 3).map((event) => {
+              filteredEvents.slice(0, 3).map((event) => {
                 const date = formatEventDate(event.eventStartDate);
                 const badge = getEventBadge(event.eventType);
                 return (
-                  <Link 
+                  <div 
                     key={event.id} 
-                    to={`/events/${event.id}`}
-                    className={`flex items-center gap-4 p-3 rounded-xl transition ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'}`}
+                    onClick={() => setSelectedEvent(event as EventWithAttachments)}
+                    className={`flex items-center gap-4 p-3 rounded-xl transition cursor-pointer ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'}`}
                   >
                     <div className="text-center min-w-[50px]">
                       <div className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{date.day}</div>
@@ -597,7 +895,7 @@ const NewOSYSDashboard: React.FC = () => {
                       </div>
                     </div>
                     <Badge variant={badge.variant}>{badge.label}</Badge>
-                  </Link>
+                  </div>
                 );
               })
             )}
@@ -919,6 +1217,526 @@ const NewOSYSDashboard: React.FC = () => {
           </div>
         </div>
       </GlassCard>
+
+      {/* ====== MODALS ====== */}
+
+      {/* Edit Record Modal */}
+      {isEditingRecord && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setIsEditingRecord(false)}>
+          <div 
+            className={`w-full max-w-md rounded-2xl p-6 ${theme === 'dark' ? 'bg-zinc-900 border border-white/10' : 'bg-white border border-slate-200'}`}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Edit Team Record</h3>
+              <button onClick={() => setIsEditingRecord(false)} className={theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800'}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Wins</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editRecord.wins}
+                  onChange={e => setEditRecord(prev => ({ ...prev, wins: parseInt(e.target.value) || 0 }))}
+                  className={`w-full px-3 py-2 rounded-lg text-center text-2xl font-bold ${
+                    theme === 'dark' ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400' : 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                  }`}
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Losses</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editRecord.losses}
+                  onChange={e => setEditRecord(prev => ({ ...prev, losses: parseInt(e.target.value) || 0 }))}
+                  className={`w-full px-3 py-2 rounded-lg text-center text-2xl font-bold ${
+                    theme === 'dark' ? 'bg-red-500/20 border border-red-500/30 text-red-400' : 'bg-red-50 border border-red-200 text-red-700'
+                  }`}
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Ties</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editRecord.ties}
+                  onChange={e => setEditRecord(prev => ({ ...prev, ties: parseInt(e.target.value) || 0 }))}
+                  className={`w-full px-3 py-2 rounded-lg text-center text-2xl font-bold ${
+                    theme === 'dark' ? 'bg-slate-500/20 border border-slate-500/30 text-slate-400' : 'bg-slate-100 border border-slate-200 text-slate-700'
+                  }`}
+                />
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsEditingRecord(false)}
+                className={`flex-1 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveRecord}
+                disabled={savingRecord}
+                className="flex-1 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50"
+              >
+                {savingRecord ? 'Saving...' : 'Save Record'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add New Event Modal */}
+      {showNewEventForm && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setShowNewEventForm(false); setNewEventAttachments([]); }}>
+          <div 
+            className={`w-full max-w-lg rounded-2xl p-6 max-h-[90vh] overflow-y-auto ${theme === 'dark' ? 'bg-zinc-900 border border-white/10' : 'bg-white border border-slate-200'}`}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Add New Event</h3>
+              <button onClick={() => { setShowNewEventForm(false); setNewEventAttachments([]); }} className={theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800'}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Title *</label>
+                <input
+                  type="text"
+                  value={newEvent.title || ''}
+                  onChange={e => setNewEvent(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="e.g., Practice at Main Field"
+                  className={`w-full px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 border border-white/20 text-white' : 'bg-slate-100 border border-slate-300 text-zinc-900'}`}
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Date *</label>
+                  <input
+                    type="date"
+                    value={newEvent.date || ''}
+                    onChange={e => setNewEvent(prev => ({ ...prev, date: e.target.value }))}
+                    className={`w-full px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 border border-white/20 text-white' : 'bg-slate-100 border border-slate-300 text-zinc-900'}`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Time</label>
+                  <input
+                    type="time"
+                    value={newEvent.time || ''}
+                    onChange={e => setNewEvent(prev => ({ ...prev, time: e.target.value }))}
+                    className={`w-full px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 border border-white/20 text-white' : 'bg-slate-100 border border-slate-300 text-zinc-900'}`}
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Type</label>
+                <select
+                  value={newEvent.type || 'Practice'}
+                  onChange={e => setNewEvent(prev => ({ ...prev, type: e.target.value }))}
+                  className={`w-full px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 border border-white/20 text-white' : 'bg-slate-100 border border-slate-300 text-zinc-900'}`}
+                >
+                  <option value="Practice">Practice</option>
+                  <option value="Game">Game</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Location</label>
+                <input
+                  type="text"
+                  value={newEvent.location || ''}
+                  onChange={e => setNewEvent(prev => ({ ...prev, location: e.target.value }))}
+                  placeholder="e.g., Main Field, Gym"
+                  className={`w-full px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 border border-white/20 text-white' : 'bg-slate-100 border border-slate-300 text-zinc-900'}`}
+                />
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Description</label>
+                <textarea
+                  value={newEvent.description || ''}
+                  onChange={e => setNewEvent(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Additional details..."
+                  rows={3}
+                  className={`w-full px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 border border-white/20 text-white' : 'bg-slate-100 border border-slate-300 text-zinc-900'}`}
+                />
+              </div>
+              
+              {/* Attachments */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Attachments</label>
+                <label className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-dashed cursor-pointer ${
+                  theme === 'dark' ? 'border-white/20 hover:border-white/40' : 'border-slate-300 hover:border-slate-400'
+                }`}>
+                  <Paperclip className="w-4 h-4" />
+                  <span className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>Add files (images, PDFs)</span>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf"
+                    className="hidden"
+                    onChange={e => {
+                      const files = Array.from(e.target.files || []);
+                      setNewEventAttachments(prev => [...prev, ...files].slice(0, 5));
+                    }}
+                  />
+                </label>
+                {newEventAttachments.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {newEventAttachments.map((file, i) => (
+                      <div key={i} className={`flex items-center justify-between p-2 rounded ${theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'}`}>
+                        <span className={`text-sm truncate ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{file.name}</span>
+                        <button onClick={() => removeNewEventAttachment(i)} className="text-red-400 hover:text-red-300">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => { setShowNewEventForm(false); setNewEventAttachments([]); }}
+                className={`flex-1 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddEvent}
+                disabled={addingEvent || !newEvent.title || !newEvent.date}
+                className="flex-1 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50"
+              >
+                {uploadingEventFiles ? 'Uploading...' : addingEvent ? 'Adding...' : 'Add Event'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Event Detail Modal */}
+      {selectedEvent && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setSelectedEvent(null); setEditingEventId(null); }}>
+          <div 
+            className={`w-full max-w-lg rounded-2xl p-6 max-h-[90vh] overflow-y-auto ${theme === 'dark' ? 'bg-zinc-900 border border-white/10' : 'bg-white border border-slate-200'}`}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                {editingEventId === selectedEvent.id ? 'Edit Event' : 'Event Details'}
+              </h3>
+              <button onClick={() => { setSelectedEvent(null); setEditingEventId(null); }} className={theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800'}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {editingEventId === selectedEvent.id ? (
+              /* Edit Mode */
+              <div className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Title</label>
+                  <input
+                    type="text"
+                    value={editingEvent.title ?? selectedEvent.title}
+                    onChange={e => setEditingEvent(prev => ({ ...prev, title: e.target.value }))}
+                    className={`w-full px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 border border-white/20 text-white' : 'bg-slate-100 border border-slate-300 text-zinc-900'}`}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Date</label>
+                    <input
+                      type="date"
+                      value={editingEvent.date ?? selectedEvent.date ?? selectedEvent.eventStartDate}
+                      onChange={e => setEditingEvent(prev => ({ ...prev, date: e.target.value }))}
+                      className={`w-full px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 border border-white/20 text-white' : 'bg-slate-100 border border-slate-300 text-zinc-900'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Time</label>
+                    <input
+                      type="time"
+                      value={editingEvent.time ?? selectedEvent.time ?? selectedEvent.eventStartTime ?? ''}
+                      onChange={e => setEditingEvent(prev => ({ ...prev, time: e.target.value }))}
+                      className={`w-full px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 border border-white/20 text-white' : 'bg-slate-100 border border-slate-300 text-zinc-900'}`}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Type</label>
+                  <select
+                    value={editingEvent.type ?? selectedEvent.type ?? selectedEvent.eventType ?? 'Practice'}
+                    onChange={e => setEditingEvent(prev => ({ ...prev, type: e.target.value }))}
+                    className={`w-full px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 border border-white/20 text-white' : 'bg-slate-100 border border-slate-300 text-zinc-900'}`}
+                  >
+                    <option value="Practice">Practice</option>
+                    <option value="Game">Game</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Location</label>
+                  <input
+                    type="text"
+                    value={editingEvent.location ?? selectedEvent.location ?? ''}
+                    onChange={e => setEditingEvent(prev => ({ ...prev, location: e.target.value }))}
+                    className={`w-full px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 border border-white/20 text-white' : 'bg-slate-100 border border-slate-300 text-zinc-900'}`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Description</label>
+                  <textarea
+                    value={editingEvent.description ?? selectedEvent.description ?? ''}
+                    onChange={e => setEditingEvent(prev => ({ ...prev, description: e.target.value }))}
+                    rows={3}
+                    className={`w-full px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 border border-white/20 text-white' : 'bg-slate-100 border border-slate-300 text-zinc-900'}`}
+                  />
+                </div>
+                
+                {/* Existing Attachments */}
+                {selectedEvent.attachments && selectedEvent.attachments.length > 0 && (
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Existing Attachments</label>
+                    <div className="space-y-1">
+                      {selectedEvent.attachments.map((att, i) => (
+                        <div key={i} className={`flex items-center justify-between p-2 rounded ${theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'}`}>
+                          <span className={`text-sm truncate ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{att.name}</span>
+                          <button onClick={() => removeExistingEventAttachment(selectedEvent.id, i)} className="text-red-400 hover:text-red-300 text-xs">Remove</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Add New Attachments */}
+                <div>
+                  <label className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-dashed cursor-pointer ${
+                    theme === 'dark' ? 'border-white/20 hover:border-white/40' : 'border-slate-300 hover:border-slate-400'
+                  }`}>
+                    <Paperclip className="w-4 h-4" />
+                    <span className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>Add more files</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*,.pdf"
+                      className="hidden"
+                      onChange={e => {
+                        const files = Array.from(e.target.files || []);
+                        setEditingEventAttachments(prev => [...prev, ...files].slice(0, 5));
+                      }}
+                    />
+                  </label>
+                  {editingEventAttachments.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {editingEventAttachments.map((file, i) => (
+                        <div key={i} className={`flex items-center justify-between p-2 rounded ${theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'}`}>
+                          <span className={`text-sm truncate ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{file.name}</span>
+                          <button onClick={() => removeEditingEventAttachment(i)} className="text-red-400 hover:text-red-300">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => { setEditingEventId(null); setEditingEvent({}); setEditingEventAttachments([]); }}
+                    className={`flex-1 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 text-white' : 'bg-slate-200 text-slate-700'}`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleEditEvent(selectedEvent.id)}
+                    disabled={uploadingEventFiles}
+                    className="flex-1 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50"
+                  >
+                    {uploadingEventFiles ? 'Uploading...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* View Mode */
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Badge variant={selectedEvent.eventType?.toLowerCase() === 'game' ? 'primary' : 'default'}>
+                    {selectedEvent.eventType || selectedEvent.type || 'Event'}
+                  </Badge>
+                  <h4 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{selectedEvent.title}</h4>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Calendar className={`w-4 h-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
+                    <span className={theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}>
+                      {formatEventDateDisplay(selectedEvent.date || selectedEvent.eventStartDate || '').full}
+                    </span>
+                  </div>
+                  {(selectedEvent.time || selectedEvent.eventStartTime) && (
+                    <div className="flex items-center gap-2">
+                      <Clock className={`w-4 h-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
+                      <span className={theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}>
+                        {formatTime12Hour(selectedEvent.time || selectedEvent.eventStartTime || '')}
+                      </span>
+                    </div>
+                  )}
+                  {selectedEvent.location && (
+                    <div className="flex items-center gap-2">
+                      <MapPin className={`w-4 h-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
+                      <span className={theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}>{selectedEvent.location}</span>
+                    </div>
+                  )}
+                </div>
+                
+                {selectedEvent.description && (
+                  <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'}`}>
+                    <p className={theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}>{selectedEvent.description}</p>
+                  </div>
+                )}
+                
+                {/* Attachments */}
+                {selectedEvent.attachments && selectedEvent.attachments.length > 0 && (
+                  <div>
+                    <h5 className={`text-sm font-medium mb-2 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Attachments</h5>
+                    <div className="grid grid-cols-2 gap-2">
+                      {selectedEvent.attachments.map((att, i) => (
+                        <div key={i}>
+                          {att.type?.startsWith('image/') ? (
+                            <img 
+                              src={att.url} 
+                              alt={att.name}
+                              className="w-full h-24 object-cover rounded-lg cursor-pointer hover:opacity-80"
+                              onClick={() => setLightboxImage({ url: att.url, name: att.name })}
+                            />
+                          ) : (
+                            <a 
+                              href={att.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className={`flex items-center gap-2 p-3 rounded-lg ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'}`}
+                            >
+                              <Paperclip className="w-4 h-4" />
+                              <span className="text-sm truncate">{att.name}</span>
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Actions for Coaches */}
+                {userData?.role === 'Coach' && (
+                  <div className="flex gap-3 pt-4 border-t border-white/10">
+                    <button
+                      onClick={() => {
+                        setEditingEventId(selectedEvent.id);
+                        setEditingEvent({
+                          title: selectedEvent.title,
+                          date: selectedEvent.date || selectedEvent.eventStartDate,
+                          time: selectedEvent.time || selectedEvent.eventStartTime,
+                          type: selectedEvent.type || selectedEvent.eventType,
+                          location: selectedEvent.location,
+                          description: selectedEvent.description
+                        });
+                      }}
+                      className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 ${
+                        theme === 'dark' ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                      }`}
+                    >
+                      <Edit2 className="w-4 h-4" /> Edit
+                    </button>
+                    <button
+                      onClick={() => setDeleteEventConfirm({ id: selectedEvent.id, title: selectedEvent.title })}
+                      className="flex-1 py-2 rounded-lg flex items-center justify-center gap-2 bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                    >
+                      <Trash2 className="w-4 h-4" /> Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Event Confirmation */}
+      {deleteEventConfirm && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setDeleteEventConfirm(null)}>
+          <div 
+            className={`w-full max-w-sm rounded-2xl p-6 ${theme === 'dark' ? 'bg-zinc-900 border border-white/10' : 'bg-white border border-slate-200'}`}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className={`text-lg font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Delete Event?</h3>
+            <p className={`mb-6 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+              Are you sure you want to delete "<strong>{deleteEventConfirm.title}</strong>"? This cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteEventConfirm(null)}
+                className={`flex-1 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 text-white' : 'bg-slate-200 text-slate-700'}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteEvent}
+                disabled={deletingEvent}
+                className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white disabled:opacity-50"
+              >
+                {deletingEvent ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Lightbox */}
+      {lightboxImage && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={() => setLightboxImage(null)}>
+          <button 
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 right-4 text-white hover:text-slate-300"
+          >
+            <X className="w-8 h-8" />
+          </button>
+          <img 
+            src={lightboxImage.url} 
+            alt={lightboxImage.name}
+            className="max-w-full max-h-full object-contain"
+          />
+        </div>
+      )}
+
+      {/* Go Live Modal */}
+      {showGoLiveModal && teamData?.id && (
+        <GoLiveModal
+          teamId={teamData.id}
+          teamName={teamData?.name || 'Team'}
+          onClose={() => setShowGoLiveModal(false)}
+        />
+      )}
+
+      {/* Save Stream to Library Modal */}
+      {endedStream && teamData?.id && (
+        <SaveStreamToLibraryModal
+          stream={endedStream}
+          teamId={teamData.id}
+          onClose={() => setEndedStream(null)}
+          onSaved={() => setEndedStream(null)}
+        />
+      )}
     </div>
   );
 };
