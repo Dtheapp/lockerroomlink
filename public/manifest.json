@@ -1,11 +1,11 @@
 {
   "name": "OSYS",
   "short_name": "OSYS",
-  "description": "Youth sports team management app for coaches and parents",
+  "description": "The Operating System for Youth Sports",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#ea580c",
+  "background_color": "#09090b",
+  "theme_color": "#9333ea",
   "orientation": "any",
   "icons": [
     {
