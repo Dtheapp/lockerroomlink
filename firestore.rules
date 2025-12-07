@@ -178,6 +178,106 @@ service cloud.firestore {
     }
 
     // =============================================================================
+    // FUNDRAISING CAMPAIGNS COLLECTION
+    // =============================================================================
+    match /campaigns/{campaignId} {
+      // Public campaigns can be read by anyone, private by team members
+      allow read: if resource.data.isPublic == true || 
+                     (resource.data.teamId != null && isTeamMember(resource.data.teamId)) ||
+                     isUser(resource.data.createdBy) ||
+                     isAdmin();
+      
+      // Team campaigns: coaches can create
+      // Athlete campaigns: athlete's parent can create
+      allow create: if isAuthenticated() && (
+        (request.resource.data.type == 'team' && isTeamCoach(request.resource.data.teamId)) ||
+        (request.resource.data.type == 'athlete' && request.resource.data.createdBy == request.auth.uid) ||
+        isAdmin()
+      );
+      
+      // Only campaign creator, team coach, or admin can update
+      allow update: if isUser(resource.data.createdBy) || 
+                       (resource.data.teamId != null && isTeamCoach(resource.data.teamId)) ||
+                       isAdmin();
+      
+      // Only admin can delete campaigns
+      allow delete: if isAdmin();
+      
+      // Campaign updates subcollection
+      match /updates/{updateId} {
+        allow read: if true; // Public
+        allow create, update, delete: if isUser(get(/databases/$(database)/documents/campaigns/$(campaignId)).data.createdBy) ||
+                                         isAdmin();
+      }
+    }
+
+    // =============================================================================
+    // DONATIONS COLLECTION
+    // =============================================================================
+    match /donations/{donationId} {
+      // Campaign owners can read donations, donors can read their own
+      allow read: if isUser(resource.data.donorUserId) ||
+                     isUser(get(/databases/$(database)/documents/campaigns/$(resource.data.campaignId)).data.createdBy) ||
+                     isAdmin();
+      
+      // Authenticated users can create donations
+      allow create: if isAuthenticated();
+      
+      // Only admins can update/delete (for refund handling)
+      allow update, delete: if isAdmin();
+    }
+
+    // =============================================================================
+    // NIL DEALS COLLECTION
+    // =============================================================================
+    match /nilDeals/{dealId} {
+      // Athlete and their parent can read their deals
+      allow read: if isUser(resource.data.athleteId) ||
+                     isUser(get(/databases/$(database)/documents/athletes/$(resource.data.athleteId)).data.parentUserId) ||
+                     isAdmin();
+      
+      // Athlete's parent can create deals
+      allow create: if isAuthenticated() && (
+        request.auth.uid == get(/databases/$(database)/documents/athletes/$(request.resource.data.athleteId)).data.parentUserId ||
+        isAdmin()
+      );
+      
+      // Athlete's parent can update deals
+      allow update: if isAuthenticated() && (
+        request.auth.uid == get(/databases/$(database)/documents/athletes/$(resource.data.athleteId)).data.parentUserId ||
+        isAdmin()
+      );
+      
+      // Only admin can delete
+      allow delete: if isAdmin();
+    }
+
+    // =============================================================================
+    // NIL PAYMENTS COLLECTION
+    // =============================================================================
+    match /nilPayments/{paymentId} {
+      // Athlete and their parent can read their payments
+      allow read: if isUser(resource.data.athleteId) ||
+                     isUser(get(/databases/$(database)/documents/athletes/$(resource.data.athleteId)).data.parentUserId) ||
+                     isAdmin();
+      
+      // Athlete's parent can create payments
+      allow create: if isAuthenticated() && (
+        request.auth.uid == get(/databases/$(database)/documents/athletes/$(request.resource.data.athleteId)).data.parentUserId ||
+        isAdmin()
+      );
+      
+      // Athlete's parent can update payments
+      allow update: if isAuthenticated() && (
+        request.auth.uid == get(/databases/$(database)/documents/athletes/$(resource.data.athleteId)).data.parentUserId ||
+        isAdmin()
+      );
+      
+      // Only admin can delete
+      allow delete: if isAdmin();
+    }
+
+    // =============================================================================
     // EXISTING COLLECTIONS (keep your existing rules here)
     // =============================================================================
     

@@ -57,6 +57,8 @@ const PublicTeamProfile = lazyWithRetry(() => import('./components/public/Public
 const PublicCoachProfile = lazyWithRetry(() => import('./components/public/PublicCoachProfile'));
 const LandingPage = lazyWithRetry(() => import('./components/LandingPage'));
 const FundraisingPage = lazyWithRetry(() => import('./components/FundraisingPage'));
+const CampaignDetail = lazyWithRetry(() => import('./components/CampaignDetail'));
+const NILWalletDashboard = lazyWithRetry(() => import('./components/NILWalletDashboard'));
 const OSYSAthleteProfile = lazyWithRetry(() => import('./components/OSYSAthleteProfile'));
 const OSYSTeamPage = lazyWithRetry(() => import('./components/OSYSTeamPage'));
 const OSYSFanHub = lazyWithRetry(() => import('./components/OSYSFanHub'));
@@ -192,6 +194,8 @@ const AppContent: React.FC = () => {
           <Route path="/e/:shareableLink" element={<PublicEventPage />} />
           <Route path="/welcome" element={<LandingPage />} />
           <Route path="/fundraising" element={<FundraisingPage />} />
+          <Route path="/fundraising/:campaignId" element={<CampaignDetail />} />
+          <Route path="/nil-wallet" element={<NILWalletDashboard />} />
           <Route path="/player" element={<OSYSAthleteProfile />} />
           <Route path="/team-demo" element={<OSYSTeamPage />} />
           <Route path="/fan-hub" element={<OSYSFanHub />} />
