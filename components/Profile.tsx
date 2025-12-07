@@ -3,12 +3,14 @@ import { doc, updateDoc, collection, addDoc, query, where, onSnapshot, getDocs, 
 import { db } from '../services/firebase';
 import { uploadFile, deleteFile } from '../services/storage';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye, Sword, User, Camera, Star, Crown, Ruler, Scale, Users, Trash2, AtSign, Link as LinkIcon, Copy, Check, ExternalLink, Film, Play } from 'lucide-react';
 import type { Player, MedicalInfo, Team, PlayerFilmEntry } from '../types';
 import PlayerStatsModal from './stats/PlayerStatsModal';
 
 const Profile: React.FC = () => {
   const { user, userData, players: contextPlayers, teamData } = useAuth();
+  const { theme } = useTheme();
   
   // PARENT PROFILE STATES
   const [isEditing, setIsEditing] = useState(false);
@@ -818,7 +820,7 @@ const Profile: React.FC = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-slate-900 dark:text-white">My Profile</h1>
         {!isEditing && (
-            <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition-colors">
+            <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors">
                 <Edit2 className="h-4 w-4" /> Edit
             </button>
         )}
@@ -830,8 +832,8 @@ const Profile: React.FC = () => {
           </div>
       )}
 
-      <div className="bg-slate-50 dark:bg-zinc-950 rounded-xl shadow-lg dark:shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <div className="bg-slate-50 dark:bg-slate-800/50 p-6 flex flex-col md:flex-row items-center gap-6 border-b border-slate-200 dark:border-slate-800">
+      <div className={`rounded-xl shadow-lg border overflow-hidden ${theme === 'dark' ? 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border-white/10' : 'bg-white border-zinc-200'}`}>
+        <div className={`p-6 flex flex-col md:flex-row items-center gap-6 border-b ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
             {/* Profile Photo with Upload */}
             <div className="relative group">
               {userData?.photoUrl ? (
@@ -1063,7 +1065,7 @@ const Profile: React.FC = () => {
                 {isEditing && (
                     <div className="flex justify-end gap-3 mt-6 border-t border-slate-200 dark:border-slate-800 pt-4">
                         <button type="button" onClick={() => {setIsEditing(false); setName(userData?.name || ''); setBio(userData?.bio || '');}} className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"><X className="h-4 w-4" /> Cancel</button>
-                        <button type="submit" disabled={loading} className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg flex items-center gap-2"><Save className="h-4 w-4" /> Save</button>
+                        <button type="submit" disabled={loading} className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg flex items-center gap-2"><Save className="h-4 w-4" /> Save</button>
                     </div>
                 )}
             </form>
@@ -1077,20 +1079,20 @@ const Profile: React.FC = () => {
                   <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2"><Shield className="text-sky-500"/> My Athletes</h2>
                   <button 
                     onClick={() => setIsAddAthleteModalOpen(true)}
-                    className="flex items-center gap-2 bg-orange-600 hover:bg-orange-500 text-white px-4 py-2 rounded-lg transition-colors shadow-lg shadow-orange-900/20"
+                    className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg transition-colors shadow-lg shadow-purple-900/20"
                   >
                     <Plus className="w-5 h-5" /> Add Athlete
                   </button>
               </div>
 
               {myAthletes.length === 0 ? (
-                  <div className="bg-slate-50 dark:bg-slate-900 p-8 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
+                  <div className={`p-8 rounded-xl border text-center ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
                       <Users className="w-12 h-12 text-slate-400 mx-auto mb-3" />
                       <p className="text-slate-600 dark:text-slate-400 mb-4">You haven't added any athletes yet.</p>
                       <p className="text-sm text-slate-500 mb-4">Add your athlete to join a team and access all features.</p>
                       <button 
                         onClick={() => setIsAddAthleteModalOpen(true)}
-                        className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-lg"
+                        className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-lg"
                       >
                         <Plus className="h-5 w-5" /> Add Your First Athlete
                       </button>
@@ -1110,16 +1112,16 @@ const Profile: React.FC = () => {
                           return (
                             <div 
                                 key={player.id} 
-                                className={`bg-slate-50 dark:bg-zinc-950 rounded-xl border p-5 relative overflow-hidden transition-all ${
+                                className={`rounded-xl border p-5 relative overflow-hidden transition-all ${theme === 'dark' ? 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950' : 'bg-white'} ${
                                   isStarter 
-                                    ? 'border-yellow-400 dark:border-yellow-500 ring-2 ring-yellow-400/50 dark:ring-yellow-500/40 shadow-yellow-400/20 dark:shadow-yellow-500/20' 
-                                    : 'border-slate-200 dark:border-slate-800 hover:border-sky-400 dark:hover:border-sky-500'
+                                    ? 'border-amber-400 dark:border-amber-500 ring-2 ring-amber-400/50 dark:ring-amber-500/40 shadow-amber-400/20 dark:shadow-amber-500/20' 
+                                    : `${theme === 'dark' ? 'border-white/10 hover:border-purple-500/50' : 'border-slate-200 hover:border-purple-400'}`
                                 } shadow-lg hover:shadow-xl`}
                                 style={isStarter ? { boxShadow: '0 0 20px rgba(251, 191, 36, 0.3), 0 0 40px rgba(251, 191, 36, 0.1)' } : {}}
                             >
                                 {/* Starter Badge */}
                                 {isStarter && (
-                                  <div className="absolute top-2 left-2 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full px-2.5 py-1 shadow-lg flex items-center gap-1 z-10">
+                                  <div className="absolute top-2 left-2 bg-gradient-to-br from-amber-400 to-amber-500 rounded-full px-2.5 py-1 shadow-lg flex items-center gap-1 z-10">
                                     <Star className="w-3 h-3 text-white fill-white" />
                                     <span className="text-[10px] font-bold text-white uppercase tracking-wide">Starter</span>
                                   </div>
@@ -1129,7 +1131,7 @@ const Profile: React.FC = () => {
                                 <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
                                   <button 
                                     onClick={() => openEditModal(player)}
-                                    className="p-1.5 text-slate-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-full transition-colors"
+                                    className="p-1.5 text-slate-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-full transition-colors"
                                     title="Edit Player"
                                   >
                                     <Edit2 className="w-4 h-4" />
@@ -1180,7 +1182,7 @@ const Profile: React.FC = () => {
                                           </div>
                                         )}
                                         <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                            <span className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs px-2 py-1 rounded font-bold">#{player.number || '?'}</span>
+                                            <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs px-2 py-1 rounded font-bold">#{player.number || '?'}</span>
                                             <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700">{player.position || 'TBD'}</span>
                                         </div>
                                         {/* Team Badge */}
@@ -1199,9 +1201,9 @@ const Profile: React.FC = () => {
                                 </div>
 
                                 {/* Quick Stats */}
-                                <div className="mt-4 flex justify-center gap-4 bg-slate-100 dark:bg-black p-2 rounded-lg">
+                                <div className={`mt-4 flex justify-center gap-4 p-2 rounded-lg ${theme === 'dark' ? 'bg-black/20' : 'bg-slate-100'}`}>
                                     <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-400">
-                                        <Sword className="w-3 h-3 text-orange-500" /> <span className="font-bold">{player.stats?.td || 0}</span> TD
+                                        <Sword className="w-3 h-3 text-purple-500" /> <span className="font-bold">{player.stats?.td || 0}</span> TD
                                     </div>
                                     <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-400">
                                         <Shield className="w-3 h-3 text-cyan-500" /> <span className="font-bold">{player.stats?.tkl || 0}</span> TKL
@@ -1294,8 +1296,8 @@ const Profile: React.FC = () => {
 
                                 {/* Uniform Sizes */}
                                 {(player.shirtSize || player.pantSize) && (
-                                  <div className="mt-3 bg-orange-50 dark:bg-orange-900/10 p-2 rounded border border-orange-200 dark:border-orange-900/30">
-                                    <p className="text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider mb-1">Uniform</p>
+                                  <div className="mt-3 bg-purple-50 dark:bg-purple-900/10 p-2 rounded border border-purple-200 dark:border-purple-900/30">
+                                    <p className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider mb-1">Uniform</p>
                                     <div className="flex justify-around text-xs">
                                       {player.shirtSize && (
                                         <div>
@@ -1345,7 +1347,7 @@ const Profile: React.FC = () => {
                                 {/* VIEW STATS BUTTON */}
                                 <button
                                   onClick={() => setViewStatsPlayer(player)}
-                                  className="w-full mt-3 flex items-center justify-center gap-2 text-sm font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 py-2.5 rounded-lg border border-orange-200 dark:border-orange-900/30 transition-colors"
+                                  className="w-full mt-3 flex items-center justify-center gap-2 text-sm font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 py-2.5 rounded-lg border border-purple-200 dark:border-purple-900/30 transition-colors"
                                 >
                                   <BarChart3 className="w-4 h-4" /> View Stats History
                                 </button>
@@ -1387,12 +1389,12 @@ const Profile: React.FC = () => {
       {/* FULL EDIT PLAYER MODAL */}
       {isEditModalOpen && selectedAthlete && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-              <div className="bg-slate-50 dark:bg-zinc-950 w-full max-w-lg rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className={`w-full max-w-lg rounded-xl border shadow-2xl max-h-[90vh] overflow-y-auto ${theme === 'dark' ? 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border-white/10' : 'bg-white border-zinc-200'}`}>
                   {/* Header */}
-                  <div className="sticky top-0 bg-slate-50 dark:bg-zinc-950 p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                  <div className={`sticky top-0 p-4 border-b flex items-center justify-between ${theme === 'dark' ? 'bg-zinc-900 border-white/10' : 'bg-white border-slate-200'}`}>
                       <div className="flex items-center gap-3">
-                          <div className="bg-orange-100 dark:bg-orange-500/20 p-2 rounded-full">
-                            <Edit2 className="h-5 w-5 text-orange-600 dark:text-orange-500" />
+                          <div className="bg-purple-100 dark:bg-purple-500/20 p-2 rounded-full">
+                            <Edit2 className="h-5 w-5 text-purple-600 dark:text-purple-500" />
                           </div>
                           <div>
                               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Edit Player</h3>
@@ -1410,7 +1412,7 @@ const Profile: React.FC = () => {
                         <p className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-3 uppercase tracking-wider">Player Photo</p>
                         <div className="relative">
                           {selectedAthlete.photoUrl ? (
-                            <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-orange-500 shadow-lg">
+                            <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-purple-500 shadow-lg">
                               <img src={selectedAthlete.photoUrl} alt={selectedAthlete.name} className="w-full h-full object-cover" />
                             </div>
                           ) : (
@@ -1418,14 +1420,14 @@ const Profile: React.FC = () => {
                               <User className="w-10 h-10 text-slate-400 dark:text-slate-600" />
                             </div>
                           )}
-                          <label className="absolute bottom-0 right-0 bg-orange-600 hover:bg-orange-500 text-white rounded-full p-2 cursor-pointer shadow-lg transition-colors">
+                          <label className="absolute bottom-0 right-0 bg-purple-600 hover:bg-purple-500 text-white rounded-full p-2 cursor-pointer shadow-lg transition-colors">
                             <Camera className="w-4 h-4" />
                             <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" disabled={uploadingPhoto} />
                           </label>
                         </div>
                         {uploadingPhoto && (
-                          <div className="mt-2 flex items-center gap-2 text-sm text-orange-600">
-                            <div className="w-4 h-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin" />
+                          <div className="mt-2 flex items-center gap-2 text-sm text-purple-600">
+                            <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
                             Uploading...
                           </div>
                         )}
@@ -1545,7 +1547,7 @@ const Profile: React.FC = () => {
 
                       {/* Uniform Sizes */}
                       <div>
-                        <p className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-3 uppercase tracking-wider">Uniform Sizing</p>
+                        <p className="text-xs font-bold text-purple-600 dark:text-purple-400 mb-3 uppercase tracking-wider">Uniform Sizing</p>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                               <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Shirt Size</label>
@@ -1665,7 +1667,7 @@ const Profile: React.FC = () => {
                           <button 
                             type="submit" 
                             disabled={savingPlayer} 
-                            className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg font-bold disabled:opacity-50 flex items-center gap-2"
+                            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-bold disabled:opacity-50 flex items-center gap-2"
                           >
                             {savingPlayer ? (
                               <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saving...</>
@@ -1682,12 +1684,12 @@ const Profile: React.FC = () => {
       {/* ADD ATHLETE MODAL */}
       {isAddAthleteModalOpen && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-50 dark:bg-zinc-950 w-full max-w-lg rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className={`w-full max-w-lg rounded-xl border shadow-2xl max-h-[90vh] overflow-y-auto ${theme === 'dark' ? 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border-white/10' : 'bg-white border-zinc-200'}`}>
             {/* Header */}
-            <div className="sticky top-0 bg-slate-50 dark:bg-zinc-950 p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <div className={`sticky top-0 p-4 border-b flex items-center justify-between ${theme === 'dark' ? 'bg-zinc-900 border-white/10' : 'bg-white border-slate-200'}`}>
               <div className="flex items-center gap-3">
-                <div className="bg-orange-100 dark:bg-orange-500/20 p-2 rounded-full">
-                  <Plus className="h-5 w-5 text-orange-600 dark:text-orange-500" />
+                <div className="bg-purple-100 dark:bg-purple-500/20 p-2 rounded-full">
+                  <Plus className="h-5 w-5 text-purple-600 dark:text-purple-500" />
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">Add Athlete</h3>
@@ -1803,7 +1805,7 @@ const Profile: React.FC = () => {
 
               {/* Uniform Sizes */}
               <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
-                <p className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-3 uppercase tracking-wider">Uniform Sizing (Optional)</p>
+                <p className="text-xs font-bold text-purple-600 dark:text-purple-400 mb-3 uppercase tracking-wider">Uniform Sizing (Optional)</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Shirt Size</label>
@@ -1866,7 +1868,7 @@ const Profile: React.FC = () => {
                 <button 
                   type="submit" 
                   disabled={addingAthlete} 
-                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg font-bold disabled:opacity-50 flex items-center gap-2"
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-bold disabled:opacity-50 flex items-center gap-2"
                 >
                   {addingAthlete ? (
                     <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Adding...</>
@@ -1902,12 +1904,12 @@ const Profile: React.FC = () => {
               </button>
             </div>
             
-            <div className="bg-slate-100 dark:bg-zinc-800 rounded-lg p-4 mb-4">
+            <div className={`rounded-lg p-4 mb-4 ${theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'}`}>
               <div className="flex items-center gap-3">
                 {deleteAthleteConfirm.photoUrl ? (
                   <img src={deleteAthleteConfirm.photoUrl} alt={deleteAthleteConfirm.name} className="w-12 h-12 rounded-full object-cover" />
                 ) : (
-                  <div className="w-12 h-12 bg-orange-600 rounded-full flex items-center justify-center text-white font-bold">
+                  <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold">
                     #{deleteAthleteConfirm.number || '?'}
                   </div>
                 )}
@@ -1926,7 +1928,7 @@ const Profile: React.FC = () => {
               <button
                 onClick={() => setDeleteAthleteConfirm(null)}
                 disabled={deletingAthlete}
-                className="flex-1 py-2.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 rounded-lg font-medium transition-colors disabled:opacity-50"
+                className={`flex-1 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50 ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10 text-zinc-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
               >
                 Cancel
               </button>
@@ -1980,7 +1982,7 @@ const Profile: React.FC = () => {
             <div className="max-w-6xl mx-auto mb-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-red-600 to-orange-600 rounded-xl flex items-center justify-center">
+                  <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl flex items-center justify-center">
                     <Film className="w-6 h-6 text-white" />
                   </div>
                   <div>
@@ -2004,7 +2006,7 @@ const Profile: React.FC = () => {
               {athleteFilmRooms[showFilmRoomForPlayer.id]?.map((video) => (
                 <div 
                   key={video.id}
-                  className="group bg-zinc-900 rounded-xl border border-zinc-700 overflow-hidden hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/10 transition-all"
+                  className="group bg-zinc-900 rounded-xl border border-zinc-700 overflow-hidden hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/10 transition-all"
                 >
                   {/* Thumbnail */}
                   <div 
@@ -2017,7 +2019,7 @@ const Profile: React.FC = () => {
                       className="w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/20 transition-colors">
-                      <div className="w-14 h-14 bg-orange-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                      <div className="w-14 h-14 bg-purple-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
                         <Play className="w-7 h-7 text-white ml-1" />
                       </div>
                     </div>
@@ -2061,7 +2063,7 @@ const Profile: React.FC = () => {
             {/* Close Button */}
             <button 
               onClick={() => setPlayingVideoId(null)} 
-              className="absolute top-4 right-4 z-10 bg-black/50 text-white hover:bg-orange-600 p-2 rounded-full transition-colors backdrop-blur-sm"
+              className="absolute top-4 right-4 z-10 bg-black/50 text-white hover:bg-purple-600 p-2 rounded-full transition-colors backdrop-blur-sm"
             >
               <X className="w-6 h-6" />
             </button>

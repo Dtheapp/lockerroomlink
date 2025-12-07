@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { collection, getDocs, query, onSnapshot, where, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import TeamStatsBoard from './stats/TeamStatsBoard';
 import CoachStatsEntry from './stats/CoachStatsEntry';
 import GameStatsEntry from './stats/GameStatsEntry';
@@ -13,6 +14,7 @@ import { getStats, getSportConfig, type StatConfig } from '../config/sportConfig
 
 const Stats: React.FC = () => {
   const { userData, teamData, players, loading: authLoading } = useAuth();
+  const { theme } = useTheme();
   const currentYear = new Date().getFullYear();
   
   // Tab state for Coach view
@@ -98,7 +100,7 @@ const Stats: React.FC = () => {
     return leaderStats.map((stat, idx) => ({
       stat,
       player: getTopPlayer(stat.key),
-      color: idx === 0 ? 'orange' : idx === 1 ? 'cyan' : 'emerald'
+      color: idx === 0 ? 'purple' : idx === 1 ? 'cyan' : 'emerald'
     }));
   }, [teamStats, sportStats]);
 
@@ -122,7 +124,7 @@ const Stats: React.FC = () => {
 
   const SortIcon = ({ field }: { field: string }) => {
     if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-zinc-600 opacity-50" />;
-    return sortDirection === 'asc' ? <ChevronUp className="w-3 h-3 text-orange-500" /> : <ChevronDown className="w-3 h-3 text-orange-500" />;
+    return sortDirection === 'asc' ? <ChevronUp className="w-3 h-3 text-purple-500" /> : <ChevronDown className="w-3 h-3 text-purple-500" />;
   };
 
   // Listen for unsaved changes from GameStatsEntry
@@ -181,7 +183,7 @@ const Stats: React.FC = () => {
     <NoAthleteBlock featureName="Stats">
     <div className="space-y-6 pb-20">
       <div className="flex items-center gap-3">
-        <BarChart3 className="w-8 h-8 text-orange-500" />
+        <BarChart3 className="w-8 h-8 text-purple-500" />
         <div>
           <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">Team Stats</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">{currentYear} Season</p>
@@ -193,7 +195,7 @@ const Stats: React.FC = () => {
         <section>
           {authLoading ? (
             <div className="bg-zinc-50 dark:bg-zinc-900 rounded-xl p-12 text-center border border-zinc-200 dark:border-zinc-800">
-              <div className="w-12 h-12 border-4 border-dashed rounded-full animate-spin border-orange-500 mx-auto mb-4"></div>
+              <div className="w-12 h-12 border-4 border-dashed rounded-full animate-spin border-purple-500 mx-auto mb-4"></div>
               <p className="text-zinc-600 dark:text-zinc-400">Loading team data...</p>
             </div>
           ) : !teamData || !players || players.length === 0 ? (
@@ -203,7 +205,7 @@ const Stats: React.FC = () => {
               <p className="text-zinc-600 dark:text-zinc-400 mb-4">Add your first player to view team statistics</p>
               <a 
                 href="#/roster" 
-                className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-bold transition-colors"
+                className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-bold transition-colors"
               >
                 Go to Roster
               </a>
@@ -216,7 +218,7 @@ const Stats: React.FC = () => {
                   onClick={() => setActiveTab('games')}
                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold transition-all ${
                     activeTab === 'games'
-                      ? 'bg-orange-600 text-white shadow-lg'
+                      ? 'bg-purple-600 text-white shadow-lg'
                       : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
                   }`}
                 >
@@ -227,7 +229,7 @@ const Stats: React.FC = () => {
                   onClick={() => setActiveTab('season')}
                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold transition-all ${
                     activeTab === 'season'
-                      ? 'bg-orange-600 text-white shadow-lg'
+                      ? 'bg-purple-600 text-white shadow-lg'
                       : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
                   }`}
                 >
@@ -264,7 +266,7 @@ const Stats: React.FC = () => {
                   onClick={() => handleTabChange('games')}
                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold transition-all ${
                     activeTab === 'games'
-                      ? 'bg-orange-600 text-white shadow-lg'
+                      ? 'bg-purple-600 text-white shadow-lg'
                       : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
                   }`}
                 >
@@ -275,7 +277,7 @@ const Stats: React.FC = () => {
                   onClick={() => handleTabChange('season')}
                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold transition-all ${
                     activeTab === 'season'
-                      ? 'bg-orange-600 text-white shadow-lg'
+                      ? 'bg-purple-600 text-white shadow-lg'
                       : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
                   }`}
                 >
@@ -301,13 +303,13 @@ const Stats: React.FC = () => {
           {/* Team Selector */}
           <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
             <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-2">
-              <Users className="w-5 h-5 text-orange-500" />
+              <Users className="w-5 h-5 text-purple-500" />
               Select Team to View Stats
             </label>
             <select
               value={selectedTeamId}
               onChange={(e) => setSelectedTeamId(e.target.value)}
-              className="w-full md:w-96 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg p-3 text-zinc-900 dark:text-white font-medium focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+              className="w-full md:w-96 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg p-3 text-zinc-900 dark:text-white font-medium focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
             >
               {teams.map(team => (
                 <option key={team.id} value={team.id}>
@@ -346,14 +348,14 @@ const Stats: React.FC = () => {
           <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden">
             <div className="p-4 border-b border-zinc-200 dark:border-zinc-800">
               <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-orange-500" />
+                <TrendingUp className="w-5 h-5 text-purple-500" />
                 {sportConfig.name} Statistics ({currentYear})
               </h2>
             </div>
 
             {loading ? (
               <div className="p-12 flex justify-center">
-                <div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-orange-500"></div>
+                <div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-purple-500"></div>
               </div>
             ) : sortedStats.length === 0 ? (
               <div className="p-12 text-center text-zinc-500">
@@ -374,9 +376,9 @@ const Stats: React.FC = () => {
                           </div>
                           {mobileStats[1] && (
                             <div className="text-right">
-                              <div className="text-2xl font-black text-orange-500">
+                              <div className="text-2xl font-black text-purple-500">
                                 {(stat as any)[mobileStats[1].key] || 0} 
-                                <span className="text-xs text-orange-300 font-normal uppercase ml-1">{mobileStats[1].shortLabel}</span>
+                                <span className="text-xs text-purple-300 font-normal uppercase ml-1">{mobileStats[1].shortLabel}</span>
                               </div>
                             </div>
                           )}
@@ -385,7 +387,7 @@ const Stats: React.FC = () => {
                           {mobileStats.map((statConfig, idx) => (
                             <div key={statConfig.key} className="bg-zinc-50 dark:bg-zinc-900 p-2 rounded">
                               <div className="text-zinc-400 uppercase tracking-wider text-[10px]">{statConfig.shortLabel}</div>
-                              <div className={`font-bold ${idx === 1 ? 'text-orange-500' : 'text-zinc-900 dark:text-white'}`}>
+                              <div className={`font-bold ${idx === 1 ? 'text-purple-500' : 'text-zinc-900 dark:text-white'}`}>
                                 {(stat as any)[statConfig.key] || 0}
                               </div>
                             </div>
@@ -429,7 +431,7 @@ const Stats: React.FC = () => {
                               key={statConfig.key}
                               className={`px-4 py-3 text-center ${
                                 idx === 0 ? '' : 
-                                idx === 1 ? 'text-orange-600 dark:text-orange-400 font-bold bg-orange-50/50 dark:bg-orange-900/10' : 
+                                idx === 1 ? 'text-purple-600 dark:text-purple-400 font-bold bg-purple-50/50 dark:bg-purple-900/10' : 
                                 idx < 4 ? 'text-cyan-600 dark:text-cyan-400 font-bold' : 
                                 ''
                               }`}
@@ -470,7 +472,7 @@ const Stats: React.FC = () => {
             <div className="flex flex-col gap-2">
               <button
                 onClick={handleSaveAndSwitch}
-                className="w-full py-2.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
+                className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
               >
                 <Save className="w-4 h-4" />
                 Save Changes
