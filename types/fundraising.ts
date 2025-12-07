@@ -192,10 +192,13 @@ export interface NILDeal {
   teamId?: string;
   teamName?: string;
   
-  // Deal info
+  // Sponsor info (user who proposes the deal)
+  sponsorId?: string;        // User ID of the sponsor (required for new deals)
   sponsorName: string;
   sponsorContact?: string;
+  sponsorEmail?: string;
   sponsorLogo?: string;
+  sponsorCompany?: string;   // Business/organization name
   dealType: 'sponsorship' | 'appearance' | 'social_media' | 'merchandise' | 'camp' | 'other';
   description: string;
   requirements?: string[];   // What the athlete needs to do

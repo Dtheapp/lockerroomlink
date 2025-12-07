@@ -4,13 +4,16 @@
 // Zero-fee donations via PayPal - direct to recipient
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, Heart, DollarSign, User, Mail, MessageSquare, Lock, AlertCircle, ExternalLink } from 'lucide-react';
+import { X, Heart, DollarSign, User, Mail, MessageSquare, Lock, AlertCircle, ExternalLink, UserPlus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { FundraisingCampaign, CreateDonationRequest } from '../types/fundraising';
 import { recordDonation, formatCurrency, calculateProgress } from '../services/fundraising';
 import { loadPayPalSdk, getPayPalClientId } from '../services/paypal';
 import { GlassPanel, Button, Badge, ProgressBar } from './ui/OSYSComponents';
 import { showToast } from '../services/toast';
+import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
+import { auth, db } from '../services/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 interface DonateModalProps {
   isOpen: boolean;
@@ -41,6 +44,11 @@ export const DonateModal: React.FC<DonateModalProps> = ({
   const [donorEmail, setDonorEmail] = useState(user?.email || '');
   const [message, setMessage] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
+  
+  // Account creation state (for guests)
+  const [createAccount, setCreateAccount] = useState(false);
+  const [password, setPassword] = useState('');
+  const [createdUserId, setCreatedUserId] = useState<string | null>(null);
   
   // Success state
   const [donationResult, setDonationResult] = useState<{
@@ -133,6 +141,39 @@ export const DonateModal: React.FC<DonateModalProps> = ({
                 throw new Error(captureResult.error || 'Payment capture failed');
               }
               
+              // Create fan account if requested (for guests)
+              let newUserId: string | null = null;
+              if (!user && createAccount && password.length >= 6) {
+                try {
+                  const userCredential = await createUserWithEmailAndPassword(auth, donorEmail, password);
+                  newUserId = userCredential.user.uid;
+                  
+                  // Create user document as a Fan
+                  await setDoc(doc(db, 'users', newUserId), {
+                    email: donorEmail,
+                    name: donorName,
+                    role: 'Fan',
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                    createdVia: 'donation',
+                    firstDonationCampaign: campaign.id
+                  });
+                  
+                  // Send verification email
+                  await sendEmailVerification(userCredential.user);
+                  setCreatedUserId(newUserId);
+                  showToast('Account created! Check your email to verify.', 'success');
+                } catch (accountErr: any) {
+                  console.error('Failed to create account:', accountErr);
+                  // Don't fail the donation, just notify user
+                  if (accountErr.code === 'auth/email-already-in-use') {
+                    showToast('Email already has an account. Sign in next time!', 'info');
+                  } else {
+                    showToast('Account creation failed, but donation succeeded!', 'info');
+                  }
+                }
+              }
+              
               // Record the donation in Firestore
               const request: CreateDonationRequest = {
                 campaignId: campaign.id,
@@ -146,7 +187,7 @@ export const DonateModal: React.FC<DonateModalProps> = ({
 
               const donation = await recordDonation(
                 request,
-                user?.uid || null,
+                user?.uid || newUserId || null,
                 {
                   orderId: data.orderID,
                   transactionId: captureResult.transactionId || data.orderID,
@@ -202,6 +243,9 @@ export const DonateModal: React.FC<DonateModalProps> = ({
         setIsAnonymous(false);
         setDonationResult(null);
         setPaypalButtonRendered(false);
+        setCreateAccount(false);
+        setPassword('');
+        setCreatedUserId(null);
       }, 300);
     }
   }, [isOpen]);
@@ -224,7 +268,12 @@ export const DonateModal: React.FC<DonateModalProps> = ({
       case 'amount':
         return amount >= (campaign.minimumDonation || 100);
       case 'details':
-        return donorName.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(donorEmail);
+        const basicValid = donorName.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(donorEmail);
+        // If guest wants to create account, password must be at least 6 chars
+        if (!user && createAccount) {
+          return basicValid && password.length >= 6;
+        }
+        return basicValid;
       default:
         return true;
     }
@@ -424,6 +473,49 @@ export const DonateModal: React.FC<DonateModalProps> = ({
                 </div>
               </div>
             </label>
+
+            {/* Create Account Option (for guests only) */}
+            {!user && (
+              <div className="border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={createAccount}
+                    onChange={e => setCreateAccount(e.target.checked)}
+                    className="w-5 h-5 rounded accent-purple-600 mt-1"
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium flex items-center gap-2">
+                      <UserPlus className="w-4 h-4" />
+                      Create a free OSYS account
+                    </div>
+                    <div className="text-sm text-purple-700 dark:text-purple-300 mt-1">
+                      Follow teams, get updates on campaigns you support, and more!
+                    </div>
+                  </div>
+                </label>
+                
+                {createAccount && (
+                  <div className="mt-4 pt-4 border-t border-purple-200 dark:border-purple-700">
+                    <label className="text-sm font-medium block mb-2">Create a Password *</label>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        placeholder="At least 6 characters"
+                        minLength={6}
+                        className="w-full bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl pl-12 pr-4 py-3 text-zinc-900 dark:text-white"
+                      />
+                    </div>
+                    <span className="text-xs text-zinc-500 mt-1 block">
+                      You'll be signed in after your donation completes
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         );
 
@@ -488,6 +580,19 @@ export const DonateModal: React.FC<DonateModalProps> = ({
                 <span className="font-medium">You're making dreams come true!</span>
               </div>
             </div>
+
+            {/* Account created message */}
+            {createdUserId && (
+              <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-4 max-w-sm mx-auto">
+                <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300">
+                  <UserPlus className="w-5 h-5" />
+                  <span className="font-medium">Account created!</span>
+                </div>
+                <p className="text-sm text-purple-600 dark:text-purple-400 mt-1">
+                  Check your email to verify your account and start following teams.
+                </p>
+              </div>
+            )}
 
             <div className="text-sm text-zinc-500 dark:text-zinc-400">
               A receipt has been sent to <strong>{donorEmail}</strong>
