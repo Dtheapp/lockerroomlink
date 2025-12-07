@@ -1,6 +1,7 @@
 # 🎯 AI Working Traits & Preferences
 
-**Last Updated:** December 6, 2025
+**Last Updated:** December 6, 2025  
+**Mission:** Build the best product in the world. Never half-ass anything.
 
 ---
 
@@ -21,10 +22,11 @@ Before asking you to test anything, I must fully verify:
 ### 2. Security Audit After Every Feature 🔒
 After completing any feature, I must:
 - Audit for vulnerabilities (XSS, injection, auth bypass)
-- Add input sanitization
+- Add input sanitization on ALL user inputs
 - Implement rate limiting where needed
 - Update Firestore security rules
 - Think about scalability for millions of users
+- Document security measures taken
 
 ---
 
@@ -34,6 +36,7 @@ Always consider:
 - Performance implications
 - Abuse prevention
 - Proper error handling
+- Database query efficiency
 
 ---
 
@@ -43,7 +46,7 @@ If I think of:
 - A missing feature or idea
 - An improvement after building
 
-I should tell you so we can discuss it.
+I will tell you so we can discuss it.
 
 ---
 
@@ -51,6 +54,7 @@ I should tell you so we can discuss it.
 - Make features bulletproof before moving on
 - Don't create technical debt
 - Avoid backtracking by doing it right the first time
+- Never ship incomplete work
 
 ---
 
@@ -59,6 +63,103 @@ After building something, pause and ask:
 - "Can it be better?"
 - "Did I miss anything?"
 - "Is there a better approach?"
+
+---
+
+### 7. Firebase/Backend Checklist ☁️
+Before saying a feature is ready to test, verify:
+- Are there Firestore rule changes that need deploying?
+- Are there Cloud Functions that need deploying?
+- Are there environment variables needed?
+- Are there Firebase indexes needed?
+- Provide the exact deployment commands
+
+---
+
+### 8. Git Discipline 🔀
+After completing each feature/fix:
+- Stage all changes
+- Create meaningful, detailed commit messages
+- Push to `dev` branch (no Netlify cost)
+- Keep git history clean and trackable
+- Only merge to `main` when ready to deploy
+
+---
+
+### 9. Documentation as I Go 📝
+For every feature I build:
+- Inline code comments for complex logic
+- Update README sections for new features
+- API documentation for services
+- Update any relevant spec files
+- Future devs should never wonder "what does this do?"
+
+---
+
+### 10. Test Coverage Mindset 🧪
+After building a feature:
+- Write unit tests for critical functions
+- Write integration tests for user flows
+- Ensure existing tests still pass
+- Catch bugs before they reach production
+
+---
+
+### 11. Performance Check ⚡
+Before marking something complete:
+- Check bundle size impact
+- Identify unnecessary re-renders
+- Verify database query efficiency
+- Implement lazy loading where beneficial
+- App must stay fast as it grows
+
+---
+
+### 12. Accessibility (A11y) Review ♿
+Ensure all UI components have:
+- Proper ARIA labels
+- Keyboard navigation support
+- Color contrast compliance
+- Screen reader compatibility
+- App works for everyone
+
+---
+
+### 13. Error Boundary & Graceful Failures 🛡️
+Every feature includes:
+- Try/catch with user-friendly error messages
+- Fallback UI for failed states
+- Logging for debugging
+- Recovery options where possible
+- Never show ugly crashes to users
+
+---
+
+### 14. Mobile-First Verification 📱
+Before completing UI work:
+- Verify responsive design on all screen sizes
+- Touch targets are large enough (44x44px min)
+- No horizontal scroll issues
+- Works on slow connections
+- Great experience on any device
+
+---
+
+### 15. Cost Awareness 💰
+When using Firebase/cloud services:
+- Consider read/write costs
+- Write efficient queries
+- Implement caching strategies
+- Avoid unnecessary API calls
+- Keep bills manageable at scale
+
+---
+
+## The Standard
+
+> **"We are trying to be the best in the world with the best product. Never do anything half-assed."**
+
+Every line of code, every feature, every commit should reflect this standard.
 
 ---
 
@@ -78,5 +179,7 @@ Tell me: **"Modify trait [number]: [new description]"** - To change a trait
 
 | Date | Change |
 |------|--------|
-| Dec 6, 2025 | Initial traits established |
+| Dec 6, 2025 | Initial 6 traits established |
+| Dec 6, 2025 | Added Firebase/Backend Checklist (Trait 7) |
+| Dec 6, 2025 | Added ALL power traits (8-15) - Full excellence mode |
 
