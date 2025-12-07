@@ -266,8 +266,8 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ onClose }) => {
             <p className="font-semibold">💡 Pro Tip</p>
             <p className="text-sm opacity-90">
               {isCoach 
-                ? "Start by adding players to your roster, then invite parents to join!"
-                : "Ask your coach for the team join link to easily connect."}
+                ? "When parents create player profiles and register them to your team, they'll appear on your roster automatically!"
+                : "Create your athlete's profile first, then register them to a team when you're ready!"}
             </p>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useDemoToast } from '../hooks/useOSYSData';
 import {
   AnimatedBackground,
   GlassCard,
@@ -105,6 +106,8 @@ const FeatureTicker: React.FC = () => {
 };
 
 const LandingPage: React.FC = () => {
+  const { showToast, ToastComponent } = useDemoToast();
+  
   return (
     <div className="min-h-screen text-white">
       <AnimatedBackground />
@@ -164,7 +167,7 @@ const LandingPage: React.FC = () => {
                 </svg>
               </Button>
             </Link>
-            <Button variant="ghost" size="lg">
+            <Button variant="ghost" size="lg" onClick={() => showToast('🎬 Demo video coming soon!', 'info')}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <polygon points="5 3 19 12 5 21 5 3"/>
               </svg>
@@ -281,6 +284,10 @@ const LandingPage: React.FC = () => {
               description="Secure messaging for coaches, players, and parents. Announcements and direct messages."
               link="/chat"
             />
+            <div className="osys-glass px-6 py-8 rounded-2xl flex items-center justify-center text-slate-400">
+              <span className="text-2xl mr-3">✨</span>
+              <span className="text-lg">& more coming soon...</span>
+            </div>
           </div>
         </div>
       </section>
@@ -301,6 +308,9 @@ const LandingPage: React.FC = () => {
                 {sport}
               </div>
             ))}
+            <div className="osys-glass px-6 py-4 text-lg font-medium text-slate-400">
+              ✨ & more
+            </div>
           </div>
         </div>
       </section>
@@ -327,7 +337,9 @@ const LandingPage: React.FC = () => {
                 <li>✓ Team chat</li>
                 <li>✓ Game scheduling</li>
               </ul>
-              <Button variant="ghost" className="w-full">Get Started</Button>
+              <Link to="/auth?signup=true" className="w-full">
+                <Button variant="ghost" className="w-full">Get Started</Button>
+              </Link>
             </GlassCard>
 
             {/* Pro Tier */}
@@ -366,7 +378,7 @@ const LandingPage: React.FC = () => {
                 <li>✓ Priority support</li>
                 <li>✓ Custom branding</li>
               </ul>
-              <Button variant="ghost" className="w-full">Contact Sales</Button>
+              <Button variant="ghost" className="w-full" onClick={() => showToast('📞 Enterprise sales coming soon!', 'info')}>Contact Sales</Button>
             </GlassCard>
           </div>
         </div>
@@ -386,7 +398,7 @@ const LandingPage: React.FC = () => {
               <Link to="/auth?signup=true">
                 <Button variant="primary" size="lg">Get Started Free</Button>
               </Link>
-              <Button variant="ghost" size="lg">Schedule Demo</Button>
+              <Button variant="ghost" size="lg" onClick={() => showToast('📅 Demo scheduling coming soon!', 'info')}>Schedule Demo</Button>
             </div>
           </GlassCard>
         </div>
@@ -416,6 +428,9 @@ const LandingPage: React.FC = () => {
 
       {/* Demo Navigation */}
       <DemoNavigation currentPage="welcome" />
+      
+      {/* Toast */}
+      {ToastComponent}
     </div>
   );
 };
