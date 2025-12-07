@@ -44,10 +44,22 @@ const OSYSDashboard: React.FC = () => {
       <AnimatedBackground />
 
       {/* Sidebar */}
-      <aside className="osys-sidebar">
+      <aside className="osys-sidebar overflow-y-auto">
         <div className="osys-sidebar-logo">
           <div className="osys-sidebar-logo-icon">⚡</div>
           <span className="osys-sidebar-logo-text">OSYS</span>
+        </div>
+
+        {/* Team Switcher - AT TOP */}
+        <div className="border-b border-white/10 pb-4 mb-4">
+          <div className="osys-glass p-3 flex items-center gap-3">
+            <Avatar name="Eastside Eagles" size="sm" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium truncate">Eastside Eagles</div>
+              <div className="text-xs text-slate-500">Head Coach</div>
+            </div>
+            <span className="text-slate-400">⌄</span>
+          </div>
         </div>
 
         <nav className="flex-1">
@@ -95,18 +107,6 @@ const OSYSDashboard: React.FC = () => {
             <span>Film Room</span>
           </Link>
         </nav>
-
-        {/* Team Switcher */}
-        <div className="border-t border-white/10 pt-4 mt-4">
-          <div className="osys-glass p-3 flex items-center gap-3">
-            <Avatar name="Eastside Eagles" size="sm" />
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium truncate">Eastside Eagles</div>
-              <div className="text-xs text-slate-500">Head Coach</div>
-            </div>
-            <span className="text-slate-400">⌄</span>
-          </div>
-        </div>
       </aside>
 
       {/* Main Content */}
