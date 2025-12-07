@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AnimatedBackground, GlassCard, Button, Badge, ProgressBar } from './ui/OSYSComponents';
 import { DemoNavigation } from './ui/DemoNavigation';
 import { useDemoToast } from '../hooks/useOSYSData';
+import { TicketPurchaseModal } from './TicketPurchaseModal';
 
 // Types
 interface Event {
@@ -508,6 +509,7 @@ export const OSYSEvents: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [currentMonth] = useState('January 2025');
   const { showToast, ToastComponent } = useDemoToast();
+  const [selectedEventForTickets, setSelectedEventForTickets] = useState<Event | null>(null);
 
   const filters = [
     { id: 'all', label: 'All Events' },
@@ -589,7 +591,7 @@ export const OSYSEvents: React.FC = () => {
                     </div>
                   )}
                   <div style={styles.featuredActions}>
-                    <Button variant="gold" onClick={() => showToast('Ticket purchase coming soon!', 'info')}>🎫 Buy Tickets (${featuredEvent.ticketPrice})</Button>
+                    <Button variant="gold" onClick={() => setSelectedEventForTickets(featuredEvent)}>🎫 Buy Tickets (${featuredEvent.ticketPrice})</Button>
                     <Button variant="primary" onClick={() => showToast('Live stream coming soon!', 'info')}>📺 Watch Live</Button>
                     <Button variant="ghost" onClick={() => showToast('Link copied!', 'success')}>🔗 Share</Button>
                   </div>
@@ -653,7 +655,7 @@ export const OSYSEvents: React.FC = () => {
                 </div>
                 <div style={styles.eventActions}>
                   {event.ticketPrice && (
-                    <Button variant="primary" style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }} onClick={() => showToast('Ticket purchase coming soon!', 'info')}>
+                    <Button variant="primary" style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }} onClick={() => setSelectedEventForTickets(event)}>
                       🎟️ ${event.ticketPrice}
                     </Button>
                   )}
@@ -781,6 +783,26 @@ export const OSYSEvents: React.FC = () => {
 
       <DemoNavigation />
       {ToastComponent}
+      
+      {/* Ticket Purchase Modal */}
+      {selectedEventForTickets && (
+        <TicketPurchaseModal
+          isOpen={true}
+          onClose={() => setSelectedEventForTickets(null)}
+          teamId="demo-team-id"
+          teamName="Westside Wildcats"
+          eventId={selectedEventForTickets.id}
+          eventTitle={selectedEventForTickets.title}
+          eventDate={selectedEventForTickets.date}
+          eventTime={selectedEventForTickets.time}
+          eventLocation={selectedEventForTickets.location}
+          ticketConfigId="demo-config"
+          ticketPrice={(selectedEventForTickets.ticketPrice || 10) * 100}
+          ticketsAvailable={selectedEventForTickets.ticketsAvailable || 100}
+          tierName="General Admission"
+          theme="dark"
+        />
+      )}
     </div>
   );
 };
