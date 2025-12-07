@@ -968,8 +968,9 @@ const ManageUsers: React.FC = () => {
             <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">Edit User</h2>
             
             {editError && (
-              <div className="mb-4 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-400 p-3 rounded-lg text-sm flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4" /> {editError}
+              <div className="mb-4 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-400 p-3 rounded-lg text-sm flex items-center gap-2 overflow-hidden">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                <span className="break-words overflow-hidden">{editError}</span>
               </div>
             )}
 
@@ -1357,8 +1358,9 @@ const ManageUsers: React.FC = () => {
                 </div>
                 
                 {superAdminError && (
-                  <div className="mb-4 bg-red-900/30 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4" /> {superAdminError}
+                  <div className="mb-4 bg-red-900/30 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm flex items-center gap-2 overflow-hidden">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <span className="break-words overflow-hidden">{superAdminError}</span>
                   </div>
                 )}
 

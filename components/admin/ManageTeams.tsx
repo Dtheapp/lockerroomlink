@@ -703,7 +703,7 @@ const ManageTeams: React.FC = () => {
               <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
               <div className="bg-white dark:bg-zinc-950 p-6 rounded-lg w-full max-w-md border border-slate-200 dark:border-zinc-700 shadow-2xl">
                   <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">Create New Team</h2>
-                  {createError && <p className="text-red-600 dark:text-red-400 text-sm mb-2 flex items-center gap-2"><AlertTriangle className="w-4 h-4"/> {createError}</p>}
+                  {createError && <p className="text-red-600 dark:text-red-400 text-sm mb-2 flex items-center gap-2 break-words overflow-hidden"><AlertTriangle className="w-4 h-4 flex-shrink-0"/> <span className="overflow-hidden">{createError}</span></p>}
                   <form onSubmit={handleCreateTeam} className="space-y-4">
                       <input value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="Team Name (e.g., The Mighty Ducks)" className="w-full bg-slate-50 dark:bg-zinc-900 p-3 rounded border border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500" required />
                       <input value={newTeamId} onChange={(e) => setNewTeamId(e.target.value)} placeholder="Team ID (e.g. LIONS24)" className="w-full bg-slate-50 dark:bg-zinc-900 p-3 rounded border border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500" required />

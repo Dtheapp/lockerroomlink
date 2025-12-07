@@ -105,6 +105,15 @@ export interface Team {
       losses: number;
       ties: number;
   };
+  
+  // Team Location (required for state-specific waivers)
+  location?: {
+    address?: string;
+    city?: string;
+    state?: string;             // Required for waiver generation (e.g., "CA", "TX")
+    zip?: string;
+    country?: string;           // Default: "USA"
+  };
 }
 
 // In types.ts

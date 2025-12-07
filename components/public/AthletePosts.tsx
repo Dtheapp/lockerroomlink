@@ -87,13 +87,12 @@ const AthletePosts: React.FC<AthletePostsProps> = ({ teamId, playerId, player, p
 
       const postData: Partial<AthletePost> = {
         text: sanitizedText,
-        imageUrl,
-        imagePath,
+        ...(imageUrl && { imageUrl, imagePath }),
         authorId: user.uid,
         authorName: userData.name || 'Parent',
         athleteId: playerId,
         athleteName: player.name,
-        athletePhotoUrl: player.photoUrl || undefined,
+        ...(player.photoUrl && { athletePhotoUrl: player.photoUrl }),
         createdAt: serverTimestamp(),
         likes: [],
         likeCount: 0,
@@ -203,9 +202,9 @@ const AthletePosts: React.FC<AthletePostsProps> = ({ teamId, playerId, player, p
             {/* Modal Body */}
             <div className="p-4 space-y-4">
               {error && (
-                <div className="flex items-center gap-2 text-red-400 text-sm bg-red-900/20 px-3 py-2 rounded-lg">
-                  <AlertTriangle className="w-4 h-4" />
-                  {error}
+                <div className="flex items-center gap-2 text-red-400 text-sm bg-red-900/20 px-3 py-2 rounded-lg overflow-hidden">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  <span className="break-words overflow-hidden">{error}</span>
                 </div>
               )}
 

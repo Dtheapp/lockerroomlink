@@ -636,9 +636,9 @@ const FanClipCreator: React.FC<FanClipCreatorProps> = ({
                 </div>
 
                 {error && (
-                  <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 px-3 py-2 rounded-lg">
-                    <AlertCircle size={16} />
-                    {error}
+                  <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 px-3 py-2 rounded-lg overflow-hidden">
+                    <AlertCircle size={16} className="flex-shrink-0" />
+                    <span className="break-words overflow-hidden">{error}</span>
                   </div>
                 )}
 

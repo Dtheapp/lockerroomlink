@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
-import { Home, Users, ClipboardList, MessageCircle, Video, LogOut, User, Send, Menu, X, ChevronLeft, Sun, Moon, BarChart3, Shield, AlertTriangle, BookOpen, Star, Heart } from 'lucide-react';
+import { Home, Users, ClipboardList, MessageCircle, Video, LogOut, User, Send, Menu, X, ChevronLeft, Sun, Moon, BarChart3, Shield, AlertTriangle, BookOpen, Star, Heart, Calendar } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
@@ -115,6 +115,7 @@ const Layout: React.FC = () => {
   const allNavItems = [
     { name: 'Dashboard', path: '/dashboard', icon: Home },
     { name: 'Roster', path: '/roster', icon: Users },
+    { name: 'Events', path: '/events', icon: Calendar },
     { name: 'Team Plays', path: '/playbook', icon: ClipboardList, configKey: 'playbookEnabled' as const },
     { name: 'Team Chat', path: '/chat', icon: MessageCircle, unreadKey: 'teamChat' as const, configKey: 'chatEnabled' as const },
     { name: 'Strategy', path: '/strategies', icon: Shield, coachOnly: true, unreadKey: 'strategy' as const, configKey: 'chatEnabled' as const },

@@ -273,7 +273,7 @@ const AuthScreen: React.FC = () => {
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1 bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-50"></div>
                 <h2 className="text-2xl font-black text-white mb-4">Create New Password</h2>
                 <form onSubmit={handleConfirmReset} className="space-y-4">
-                    {error && <p className="bg-red-500/10 text-red-400 p-3 rounded-lg text-sm border border-red-500/20">{error}</p>}
+                    {error && <p className="bg-red-500/10 text-red-400 p-3 rounded-lg text-sm border border-red-500/20 break-words overflow-hidden">{error}</p>}
                     <div><label className="block text-sm font-medium text-zinc-400 mb-1">New Password</label><input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:ring-orange-500" required /></div>
                     <button type="submit" disabled={loading} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50">{loading ? 'Updating...' : 'Update Password'}</button>
                 </form>
@@ -290,7 +290,7 @@ const AuthScreen: React.FC = () => {
                     <div className="bg-green-900/20 border border-green-900/50 p-4 rounded-lg text-green-400 mb-6 flex items-center gap-3"><CheckCircle className="w-6 h-6" /><span>{successMessage}</span></div>
                 ) : (
                     <form onSubmit={handleResetPassword} className="space-y-4">
-                        {error && <p className="bg-red-500/10 text-red-400 p-3 rounded-lg text-sm border border-red-500/20">{error}</p>}
+                        {error && <p className="bg-red-500/10 text-red-400 p-3 rounded-lg text-sm border border-red-500/20 break-words overflow-hidden">{error}</p>}
                         <div><label className="block text-sm font-medium text-zinc-400 mb-1">Email Address</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:ring-orange-500" required /></div>
                         <button type="submit" disabled={loading} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50">{loading ? 'Sending...' : 'Send Reset Link'}</button>
                     </form>
@@ -394,7 +394,7 @@ const AuthScreen: React.FC = () => {
           <h1 className="text-3xl font-black tracking-tighter text-center text-white mb-2">LEVEL<span className="text-orange-500">UP</span></h1>
           <p className="text-center text-zinc-500 mb-8 text-sm uppercase tracking-widest font-bold">Level Up Your Game</p>
 
-          {error && <p className="bg-red-500/10 text-red-400 p-3 rounded-lg mb-6 text-sm border border-red-500/20 text-center font-medium">{error}</p>}
+          {error && <p className="bg-red-500/10 text-red-400 p-3 rounded-lg mb-6 text-sm border border-red-500/20 text-center font-medium break-words overflow-hidden">{error}</p>}
           
           <form onSubmit={handleAuth} className="space-y-5">
             {renderForm()}

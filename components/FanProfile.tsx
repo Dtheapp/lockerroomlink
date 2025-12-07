@@ -218,7 +218,7 @@ const FanProfile: React.FC = () => {
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
       {/* Status Message */}
       {statusMsg && (
-        <div className={`p-3 rounded-lg text-sm ${statusMsg.type === 'success' ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'}`}>
+        <div className={`p-3 rounded-lg text-sm break-words overflow-hidden ${statusMsg.type === 'success' ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'}`}>
           {statusMsg.text}
         </div>
       )}

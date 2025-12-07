@@ -1,0 +1,171 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isCoach() {
+      return isAuthenticated() && getUserData().role == 'Coach';
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && getUserData().role == 'SuperAdmin';
+    }
+    
+    function isTeamCoach(teamId) {
+      return isCoach() && getUserData().teamIds != null && teamId in getUserData().teamIds;
+    }
+    
+    function isTeamMember(teamId) {
+      return isAuthenticated() && (
+        getUserData().teamId == teamId || 
+        (getUserData().teamIds != null && teamId in getUserData().teamIds)
+      );
+    }
+
+    // =============================================================================
+    // EVENTS COLLECTION
+    // =============================================================================
+    match /events/{eventId} {
+      // Anyone can read public events, team members can read private events
+      allow read: if resource.data.isPublic == true || isTeamMember(resource.data.teamId) || isAdmin();
+      
+      // Only coaches can create events for their teams
+      allow create: if isTeamCoach(request.resource.data.teamId) || isAdmin();
+      
+      // Only coaches of the team can update/delete
+      allow update, delete: if isTeamCoach(resource.data.teamId) || isAdmin();
+
+      // =============================================================================
+      // PRICING TIERS SUBCOLLECTION (nested under events)
+      // =============================================================================
+      match /pricingTiers/{tierId} {
+        // Anyone can read pricing tiers (needed for registration page)
+        allow read: if true;
+        
+        // Only coaches of the parent event's team can create/update/delete
+        allow create: if isTeamCoach(get(/databases/$(database)/documents/events/$(eventId)).data.teamId) || isAdmin();
+        allow update, delete: if isTeamCoach(get(/databases/$(database)/documents/events/$(eventId)).data.teamId) || isAdmin();
+      }
+    }
+
+    // =============================================================================
+    // PRICING TIERS COLLECTION (legacy flat collection - keep for migration)
+    // =============================================================================
+    match /pricingTiers/{tierId} {
+      // Anyone can read pricing tiers (needed for registration)
+      allow read: if true;
+      
+      // Only coaches can create/update/delete pricing tiers
+      allow create: if isAuthenticated() && (
+        isTeamCoach(get(/databases/$(database)/documents/events/$(request.resource.data.eventId)).data.teamId) || 
+        isAdmin()
+      );
+      
+      allow update, delete: if isAuthenticated() && (
+        isTeamCoach(get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.teamId) || 
+        isAdmin()
+      );
+    }
+
+    // =============================================================================
+    // PROMO CODES COLLECTION
+    // =============================================================================
+    match /promoCodes/{promoId} {
+      // Only coaches can read all promo codes for their events
+      // Users can validate individual codes through Cloud Functions
+      allow read: if isTeamCoach(resource.data.teamId) || isAdmin();
+      
+      // Only coaches can create/update/delete promo codes
+      allow create: if isTeamCoach(request.resource.data.teamId) || isAdmin();
+      allow update, delete: if isTeamCoach(resource.data.teamId) || isAdmin();
+    }
+
+    // =============================================================================
+    // REGISTRATION ORDERS COLLECTION
+    // =============================================================================
+    match /registrationOrders/{orderId} {
+      // Users can read their own orders, coaches can read orders for their events
+      allow read: if isUser(resource.data.parentUserId) || 
+                     isTeamCoach(resource.data.teamId) || 
+                     isAdmin();
+      
+      // Authenticated users can create registration orders
+      allow create: if isAuthenticated() && request.resource.data.parentUserId == request.auth.uid;
+      
+      // Users can update their pending orders, coaches can update any order
+      allow update: if (isUser(resource.data.parentUserId) && resource.data.paymentStatus == 'pending') ||
+                       isTeamCoach(resource.data.teamId) || 
+                       isAdmin();
+      
+      // Only admins can delete orders
+      allow delete: if isAdmin();
+    }
+
+    // =============================================================================
+    // REGISTRATIONS COLLECTION
+    // =============================================================================
+    match /registrations/{registrationId} {
+      // Users can read their own registrations, coaches can read registrations for their events
+      allow read: if isUser(resource.data.parentUserId) || 
+                     isTeamCoach(resource.data.teamId) || 
+                     isAdmin();
+      
+      // Authenticated users can create registrations (linked to their account)
+      allow create: if isAuthenticated() && request.resource.data.parentUserId == request.auth.uid;
+      
+      // Users can update their pending registrations, coaches can update any registration
+      allow update: if (isUser(resource.data.parentUserId) && resource.data.status in ['pending_payment', 'waitlisted']) ||
+                       isTeamCoach(resource.data.teamId) || 
+                       isAdmin();
+      
+      // Only coaches and admins can delete registrations
+      allow delete: if isTeamCoach(resource.data.teamId) || isAdmin();
+    }
+
+    // =============================================================================
+    // TEAM PAYMENT SETTINGS COLLECTION
+    // =============================================================================
+    match /teamPaymentSettings/{teamId} {
+      // Coaches can read/write their team's payment settings
+      allow read, write: if isTeamCoach(teamId) || isAdmin();
+    }
+
+    // =============================================================================
+    // EXISTING COLLECTIONS (keep your existing rules here)
+    // =============================================================================
+    
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isUser(userId) || isAdmin();
+    }
+    
+    // Teams collection
+    match /teams/{teamId} {
+      allow read: if isAuthenticated();
+      allow write: if isTeamCoach(teamId) || isAdmin();
+    }
+    
+    // Athletes collection
+    match /athletes/{athleteId} {
+      allow read: if isAuthenticated();
+      allow write: if isTeamCoach(resource.data.teamId) || 
+                      isUser(resource.data.parentUserId) || 
+                      isAdmin();
+    }
+    
+    // Add more existing collection rules as needed...
+  }
+}

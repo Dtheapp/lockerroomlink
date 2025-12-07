@@ -42,6 +42,15 @@ export const RATE_LIMITS = {
   
   // File uploads: 5 per 5 minutes
   FILE_UPLOAD: { maxRequests: 5, windowMs: 300000 },
+
+  // Event creation: 10 per hour (prevent spam events)
+  EVENT_CREATE: { maxRequests: 10, windowMs: 3600000 },
+
+  // Registration: 5 per 10 minutes (prevent registration abuse)
+  REGISTRATION: { maxRequests: 5, windowMs: 600000 },
+
+  // Promo code validation: 10 per minute (prevent brute force)
+  PROMO_VALIDATE: { maxRequests: 10, windowMs: 60000 },
 } as const;
 
 /**

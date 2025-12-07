@@ -526,9 +526,9 @@ const PublicChat: React.FC<PublicChatProps> = ({ teamId, playerId, playerName, p
 
               {/* Error message */}
               {error && (
-                <div className="flex items-center gap-2 text-red-400 text-xs mb-2">
-                  <AlertTriangle className="w-3 h-3" />
-                  {error}
+                <div className="flex items-center gap-2 text-red-400 text-xs mb-2 overflow-hidden">
+                  <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                  <span className="break-words overflow-hidden">{error}</span>
                 </div>
               )}
 

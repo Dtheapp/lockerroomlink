@@ -260,8 +260,9 @@ const EditableStatsBoard: React.FC = () => {
           <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Add New Player Stats</h3>
           
           {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 p-3 rounded mb-4 text-sm flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4"/> {error}
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 p-3 rounded mb-4 text-sm flex items-center gap-2 overflow-hidden">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0"/>
+                <span className="break-words overflow-hidden">{error}</span>
             </div>
           )}
 

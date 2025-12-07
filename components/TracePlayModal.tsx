@@ -317,9 +317,9 @@ const TracePlayModal: React.FC<TracePlayModalProps> = ({
         <div className="p-4">
           {/* Error display */}
           {imageError && (
-            <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg flex items-center gap-3">
+            <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg flex items-center gap-3 overflow-hidden">
               <X className="w-5 h-5 text-red-400 flex-shrink-0" />
-              <p className="text-sm text-red-200">{imageError}</p>
+              <p className="text-sm text-red-200 break-words overflow-hidden">{imageError}</p>
             </div>
           )}
 

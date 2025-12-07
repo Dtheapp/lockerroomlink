@@ -692,8 +692,9 @@ const VideoLibrary: React.FC = () => {
             {/* Modal Body */}
             <form onSubmit={isEditMode ? handleUpdateVideo : handleAddVideo} className="p-6 space-y-5">
               {error && (
-                <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-3 rounded-lg text-sm flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0"/> {error}
+                <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-3 rounded-lg text-sm flex items-center gap-2 overflow-hidden">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0"/>
+                  <span className="break-words overflow-hidden">{error}</span>
                 </div>
               )}
 

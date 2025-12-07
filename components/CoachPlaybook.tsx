@@ -2574,23 +2574,32 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
             >
               <X className="w-5 h-5" />
             </button>
-            <input 
-              value={playName}
-              onChange={(e) => setPlayName(e.target.value)}
-              className="bg-slate-900/90 backdrop-blur-sm border border-slate-700 rounded-lg px-3 py-1.5 text-white text-sm font-semibold w-32"
-              placeholder="Play Name"
-            />
+            {isFormationDesignMode ? (
+              <input 
+                value={formationName}
+                onChange={(e) => setFormationName(e.target.value)}
+                className="bg-slate-900/90 backdrop-blur-sm border border-slate-700 rounded-lg px-3 py-1.5 text-white text-sm font-semibold w-32"
+                placeholder="Formation Name"
+              />
+            ) : (
+              <input 
+                value={playName}
+                onChange={(e) => setPlayName(e.target.value)}
+                className="bg-slate-900/90 backdrop-blur-sm border border-slate-700 rounded-lg px-3 py-1.5 text-white text-sm font-semibold w-32"
+                placeholder="Play Name"
+              />
+            )}
           </div>
           
           <div className="flex items-center gap-2">
             <button 
-              onClick={clearBoard}
+              onClick={isFormationDesignMode ? clearFormationDesigner : clearBoard}
               className="bg-slate-900/90 backdrop-blur-sm hover:bg-slate-800 text-white px-3 py-2 rounded-lg text-xs transition-colors"
             >
               New
             </button>
             <button 
-              onClick={handleSavePlay}
+              onClick={isFormationDesignMode ? handleSaveFormation : handleSavePlay}
               className="bg-emerald-600/90 backdrop-blur-sm hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
             >
               <Save className="w-3 h-3" /> Save
@@ -2600,15 +2609,15 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
 
         {/* Field - TRUE FULLSCREEN, fills entire space */}
         <div className="flex-1 relative overflow-hidden">
-          {renderField(true)}
-          {renderSelectionActions()}
+          {isFormationDesignMode ? renderFormationField() : renderField(true)}
+          {!isFormationDesignMode && renderSelectionActions()}
         </div>
 
         {/* Bottom Add Players Panel */}
         {renderAddPlayersPanel()}
         
         {/* Drag hint */}
-        {elements.length > 0 && !isDragging && !showAddPlayers && (
+        {((isFormationDesignMode ? formationElements.length : elements.length) > 0) && !isDragging && !showAddPlayers && (
           <div className="absolute bottom-16 left-1/2 -translate-x-1/2 bg-black/60 text-white/70 text-xs px-3 py-1 rounded-full flex items-center gap-2 pointer-events-none">
             <Move className="w-3 h-3" /> Drag to move
           </div>

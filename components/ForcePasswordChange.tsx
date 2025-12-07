@@ -113,9 +113,9 @@ const ForcePasswordChange: React.FC<ForcePasswordChangeProps> = ({ onComplete })
 
         {/* Error Message */}
         {error && (
-          <div className="mb-4 bg-red-900/30 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm flex items-start gap-2">
+          <div className="mb-4 bg-red-900/30 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm flex items-start gap-2 overflow-hidden">
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-            <span>{error}</span>
+            <span className="break-words overflow-hidden">{error}</span>
           </div>
         )}
 

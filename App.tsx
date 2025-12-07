@@ -54,6 +54,14 @@ const PublicAthleteProfile = lazyWithRetry(() => import('./components/public/Pub
 const PublicTeamProfile = lazyWithRetry(() => import('./components/public/PublicTeamProfile'));
 const PublicCoachProfile = lazyWithRetry(() => import('./components/public/PublicCoachProfile'));
 
+// Event System Pages
+const EventsPage = lazyWithRetry(() => import('./components/events/EventsPage'));
+const EventDetailsPage = lazyWithRetry(() => import('./components/events/EventDetailsPage'));
+const EventCreatorPage = lazyWithRetry(() => import('./components/events/EventCreatorPage'));
+const EventManagement = lazyWithRetry(() => import('./components/events/EventManagement'));
+const RegistrationFlow = lazyWithRetry(() => import('./components/events/registration/RegistrationFlow'));
+const PublicEventPage = lazyWithRetry(() => import('./components/events/PublicEventPage'));
+
 // Lazy-loaded pages for code splitting (reduces initial bundle size)
 const Dashboard = lazyWithRetry(() => import('./components/Dashboard'));
 const Roster = lazyWithRetry(() => import('./components/Roster'));
@@ -159,6 +167,8 @@ const AppContent: React.FC = () => {
           <Route path="/athlete/:username" element={<PublicAthleteProfile />} />
           <Route path="/team/:teamId" element={<PublicTeamProfile />} />
           <Route path="/coach/:username" element={<PublicCoachProfile />} />
+          <Route path="/event/:eventId" element={<PublicEventPage />} />
+          <Route path="/e/:shareableLink" element={<PublicEventPage />} />
           
           {!user ? (
             <>
@@ -194,6 +204,7 @@ const AppContent: React.FC = () => {
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard" element={<FanDashboard />} />
                 <Route path="profile" element={<FanProfile />} />
+                <Route path="events/:eventId/register" element={<RegistrationFlow />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </>
@@ -211,6 +222,13 @@ const AppContent: React.FC = () => {
                 <Route path="profile" element={<Profile />} />
                 {config.statsEnabled && <Route path="stats" element={<Stats />} />}
                 {config.playbookEnabled && <Route path="coaching" element={<Coaching />} />}
+                {/* Events System Routes */}
+                <Route path="events" element={<EventsPage />} />
+                <Route path="events/create" element={<EventCreatorPage />} />
+                <Route path="events/:eventId" element={<EventDetailsPage />} />
+                <Route path="events/:eventId/edit" element={<EventCreatorPage />} />
+                <Route path="events/:eventId/manage" element={<EventManagement />} />
+                <Route path="events/:eventId/register" element={<RegistrationFlow />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </>

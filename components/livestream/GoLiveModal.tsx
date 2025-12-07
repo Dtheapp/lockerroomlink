@@ -146,8 +146,8 @@ const GoLiveModal: React.FC<GoLiveModalProps> = ({ onClose, teamId, teamName }) 
               } text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent`}
             />
             {youtubeUrl && !isValidUrl && (
-              <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
-                <AlertCircle className="w-4 h-4" /> Invalid YouTube URL
+              <p className="text-red-500 text-sm mt-1 flex items-center gap-1 break-words overflow-hidden">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" /> Invalid YouTube URL
               </p>
             )}
             {youtubeUrl && isValidUrl && (
@@ -238,9 +238,10 @@ const GoLiveModal: React.FC<GoLiveModalProps> = ({ onClose, teamId, teamName }) 
 
           {/* Error */}
           {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-              <p className="text-red-600 dark:text-red-400 text-sm flex items-center gap-2">
-                <AlertCircle className="w-4 h-4" /> {error}
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 overflow-hidden">
+              <p className="text-red-600 dark:text-red-400 text-sm flex items-center gap-2 break-words">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span className="overflow-hidden">{error}</span>
               </p>
             </div>
           )}

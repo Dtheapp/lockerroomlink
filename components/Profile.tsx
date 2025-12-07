@@ -66,6 +66,12 @@ const Profile: React.FC = () => {
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
   const [deleteFilmConfirm, setDeleteFilmConfirm] = useState<{ playerId: string; film: PlayerFilmEntry } | null>(null);
   const [deletingFilm, setDeletingFilm] = useState(false);
+  
+  // Add film state for parents
+  const [showAddFilmForPlayer, setShowAddFilmForPlayer] = useState<Player | null>(null);
+  const [newFilmForm, setNewFilmForm] = useState({ title: '', url: '', category: 'Game Film' as 'Game Film' | 'Highlights', description: '' });
+  const [addingFilm, setAddingFilm] = useState(false);
+  const [addFilmError, setAddFilmError] = useState('');
 
   // Full Edit Form State (including medical)
   const [editForm, setEditForm] = useState({
@@ -289,6 +295,80 @@ const Profile: React.FC = () => {
       console.error('Error deleting film entry:', err);
     } finally {
       setDeletingFilm(false);
+    }
+  };
+
+  // Extract YouTube ID from URL
+  const extractYouTubeId = (url: string): string | null => {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([^&\n?#]+)/,
+      /^([a-zA-Z0-9_-]{11})$/
+    ];
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) return match[1];
+    }
+    return null;
+  };
+
+  // Add film to athlete's film room handler
+  const handleAddFilmEntry = async () => {
+    if (!showAddFilmForPlayer || !user) return;
+    
+    const athlete = myAthletes.find(a => a.id === showAddFilmForPlayer.id);
+    if (!athlete?.teamId) return;
+    
+    // Validate URL
+    const youtubeId = extractYouTubeId(newFilmForm.url);
+    if (!youtubeId) {
+      setAddFilmError('Please enter a valid YouTube URL');
+      return;
+    }
+    
+    if (!newFilmForm.title.trim()) {
+      setAddFilmError('Please enter a title for the video');
+      return;
+    }
+    
+    setAddingFilm(true);
+    setAddFilmError('');
+    
+    try {
+      // Get team name for the film entry
+      const teamDoc = await getDoc(doc(db, 'teams', athlete.teamId));
+      const teamName = teamDoc.exists() ? (teamDoc.data() as Team).name : 'Unknown Team';
+      
+      const filmEntry: Omit<PlayerFilmEntry, 'id'> = {
+        youtubeId,
+        title: newFilmForm.title.trim(),
+        description: newFilmForm.description.trim() || undefined,
+        category: newFilmForm.category,
+        teamId: athlete.teamId,
+        teamName,
+        taggedAt: new Date() as any, // Will be converted to Timestamp by Firestore
+        taggedBy: user.uid
+      };
+      
+      // Add to player's film room
+      const filmRef = await addDoc(
+        collection(db, 'teams', athlete.teamId, 'players', athlete.id, 'filmRoom'),
+        filmEntry
+      );
+      
+      // Update local state
+      setAthleteFilmRooms(prev => ({
+        ...prev,
+        [athlete.id]: [{ id: filmRef.id, ...filmEntry }, ...(prev[athlete.id] || [])]
+      }));
+      
+      // Reset form and close modal
+      setNewFilmForm({ title: '', url: '', category: 'Game Film', description: '' });
+      setShowAddFilmForPlayer(null);
+    } catch (err) {
+      console.error('Error adding film entry:', err);
+      setAddFilmError('Failed to add video. Please try again.');
+    } finally {
+      setAddingFilm(false);
     }
   };
 
@@ -1271,14 +1351,22 @@ const Profile: React.FC = () => {
                                 </button>
                                 
                                 {/* FILM ROOM BUTTON */}
-                                {athleteFilmRooms[player.id]?.length > 0 && (
+                                <div className="flex gap-2 mt-2">
+                                  {athleteFilmRooms[player.id]?.length > 0 && (
+                                    <button
+                                      onClick={() => setShowFilmRoomForPlayer(player)}
+                                      className="flex-1 flex items-center justify-center gap-2 text-sm font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 py-2.5 rounded-lg border border-red-200 dark:border-red-900/30 transition-colors"
+                                    >
+                                      <Film className="w-4 h-4" /> Film ({athleteFilmRooms[player.id].length})
+                                    </button>
+                                  )}
                                   <button
-                                    onClick={() => setShowFilmRoomForPlayer(player)}
-                                    className="w-full mt-2 flex items-center justify-center gap-2 text-sm font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 py-2.5 rounded-lg border border-red-200 dark:border-red-900/30 transition-colors"
+                                    onClick={() => setShowAddFilmForPlayer(player)}
+                                    className={`${athleteFilmRooms[player.id]?.length > 0 ? '' : 'flex-1'} flex items-center justify-center gap-2 text-sm font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 py-2.5 px-4 rounded-lg border border-purple-200 dark:border-purple-900/30 transition-colors`}
                                   >
-                                    <Film className="w-4 h-4" /> Film Room ({athleteFilmRooms[player.id].length})
+                                    <Plus className="w-4 h-4" /> {athleteFilmRooms[player.id]?.length > 0 ? 'Add' : 'Add Film'}
                                   </button>
-                                )}
+                                </div>
                             </div>
                           );
                       })}
@@ -1402,7 +1490,7 @@ const Profile: React.FC = () => {
                           )}
                         </div>
                         {editUsernameError && (
-                          <p className="text-xs text-red-500 mt-1">{editUsernameError}</p>
+                          <p className="text-xs text-red-500 mt-1 break-words overflow-hidden">{editUsernameError}</p>
                         )}
                         <p className="text-xs text-slate-500 mt-1">Used for tracking stats history. 3-20 characters, lowercase letters, numbers, and underscores only.</p>
                       </div>
@@ -1683,7 +1771,7 @@ const Profile: React.FC = () => {
                   )}
                 </div>
                 {usernameError && (
-                  <p className="text-xs text-red-500 mt-1">{usernameError}</p>
+                  <p className="text-xs text-red-500 mt-1 break-words overflow-hidden">{usernameError}</p>
                 )}
                 <p className="text-xs text-slate-500 mt-1">3-20 characters, lowercase letters, numbers, and underscores only</p>
               </div>
@@ -2026,6 +2114,137 @@ const Profile: React.FC = () => {
                   <>
                     <Trash2 className="w-4 h-4" />
                     Remove
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Film Modal for Parent */}
+      {showAddFilmForPlayer && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50">
+          <div className="bg-zinc-900 rounded-xl border border-zinc-700 w-full max-w-md shadow-2xl">
+            {/* Header */}
+            <div className="p-4 border-b border-zinc-700 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-purple-500/20 p-2 rounded-full">
+                  <Film className="w-5 h-5 text-purple-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Add Film</h3>
+                  <p className="text-zinc-500 text-sm">Add video to {showAddFilmForPlayer.name}'s Film Room</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => { setShowAddFilmForPlayer(null); setAddFilmError(''); setNewFilmForm({ title: '', url: '', category: 'Game Film', description: '' }); }}
+                className="text-zinc-400 hover:text-white p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Form */}
+            <div className="p-4 space-y-4">
+              {addFilmError && (
+                <div className="flex items-center gap-2 text-red-400 text-sm bg-red-900/20 px-3 py-2 rounded-lg overflow-hidden">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span className="break-words overflow-hidden">{addFilmError}</span>
+                </div>
+              )}
+              
+              {/* YouTube URL */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">YouTube URL *</label>
+                <input
+                  type="text"
+                  value={newFilmForm.url}
+                  onChange={(e) => setNewFilmForm(prev => ({ ...prev, url: e.target.value }))}
+                  placeholder="https://youtube.com/watch?v=... or https://youtu.be/..."
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-white placeholder-zinc-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                />
+              </div>
+              
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">Video Title *</label>
+                <input
+                  type="text"
+                  value={newFilmForm.title}
+                  onChange={(e) => setNewFilmForm(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="e.g., Week 5 Highlights vs Eagles"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-white placeholder-zinc-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                />
+              </div>
+              
+              {/* Category */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">Category</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewFilmForm(prev => ({ ...prev, category: 'Game Film' }))}
+                    className={`flex-1 py-2.5 rounded-lg font-medium text-sm transition-colors ${
+                      newFilmForm.category === 'Game Film' 
+                        ? 'bg-red-500 text-white' 
+                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                    }`}
+                  >
+                    🎬 Game Film
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewFilmForm(prev => ({ ...prev, category: 'Highlights' }))}
+                    className={`flex-1 py-2.5 rounded-lg font-medium text-sm transition-colors ${
+                      newFilmForm.category === 'Highlights' 
+                        ? 'bg-yellow-500 text-white' 
+                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                    }`}
+                  >
+                    ⭐ Highlights
+                  </button>
+                </div>
+              </div>
+              
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">Description (optional)</label>
+                <textarea
+                  value={newFilmForm.description}
+                  onChange={(e) => setNewFilmForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Brief description of the video content..."
+                  rows={3}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-white placeholder-zinc-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none resize-none"
+                />
+              </div>
+              
+              {/* Info text */}
+              <div className="bg-zinc-800/50 rounded-lg p-3 text-sm text-zinc-500">
+                <p>Videos will appear on your athlete's public profile in their Film Room section.</p>
+              </div>
+            </div>
+            
+            {/* Footer */}
+            <div className="p-4 border-t border-zinc-700 flex gap-3">
+              <button
+                onClick={() => { setShowAddFilmForPlayer(null); setAddFilmError(''); setNewFilmForm({ title: '', url: '', category: 'Game Film', description: '' }); }}
+                disabled={addingFilm}
+                className="flex-1 py-2.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddFilmEntry}
+                disabled={addingFilm || !newFilmForm.url || !newFilmForm.title}
+                className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              >
+                {addingFilm ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    Add to Film Room
                   </>
                 )}
               </button>

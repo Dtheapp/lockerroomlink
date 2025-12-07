@@ -557,9 +557,9 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
         <div className="p-4">
           {/* Error display */}
           {analysisError && (
-            <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg flex items-center gap-3">
+            <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg flex items-center gap-3 overflow-hidden">
               <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
-              <p className="text-sm text-red-200">{analysisError}</p>
+              <p className="text-sm text-red-200 break-words overflow-hidden">{analysisError}</p>
             </div>
           )}
 

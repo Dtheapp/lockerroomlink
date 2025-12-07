@@ -451,8 +451,9 @@ const Announcements: React.FC = () => {
                         
                         <form onSubmit={handleCreateAnnouncement} className="flex-1 overflow-y-auto p-5 space-y-4">
                             {error && (
-                                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
-                                    <AlertTriangle className="w-4 h-4" /> {error}
+                                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-3 py-2 rounded-lg text-sm flex items-center gap-2 overflow-hidden">
+                                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                                    <span className="break-words overflow-hidden">{error}</span>
                                 </div>
                             )}
                             
