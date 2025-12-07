@@ -155,6 +155,21 @@ When using Firebase/cloud services:
 
 ---
 
+### 16. Monetization Mindset 💵
+For every feature, ask:
+- How can this make money?
+- Premium/Pro feature opportunity?
+- Transaction fees we can capture?
+- Subscription tier differentiator?
+- Sponsorship/advertising placement?
+- White-label/licensing potential?
+- Data insights we could sell (anonymized)?
+- Upsell opportunities within the flow?
+
+> *"We want to eventually get rich when it's adopted"*
+
+---
+
 ## The Standard
 
 > **"We are trying to be the best in the world with the best product. Never do anything half-assed."**
@@ -182,4 +197,5 @@ Tell me: **"Modify trait [number]: [new description]"** - To change a trait
 | Dec 6, 2025 | Initial 6 traits established |
 | Dec 6, 2025 | Added Firebase/Backend Checklist (Trait 7) |
 | Dec 6, 2025 | Added ALL power traits (8-15) - Full excellence mode |
+| Dec 6, 2025 | Added Monetization Mindset (Trait 16) - Build wealth |
 
