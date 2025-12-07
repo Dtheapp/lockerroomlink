@@ -1124,7 +1124,7 @@ const Roster: React.FC = () => {
           title="Build Your Roster"
           description="Add your first player to get started. You can add their photo, jersey number, position, and more."
           actionLabel="Add First Player"
-          onAction={() => setIsModalOpen(true)}
+          onAction={() => setIsAddModalOpen(true)}
         />
       )}
 
