@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AnimatedBackground,
@@ -12,6 +12,64 @@ import {
   SectionHeader
 } from '../components/ui/OSYSComponents';
 import { DemoNavigation } from './ui/DemoNavigation';
+
+// Typewriter component for cycling through features
+const TypewriterText: React.FC = () => {
+  const features = [
+    'Social Media',
+    'Fundraising', 
+    'Livestreams',
+    'Game Ticketing',
+    'Playbooks',
+    'Player Registration',
+    'Team Stats',
+    'Video Library',
+    'Fan Engagement',
+    'Coach Messaging',
+    'Player Profiles',
+    'Event Management'
+  ];
+  
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [displayText, setDisplayText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  
+  useEffect(() => {
+    const currentFeature = features[currentIndex];
+    const typeSpeed = isDeleting ? 40 : 80;
+    const pauseTime = 2000;
+    
+    if (!isDeleting && displayText === currentFeature) {
+      // Pause at full text, then start deleting
+      const timeout = setTimeout(() => setIsDeleting(true), pauseTime);
+      return () => clearTimeout(timeout);
+    }
+    
+    if (isDeleting && displayText === '') {
+      // Move to next feature
+      setIsDeleting(false);
+      setCurrentIndex((prev) => (prev + 1) % features.length);
+      return;
+    }
+    
+    const timeout = setTimeout(() => {
+      if (isDeleting) {
+        setDisplayText(currentFeature.substring(0, displayText.length - 1));
+      } else {
+        setDisplayText(currentFeature.substring(0, displayText.length + 1));
+      }
+    }, typeSpeed);
+    
+    return () => clearTimeout(timeout);
+  }, [displayText, isDeleting, currentIndex, features]);
+  
+  return (
+    <span className="text-purple-400">
+      {displayText}
+      <span className="animate-pulse">|</span>
+    </span>
+  );
+};
 
 const LandingPage: React.FC = () => {
   return (
@@ -57,11 +115,12 @@ const LandingPage: React.FC = () => {
             <GradientText>for Youth Sports</GradientText>
           </h1>
 
-          <p className="text-xl text-slate-400 max-w-2xl mx-auto mb-8 osys-animate-slide-up" style={{ animationDelay: '0.1s' }}>
-            Social Media. Fundraising. Livestreams. Game Ticketing. Playbooks. Player Registration, and more.
-            <br />
-            Everything your team needs in one powerful platform.
-          </p>
+          <div className="text-xl md:text-2xl text-slate-400 max-w-2xl mx-auto mb-8 osys-animate-slide-up h-20 flex flex-col items-center justify-center" style={{ animationDelay: '0.1s' }}>
+            <div className="h-8">
+              <TypewriterText />
+            </div>
+            <span className="text-slate-500 text-lg mt-2">Everything your team needs in one powerful platform.</span>
+          </div>
 
           <div className="flex flex-wrap justify-center gap-4 mb-12 osys-animate-slide-up" style={{ animationDelay: '0.2s' }}>
             <Link to="/auth?signup=true">
