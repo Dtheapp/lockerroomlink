@@ -55,6 +55,10 @@ const PublicTeamProfile = lazyWithRetry(() => import('./components/public/Public
 const PublicCoachProfile = lazyWithRetry(() => import('./components/public/PublicCoachProfile'));
 const LandingPage = lazyWithRetry(() => import('./components/LandingPage'));
 const FundraisingPage = lazyWithRetry(() => import('./components/FundraisingPage'));
+const OSYSAthleteProfile = lazyWithRetry(() => import('./components/OSYSAthleteProfile'));
+const OSYSTeamPage = lazyWithRetry(() => import('./components/OSYSTeamPage'));
+const OSYSFanHub = lazyWithRetry(() => import('./components/OSYSFanHub'));
+const OSYSDashboard = lazyWithRetry(() => import('./components/OSYSDashboard'));
 
 // Event System Pages
 const EventsPage = lazyWithRetry(() => import('./components/events/EventsPage'));
@@ -173,6 +177,10 @@ const AppContent: React.FC = () => {
           <Route path="/e/:shareableLink" element={<PublicEventPage />} />
           <Route path="/welcome" element={<LandingPage />} />
           <Route path="/fundraising" element={<FundraisingPage />} />
+          <Route path="/player" element={<OSYSAthleteProfile />} />
+          <Route path="/team-demo" element={<OSYSTeamPage />} />
+          <Route path="/fan-hub" element={<OSYSFanHub />} />
+          <Route path="/coach-demo" element={<OSYSDashboard />} />
           
           {!user ? (
             <>
