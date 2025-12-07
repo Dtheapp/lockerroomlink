@@ -3,12 +3,29 @@
   publish = "dist"
   functions = "netlify/functions"
 
-# Exclude API functions from SPA redirect
-[[redirects]]
-  from = "/.netlify/functions/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
+# =============================================================================
+# BRANCH DEPLOY CONFIGURATION
+# =============================================================================
+# Production: main branch → osys.team
+# Dev/Staging: dev branch → dev--osys.netlify.app
+# =============================================================================
 
+# Production branch (deploys to main domain)
+[context.production]
+  command = "npm run build"
+  
+# Dev branch (deploys to dev--osys.netlify.app)
+[context.dev]
+  command = "npm run build"
+  # You can set different env vars for dev if needed:
+  # [context.dev.environment]
+  #   VITE_ENV = "development"
+
+# Branch deploys - enable for 'dev' branch
+[context.branch-deploy]
+  command = "npm run build"
+
+# SPA fallback redirect (Netlify functions are automatically excluded)
 [[redirects]]
   from = "/*"
   to = "/index.html"
