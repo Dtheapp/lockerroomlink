@@ -86,6 +86,7 @@ const NILWalletDashboard: React.FC = () => {
       athleteName: user?.displayName || 'Demo Athlete',
       teamId: 'team-1',
       teamName: 'Lincoln Lions',
+      source: 'legacy' as const,
       sponsorName: 'Local Sports Shop',
       sponsorContact: 'contact@sportsshop.com',
       dealType: 'social_media',
@@ -110,6 +111,7 @@ const NILWalletDashboard: React.FC = () => {
       athleteName: user?.displayName || 'Demo Athlete',
       teamId: 'team-1',
       teamName: 'Lincoln Lions',
+      source: 'legacy' as const,
       sponsorName: 'GameDay Grill',
       sponsorContact: 'manager@gamedaygrill.com',
       dealType: 'appearance',
@@ -132,6 +134,7 @@ const NILWalletDashboard: React.FC = () => {
       athleteName: user?.displayName || 'Demo Athlete',
       teamId: 'team-1',
       teamName: 'Lincoln Lions',
+      source: 'legacy' as const,
       sponsorName: 'Elite Training Academy',
       sponsorContact: 'camps@elitetraining.com',
       dealType: 'camp',
@@ -279,6 +282,9 @@ const NILWalletDashboard: React.FC = () => {
       sponsorship: '✍️',
       merchandise: '👕',
       camp: '🏈',
+      autograph: '✍️',
+      shoutout: '📣',
+      custom: '🎯',
       other: '📋'
     };
     return icons[type] || '📋';

@@ -158,7 +158,7 @@ export default function AthleteNILManager({
         >
           <Store className="w-4 h-4" />
           My Listings
-          <Badge variant="default" size="sm">{listings.length}</Badge>
+          <Badge variant="default" className="text-xs">{listings.length}</Badge>
         </TabButton>
         <TabButton 
           active={activeTab === 'offers'} 
@@ -167,7 +167,7 @@ export default function AthleteNILManager({
           <DollarSign className="w-4 h-4" />
           Incoming Offers
           {pendingOffers.length > 0 && (
-            <Badge variant="success" size="sm">{pendingOffers.length}</Badge>
+            <Badge variant="success" className="text-xs">{pendingOffers.length}</Badge>
           )}
         </TabButton>
         <TabButton 
@@ -305,10 +305,10 @@ function ListingsTab({ listings, onToggle, onEdit, onCreate, onRefresh }: Listin
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="font-semibold text-zinc-900 dark:text-white">{listing.title}</h3>
-                    <Badge variant={listing.isActive ? 'success' : 'default'} size="sm">
+                    <Badge variant={listing.isActive ? 'success' : 'default'} className="text-xs">
                       {listing.isActive ? 'Active' : 'Paused'}
                     </Badge>
-                    <Badge variant="default" size="sm">
+                    <Badge variant="default" className="text-xs">
                       {dealTypeLabels[listing.dealType]}
                     </Badge>
                   </div>
@@ -406,7 +406,7 @@ function OffersTab({ offers, onRespond }: OffersTabProps) {
                     <div className="flex items-center gap-2">
                       <h4 className="font-semibold text-zinc-900 dark:text-white">{offer.title}</h4>
                       {offer.isRecordedDeal && (
-                        <Badge variant="info" size="sm">Recorded Deal</Badge>
+                        <Badge variant="warning" className="text-xs">Recorded Deal</Badge>
                       )}
                     </div>
                     <p className="text-sm text-zinc-500">
@@ -414,7 +414,7 @@ function OffersTab({ offers, onRespond }: OffersTabProps) {
                       {offer.sponsorCompany && ` · ${offer.sponsorCompany}`}
                     </p>
                   </div>
-                  <Badge variant="default" size="sm">{dealTypeLabels[offer.dealType]}</Badge>
+                  <Badge variant="default" className="text-xs">{dealTypeLabels[offer.dealType]}</Badge>
                 </div>
                 
                 <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3">
@@ -491,8 +491,8 @@ function OffersTab({ offers, onRespond }: OffersTabProps) {
                       {formatCurrency(offer.offeredAmount)}
                     </span>
                     <Badge 
-                      variant={offer.status === 'accepted' ? 'success' : offer.status === 'declined' ? 'danger' : 'default'} 
-                      size="sm"
+                      variant={offer.status === 'accepted' ? 'success' : offer.status === 'declined' ? 'error' : 'default'} 
+                      className="text-xs"
                     >
                       {offer.status.charAt(0).toUpperCase() + offer.status.slice(1)}
                     </Badge>
@@ -785,7 +785,8 @@ function ListingModal({
           athleteId,
           athleteName,
           teamId,
-          teamName
+          teamName,
+          isActive: true
         });
       }
       onSuccess();

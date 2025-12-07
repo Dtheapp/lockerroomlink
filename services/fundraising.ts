@@ -782,8 +782,6 @@ export function calculateDaysRemaining(endDate: Date | null | undefined): number
 // NIL MARKETPLACE FUNCTIONS
 // =============================================================================
 
-import type { NILProfile, NILListing, NILOffer, NILPurchase, NILDealType } from '../types/fundraising';
-
 /**
  * Get or create athlete's NIL profile
  */

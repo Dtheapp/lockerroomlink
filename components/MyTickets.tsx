@@ -474,7 +474,7 @@ export const MyTickets: React.FC<MyTicketsProps> = ({ userEmail, theme = 'dark' 
               </div>
 
               <Button 
-                variant="outline" 
+                variant="ghost" 
                 style={{ width: '100%' }}
                 onClick={() => setSelectedTicket(null)}
               >

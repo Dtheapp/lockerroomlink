@@ -85,9 +85,7 @@ export default function NILMarketplace({ teamId, athleteId }: NILMarketplaceProp
     try {
       const data = await getMarketplaceListings({
         teamId,
-        athleteId,
-        dealType: selectedType === 'all' ? undefined : selectedType,
-        activeOnly: true
+        dealType: selectedType === 'all' ? undefined : selectedType
       });
       setListings(data);
     } catch (error) {
@@ -139,7 +137,7 @@ export default function NILMarketplace({ teamId, athleteId }: NILMarketplaceProp
         </div>
         
         {/* Custom offer button for fans */}
-        {userData?.role === 'fan' && (
+        {userData?.role === 'Fan' && (
           <button
             onClick={() => handleMakeOffer()}
             className="flex items-center gap-2 px-4 py-2 bg-purple-600 dark:bg-orange-500 text-white rounded-lg hover:opacity-90 transition"
@@ -205,7 +203,7 @@ export default function NILMarketplace({ teamId, athleteId }: NILMarketplaceProp
               listing={listing} 
               onPurchase={() => handlePurchase(listing)}
               onMakeOffer={() => handleMakeOffer(listing)}
-              isFan={userData?.role === 'fan'}
+              isFan={userData?.role === 'Fan'}
             />
           ))}
         </div>
@@ -273,7 +271,7 @@ function ListingCard({ listing, onPurchase, onMakeOffer, isFan }: ListingCardPro
             )}
           </div>
         </div>
-        <Badge variant="default" size="sm">
+        <Badge variant="default" className="text-xs">
           {dealTypeLabels[listing.dealType]}
         </Badge>
       </div>
