@@ -2552,7 +2552,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
     {!isFullscreen && (
       <button
         onClick={() => setIsFullscreen(true)}
-        className="fixed bottom-6 right-6 z-50 bg-purple-600 hover:bg-purple-700 text-white p-4 rounded-full shadow-2xl transition-all active:scale-95 lg:hidden"
+        className="fixed bottom-6 right-6 z-50 bg-purple-600 dark:bg-orange-500 hover:bg-purple-700 dark:hover:bg-orange-600 text-white p-4 rounded-full shadow-2xl transition-all active:scale-95 lg:hidden"
         title="Open Fullscreen Editor"
       >
         <Maximize2 className="w-6 h-6" />
@@ -2629,14 +2629,14 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
     {!isFullscreen && (
       <div className="bg-slate-50 dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-lg overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-purple-500 p-4 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-purple-600 to-purple-500 dark:from-orange-600 dark:to-orange-500 p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="bg-white/20 p-2 rounded-lg">
               <BookOpen className="w-6 h-6 text-white" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-white">My Playbook</h2>
-              <p className="text-purple-100 text-sm">Design and manage your plays</p>
+              <p className="text-purple-100 dark:text-orange-100 text-sm">Design and manage your plays</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -2662,7 +2662,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
             <p className="text-xs text-slate-500">Defense</p>
           </div>
           <div className="text-center">
-            <p className="text-lg font-bold text-purple-600 dark:text-purple-400">{specialTeamsCount}</p>
+            <p className="text-lg font-bold text-purple-600 dark:text-orange-400">{specialTeamsCount}</p>
             <p className="text-xs text-slate-500">Special Teams</p>
           </div>
         </div>
@@ -2675,25 +2675,25 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
               <div className="flex border-b border-slate-200 dark:border-slate-800 shrink-0">
                   <button 
                     onClick={() => handleTabSwitch('formations')}
-                    className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1 transition-colors ${activeTab === 'formations' ? 'bg-white dark:bg-slate-800 text-purple-600 dark:text-purple-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
+                    className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1 transition-colors ${activeTab === 'formations' ? 'bg-white dark:bg-slate-800 text-purple-600 dark:text-orange-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
                   >
                       <Layers className="w-4 h-4"/> Forms
                   </button>
                   <button 
                     onClick={() => handleTabSwitch('editor')}
-                    className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1 transition-colors ${activeTab === 'editor' ? 'bg-white dark:bg-slate-800 text-purple-600 dark:text-purple-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
+                    className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1 transition-colors ${activeTab === 'editor' ? 'bg-white dark:bg-slate-800 text-purple-600 dark:text-orange-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
                   >
                       <PenTool className="w-4 h-4"/> Design
                   </button>
                   <button 
                     onClick={() => handleTabSwitch('library')}
-                    className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1 transition-colors ${activeTab === 'library' ? 'bg-white dark:bg-slate-800 text-purple-600 dark:text-purple-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
+                    className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1 transition-colors ${activeTab === 'library' ? 'bg-white dark:bg-slate-800 text-purple-600 dark:text-orange-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
                   >
                       <FolderOpen className="w-4 h-4"/> Plays
                   </button>
                   <button 
                     onClick={() => handleTabSwitch('import')}
-                    className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1 transition-colors ${activeTab === 'import' ? 'bg-white dark:bg-slate-800 text-purple-600 dark:text-purple-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
+                    className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1 transition-colors ${activeTab === 'import' ? 'bg-white dark:bg-slate-800 text-purple-600 dark:text-orange-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
                   >
                       <Download className="w-4 h-4"/> Import
                   </button>

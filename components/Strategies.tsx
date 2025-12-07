@@ -145,9 +145,9 @@ const Strategies: React.FC = () => {
       <div className="sticky top-0 z-10 p-4 border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Shield className="w-5 h-5 text-purple-500" />
+            <Shield className="w-5 h-5 text-purple-500 dark:text-orange-400" />
             Strategy Room
-            <span className="text-purple-500 text-sm font-mono uppercase tracking-wider">(Coaches Only)</span>
+            <span className="text-purple-500 dark:text-orange-400 text-sm font-mono uppercase tracking-wider">(Coaches Only)</span>
           </h1>
           <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1.5 rounded-full">
             <Lock className="w-3 h-3" />
@@ -163,8 +163,8 @@ const Strategies: React.FC = () => {
       <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-50 dark:bg-black/20">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-12">
-            <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/20 rounded-full flex items-center justify-center mb-4">
-              <Shield className="w-8 h-8 text-purple-500" />
+            <div className="w-16 h-16 bg-purple-100 dark:bg-orange-900/20 rounded-full flex items-center justify-center mb-4">
+              <Shield className="w-8 h-8 text-purple-500 dark:text-orange-400" />
             </div>
             <h3 className="text-lg font-semibold text-slate-700 dark:text-zinc-300 mb-2">
               Start Planning
@@ -183,11 +183,11 @@ const Strategies: React.FC = () => {
               <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-xs lg:max-w-md p-3 rounded-2xl shadow-sm ${
                   isMe 
-                    ? 'bg-gradient-to-br from-purple-600 to-purple-700 text-white rounded-br-none'
+                    ? 'bg-gradient-to-br from-purple-600 to-purple-700 dark:from-orange-500 dark:to-orange-600 text-white rounded-br-none'
                     : 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-zinc-700'
                 }`}>
                   {!isMe && (
-                    <p className="text-xs font-bold text-purple-600 dark:text-purple-400 mb-1 flex items-center gap-1">
+                    <p className="text-xs font-bold text-purple-600 dark:text-orange-400 mb-1 flex items-center gap-1">
                       <Shield className="w-3 h-3" />
                       {msg.sender.name}
                     </p>
@@ -209,14 +209,14 @@ const Strategies: React.FC = () => {
                       <div className="flex gap-1 justify-end">
                         <button
                           onClick={() => { setEditingMessageId(null); setEditingText(''); }}
-                          className="text-purple-200 hover:text-white p-1"
+                          className="text-purple-200 dark:text-orange-200 hover:text-white p-1"
                         >
                           <X className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleEditMessage(msg.id)}
                           disabled={savingEdit || !editingText.trim()}
-                          className="text-purple-200 hover:text-white p-1 disabled:opacity-50"
+                          className="text-purple-200 dark:text-orange-200 hover:text-white p-1 disabled:opacity-50"
                         >
                           {savingEdit ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
                         </button>
@@ -226,7 +226,7 @@ const Strategies: React.FC = () => {
                     <>
                       <p className="text-sm leading-relaxed">{msg.text}</p>
                       {/* Footer with timestamp and actions */}
-                      <div className={`text-[10px] mt-1 flex items-center justify-between gap-2 ${isMe ? 'text-purple-200' : 'text-slate-400'}`}>
+                      <div className={`text-[10px] mt-1 flex items-center justify-between gap-2 ${isMe ? 'text-purple-200 dark:text-orange-200' : 'text-slate-400'}`}>
                         <span>{isEdited && '(edited)'}</span>
                         <div className="flex items-center gap-2">
                           {isMe && (
@@ -297,11 +297,11 @@ const Strategies: React.FC = () => {
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Share a strategy or play idea..."
-            className="flex-1 bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 rounded-full shadow-inner py-3 px-5 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+            className="flex-1 bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 rounded-full shadow-inner py-3 px-5 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-orange-500 transition-all"
           />
           <button 
             type="submit" 
-            className="p-3 rounded-full bg-gradient-to-br from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 transition-colors shadow-lg shadow-purple-900/20 disabled:opacity-50 disabled:cursor-not-allowed" 
+            className="p-3 rounded-full bg-gradient-to-br from-purple-600 to-purple-700 dark:from-orange-500 dark:to-orange-600 hover:from-purple-500 hover:to-purple-600 dark:hover:from-orange-400 dark:hover:to-orange-500 transition-colors shadow-lg shadow-purple-900/20 dark:shadow-orange-900/20 disabled:opacity-50 disabled:cursor-not-allowed" 
             disabled={!newMessage.trim() || sending}
             aria-label="Send message"
           >
