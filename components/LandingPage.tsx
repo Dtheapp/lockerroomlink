@@ -38,7 +38,7 @@ const LandingPage: React.FC = () => {
           <Link to="/auth">
             <Button variant="ghost" size="sm">Sign In</Button>
           </Link>
-          <Link to="/auth">
+          <Link to="/auth?signup=true">
             <Button variant="primary" size="sm">Get Started Free</Button>
           </Link>
         </div>
@@ -64,7 +64,7 @@ const LandingPage: React.FC = () => {
           </p>
 
           <div className="flex flex-wrap justify-center gap-4 mb-12 osys-animate-slide-up" style={{ animationDelay: '0.2s' }}>
-            <Link to="/auth">
+            <Link to="/auth?signup=true">
               <Button variant="primary" size="lg">
                 Start Free Trial
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -256,7 +256,9 @@ const LandingPage: React.FC = () => {
                 <li>✓ Livestreaming</li>
                 <li>✓ Fundraising tools</li>
               </ul>
-              <Button variant="gold" className="w-full">Start Free Trial</Button>
+              <Link to="/auth?signup=true" className="w-full">
+                <Button variant="gold" className="w-full">Start Free Trial</Button>
+              </Link>
             </GlassCard>
 
             {/* Elite Tier */}
@@ -289,7 +291,7 @@ const LandingPage: React.FC = () => {
               Join thousands of teams already using OSYS to win more games.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
-              <Link to="/auth">
+              <Link to="/auth?signup=true">
                 <Button variant="primary" size="lg">Get Started Free</Button>
               </Link>
               <Button variant="ghost" size="lg">Schedule Demo</Button>
