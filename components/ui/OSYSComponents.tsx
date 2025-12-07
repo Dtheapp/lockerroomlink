@@ -21,18 +21,21 @@ interface GlassCardProps {
   className?: string;
   glow?: boolean;
   onClick?: () => void;
+  style?: React.CSSProperties;
 }
 
 export const GlassCard: React.FC<GlassCardProps> = ({ 
   children, 
   className = '', 
   glow = false,
-  onClick 
+  onClick,
+  style 
 }) => {
   return (
     <div 
       className={`osys-card ${glow ? 'osys-card-glow' : ''} ${className}`}
       onClick={onClick}
+      style={style}
     >
       {children}
     </div>
@@ -66,6 +69,7 @@ interface ButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   type?: 'button' | 'submit';
+  style?: React.CSSProperties;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -75,7 +79,8 @@ export const Button: React.FC<ButtonProps> = ({
   className = '',
   onClick,
   disabled = false,
-  type = 'button'
+  type = 'button',
+  style
 }) => {
   const variantClass = {
     primary: 'osys-btn-primary',
@@ -95,6 +100,7 @@ export const Button: React.FC<ButtonProps> = ({
       className={`osys-btn ${variantClass} ${sizeClass} ${className}`}
       onClick={onClick}
       disabled={disabled}
+      style={style}
     >
       {children}
     </button>
@@ -161,6 +167,8 @@ export const GradientText: React.FC<GradientTextProps> = ({
 // ============================================
 interface ProgressBarProps {
   value: number; // 0-100
+  max?: number;
+  label?: string;
   variant?: 'primary' | 'gold' | 'success';
   className?: string;
   showLabel?: boolean;
@@ -168,10 +176,13 @@ interface ProgressBarProps {
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({
   value,
+  max = 100,
+  label,
   variant = 'primary',
   className = '',
   showLabel = false
 }) => {
+  const percentage = max > 0 ? (value / max) * 100 : 0;
   const fillClass = {
     primary: '',
     gold: 'osys-progress-fill-gold',
@@ -180,16 +191,16 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
 
   return (
     <div className={className}>
-      {showLabel && (
+      {(showLabel || label) && (
         <div className="flex justify-between text-sm mb-1">
-          <span className="text-slate-400">Progress</span>
-          <span className="text-white font-semibold">{value}%</span>
+          <span className="text-slate-400">{label || 'Progress'}</span>
+          <span className="text-white font-semibold">{Math.round(percentage)}%</span>
         </div>
       )}
       <div className="osys-progress">
         <div 
           className={`osys-progress-fill ${fillClass}`}
-          style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+          style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
         />
       </div>
     </div>

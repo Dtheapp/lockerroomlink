@@ -11,6 +11,7 @@ import {
   Avatar,
   StatCard
 } from './ui/OSYSComponents';
+import { DemoNavigation } from './ui/DemoNavigation';
 
 const upcomingEvents = [
   { day: '12', month: 'DEC', title: 'vs. Panthers', meta: '🏟️ Home • 7:00 PM', type: 'Game Day', typeVariant: 'primary' as const },
@@ -267,6 +268,9 @@ const OSYSDashboard: React.FC = () => {
           </div>
         </GlassCard>
       </main>
+
+      {/* Demo Navigation */}
+      <DemoNavigation currentPage="coach-demo" />
     </div>
   );
 };

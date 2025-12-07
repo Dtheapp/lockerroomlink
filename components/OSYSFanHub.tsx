@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AnimatedBackground, GlassCard, Button, Badge, ProgressBar } from './ui/OSYSComponents';
+import { DemoNavigation } from './ui/DemoNavigation';
 
 // Types
 interface Athlete {
@@ -696,6 +697,9 @@ export function OSYSFanHub() {
           }
         }
       `}</style>
+
+      {/* Demo Navigation */}
+      <DemoNavigation currentPage="fan-hub" />
     </div>
   );
 }

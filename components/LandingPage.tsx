@@ -11,6 +11,7 @@ import {
   FeatureCard,
   SectionHeader
 } from '../components/ui/OSYSComponents';
+import { DemoNavigation } from './ui/DemoNavigation';
 
 const LandingPage: React.FC = () => {
   return (
@@ -318,6 +319,9 @@ const LandingPage: React.FC = () => {
           </div>
         </div>
       </footer>
+
+      {/* Demo Navigation */}
+      <DemoNavigation currentPage="welcome" />
     </div>
   );
 };

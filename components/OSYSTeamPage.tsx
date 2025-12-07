@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AnimatedBackground, GlassCard, Button, Badge, ProgressBar } from './ui/OSYSComponents';
+import { DemoNavigation } from './ui/DemoNavigation';
 
 // Types
 interface Player {
@@ -791,6 +792,9 @@ export function OSYSTeamPage() {
           }
         }
       `}</style>
+
+      {/* Demo Navigation */}
+      <DemoNavigation currentPage="team-demo" />
     </div>
   );
 }

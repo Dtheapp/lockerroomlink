@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AnimatedBackground, GlassCard, GlassPanel, Button, Badge, GradientText, ProgressBar } from './ui/OSYSComponents';
+import { DemoNavigation } from './ui/DemoNavigation';
 
 // Types
 interface AthleteStats {
@@ -997,6 +998,9 @@ export function OSYSAthleteProfile() {
           }
         }
       `}</style>
+
+      {/* Demo Navigation */}
+      <DemoNavigation currentPage="player" />
     </div>
   );
 }

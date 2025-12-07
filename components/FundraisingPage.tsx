@@ -11,6 +11,7 @@ import {
   Avatar,
   SectionHeader
 } from './ui/OSYSComponents';
+import { DemoNavigation } from './ui/DemoNavigation';
 
 // Sample campaign data
 const campaigns = [
@@ -364,6 +365,9 @@ const FundraisingPage: React.FC = () => {
           </div>
         </div>
       </footer>
+
+      {/* Demo Navigation */}
+      <DemoNavigation currentPage="fundraising" />
     </div>
   );
 };
