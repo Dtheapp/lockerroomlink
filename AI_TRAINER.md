@@ -71,13 +71,26 @@ Then share this AI_TRAINER.md file. The AI will know what to do from there.
 > - Updated session handoff context
 > 
 > **When user says "save learning":**
-> This means the session is ending. You MUST:
-> 1. Update the SESSION HANDOFF section with current work state
-> 2. Add any new lessons learned during the session
-> 3. Update the "Last Updated" date at the bottom
-> 4. Commit the changes to git
+> This means the session is ending. You MUST update ALL relevant files:
 > 
-> This ensures the next AI session can pick up exactly where we left off.
+> | File | What to Update |
+> |------|----------------|
+> | **AI_TRAINER.md** | SESSION HANDOFF section, new lessons, Last Updated date |
+> | **PROGRESS.md** | Check off completed items, update phase status |
+> | **FEATURE_ROADMAP.md** | Mark features as done if we built them |
+> | **MONETIZATION_PLAN.md** | Update if we worked on revenue features |
+> | **WORKING_TRAITS.md** | Add new trait examples or patterns discovered |
+> 
+> **Steps:**
+> 1. Update AI_TRAINER.md SESSION HANDOFF with current work state
+> 2. Update PROGRESS.md with any completed items
+> 3. Update other master plan files if relevant work was done
+> 4. Add any new lessons learned to AI_TRAINER.md
+> 5. Update "Last Updated" dates
+> 6. Commit ALL changes to git with descriptive message
+> 7. Push to remote
+> 
+> This ensures the next AI session can pick up exactly where we left off with ALL files in sync.
 
 > 📋 **MULTI-PROJECT NOTE (FOR AI)**
 > 
