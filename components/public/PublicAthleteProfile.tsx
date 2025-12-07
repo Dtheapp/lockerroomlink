@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { collection, query, where, getDocs, doc, getDoc, orderBy, setDoc, deleteDoc, updateDoc, increment, Timestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { collection, query, where, getDocs, doc, getDoc, orderBy, setDoc, deleteDoc, updateDoc, increment, Timestamp, arrayUnion, arrayRemove, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Player, Team, PlayerSeasonStats, Game, GamePlayerStats, PlayerFilmEntry, AthleteFollower } from '../../types';
-import { User, Trophy, Sword, Shield, Target, Activity, Calendar, MapPin, TrendingUp, Star, Zap, Crown, Users, ArrowLeft, Home, Award, Heart, Film, Play, X, ChevronRight, UserPlus, UserMinus, Loader2, MessageCircle } from 'lucide-react';
+import { User, Trophy, Sword, Shield, Target, Activity, Calendar, MapPin, TrendingUp, Star, Zap, Crown, Users, ArrowLeft, Home, Award, Heart, Film, Play, X, ChevronRight, UserPlus, UserMinus, Loader2, MessageCircle, DollarSign, Briefcase, Send, Mail, Building2 } from 'lucide-react';
 import PublicChat from './PublicChat';
 import AthletePosts from './AthletePosts';
 import AthleteKudos from './AthleteKudos';
 import FanClipGallery from './FanClipGallery';
+import { showToast } from '../../services/toast';
 
 interface PublicAthleteData {
   player: Player;
@@ -24,6 +25,7 @@ interface PublicAthleteData {
 
 const PublicAthleteProfile: React.FC = () => {
   const { username } = useParams<{ username: string }>();
+  const navigate = useNavigate();
   const { user, userData } = useAuth();
   const [data, setData] = useState<PublicAthleteData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,6 +37,17 @@ const PublicAthleteProfile: React.FC = () => {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
+  
+  // NIL Inquiry state
+  const [showNILModal, setShowNILModal] = useState(false);
+  const [nilForm, setNilForm] = useState({
+    companyName: '',
+    dealType: 'sponsorship' as const,
+    description: '',
+    estimatedValue: '',
+    contactEmail: userData?.email || user?.email || ''
+  });
+  const [nilSubmitting, setNilSubmitting] = useState(false);
 
   // Check if current user is following this athlete
   useEffect(() => {
@@ -99,6 +112,57 @@ const PublicAthleteProfile: React.FC = () => {
       console.error('Error updating follow status:', err);
     } finally {
       setFollowLoading(false);
+    }
+  };
+
+  // Handle NIL Inquiry submission
+  const handleNILInquiry = async () => {
+    if (!user || !userData || !data) {
+      showToast('Please sign in to submit NIL inquiries', 'error');
+      return;
+    }
+    
+    if (!nilForm.companyName.trim() || !nilForm.description.trim()) {
+      showToast('Please fill in all required fields', 'error');
+      return;
+    }
+    
+    setNilSubmitting(true);
+    try {
+      // Create NIL deal inquiry (pending status)
+      await addDoc(collection(db, 'nilDeals'), {
+        athleteId: data.player.id,
+        athleteName: data.player.name,
+        teamId: data.teamId,
+        teamName: data.team?.name || '',
+        sponsorId: user.uid,
+        sponsorName: userData.name || 'Unknown',
+        sponsorEmail: nilForm.contactEmail || user.email,
+        sponsorCompany: nilForm.companyName,
+        sponsorContact: nilForm.contactEmail,
+        dealType: nilForm.dealType,
+        description: nilForm.description,
+        amount: nilForm.estimatedValue ? Math.round(parseFloat(nilForm.estimatedValue) * 100) : 0,
+        status: 'pending',
+        startDate: Timestamp.now(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      
+      showToast('NIL inquiry sent! The athlete will review your proposal.', 'success');
+      setShowNILModal(false);
+      setNilForm({
+        companyName: '',
+        dealType: 'sponsorship',
+        description: '',
+        estimatedValue: '',
+        contactEmail: userData?.email || user?.email || ''
+      });
+    } catch (err) {
+      console.error('Error submitting NIL inquiry:', err);
+      showToast('Failed to submit inquiry. Please try again.', 'error');
+    } finally {
+      setNilSubmitting(false);
     }
   };
 
@@ -433,6 +497,28 @@ const PublicAthleteProfile: React.FC = () => {
                   >
                     <UserPlus className="w-4 h-4" />
                     <span className="hidden sm:inline">Sign up to Follow</span>
+                  </a>
+                )}
+                
+                {/* NIL Deal Button - For logged-in users (sponsors/fans) */}
+                {user && (
+                  <button
+                    onClick={() => setShowNILModal(true)}
+                    className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg font-medium text-sm flex items-center gap-2 hover:from-amber-400 hover:to-orange-400 transition-all shadow-[0_0_15px_rgba(245,158,11,0.3)]"
+                  >
+                    <DollarSign className="w-4 h-4" />
+                    <span className="hidden sm:inline">NIL Inquiry</span>
+                  </button>
+                )}
+                
+                {/* NIL prompt for non-logged-in users */}
+                {!user && (
+                  <a
+                    href="#/auth"
+                    className="px-4 py-2 bg-amber-500/20 text-amber-400 rounded-lg font-medium text-sm flex items-center gap-2 hover:bg-amber-500/30 transition-colors border border-amber-500/30"
+                  >
+                    <DollarSign className="w-4 h-4" />
+                    <span className="hidden sm:inline">Sign in for NIL</span>
                   </a>
                 )}
               </div>
@@ -891,6 +977,141 @@ const PublicAthleteProfile: React.FC = () => {
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
               allowFullScreen
             ></iframe>
+          </div>
+        </div>
+      )}
+
+      {/* NIL Inquiry Modal */}
+      {showNILModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => setShowNILModal(false)}>
+          <div 
+            className="bg-zinc-900 rounded-2xl w-full max-w-lg border border-zinc-700 shadow-2xl overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                    <DollarSign className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">NIL Inquiry</h2>
+                    <p className="text-white/80 text-sm">Contact {data?.player.name.split(' ')[0]} for a deal</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowNILModal(false)} className="text-white/80 hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Form */}
+            <div className="p-6 space-y-4">
+              {/* Company Name */}
+              <div>
+                <label className="text-sm font-medium text-zinc-300 block mb-2">Your Company/Organization *</label>
+                <div className="relative">
+                  <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                  <input
+                    type="text"
+                    value={nilForm.companyName}
+                    onChange={e => setNilForm(prev => ({ ...prev, companyName: e.target.value }))}
+                    placeholder="ACME Sports Shop"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl pl-12 pr-4 py-3 text-white placeholder-zinc-500"
+                  />
+                </div>
+              </div>
+
+              {/* Deal Type */}
+              <div>
+                <label className="text-sm font-medium text-zinc-300 block mb-2">Type of Deal *</label>
+                <select
+                  value={nilForm.dealType}
+                  onChange={e => setNilForm(prev => ({ ...prev, dealType: e.target.value as any }))}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white"
+                >
+                  <option value="sponsorship">Sponsorship</option>
+                  <option value="social_media">Social Media Promotion</option>
+                  <option value="appearance">Appearance / Event</option>
+                  <option value="merchandise">Merchandise / Autographs</option>
+                  <option value="camp">Camp / Training</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="text-sm font-medium text-zinc-300 block mb-2">Describe Your Proposal *</label>
+                <textarea
+                  value={nilForm.description}
+                  onChange={e => setNilForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Tell us about the opportunity, what you'd like the athlete to do, and any other details..."
+                  rows={4}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder-zinc-500 resize-none"
+                />
+              </div>
+
+              {/* Estimated Value */}
+              <div>
+                <label className="text-sm font-medium text-zinc-300 block mb-2">Estimated Value ($) <span className="text-zinc-500 font-normal">(optional)</span></label>
+                <div className="relative">
+                  <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                  <input
+                    type="number"
+                    value={nilForm.estimatedValue}
+                    onChange={e => setNilForm(prev => ({ ...prev, estimatedValue: e.target.value }))}
+                    placeholder="500"
+                    min="0"
+                    step="0.01"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl pl-12 pr-4 py-3 text-white placeholder-zinc-500"
+                  />
+                </div>
+              </div>
+
+              {/* Contact Email */}
+              <div>
+                <label className="text-sm font-medium text-zinc-300 block mb-2">Your Contact Email *</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                  <input
+                    type="email"
+                    value={nilForm.contactEmail}
+                    onChange={e => setNilForm(prev => ({ ...prev, contactEmail: e.target.value }))}
+                    placeholder="you@company.com"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl pl-12 pr-4 py-3 text-white placeholder-zinc-500"
+                  />
+                </div>
+              </div>
+
+              {/* Notice */}
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-sm text-amber-400">
+                <p className="font-medium mb-1">📋 What happens next?</p>
+                <p className="text-amber-400/80">
+                  Your inquiry will be sent to the athlete and their parent/guardian for review. 
+                  They'll contact you directly if interested.
+                </p>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                onClick={handleNILInquiry}
+                disabled={nilSubmitting || !nilForm.companyName.trim() || !nilForm.description.trim()}
+                className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all"
+              >
+                {nilSubmitting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-5 h-5" />
+                    Send NIL Inquiry
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

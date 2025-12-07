@@ -38,7 +38,12 @@ import {
   CampaignCategory,
   NILDeal,
   NILPayment,
-  NILWallet
+  NILWallet,
+  NILProfile,
+  NILListing,
+  NILOffer,
+  NILPurchase,
+  NILDealType
 } from '../types/fundraising';
 
 // =============================================================================
@@ -771,4 +776,431 @@ export function calculateDaysRemaining(endDate: Date | null | undefined): number
   const now = new Date();
   const diff = endDate.getTime() - now.getTime();
   return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+}
+
+// =============================================================================
+// NIL MARKETPLACE FUNCTIONS
+// =============================================================================
+
+import type { NILProfile, NILListing, NILOffer, NILPurchase, NILDealType } from '../types/fundraising';
+
+/**
+ * Get or create athlete's NIL profile
+ */
+export async function getNILProfile(athleteId: string): Promise<NILProfile | null> {
+  try {
+    const docRef = doc(db, 'nilProfiles', athleteId);
+    const docSnap = await getDoc(docRef);
+    
+    if (!docSnap.exists()) return null;
+    
+    const data = docSnap.data();
+    return {
+      ...data,
+      createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate() || new Date()
+    } as NILProfile;
+  } catch (error) {
+    console.error('Error getting NIL profile:', error);
+    return null;
+  }
+}
+
+/**
+ * Create or update athlete's NIL profile
+ */
+export async function updateNILProfile(
+  athleteId: string, 
+  updates: Partial<NILProfile>
+): Promise<void> {
+  const docRef = doc(db, 'nilProfiles', athleteId);
+  await updateDoc(docRef, {
+    ...updates,
+    updatedAt: serverTimestamp()
+  }).catch(async () => {
+    // Document doesn't exist, create it
+    const { setDoc } = await import('firebase/firestore');
+    await setDoc(docRef, {
+      athleteId,
+      isOpenToDeals: false,
+      availableForTypes: [],
+      ...updates,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+  });
+}
+
+/**
+ * Create a NIL listing (athlete's offer to marketplace)
+ */
+export async function createNILListing(
+  listing: Omit<NILListing, 'id' | 'quantitySold' | 'createdAt' | 'updatedAt'>
+): Promise<NILListing> {
+  const docRef = await addDoc(collection(db, 'nilListings'), {
+    ...listing,
+    quantitySold: 0,
+    isActive: true,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+  
+  return {
+    ...listing,
+    id: docRef.id,
+    quantitySold: 0,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+}
+
+/**
+ * Update a NIL listing
+ */
+export async function updateNILListing(
+  listingId: string,
+  updates: Partial<NILListing>
+): Promise<void> {
+  await updateDoc(doc(db, 'nilListings', listingId), {
+    ...updates,
+    updatedAt: serverTimestamp()
+  });
+}
+
+/**
+ * Get athlete's NIL listings
+ */
+export async function getAthleteNILListings(athleteId: string): Promise<NILListing[]> {
+  const q = query(
+    collection(db, 'nilListings'),
+    where('athleteId', '==', athleteId),
+    orderBy('createdAt', 'desc')
+  );
+  
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      ...data,
+      id: doc.id,
+      createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate() || new Date()
+    } as NILListing;
+  });
+}
+
+/**
+ * Get active NIL listings for marketplace browse
+ */
+export async function getActiveNILListings(options?: {
+  dealType?: NILDealType;
+  teamId?: string;
+  limitCount?: number;
+}): Promise<NILListing[]> {
+  let q = query(
+    collection(db, 'nilListings'),
+    where('isActive', '==', true)
+  );
+  
+  if (options?.dealType) {
+    q = query(q, where('dealType', '==', options.dealType));
+  }
+  
+  if (options?.teamId) {
+    q = query(q, where('teamId', '==', options.teamId));
+  }
+  
+  q = query(q, orderBy('createdAt', 'desc'), limit(options?.limitCount || 50));
+  
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      ...data,
+      id: doc.id,
+      createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate() || new Date()
+    } as NILListing;
+  });
+}
+
+/**
+ * Create a NIL offer (fan/sponsor proposing deal to athlete)
+ */
+export async function createNILOffer(
+  offer: Omit<NILOffer, 'id' | 'status' | 'createdAt' | 'updatedAt'>
+): Promise<NILOffer> {
+  const docRef = await addDoc(collection(db, 'nilOffers'), {
+    ...offer,
+    status: offer.isRecordedDeal ? 'completed' : 'pending',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+  
+  return {
+    ...offer,
+    id: docRef.id,
+    status: offer.isRecordedDeal ? 'completed' : 'pending',
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+}
+
+/**
+ * Update NIL offer status (athlete accepting/declining)
+ */
+export async function updateNILOffer(
+  offerId: string,
+  updates: Partial<NILOffer>
+): Promise<void> {
+  await updateDoc(doc(db, 'nilOffers', offerId), {
+    ...updates,
+    updatedAt: serverTimestamp()
+  });
+}
+
+/**
+ * Get offers for an athlete
+ */
+export async function getAthleteNILOffers(athleteId: string): Promise<NILOffer[]> {
+  const q = query(
+    collection(db, 'nilOffers'),
+    where('athleteId', '==', athleteId),
+    orderBy('createdAt', 'desc')
+  );
+  
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      ...data,
+      id: doc.id,
+      proposedStartDate: data.proposedStartDate?.toDate(),
+      proposedEndDate: data.proposedEndDate?.toDate(),
+      completedDate: data.completedDate?.toDate(),
+      createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate() || new Date()
+    } as NILOffer;
+  });
+}
+
+/**
+ * Get offers made by a sponsor/fan
+ */
+export async function getSponsorNILOffers(sponsorId: string): Promise<NILOffer[]> {
+  const q = query(
+    collection(db, 'nilOffers'),
+    where('sponsorId', '==', sponsorId),
+    orderBy('createdAt', 'desc')
+  );
+  
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      ...data,
+      id: doc.id,
+      proposedStartDate: data.proposedStartDate?.toDate(),
+      proposedEndDate: data.proposedEndDate?.toDate(),
+      completedDate: data.completedDate?.toDate(),
+      createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate() || new Date()
+    } as NILOffer;
+  });
+}
+
+/**
+ * Purchase a NIL listing (fan buying athlete's offering)
+ */
+export async function createNILPurchase(
+  purchase: Omit<NILPurchase, 'id' | 'status' | 'createdAt' | 'updatedAt'>
+): Promise<NILPurchase> {
+  const docRef = await addDoc(collection(db, 'nilPurchases'), {
+    ...purchase,
+    status: 'pending_payment',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+  
+  // Increment quantity sold on listing
+  await updateDoc(doc(db, 'nilListings', purchase.listingId), {
+    quantitySold: increment(1),
+    updatedAt: serverTimestamp()
+  });
+  
+  return {
+    ...purchase,
+    id: docRef.id,
+    status: 'pending_payment',
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+}
+
+/**
+ * Update NIL purchase status
+ */
+export async function updateNILPurchase(
+  purchaseId: string,
+  updates: Partial<NILPurchase>
+): Promise<void> {
+  await updateDoc(doc(db, 'nilPurchases', purchaseId), {
+    ...updates,
+    updatedAt: serverTimestamp()
+  });
+}
+
+/**
+ * Get athlete's received purchases (orders to fulfill)
+ */
+export async function getAthleteNILPurchases(athleteId: string): Promise<NILPurchase[]> {
+  const q = query(
+    collection(db, 'nilPurchases'),
+    where('athleteId', '==', athleteId),
+    orderBy('createdAt', 'desc')
+  );
+  
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      ...data,
+      id: doc.id,
+      deliveredAt: data.deliveredAt?.toDate(),
+      paidAt: data.paidAt?.toDate(),
+      createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate() || new Date()
+    } as NILPurchase;
+  });
+}
+
+/**
+ * Get buyer's purchases
+ */
+export async function getBuyerNILPurchases(buyerId: string): Promise<NILPurchase[]> {
+  const q = query(
+    collection(db, 'nilPurchases'),
+    where('buyerId', '==', buyerId),
+    orderBy('createdAt', 'desc')
+  );
+  
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      ...data,
+      id: doc.id,
+      deliveredAt: data.deliveredAt?.toDate(),
+      paidAt: data.paidAt?.toDate(),
+      createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate() || new Date()
+    } as NILPurchase;
+  });
+}
+
+/**
+ * Get athletes open to NIL deals (for marketplace browse)
+ */
+export async function getAthletesOpenToNIL(options?: {
+  teamId?: string;
+  dealTypes?: NILDealType[];
+  limitCount?: number;
+}): Promise<NILProfile[]> {
+  let q = query(
+    collection(db, 'nilProfiles'),
+    where('isOpenToDeals', '==', true)
+  );
+  
+  if (options?.teamId) {
+    q = query(q, where('teamId', '==', options.teamId));
+  }
+  
+  q = query(q, limit(options?.limitCount || 50));
+  
+  const snapshot = await getDocs(q);
+  let profiles = snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      ...data,
+      createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate() || new Date()
+    } as NILProfile;
+  });
+  
+  // Filter by deal types if specified (client-side since Firestore doesn't support array-contains-any with other conditions well)
+  if (options?.dealTypes && options.dealTypes.length > 0) {
+    profiles = profiles.filter(p => 
+      p.availableForTypes.some(t => options.dealTypes!.includes(t))
+    );
+  }
+  
+  return profiles;
+}
+
+// =============================================================================
+// ALIASES FOR COMPONENT COMPATIBILITY
+// =============================================================================
+
+/**
+ * Alias for getNILProfile - used by components
+ */
+export const getAthleteNILProfile = getNILProfile;
+
+/**
+ * Update athlete NIL profile and return the updated profile
+ */
+export async function updateAthleteNILProfile(
+  athleteId: string,
+  updates: Partial<NILProfile>
+): Promise<NILProfile> {
+  await updateNILProfile(athleteId, updates);
+  const profile = await getNILProfile(athleteId);
+  if (!profile) {
+    throw new Error('Failed to get updated profile');
+  }
+  return profile;
+}
+
+/**
+ * Alias for getActiveNILListings - used by components
+ */
+export const getMarketplaceListings = getActiveNILListings;
+
+/**
+ * Respond to an NIL offer (accept/decline with optional message)
+ */
+export async function respondToNILOffer(
+  offerId: string,
+  status: 'accepted' | 'declined',
+  athleteResponse?: string
+): Promise<void> {
+  await updateNILOffer(offerId, {
+    status,
+    athleteResponse,
+    updatedAt: new Date()
+  });
+  
+  // If accepted, create an NIL deal from this offer
+  if (status === 'accepted') {
+    const offerDoc = await getDoc(doc(db, 'nilOffers', offerId));
+    if (offerDoc.exists()) {
+      const offer = offerDoc.data() as NILOffer;
+      await createNILDeal(offer.athleteId, {
+        athleteName: offer.athleteName,
+        teamId: offer.teamId,
+        source: 'offer',
+        sourceId: offerId,
+        sponsorId: offer.sponsorId,
+        sponsorName: offer.sponsorName,
+        sponsorEmail: offer.sponsorEmail,
+        sponsorCompany: offer.sponsorCompany,
+        dealType: offer.dealType,
+        description: offer.description,
+        requirements: offer.requirements,
+        amount: offer.offeredAmount,
+        startDate: new Date(),
+        status: 'active'
+      });
+    }
+  }
 }

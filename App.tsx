@@ -59,6 +59,7 @@ const LandingPage = lazyWithRetry(() => import('./components/LandingPage'));
 const FundraisingPage = lazyWithRetry(() => import('./components/FundraisingPage'));
 const CampaignDetail = lazyWithRetry(() => import('./components/CampaignDetail'));
 const NILWalletDashboard = lazyWithRetry(() => import('./components/NILWalletDashboard'));
+const NILMarketplace = lazyWithRetry(() => import('./components/NILMarketplace'));
 const OSYSAthleteProfile = lazyWithRetry(() => import('./components/OSYSAthleteProfile'));
 const OSYSTeamPage = lazyWithRetry(() => import('./components/OSYSTeamPage'));
 const OSYSFanHub = lazyWithRetry(() => import('./components/OSYSFanHub'));
@@ -196,6 +197,7 @@ const AppContent: React.FC = () => {
           <Route path="/fundraising" element={<FundraisingPage />} />
           <Route path="/fundraising/:campaignId" element={<CampaignDetail />} />
           <Route path="/nil-wallet" element={<NILWalletDashboard />} />
+          <Route path="/nil-marketplace" element={<NILMarketplace />} />
           <Route path="/player" element={<OSYSAthleteProfile />} />
           <Route path="/team-demo" element={<OSYSTeamPage />} />
           <Route path="/fan-hub" element={<OSYSFanHub />} />

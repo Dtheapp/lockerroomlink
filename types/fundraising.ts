@@ -183,6 +183,155 @@ export interface FundraisingStats {
 }
 
 // =============================================================================
+// NIL MARKETPLACE TYPES
+// =============================================================================
+
+// Athlete's NIL availability settings
+export interface NILProfile {
+  athleteId: string;
+  athleteName: string;
+  teamId?: string;
+  teamName?: string;
+  
+  // Availability
+  isOpenToDeals: boolean;           // Simple toggle - "Open to NIL Deals"
+  availableForTypes: NILDealType[]; // What types they're open to
+  
+  // Profile info for sponsors
+  bio?: string;                     // NIL-specific bio
+  socialMediaHandles?: {
+    instagram?: string;
+    twitter?: string;
+    tiktok?: string;
+    youtube?: string;
+  };
+  followerCount?: number;           // Total social following
+  
+  // Preferences
+  minimumDealValue?: number;        // Won't consider deals below this (cents)
+  preferredContactMethod?: 'app' | 'email' | 'both';
+  
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Types of NIL deals
+export type NILDealType = 'sponsorship' | 'appearance' | 'social_media' | 'merchandise' | 'autograph' | 'shoutout' | 'camp' | 'custom' | 'other';
+
+// Athlete-created marketplace listing (NIL Ask)
+export interface NILListing {
+  id: string;
+  athleteId: string;
+  athleteName: string;
+  teamId?: string;
+  teamName?: string;
+  
+  // Listing details
+  title: string;                    // "Personalized Video Shoutout"
+  description: string;              // What they'll do
+  dealType: NILDealType;
+  
+  // Pricing
+  price: number;                    // Fixed price in cents
+  isPriceNegotiable: boolean;       // Can buyers make offers?
+  
+  // Availability
+  isActive: boolean;
+  maxQuantity?: number;             // Limit how many they'll do (null = unlimited)
+  quantitySold: number;             // How many purchased
+  
+  // Delivery
+  deliveryTimeframe?: string;       // "Within 3 days"
+  requirements?: string[];          // What buyer needs to provide
+  
+  // Media
+  sampleImageUrl?: string;          // Example of what they provide
+  
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Purchase of a NIL listing (fan buying athlete's offer)
+export interface NILPurchase {
+  id: string;
+  listingId: string;
+  listingTitle: string;
+  
+  // Parties
+  athleteId: string;
+  athleteName: string;
+  buyerId: string;
+  buyerName: string;
+  buyerEmail: string;
+  
+  // Transaction
+  amount: number;                   // Amount paid in cents
+  platformFee: number;              // OSYS fee in cents (if any)
+  athletePayout: number;            // What athlete receives
+  
+  // Details from buyer
+  buyerNotes?: string;              // Special instructions
+  recipientName?: string;           // For shoutouts - who it's for
+  
+  // Status
+  status: 'pending_payment' | 'paid' | 'in_progress' | 'delivered' | 'completed' | 'disputed' | 'refunded' | 'cancelled';
+  
+  // Delivery
+  deliveredAt?: Date;
+  deliveryProofUrl?: string;        // URL to delivered content
+  buyerRating?: number;             // 1-5 stars
+  buyerReview?: string;
+  
+  // Payment
+  paypalOrderId?: string;
+  paypalTransactionId?: string;
+  paidAt?: Date;
+  
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Fan/Sponsor offer to athlete (NIL Offer)
+export interface NILOffer {
+  id: string;
+  
+  // Parties
+  athleteId: string;
+  athleteName: string;
+  teamId?: string;
+  sponsorId: string;                // User ID of person making offer
+  sponsorName: string;
+  sponsorEmail: string;
+  sponsorCompany?: string;          // Business name if applicable
+  
+  // Offer details
+  dealType: NILDealType;
+  title: string;                    // Brief summary
+  description: string;              // Full details
+  requirements?: string[];          // What athlete would need to do
+  
+  // Value
+  offeredAmount: number;            // Amount offered in cents
+  isNegotiable: boolean;
+  
+  // Timeline
+  proposedStartDate?: Date;
+  proposedEndDate?: Date;
+  
+  // Status
+  status: 'pending' | 'accepted' | 'declined' | 'negotiating' | 'expired' | 'completed' | 'cancelled';
+  athleteResponse?: string;         // Athlete's message when accepting/declining
+  counterOfferAmount?: number;      // If athlete counters
+  
+  // For "record completed deal" - deals done in person
+  isRecordedDeal: boolean;          // True if this is just recording a done deal
+  completedDate?: Date;             // When the IRL deal happened
+  
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// =============================================================================
 // NIL TRACKING (for athlete earnings)
 // =============================================================================
 export interface NILDeal {
@@ -192,20 +341,24 @@ export interface NILDeal {
   teamId?: string;
   teamName?: string;
   
+  // Source - where did this deal come from?
+  source: 'listing' | 'offer' | 'recorded' | 'legacy';
+  sourceId?: string;                // ID of listing, offer, or purchase
+  
   // Sponsor info (user who proposes the deal)
-  sponsorId?: string;        // User ID of the sponsor (required for new deals)
+  sponsorId?: string;               // User ID of the sponsor (required for new deals)
   sponsorName: string;
   sponsorContact?: string;
   sponsorEmail?: string;
   sponsorLogo?: string;
-  sponsorCompany?: string;   // Business/organization name
-  dealType: 'sponsorship' | 'appearance' | 'social_media' | 'merchandise' | 'camp' | 'other';
+  sponsorCompany?: string;          // Business/organization name
+  dealType: NILDealType;
   description: string;
-  requirements?: string[];   // What the athlete needs to do
-  deliverables?: string;     // Proof of completion
+  requirements?: string[];          // What the athlete needs to do
+  deliverables?: string;            // Proof of completion
   
   // Value
-  amount: number;            // Deal amount in cents
+  amount: number;                   // Deal amount in cents
   paymentSchedule?: 'one_time' | 'monthly' | 'per_event' | 'custom';
   
   // Timeline
