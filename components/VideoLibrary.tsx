@@ -39,7 +39,7 @@ const VideoCard: React.FC<{ video: any, userData: any, openEditModal: any, setDe
       className={`bg-white dark:bg-zinc-950 rounded-xl border overflow-hidden shadow-lg hover:shadow-xl transition-all group ${
         video.playerId 
           ? 'border-purple-500/30 ring-1 ring-purple-500/10' 
-          : 'border-zinc-200 dark:border-zinc-800 hover:border-orange-500/30'
+          : 'border-zinc-200 dark:border-zinc-800 hover:border-purple-500/30'
       }`}
     >
       {/* Thumbnail */}
@@ -50,7 +50,7 @@ const VideoCard: React.FC<{ video: any, userData: any, openEditModal: any, setDe
           className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
         />
         <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/0 transition-colors">
-          <div className="bg-orange-600/90 text-white p-3 rounded-full shadow-xl scale-100 group-hover:scale-110 transition-transform">
+          <div className="bg-purple-600/90 text-white p-3 rounded-full shadow-xl scale-100 group-hover:scale-110 transition-transform">
             <Play className="w-6 h-6 fill-current" />
           </div>
         </div>
@@ -562,7 +562,7 @@ const VideoLibrary: React.FC = () => {
         {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
           <button 
             onClick={openAddModal} 
-            className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2.5 rounded-lg hover:bg-orange-500 transition-colors shadow-lg shadow-orange-900/20 font-medium"
+            className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2.5 rounded-lg hover:bg-purple-500 transition-colors shadow-lg shadow-purple-900/20 font-medium"
           >
             <Plus className="w-5 h-5" /> Add Video
           </button>
@@ -576,8 +576,8 @@ const VideoLibrary: React.FC = () => {
           onClick={() => setFilterCategory('All')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
             filterCategory === 'All'
-              ? 'bg-orange-600 text-white border-orange-600 shadow-lg'
-              : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:border-orange-500/50'
+              ? 'bg-purple-600 text-white border-purple-600 shadow-lg'
+              : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:border-purple-500/50'
           }`}
         >
           <Filter className="w-4 h-4" />
@@ -595,7 +595,7 @@ const VideoLibrary: React.FC = () => {
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
               filterCategory === cat.value
                 ? `${cat.color} border-current shadow-lg`
-                : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:border-orange-500/50'
+                : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:border-purple-500/50'
             }`}
           >
             {cat.icon}
@@ -628,7 +628,7 @@ const VideoLibrary: React.FC = () => {
       {/* VIDEO GRID */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <div className="w-10 h-10 border-4 border-dashed rounded-full animate-spin border-orange-500"></div>
+          <div className="w-10 h-10 border-4 border-dashed rounded-full animate-spin border-purple-500"></div>
         </div>
       ) : filteredVideos.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -699,7 +699,7 @@ const VideoLibrary: React.FC = () => {
                 <input 
                   value={newVideo.title} 
                   onChange={e => setNewVideo({...newVideo, title: e.target.value})} 
-                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-lg p-3 text-zinc-900 dark:text-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none" 
+                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-lg p-3 text-zinc-900 dark:text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none" 
                   placeholder="e.g. Week 3 Game Highlights" 
                   required 
                 />
@@ -711,7 +711,7 @@ const VideoLibrary: React.FC = () => {
                 <input 
                   value={newVideo.url} 
                   onChange={e => setNewVideo({...newVideo, url: e.target.value})} 
-                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-lg p-3 text-zinc-900 dark:text-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none" 
+                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-lg p-3 text-zinc-900 dark:text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none" 
                   placeholder="https://youtube.com/watch?v=..." 
                   required 
                 />
@@ -751,7 +751,7 @@ const VideoLibrary: React.FC = () => {
                 <select
                   value={newVideo.playerId}
                   onChange={e => setNewVideo({...newVideo, playerId: e.target.value, isPublic: e.target.value ? false : newVideo.isPublic})}
-                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-lg p-3 text-zinc-900 dark:text-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none"
+                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-lg p-3 text-zinc-900 dark:text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none"
                 >
                   <option value="">Visible to entire team</option>
                   {teamPlayers.map(player => (
@@ -866,7 +866,7 @@ const VideoLibrary: React.FC = () => {
                 <textarea 
                   value={newVideo.description} 
                   onChange={e => setNewVideo({...newVideo, description: e.target.value})} 
-                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-lg p-3 text-zinc-900 dark:text-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none resize-none" 
+                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-300 dark:border-zinc-800 rounded-lg p-3 text-zinc-900 dark:text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none resize-none" 
                   placeholder="Add notes, timestamps, or instructions..."
                   rows={3}
                 />
@@ -884,7 +884,7 @@ const VideoLibrary: React.FC = () => {
                 <button 
                   type="submit" 
                   disabled={saving}
-                  className="bg-orange-600 hover:bg-orange-500 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg shadow-orange-900/20 disabled:opacity-50 flex items-center gap-2"
+                  className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg shadow-purple-900/20 disabled:opacity-50 flex items-center gap-2"
                 >
                   {saving ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -906,7 +906,7 @@ const VideoLibrary: React.FC = () => {
             {/* Close Button */}
             <button 
               onClick={() => setPlayingVideoId(null)} 
-              className="absolute top-4 right-4 z-10 bg-black/50 text-white hover:bg-orange-600 p-2 rounded-full transition-colors backdrop-blur-sm"
+              className="absolute top-4 right-4 z-10 bg-black/50 text-white hover:bg-purple-600 p-2 rounded-full transition-colors backdrop-blur-sm"
             >
               <X className="w-6 h-6" />
             </button>
@@ -948,7 +948,7 @@ const VideoLibrary: React.FC = () => {
             
             <div className="bg-slate-100 dark:bg-zinc-800 rounded-lg p-4 mb-4">
               <div className="flex items-center gap-3">
-                <VideoIcon className="w-5 h-5 text-orange-500" />
+                <VideoIcon className="w-5 h-5 text-purple-500" />
                 <p className="font-bold text-slate-900 dark:text-white line-clamp-2">{deleteVideoConfirm.title}</p>
               </div>
             </div>
