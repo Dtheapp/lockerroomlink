@@ -3,6 +3,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { Event, PricingTier, EventStatus, EventType } from '../../types/events';
 import EventCard from './EventCard';
+import EmptyState from '../ui/EmptyState';
 import { 
   Plus, 
   Search, 
@@ -272,28 +273,32 @@ const EventList: React.FC<EventListProps> = ({
       
       {/* Events list/grid */}
       {displayEvents.length === 0 ? (
-        <div className="text-center py-12">
-          <FolderOpen className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">
-            {searchQuery || statusFilter !== 'all' || typeFilter !== 'all' 
-              ? 'No events match your filters'
-              : 'No events yet'}
-          </h3>
-          <p className="text-gray-500 dark:text-gray-400 mb-4">
-            {isCoachView 
-              ? "Create your first event to get started with team registrations, game promotions, and more."
-              : "Check back later for upcoming events."}
-          </p>
-          {isCoachView && showCreateButton && onCreateEvent && (
-            <button
-              onClick={onCreateEvent}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Create Event
-            </button>
-          )}
-        </div>
+        searchQuery || statusFilter !== 'all' || typeFilter !== 'all' ? (
+          <EmptyState
+            type="search"
+            title="No Events Match Your Filters"
+            description="Try adjusting your search or filters to find what you're looking for."
+            actionLabel="Clear Filters"
+            onAction={() => {
+              setSearchQuery('');
+              setStatusFilter('all');
+              setTypeFilter('all');
+            }}
+            compact
+          />
+        ) : (
+          <EmptyState
+            type="events"
+            title={isCoachView ? "Schedule Your First Event" : "No Events Yet"}
+            description={
+              isCoachView 
+                ? "Create events for practices, games, camps, tryouts, and more. Collect registrations and payments all in one place."
+                : "Check back later for upcoming events from this team."
+            }
+            actionLabel={isCoachView && showCreateButton && onCreateEvent ? "Create First Event" : undefined}
+            onAction={isCoachView && showCreateButton && onCreateEvent ? onCreateEvent : undefined}
+          />
+        )
       ) : compact ? (
         // Compact list view
         <div className="space-y-2">

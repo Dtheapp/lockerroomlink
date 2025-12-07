@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, ReactNod
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
+import { setSentryUser, clearSentryUser } from '../services/sentry';
 import type { UserProfile, Team, Player } from '../types';
 
 interface AuthContextType {
@@ -89,6 +90,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (docSnap.exists()) {
                 const profile = docSnap.data() as UserProfile;
                 setUserData(profile);
+
+                // Set Sentry user context for error tracking
+                setSentryUser({
+                  id: firebaseUser.uid,
+                  email: firebaseUser.email || undefined,
+                  name: profile.name,
+                  role: profile.role,
+                  teamId: profile.teamId,
+                });
 
                 // PARENT FLOW: Load their players from all teams
                 if (profile.role === 'Parent') {
@@ -278,6 +288,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setSelectedPlayerState(null);
         setCoachTeams([]);
         coachTeamsLoadedRef.current = null; // Reset coach teams loaded tracker
+        
+        // Clear Sentry user context
+        clearSentryUser();
         setLoading(false);
         
         // Clean up listeners

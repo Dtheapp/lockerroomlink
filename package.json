@@ -12,6 +12,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@sentry/react": "^10.29.0",
     "@types/qrcode": "^1.5.6",
     "axios": "^1.13.2",
     "firebase": "^12.6.0",

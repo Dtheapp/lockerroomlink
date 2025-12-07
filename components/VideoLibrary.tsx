@@ -14,6 +14,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, getDocs, setDoc, writeBatch, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import type { Video, VideoCategory, Player, PlayerFilmEntry, Team } from '../types';
+import EmptyState from './ui/EmptyState';
 // VideoCard component with YouTube availability check
 const VideoCard: React.FC<{ video: any, userData: any, openEditModal: any, setDeleteVideoConfirm: any, setPlayingVideoId: any, getCategoryStyle: any, getCategoryIcon: any }> = ({ video, userData, openEditModal, setDeleteVideoConfirm, setPlayingVideoId, getCategoryStyle, getCategoryIcon }) => {
   const [isAvailable, setIsAvailable] = React.useState(true);
@@ -645,25 +646,19 @@ const VideoLibrary: React.FC = () => {
           ))}
         </div>
       ) : (
-        <div className="text-center py-16 bg-zinc-50 dark:bg-zinc-900/30 rounded-xl border border-dashed border-zinc-300 dark:border-zinc-800">
-          <VideoIcon className="w-16 h-16 mx-auto text-zinc-400 mb-4 opacity-50" />
-          <p className="text-zinc-500 text-lg font-medium">
-            {filterCategory === 'All' 
-              ? 'No videos in the Film Room yet.'
+        <EmptyState
+          type="videos"
+          title="Your Film Room is Empty"
+          description={
+            filterCategory === 'All' 
+              ? 'Upload game film, highlight reels, and training videos. Tag players to build their personal film library.'
               : filterCategory === 'My Videos'
-                ? 'No videos specifically for your player yet.'
-                : `No ${filterCategory} videos yet.`
-            }
-          </p>
-          {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
-            <button 
-              onClick={openAddModal}
-              className="mt-4 inline-flex items-center gap-2 text-orange-500 hover:text-orange-400 font-medium"
-            >
-              <Plus className="w-4 h-4" /> Add the first video
-            </button>
-          )}
-        </div>
+                ? 'No videos have been tagged for your player yet. Ask your coach to add some!'
+                : `No ${filterCategory} videos yet. Add one to get started!`
+          }
+          actionLabel={(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') ? 'Add First Video' : undefined}
+          onAction={(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') ? openAddModal : undefined}
+        />
       )}
 
       {/* ADD/EDIT VIDEO MODAL */}

@@ -13,6 +13,7 @@ import PlayerSelector from '../components/PlayerSelector';
 import { AnimatedBackground, Avatar } from '../components/ui/OSYSComponents';
 import { Menu, X, LogOut, Sun, Moon, ChevronDown } from 'lucide-react';
 import WelcomeModal from '../components/WelcomeModal';
+import FeedbackButton from '../components/ui/FeedbackButton';
 
 const NewOSYSLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -389,6 +390,9 @@ const NewOSYSLayout: React.FC = () => {
       {showWelcomeModal && (
         <WelcomeModal onClose={() => setShowWelcomeModal(false)} />
       )}
+
+      {/* Floating Feedback Button */}
+      <FeedbackButton />
     </div>
   );
 };

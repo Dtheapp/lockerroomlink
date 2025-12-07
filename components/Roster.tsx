@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc, getDocs, where, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -8,12 +8,14 @@ import type { Player, UserProfile, Team, SportType } from '../types';
 import { getPositions } from '../config/sportConfig';
 import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link as LinkIcon, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera, UserPlus, ArrowRightLeft, BarChart3, Eye, AtSign, Copy, Check, ExternalLink, Zap } from 'lucide-react';
 import PlayerStatsModal from './stats/PlayerStatsModal';
+import EmptyState from './ui/EmptyState';
 
 // Pagination settings
 const PLAYERS_PER_PAGE = 12;
 
 const Roster: React.FC = () => {
   const { userData, teamData } = useAuth();
+  const navigate = useNavigate();
   const [roster, setRoster] = useState<Player[]>([]);
   const [parents, setParents] = useState<UserProfile[]>([]);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
@@ -1108,9 +1110,22 @@ const Roster: React.FC = () => {
         )}
         </>
       ) : searchFilter ? (
-        <p className="text-zinc-500 text-center py-8">No players match your search.</p>
+        <EmptyState
+          type="search"
+          title="No Players Found"
+          description={`No players match "${searchFilter}". Try adjusting your search term.`}
+          actionLabel="Clear Search"
+          onAction={() => setSearchFilter('')}
+          compact
+        />
       ) : (
-        <p className="text-zinc-500 text-center py-8">No players yet.</p>
+        <EmptyState
+          type="roster"
+          title="Build Your Roster"
+          description="Add your first player to get started. You can add their photo, jersey number, position, and more."
+          actionLabel="Add First Player"
+          onAction={() => setIsModalOpen(true)}
+        />
       )}
 
       {/* COACHING STAFF SECTION - Only visible to coaches */}
