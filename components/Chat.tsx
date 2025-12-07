@@ -555,13 +555,13 @@ const Chat: React.FC = () => {
 
   return (
     <NoAthleteBlock featureName="Team Chat">
-    <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950 rounded-lg shadow-lg dark:shadow-xl border border-slate-200 dark:border-zinc-800 overflow-hidden">
+    <div className="h-full flex flex-col bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 rounded-xl shadow-2xl border border-white/10 overflow-hidden">
       
       {/* HEADER */}
-      <div className="sticky top-0 z-10 p-4 border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+      <div className="sticky top-0 z-10 p-4 border-b border-white/10 bg-black/40 backdrop-blur-xl">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            The Huddle <span className="text-orange-500 text-sm font-mono uppercase tracking-wider">(Team Chat)</span>
+          <h1 className="text-xl font-bold text-white flex items-center gap-2">
+            The Huddle <span className="text-purple-400 text-sm font-mono uppercase tracking-wider">(Team Chat)</span>
           </h1>
           
           {/* Muted Users Count Badge - Only for moderators */}
@@ -635,43 +635,43 @@ const Chat: React.FC = () => {
         };
         
         return (
-          <div className="mx-4 mt-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-lg overflow-hidden">
+          <div className="mx-4 mt-4 bg-amber-500/10 border border-amber-500/30 rounded-lg overflow-hidden">
             {/* Collapsed header - always visible */}
             <button
               onClick={() => setShowPinnedMessages(!showPinnedMessages)}
-              className="w-full px-3 py-2 bg-amber-100 dark:bg-amber-900/40 flex items-center justify-between hover:bg-amber-200/50 dark:hover:bg-amber-900/60 transition-colors"
+              className="w-full px-3 py-2 bg-amber-500/20 flex items-center justify-between hover:bg-amber-500/30 transition-colors"
             >
               <div className="flex items-center gap-2">
-                <Pin className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                <Pin className="w-4 h-4 text-amber-400" />
+                <span className="text-xs font-semibold text-amber-300">
                   Pinned ({pinnedCount})
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-amber-600 dark:text-amber-400">
+                <span className="text-xs text-amber-400">
                   {showPinnedMessages ? 'Hide' : 'View'}
                 </span>
                 {showPinnedMessages ? (
-                  <ChevronUp className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <ChevronUp className="w-4 h-4 text-amber-400" />
                 ) : (
-                  <ChevronDown className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <ChevronDown className="w-4 h-4 text-amber-400" />
                 )}
               </div>
             </button>
             
             {/* Expanded pinned messages list */}
             {showPinnedMessages && (
-              <div className="max-h-60 overflow-y-auto divide-y divide-amber-200 dark:divide-amber-800/50 border-t border-amber-200 dark:border-amber-800/50">
+              <div className="max-h-60 overflow-y-auto divide-y divide-amber-500/20 border-t border-amber-500/30">
                 {pinnedMessages.map(msg => (
                   <div 
                     key={`pinned-${msg.id}`} 
-                    className="px-3 py-2 flex items-start justify-between gap-2 hover:bg-amber-100/50 dark:hover:bg-amber-900/30 cursor-pointer"
+                    className="px-3 py-2 flex items-start justify-between gap-2 hover:bg-amber-500/20 cursor-pointer"
                     onClick={() => scrollToPinnedMessage(msg.id)}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-amber-800 dark:text-amber-200">{msg.sender.name}</p>
-                      <p className="text-sm text-amber-900 dark:text-amber-100 truncate">{msg.text || (msg.imageUrl ? '📷 Image' : '')}</p>
-                      <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                      <p className="text-xs font-medium text-amber-200">{msg.sender.name}</p>
+                      <p className="text-sm text-amber-100 truncate">{msg.text || (msg.imageUrl ? '📷 Image' : '')}</p>
+                      <p className="text-[10px] text-amber-400 mt-0.5">
                         Pinned by {msg.pinnedByName} • Click to view
                       </p>
                     </div>
@@ -681,7 +681,7 @@ const Chat: React.FC = () => {
                           e.stopPropagation();
                           handleUnpinMessage(msg);
                         }}
-                        className="p-1 text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 flex-shrink-0"
+                        className="p-1 text-amber-400 hover:text-amber-300 flex-shrink-0"
                         title="Unpin message"
                       >
                         <PinOff className="w-4 h-4" />
@@ -696,12 +696,12 @@ const Chat: React.FC = () => {
       })()}
       
       {/* MESSAGES AREA */}
-      <div className="flex-1 p-4 overflow-y-auto overflow-x-visible space-y-4 bg-slate-50 dark:bg-black/20">
+      <div className="flex-1 p-4 overflow-y-auto overflow-x-visible space-y-4 bg-black/20">
         {/* Multi-select controls */}
         {multiSelectMode && (
-          <div className="sticky top-0 z-10 bg-orange-50 dark:bg-orange-950 border border-orange-500/30 rounded-lg p-3 flex items-center justify-between mb-2 shadow-sm">
+          <div className="sticky top-0 z-10 bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 flex items-center justify-between mb-2 shadow-lg backdrop-blur-sm">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-orange-600 dark:text-orange-400">
+              <span className="text-sm font-medium text-purple-400">
                 {selectedMessages.size} selected
               </span>
               <button
@@ -712,7 +712,7 @@ const Chat: React.FC = () => {
                     .map(m => m.id);
                   setSelectedMessages(new Set(selectableIds));
                 }}
-                className="text-xs text-orange-500 hover:text-orange-700 underline"
+                className="text-xs text-purple-400 hover:text-purple-300 underline"
               >
                 Select all
               </button>
@@ -720,7 +720,7 @@ const Chat: React.FC = () => {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => { setMultiSelectMode(false); setSelectedMessages(new Set()); }}
-                className="px-3 py-1.5 text-xs bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 rounded-lg hover:bg-slate-300 dark:hover:bg-zinc-600"
+                className="px-3 py-1.5 text-xs bg-white/10 text-slate-300 rounded-lg hover:bg-white/20"
               >
                 Cancel
               </button>
@@ -767,8 +767,8 @@ const Chat: React.FC = () => {
                 <div className={`self-center mr-2 ${isMe ? 'order-first' : ''}`}>
                   <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
                     isSelected 
-                      ? 'bg-orange-500 border-orange-500' 
-                      : 'border-zinc-400 dark:border-zinc-500'
+                      ? 'bg-purple-500 border-purple-500' 
+                      : 'border-slate-500'
                   }`}>
                     {isSelected && <Check className="w-3 h-3 text-white" />}
                   </div>
@@ -779,17 +779,17 @@ const Chat: React.FC = () => {
               {!isMe && !isMuted && !multiSelectMode && (
                 <button
                   onClick={() => setReplyingTo(msg)}
-                  className="opacity-0 group-hover:opacity-100 self-center mr-1 p-1 text-zinc-400 hover:text-orange-500 transition-all"
+                  className="opacity-0 group-hover:opacity-100 self-center mr-1 p-1 text-slate-500 hover:text-purple-400 transition-all"
                   title="Reply"
                 >
                   <Reply className="w-4 h-4" />
                 </button>
               )}
-              <div className={`max-w-xs lg:max-w-md p-3 rounded-2xl shadow-sm relative ${
+              <div className={`max-w-xs lg:max-w-md p-3 rounded-2xl shadow-lg relative ${
                 isMe 
-                  ? 'bg-orange-600 text-white rounded-br-none'
-                  : 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-zinc-700'
-              } ${msg.isPinned ? 'ring-2 ring-amber-400' : ''} ${isSelected ? 'ring-2 ring-orange-500' : ''}`}>
+                  ? 'bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-br-none'
+                  : 'bg-white/10 backdrop-blur-sm text-white rounded-bl-none border border-white/10'
+              } ${msg.isPinned ? 'ring-2 ring-amber-400' : ''} ${isSelected ? 'ring-2 ring-purple-500' : ''}`}>
                 {/* Pinned indicator */}
                 {msg.isPinned && (
                   <div className={`absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center ${isMe ? 'bg-amber-400' : 'bg-amber-500'}`}>
@@ -800,7 +800,7 @@ const Chat: React.FC = () => {
                 {/* Header for OTHER users' messages */}
                 {!isMe && (
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <p className="text-xs font-bold text-orange-600 dark:text-orange-400 flex items-center gap-1">
+                    <p className="text-xs font-bold text-purple-400 flex items-center gap-1">
                       {msg.sender.name}
                       {isUserMuted && (
                         <span className="text-red-500" title="This user is muted">
@@ -823,14 +823,14 @@ const Chat: React.FC = () => {
                         </button>
                         
                         {activeMessageMenu === msg.id && (
-                          <div className="absolute left-full top-0 ml-1 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-xl z-50 py-1 min-w-[160px]">
+                          <div className="absolute left-full top-0 ml-1 bg-zinc-900 border border-white/20 rounded-lg shadow-xl z-50 py-1 min-w-[160px]">
                             {/* Delete Message - Available for all messages from others */}
                             <button
                               onClick={() => {
                                 setShowDeleteConfirm({ messageId: msg.id, messageText: msg.text, senderName: msg.sender.name, senderId: msg.sender.uid });
                                 setActiveMessageMenu(null);
                               }}
-                              className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                              className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/20 flex items-center gap-2"
                             >
                               <Trash2 className="w-4 h-4" />
                               Delete Message
@@ -839,11 +839,11 @@ const Chat: React.FC = () => {
                             {/* Mute/Unmute - Only for parents */}
                             {isParent && (
                               <>
-                                <div className="border-t border-slate-200 dark:border-zinc-700 my-1" />
+                                <div className="border-t border-white/10 my-1" />
                                 {isUserMuted ? (
                                   <button
                                     onClick={() => handleUnmuteUser(msg.sender.uid, msg.sender.name)}
-                                    className="w-full px-3 py-2 text-left text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2"
+                                    className="w-full px-3 py-2 text-left text-sm text-emerald-400 hover:bg-emerald-500/20 flex items-center gap-2"
                                   >
                                     <Volume2 className="w-4 h-4" />
                                     Unmute User
@@ -854,7 +854,7 @@ const Chat: React.FC = () => {
                                       setShowMuteModal({ oduserId: msg.sender.uid, userName: msg.sender.name });
                                       setActiveMessageMenu(null);
                                     }}
-                                    className="w-full px-3 py-2 text-left text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 flex items-center gap-2"
+                                    className="w-full px-3 py-2 text-left text-sm text-amber-400 hover:bg-amber-500/20 flex items-center gap-2"
                                   >
                                     <VolumeX className="w-4 h-4" />
                                     Mute User
@@ -864,11 +864,11 @@ const Chat: React.FC = () => {
                             )}
                             
                             {/* Pin/Unpin Message */}
-                            <div className="border-t border-slate-200 dark:border-zinc-700 my-1" />
+                            <div className="border-t border-white/10 my-1" />
                             {msg.isPinned ? (
                               <button
                                 onClick={() => handleUnpinMessage(msg)}
-                                className="w-full px-3 py-2 text-left text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 flex items-center gap-2"
+                                className="w-full px-3 py-2 text-left text-sm text-amber-400 hover:bg-amber-500/20 flex items-center gap-2"
                               >
                                 <PinOff className="w-4 h-4" />
                                 Unpin Message
@@ -876,7 +876,7 @@ const Chat: React.FC = () => {
                             ) : (
                               <button
                                 onClick={() => handlePinMessage(msg)}
-                                className="w-full px-3 py-2 text-left text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 flex items-center gap-2"
+                                className="w-full px-3 py-2 text-left text-sm text-amber-400 hover:bg-amber-500/20 flex items-center gap-2"
                               >
                                 <Pin className="w-4 h-4" />
                                 Pin Message
@@ -894,22 +894,22 @@ const Chat: React.FC = () => {
                   <div 
                     className={`mb-2 p-2 rounded cursor-pointer border-l-2 ${
                       isMe 
-                        ? 'bg-orange-700/50 border-orange-300' 
-                        : 'bg-zinc-100 dark:bg-zinc-700/50 border-orange-500'
+                        ? 'bg-purple-700/50 border-purple-300' 
+                        : 'bg-white/5 border-purple-500'
                     }`}
                     onClick={() => {
                       const replyElement = document.getElementById(`chat-msg-${msg.replyTo?.id}`);
                       if (replyElement) {
                         replyElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        replyElement.classList.add('ring-2', 'ring-orange-500');
-                        setTimeout(() => replyElement.classList.remove('ring-2', 'ring-orange-500'), 2000);
+                        replyElement.classList.add('ring-2', 'ring-purple-500');
+                        setTimeout(() => replyElement.classList.remove('ring-2', 'ring-purple-500'), 2000);
                       }
                     }}
                   >
-                    <p className={`text-[10px] font-semibold ${isMe ? 'text-orange-200' : 'text-orange-600 dark:text-orange-400'}`}>
+                    <p className={`text-[10px] font-semibold ${isMe ? 'text-purple-200' : 'text-purple-400'}`}>
                       {msg.replyTo.senderName || 'Unknown'}
                     </p>
-                    <p className={`text-xs truncate ${isMe ? 'text-orange-100/80' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                    <p className={`text-xs truncate ${isMe ? 'text-purple-100/80' : 'text-slate-400'}`}>
                       {msg.replyTo.text}
                     </p>
                   </div>
@@ -980,7 +980,7 @@ const Chat: React.FC = () => {
                 {/* Footer - timestamp, read receipts, and actions */}
                 {!isEditing && (
                   <div className="flex items-center justify-between mt-1 gap-2">
-                    <p className={`text-[10px] ${isMe ? 'text-orange-200' : 'text-slate-400'}`}>
+                    <p className={`text-[10px] ${isMe ? 'text-purple-200' : 'text-slate-500'}`}>
                       {formatDate(msg.timestamp)}
                       {isEdited && <span className="ml-1 italic">(edited)</span>}
                     </p>
@@ -993,19 +993,19 @@ const Chat: React.FC = () => {
                           {hasBeenRead ? (
                             <CheckCheck className="w-3.5 h-3.5 text-sky-300" />
                           ) : (
-                            <Check className="w-3 h-3 text-orange-200" />
+                            <Check className="w-3 h-3 text-purple-200" />
                           )}
                         </span>
                         <button
                           onClick={(e) => { e.stopPropagation(); startEditing(msg); }}
-                          className="text-orange-200 hover:text-white p-0.5 transition-colors"
+                          className="text-purple-200 hover:text-white p-0.5 transition-colors"
                           title="Edit message"
                         >
                           <Edit2 className="w-3 h-3" />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm({ messageId: msg.id, messageText: msg.text, senderName: msg.sender.name, senderId: msg.sender.uid }); }}
-                          className="text-orange-200 hover:text-white p-0.5 transition-colors"
+                          className="text-purple-200 hover:text-white p-0.5 transition-colors"
                           title="Delete message"
                         >
                           <Trash2 className="w-3 h-3" />
@@ -1019,7 +1019,7 @@ const Chat: React.FC = () => {
               {isMe && !isMuted && !multiSelectMode && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setReplyingTo(msg); }}
-                  className="opacity-0 group-hover:opacity-100 self-center ml-1 p-1 text-zinc-400 hover:text-orange-500 transition-all"
+                  className="opacity-0 group-hover:opacity-100 self-center ml-1 p-1 text-slate-500 hover:text-purple-400 transition-all"
                   title="Reply"
                 >
                   <Reply className="w-4 h-4" />
@@ -1032,22 +1032,22 @@ const Chat: React.FC = () => {
       </div>
 
       {/* INPUT AREA */}
-      <div className="p-4 border-t border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+      <div className="p-4 border-t border-white/10 bg-black/40 backdrop-blur-xl">
         {/* Reply preview bar */}
         {replyingTo && (
-          <div className="mb-3 p-2 bg-orange-50 dark:bg-orange-900/20 border-l-4 border-orange-500 rounded flex items-center justify-between">
+          <div className="mb-3 p-2 bg-purple-500/20 border-l-4 border-purple-500 rounded flex items-center justify-between">
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+              <p className="text-xs font-semibold text-purple-400">
                 Replying to {replyingTo.sender.uid === user?.uid ? 'yourself' : replyingTo.sender.name}
               </p>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+              <p className="text-xs text-slate-400 truncate">
                 {replyingTo.text || (replyingTo.imageUrl ? '📷 Image' : '')}
               </p>
             </div>
             <button
               type="button"
               onClick={() => setReplyingTo(null)}
-              className="ml-2 p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+              className="ml-2 p-1 text-slate-500 hover:text-white"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1056,17 +1056,17 @@ const Chat: React.FC = () => {
         
         {/* Image preview bar */}
         {imagePreview && (
-          <div className="mb-3 p-2 bg-slate-100 dark:bg-zinc-800 rounded-lg flex items-center gap-3">
+          <div className="mb-3 p-2 bg-white/5 rounded-lg flex items-center gap-3 border border-white/10">
             <img src={imagePreview} alt="Preview" className="w-16 h-16 object-cover rounded-lg" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-700 dark:text-zinc-300 truncate">{selectedImage?.name}</p>
-              <p className="text-xs text-slate-500 dark:text-zinc-500">
+              <p className="text-sm font-medium text-white truncate">{selectedImage?.name}</p>
+              <p className="text-xs text-slate-500">
                 {selectedImage && (selectedImage.size / 1024).toFixed(1)} KB
               </p>
               {uploadingImage && (
-                <div className="mt-1 h-1.5 bg-slate-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                <div className="mt-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-orange-500 transition-all duration-300"
+                    className="h-full bg-purple-500 transition-all duration-300"
                     style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
@@ -1075,7 +1075,7 @@ const Chat: React.FC = () => {
             <button
               type="button"
               onClick={() => { setSelectedImage(null); setImagePreview(null); }}
-              className="p-1 text-zinc-400 hover:text-red-500"
+              className="p-1 text-slate-500 hover:text-red-400"
               disabled={uploadingImage}
             >
               <X className="w-5 h-5" />
@@ -1085,7 +1085,7 @@ const Chat: React.FC = () => {
         
         {/* Rate limit / mute warning */}
         {rateLimitError && (
-          <div className="mb-3 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg">
+          <div className="mb-3 flex items-center gap-2 text-amber-400 text-sm bg-amber-500/10 px-3 py-2 rounded-lg border border-amber-500/30">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             {rateLimitError}
           </div>
@@ -1099,8 +1099,8 @@ const Chat: React.FC = () => {
               onClick={() => setMultiSelectMode(!multiSelectMode)}
               className={`p-2.5 rounded-full transition-colors ${
                 multiSelectMode 
-                  ? 'bg-orange-500 text-white' 
-                  : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700'
+                  ? 'bg-purple-500 text-white' 
+                  : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
               }`}
               title="Select multiple messages to delete"
             >
@@ -1122,7 +1122,7 @@ const Chat: React.FC = () => {
                 type="button"
                 onClick={() => imageInputRef.current?.click()}
                 disabled={uploadingImage}
-                className="p-2.5 bg-slate-100 dark:bg-zinc-800 rounded-full text-slate-500 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                className="p-2.5 bg-white/5 rounded-full text-slate-400 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50"
                 title="Attach image"
               >
                 <Image className="w-5 h-5" />
@@ -1136,16 +1136,16 @@ const Chat: React.FC = () => {
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder={isMuted ? "You are muted..." : replyingTo ? "Type your reply..." : selectedImage ? "Add a caption..." : "Type your message..."}
             disabled={isMuted}
-            className={`flex-1 bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 rounded-full shadow-inner py-3 px-5 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all ${
+            className={`flex-1 bg-white/5 border border-white/10 rounded-full py-3 px-5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all ${
               isMuted ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           />
           <button 
             type="submit" 
-            className={`p-3 rounded-full transition-colors shadow-lg shadow-orange-900/20 disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`p-3 rounded-full transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${
               isMuted 
-                ? 'bg-zinc-500 cursor-not-allowed' 
-                : 'bg-orange-600 hover:bg-orange-500'
+                ? 'bg-zinc-600 cursor-not-allowed' 
+                : 'bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400'
             }`}
             disabled={(!newMessage.trim() && !selectedImage) || sending || isMuted || uploadingImage}
             aria-label="Send message"
@@ -1164,32 +1164,32 @@ const Chat: React.FC = () => {
       {/* MUTE MODAL */}
       {showMuteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-2xl w-full max-w-md p-6">
+          <div className="bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 rounded-xl border border-white/10 shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center">
-                  <VolumeX className="w-5 h-5 text-red-500" />
+                  <VolumeX className="w-5 h-5 text-red-400" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Mute User</h3>
-                  <p className="text-sm text-slate-500 dark:text-zinc-400">{showMuteModal.userName}</p>
+                  <h3 className="text-lg font-bold text-white">Mute User</h3>
+                  <p className="text-sm text-slate-400">{showMuteModal.userName}</p>
                 </div>
               </div>
               <button 
                 onClick={() => { setShowMuteModal(null); setMuteReason(''); setMuteDurationHours(''); }}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+                className="text-slate-500 hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             
-            <p className="text-sm text-slate-600 dark:text-zinc-400 mb-4">
+            <p className="text-sm text-slate-400 mb-4">
               This user will be able to read messages but cannot send new ones until unmuted or the timer expires.
             </p>
             
             {/* Duration Input */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+              <label className="block text-sm font-medium text-slate-300 mb-1">
                 Duration (hours)
               </label>
               <div className="flex gap-2">
@@ -1200,7 +1200,7 @@ const Chat: React.FC = () => {
                   value={muteDurationHours}
                   onChange={(e) => setMuteDurationHours(e.target.value)}
                   placeholder="Leave empty for unlimited"
-                  className="flex-1 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg p-3 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  className="flex-1 bg-white/5 border border-white/10 rounded-lg p-3 text-white placeholder-slate-500 focus:ring-2 focus:ring-red-500/50 focus:border-transparent"
                 />
                 <div className="flex gap-1">
                   {[1, 6, 24].map(h => (
@@ -1211,7 +1211,7 @@ const Chat: React.FC = () => {
                       className={`px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
                         muteDurationHours === h.toString()
                           ? 'bg-red-500 text-white'
-                          : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-300 dark:hover:bg-zinc-600'
+                          : 'bg-white/10 text-slate-300 hover:bg-white/20'
                       }`}
                     >
                       {h}h
@@ -1219,13 +1219,13 @@ const Chat: React.FC = () => {
                   ))}
                 </div>
               </div>
-              <p className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1">
+              <p className="text-[10px] text-slate-500 mt-1">
                 {muteDurationHours ? `User will be unmuted in ${muteDurationHours} hour${parseInt(muteDurationHours) > 1 ? 's' : ''}` : 'No time limit - manual unmute required'}
               </p>
             </div>
             
             <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+              <label className="block text-sm font-medium text-slate-300 mb-1">
                 Reason (optional)
               </label>
               <input
@@ -1233,14 +1233,14 @@ const Chat: React.FC = () => {
                 value={muteReason}
                 onChange={(e) => setMuteReason(e.target.value)}
                 placeholder="e.g., Inappropriate language"
-                className="w-full bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg p-3 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white placeholder-slate-500 focus:ring-2 focus:ring-red-500/50 focus:border-transparent"
               />
             </div>
             
             <div className="flex gap-3">
               <button
                 onClick={() => { setShowMuteModal(null); setMuteReason(''); setMuteDurationHours(''); }}
-                className="flex-1 py-2.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 rounded-lg font-medium transition-colors"
+                className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg font-medium transition-colors"
               >
                 Cancel
               </button>
@@ -1259,32 +1259,32 @@ const Chat: React.FC = () => {
       {/* BULK DELETE CONFIRMATION MODAL */}
       {showBulkDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-2xl w-full max-w-md p-6">
+          <div className="bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 rounded-xl border border-white/10 shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center">
-                  <Trash2 className="w-5 h-5 text-red-500" />
+                  <Trash2 className="w-5 h-5 text-red-400" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Delete {selectedMessages.size} Messages</h3>
-                  <p className="text-sm text-slate-500 dark:text-zinc-400">This action cannot be undone</p>
+                  <h3 className="text-lg font-bold text-white">Delete {selectedMessages.size} Messages</h3>
+                  <p className="text-sm text-slate-400">This action cannot be undone</p>
                 </div>
               </div>
               <button 
                 onClick={() => setShowBulkDeleteConfirm(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+                className="text-slate-500 hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-lg p-3 mb-4">
-              <p className="text-sm text-red-700 dark:text-red-300 font-medium">
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4">
+              <p className="text-sm text-red-300 font-medium">
                 ⚠️ You are about to permanently delete {selectedMessages.size} message{selectedMessages.size > 1 ? 's' : ''}.
               </p>
             </div>
             
-            <p className="text-sm text-slate-600 dark:text-zinc-400 mb-4">
+            <p className="text-sm text-slate-400 mb-4">
               Are you sure you want to delete these messages? This will remove them for all team members and cannot be undone.
             </p>
             
@@ -1292,7 +1292,7 @@ const Chat: React.FC = () => {
               <button
                 onClick={() => setShowBulkDeleteConfirm(false)}
                 disabled={deleting}
-                className="flex-1 py-2.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 rounded-lg font-medium transition-colors disabled:opacity-50"
+                className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg font-medium transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -1318,32 +1318,32 @@ const Chat: React.FC = () => {
       {/* DELETE CONFIRMATION MODAL */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-2xl w-full max-w-md p-6">
+          <div className="bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 rounded-xl border border-white/10 shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center">
-                  <Trash2 className="w-5 h-5 text-red-500" />
+                  <Trash2 className="w-5 h-5 text-red-400" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Delete Message</h3>
-                  <p className="text-sm text-slate-500 dark:text-zinc-400">This action cannot be undone</p>
+                  <h3 className="text-lg font-bold text-white">Delete Message</h3>
+                  <p className="text-sm text-slate-400">This action cannot be undone</p>
                 </div>
               </div>
               <button 
                 onClick={() => setShowDeleteConfirm(null)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+                className="text-slate-500 hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             
-            <div className="bg-slate-100 dark:bg-zinc-800 rounded-lg p-3 mb-4">
-              <p className="text-sm text-slate-700 dark:text-zinc-300 line-clamp-3">
+            <div className="bg-white/5 rounded-lg p-3 mb-4 border border-white/10">
+              <p className="text-sm text-slate-300 line-clamp-3">
                 "{showDeleteConfirm.messageText}"
               </p>
             </div>
             
-            <p className="text-sm text-slate-600 dark:text-zinc-400 mb-4">
+            <p className="text-sm text-slate-400 mb-4">
               Are you sure you want to delete this message? All team members will no longer see it.
             </p>
             
@@ -1351,7 +1351,7 @@ const Chat: React.FC = () => {
               <button
                 onClick={() => setShowDeleteConfirm(null)}
                 disabled={deleting}
-                className="flex-1 py-2.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 rounded-lg font-medium transition-colors disabled:opacity-50"
+                className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg font-medium transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
