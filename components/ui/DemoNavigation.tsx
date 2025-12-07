@@ -8,11 +8,13 @@ const pages = [
   { id: 'welcome', label: '🏠 Home', path: '/welcome' },
   { id: 'player', label: '🏃 Athlete', path: '/player' },
   { id: 'team-demo', label: '🏈 Team', path: '/team-demo' },
-  { id: 'fan-hub', label: '🏟️ Fan Hub', path: '/fan-hub' },
+  { id: 'fan-hub', label: '🏟️ Fans', path: '/fan-hub' },
   { id: 'live', label: '📺 Live', path: '/live' },
+  { id: 'events', label: '📅 Events', path: '/events' },
+  { id: 'playbook', label: '📋 Playbook', path: '/playbook' },
   { id: 'coach-profile', label: '👨‍🏫 Coach', path: '/coach-profile' },
-  { id: 'coach-demo', label: '📊 Dashboard', path: '/coach-demo' },
-  { id: 'fundraising', label: '💰 Fundraise', path: '/fundraising' },
+  { id: 'coach-demo', label: '📊 Dash', path: '/coach-demo' },
+  { id: 'fundraising', label: '💰 Raise', path: '/fundraising' },
 ];
 
 export function DemoNavigation({ currentPage }: DemoNavProps) {
