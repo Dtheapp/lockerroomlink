@@ -1,4 +1,7 @@
-/* LockerRoom Link - Global Styles */
+/* OSYS - The Operating System for Youth Sports */
+/* Global Styles + Design System Import */
+
+@import '../styles/osys-design-system.css';
 
 /* Install Prompt Animation */
 @keyframes slide-up {

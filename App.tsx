@@ -53,6 +53,8 @@ function lazyWithRetry<T extends ComponentType<any>>(
 const PublicAthleteProfile = lazyWithRetry(() => import('./components/public/PublicAthleteProfile'));
 const PublicTeamProfile = lazyWithRetry(() => import('./components/public/PublicTeamProfile'));
 const PublicCoachProfile = lazyWithRetry(() => import('./components/public/PublicCoachProfile'));
+const LandingPage = lazyWithRetry(() => import('./components/LandingPage'));
+const FundraisingPage = lazyWithRetry(() => import('./components/FundraisingPage'));
 
 // Event System Pages
 const EventsPage = lazyWithRetry(() => import('./components/events/EventsPage'));
@@ -169,11 +171,14 @@ const AppContent: React.FC = () => {
           <Route path="/coach/:username" element={<PublicCoachProfile />} />
           <Route path="/event/:eventId" element={<PublicEventPage />} />
           <Route path="/e/:shareableLink" element={<PublicEventPage />} />
+          <Route path="/welcome" element={<LandingPage />} />
+          <Route path="/fundraising" element={<FundraisingPage />} />
           
           {!user ? (
             <>
               <Route path="/auth" element={<AuthScreen />} />
-              <Route path="*" element={<Navigate to="/auth" replace />} />
+              <Route path="/" element={<LandingPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </>
           ) : userData?.role === 'SuperAdmin' ? (
             <>

@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSYS - Eastside Eagles</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --secondary: #f59e0b;
+            --success: #10b981;
+            --danger: #ef4444;
+            --dark: #0f172a;
+            --dark-light: #1e293b;
+            --dark-lighter: #334155;
+            --gray: #64748b;
+            --gray-light: #94a3b8;
+            --light: #f1f5f9;
+            --white: #ffffff;
+            --team-primary: #1e40af;
+            --team-secondary: #fbbf24;
+            --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            --gradient-team: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            --gradient-gold: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+            --radius: 12px;
+            --radius-lg: 20px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--dark);
+            color: var(--white);
+            min-height: 100vh;
+        }
+
+        /* Navigation */
+        .nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 800;
+            font-size: 1.25rem;
+            text-decoration: none;
+            color: var(--white);
+        }
+
+        .nav-brand-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--gradient-primary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 0.625rem 1.25rem;
+            border-radius: var(--radius);
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--white);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .btn-primary {
+            background: var(--gradient-primary);
+            color: var(--white);
+        }
+
+        .btn-team {
+            background: var(--gradient-team);
+            color: var(--white);
+        }
+
+        .btn-gold {
+            background: var(--gradient-gold);
+            color: var(--dark);
+        }
+
+        /* Hero Header */
+        .team-hero {
+            padding-top: 60px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-banner {
+            height: 320px;
+            background: var(--gradient-team);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .hero-pattern {
+            position: absolute;
+            inset: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="50" font-size="60" opacity="0.05">🦅</text></svg>');
+            background-size: 100px;
+        }
+
+        .hero-gradient {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 200px;
+            background: linear-gradient(to top, var(--dark) 0%, transparent 100%);
+        }
+
+        .team-logo-large {
+            width: 160px;
+            height: 160px;
+            background: var(--white);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5rem;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            position: relative;
+            z-index: 1;
+        }
+
+        .team-header {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            position: relative;
+            margin-top: -60px;
+            text-align: center;
+        }
+
+        .team-name {
+            font-size: 3rem;
+            font-weight: 900;
+            margin-bottom: 0.5rem;
+        }
+
+        .team-tagline {
+            font-size: 1.125rem;
+            color: var(--gray-light);
+            margin-bottom: 1.5rem;
+        }
+
+        .team-meta {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+
+        .team-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--gray-light);
+        }
+
+        .team-actions {
+            display: flex;
+            justify-content: center;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+        }
+
+        /* Stats Banner */
+        .stats-banner {
+            background: var(--dark-light);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 1.5rem 0;
+        }
+
+        .stats-banner-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .stat-banner-item {
+            text-align: center;
+            min-width: 120px;
+        }
+
+        .stat-banner-value {
+            font-size: 2rem;
+            font-weight: 800;
+            background: var(--gradient-gold);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-banner-label {
+            font-size: 0.75rem;
+            color: var(--gray);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Tabs */
+        .tabs-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 2rem;
+            overflow-x: auto;
+        }
+
+        .tab {
+            padding: 1rem 1.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--gray-light);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            white-space: nowrap;
+            transition: color 0.2s;
+        }
+
+        .tab:hover {
+            color: var(--white);
+        }
+
+        .tab.active {
+            color: var(--white);
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--gradient-team);
+        }
+
+        /* Content */
+        .team-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem 4rem;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .card {
+            background: var(--dark-light);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .card-action {
+            font-size: 0.75rem;
+            color: var(--primary-light);
+            text-decoration: none;
+        }
+
+        /* Roster Grid */
+        .roster-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 1rem;
+        }
+
+        .roster-card {
+            background: var(--dark);
+            border-radius: var(--radius);
+            padding: 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            color: var(--white);
+        }
+
+        .roster-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.3);
+            border: 1px solid var(--primary);
+        }
+
+        .roster-avatar {
+            width: 64px;
+            height: 64px;
+            background: var(--gradient-gold);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin: 0 auto 0.75rem;
+        }
+
+        .roster-name {
+            font-weight: 600;
+            font-size: 0.875rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .roster-position {
+            font-size: 0.75rem;
+            color: var(--gray);
+        }
+
+        /* Schedule */
+        .schedule-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .schedule-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--dark);
+            border-radius: var(--radius);
+            transition: all 0.2s;
+        }
+
+        .schedule-item:hover {
+            background: var(--dark-lighter);
+        }
+
+        .schedule-date {
+            width: 56px;
+            height: 56px;
+            background: var(--gradient-team);
+            border-radius: var(--radius);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .schedule-date-day {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .schedule-date-month {
+            font-size: 0.625rem;
+            text-transform: uppercase;
+            opacity: 0.8;
+        }
+
+        .schedule-info {
+            flex: 1;
+        }
+
+        .schedule-opponent {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .schedule-meta {
+            font-size: 0.75rem;
+            color: var(--gray);
+        }
+
+        .schedule-result {
+            padding: 0.375rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .schedule-result.win {
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+        }
+
+        .schedule-result.loss {
+            background: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+        }
+
+        .schedule-result.upcoming {
+            background: rgba(99, 102, 241, 0.2);
+            color: var(--primary-light);
+        }
+
+        /* Announcements */
+        .announcement-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .announcement-item {
+            padding: 1rem;
+            background: var(--dark);
+            border-radius: var(--radius);
+            border-left: 3px solid var(--team-secondary);
+        }
+
+        .announcement-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .announcement-author {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .announcement-avatar {
+            width: 28px;
+            height: 28px;
+            background: var(--gradient-team);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.625rem;
+            font-weight: 600;
+        }
+
+        .announcement-name {
+            font-size: 0.8125rem;
+            font-weight: 600;
+        }
+
+        .announcement-time {
+            font-size: 0.6875rem;
+            color: var(--gray);
+        }
+
+        .announcement-text {
+            font-size: 0.875rem;
+            color: var(--gray-light);
+            line-height: 1.5;
+        }
+
+        /* Team Stats */
+        .team-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+        }
+
+        .team-stat-card {
+            background: var(--dark);
+            border-radius: var(--radius);
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .team-stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-light);
+        }
+
+        .team-stat-label {
+            font-size: 0.6875rem;
+            color: var(--gray);
+            text-transform: uppercase;
+        }
+
+        /* Sponsors */
+        .sponsors-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+        }
+
+        .sponsor-card {
+            background: var(--dark);
+            border-radius: var(--radius);
+            padding: 1.5rem 1rem;
+            text-align: center;
+        }
+
+        .sponsor-logo {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .sponsor-name {
+            font-size: 0.75rem;
+            color: var(--gray);
+        }
+
+        /* Photo Gallery */
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+        }
+
+        .gallery-item {
+            aspect-ratio: 1;
+            background: var(--dark);
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .gallery-item:hover {
+            transform: scale(1.05);
+        }
+
+        .gallery-item.large {
+            grid-column: span 2;
+            grid-row: span 2;
+        }
+
+        /* Fundraiser */
+        .fundraiser-card {
+            background: linear-gradient(135deg, var(--team-primary) 0%, #1e3a8a 100%);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .fundraiser-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .fundraiser-badge {
+            padding: 0.25rem 0.75rem;
+            background: var(--team-secondary);
+            color: var(--dark);
+            border-radius: 20px;
+            font-size: 0.6875rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .fundraiser-title {
+            font-size: 1.125rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .fundraiser-desc {
+            font-size: 0.875rem;
+            opacity: 0.8;
+            margin-bottom: 1rem;
+        }
+
+        .fundraiser-progress {
+            margin-bottom: 0.75rem;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 0.5rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--team-secondary);
+            border-radius: 4px;
+            width: 68%;
+        }
+
+        .progress-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+        }
+
+        .progress-raised {
+            font-weight: 700;
+        }
+
+        .progress-goal {
+            opacity: 0.7;
+        }
+
+        .fundraiser-btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--team-secondary);
+            color: var(--dark);
+            border: none;
+            border-radius: var(--radius);
+            font-weight: 700;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .fundraiser-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(251, 191, 36, 0.4);
+        }
+
+        /* Page Navigation */
+        .page-nav {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(20px);
+            border-radius: 50px;
+            border: 1px solid rgba(255,255,255,0.1);
+            z-index: 1000;
+        }
+
+        .page-nav a {
+            padding: 0.75rem 1.25rem;
+            color: var(--gray-light);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border-radius: 50px;
+            transition: all 0.2s;
+        }
+
+        .page-nav a:hover,
+        .page-nav a.active {
+            background: var(--primary);
+            color: var(--white);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .team-name {
+                font-size: 2rem;
+            }
+
+            .roster-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .sponsors-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav">
+        <a href="index.html" class="nav-brand">
+            <div class="nav-brand-icon">🏆</div>
+            <span>OSYS</span>
+        </a>
+        <div class="nav-right">
+            <button class="btn btn-ghost">🔔</button>
+            <button class="btn btn-primary">Sign In</button>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <div class="team-hero">
+        <div class="hero-banner">
+            <div class="hero-pattern"></div>
+            <div class="hero-gradient"></div>
+            <div class="team-logo-large">🦅</div>
+        </div>
+        <div class="team-header">
+            <h1 class="team-name">Eastside Eagles</h1>
+            <p class="team-tagline">Soaring to Victory Since 1987</p>
+            <div class="team-meta">
+                <span class="team-meta-item">📍 Atlanta, GA</span>
+                <span class="team-meta-item">🏈 Football • Varsity</span>
+                <span class="team-meta-item">🏆 Region 4-AAAA</span>
+                <span class="team-meta-item">👥 24 Players</span>
+            </div>
+            <div class="team-actions">
+                <button class="btn btn-gold">🎟️ Buy Tickets</button>
+                <button class="btn btn-team">👥 Join Team</button>
+                <button class="btn btn-ghost">🔗 Share</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Banner -->
+    <div class="stats-banner">
+        <div class="stats-banner-content">
+            <div class="stat-banner-item">
+                <div class="stat-banner-value">8-2</div>
+                <div class="stat-banner-label">Record</div>
+            </div>
+            <div class="stat-banner-item">
+                <div class="stat-banner-value">#3</div>
+                <div class="stat-banner-label">Region Rank</div>
+            </div>
+            <div class="stat-banner-item">
+                <div class="stat-banner-value">287</div>
+                <div class="stat-banner-label">Points Scored</div>
+            </div>
+            <div class="stat-banner-item">
+                <div class="stat-banner-value">124</div>
+                <div class="stat-banner-label">Points Allowed</div>
+            </div>
+            <div class="stat-banner-item">
+                <div class="stat-banner-value">5</div>
+                <div class="stat-banner-label">Win Streak</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs-container">
+        <div class="tabs">
+            <button class="tab active">Overview</button>
+            <button class="tab">Roster</button>
+            <button class="tab">Schedule</button>
+            <button class="tab">Stats</button>
+            <button class="tab">Photos</button>
+            <button class="tab">Fundraising</button>
+        </div>
+    </div>
+
+    <!-- Content -->
+    <div class="team-content">
+        <div class="content-grid">
+            <!-- Main Column -->
+            <div>
+                <!-- Roster Preview -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Roster</h2>
+                        <a href="#" class="card-action">View Full Roster →</a>
+                    </div>
+                    <div class="roster-grid">
+                        <a href="player-profile.html" class="roster-card">
+                            <div class="roster-avatar">12</div>
+                            <div class="roster-name">M. Johnson</div>
+                            <div class="roster-position">QB</div>
+                        </a>
+                        <div class="roster-card">
+                            <div class="roster-avatar" style="background: linear-gradient(135deg, #10b981 0%, #34d399 100%);">24</div>
+                            <div class="roster-name">J. Williams</div>
+                            <div class="roster-position">RB</div>
+                        </div>
+                        <div class="roster-card">
+                            <div class="roster-avatar" style="background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);">88</div>
+                            <div class="roster-name">D. Smith</div>
+                            <div class="roster-position">WR</div>
+                        </div>
+                        <div class="roster-card">
+                            <div class="roster-avatar" style="background: var(--gradient-team);">55</div>
+                            <div class="roster-name">T. Brown</div>
+                            <div class="roster-position">LB</div>
+                        </div>
+                        <div class="roster-card">
+                            <div class="roster-avatar" style="background: var(--gradient-primary);">7</div>
+                            <div class="roster-name">C. Davis</div>
+                            <div class="roster-position">CB</div>
+                        </div>
+                        <div class="roster-card">
+                            <div class="roster-avatar">72</div>
+                            <div class="roster-name">M. Garcia</div>
+                            <div class="roster-position">OT</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schedule -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <h2 class="card-title">Schedule</h2>
+                        <a href="#" class="card-action">Full Schedule →</a>
+                    </div>
+                    <div class="schedule-list">
+                        <div class="schedule-item">
+                            <div class="schedule-date">
+                                <span class="schedule-date-day">14</span>
+                                <span class="schedule-date-month">Dec</span>
+                            </div>
+                            <div class="schedule-info">
+                                <div class="schedule-opponent">vs. Panthers - Playoffs R1</div>
+                                <div class="schedule-meta">📍 Home • 🕐 2:00 PM</div>
+                            </div>
+                            <span class="schedule-result upcoming">NEXT</span>
+                        </div>
+                        <div class="schedule-item">
+                            <div class="schedule-date" style="background: var(--gradient-gold);">
+                                <span class="schedule-date-day">7</span>
+                                <span class="schedule-date-month">Dec</span>
+                            </div>
+                            <div class="schedule-info">
+                                <div class="schedule-opponent">vs. Hawks</div>
+                                <div class="schedule-meta">📍 Home • Final</div>
+                            </div>
+                            <span class="schedule-result win">W 35-21</span>
+                        </div>
+                        <div class="schedule-item">
+                            <div class="schedule-date" style="background: var(--gradient-gold);">
+                                <span class="schedule-date-day">30</span>
+                                <span class="schedule-date-month">Nov</span>
+                            </div>
+                            <div class="schedule-info">
+                                <div class="schedule-opponent">@ Bulldogs</div>
+                                <div class="schedule-meta">📍 Away • Final</div>
+                            </div>
+                            <span class="schedule-result win">W 42-28</span>
+                        </div>
+                        <div class="schedule-item">
+                            <div class="schedule-date" style="background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);">
+                                <span class="schedule-date-day">23</span>
+                                <span class="schedule-date-month">Nov</span>
+                            </div>
+                            <div class="schedule-info">
+                                <div class="schedule-opponent">vs. Tigers</div>
+                                <div class="schedule-meta">📍 Home • Final</div>
+                            </div>
+                            <span class="schedule-result loss">L 21-24</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Photos -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <h2 class="card-title">Photos</h2>
+                        <a href="#" class="card-action">View Gallery →</a>
+                    </div>
+                    <div class="gallery-grid">
+                        <div class="gallery-item large">🏈</div>
+                        <div class="gallery-item">🏆</div>
+                        <div class="gallery-item">👥</div>
+                        <div class="gallery-item">🎉</div>
+                        <div class="gallery-item">💪</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div>
+                <!-- Fundraiser -->
+                <div class="fundraiser-card">
+                    <div class="fundraiser-header">
+                        <div>
+                            <div class="fundraiser-title">🎯 New Uniforms Fund</div>
+                            <div class="fundraiser-desc">Help us get new game-day uniforms for the 2026 season!</div>
+                        </div>
+                        <span class="fundraiser-badge">Active</span>
+                    </div>
+                    <div class="fundraiser-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                        </div>
+                        <div class="progress-stats">
+                            <span class="progress-raised">$3,400 raised</span>
+                            <span class="progress-goal">$5,000 goal</span>
+                        </div>
+                    </div>
+                    <button class="fundraiser-btn">💰 Donate Now</button>
+                </div>
+
+                <!-- Announcements -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Announcements</h2>
+                    </div>
+                    <div class="announcement-list">
+                        <div class="announcement-item">
+                            <div class="announcement-header">
+                                <div class="announcement-author">
+                                    <div class="announcement-avatar">CD</div>
+                                    <span class="announcement-name">Coach Davis</span>
+                                </div>
+                                <span class="announcement-time">2h ago</span>
+                            </div>
+                            <p class="announcement-text">Playoff game this Saturday! Let's pack the stands and show our boys some love! 🦅💙</p>
+                        </div>
+                        <div class="announcement-item">
+                            <div class="announcement-header">
+                                <div class="announcement-author">
+                                    <div class="announcement-avatar">TM</div>
+                                    <span class="announcement-name">Team Manager</span>
+                                </div>
+                                <span class="announcement-time">1d ago</span>
+                            </div>
+                            <p class="announcement-text">Team dinner at Pizza Palace after Thursday practice. Parents welcome!</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Team Stats -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <h2 class="card-title">Team Stats</h2>
+                    </div>
+                    <div class="team-stats-grid">
+                        <div class="team-stat-card">
+                            <div class="team-stat-value">3,847</div>
+                            <div class="team-stat-label">Total Yards</div>
+                        </div>
+                        <div class="team-stat-card">
+                            <div class="team-stat-value">41</div>
+                            <div class="team-stat-label">Touchdowns</div>
+                        </div>
+                        <div class="team-stat-card">
+                            <div class="team-stat-value">18</div>
+                            <div class="team-stat-label">Sacks</div>
+                        </div>
+                        <div class="team-stat-card">
+                            <div class="team-stat-value">12</div>
+                            <div class="team-stat-label">Turnovers</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sponsors -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <h2 class="card-title">Team Sponsors</h2>
+                        <a href="#" class="card-action">Become a Sponsor →</a>
+                    </div>
+                    <div class="sponsors-grid">
+                        <div class="sponsor-card">
+                            <div class="sponsor-logo">🏪</div>
+                            <div class="sponsor-name">Local Shop</div>
+                        </div>
+                        <div class="sponsor-card">
+                            <div class="sponsor-logo">🍕</div>
+                            <div class="sponsor-name">Pizza Palace</div>
+                        </div>
+                        <div class="sponsor-card">
+                            <div class="sponsor-logo">🏋️</div>
+                            <div class="sponsor-name">Fit Gym</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contact -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <h2 class="card-title">Contact</h2>
+                    </div>
+                    <div style="font-size: 0.875rem; color: var(--gray-light);">
+                        <p style="margin-bottom: 0.5rem;">📧 eagles@eastsidehigh.edu</p>
+                        <p style="margin-bottom: 0.5rem;">📍 1234 Eagle Way, Atlanta, GA</p>
+                        <p>🌐 eastsideeagles.com</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page Navigation -->
+    <nav class="page-nav">
+        <a href="index.html">Landing</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="playbook.html">Playbook</a>
+        <a href="player-profile.html">Player</a>
+        <a href="team-public.html" class="active">Team</a>
+    </nav>
+</body>
+</html>
