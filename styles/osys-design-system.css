@@ -776,8 +776,17 @@
 :root:not(.dark) .hover\:border-orange-500\/50:hover { border-color: rgba(168, 85, 247, 0.5) !important; }
 :root:not(.dark) .bg-orange-50 { background-color: #faf5ff !important; }
 :root:not(.dark) .bg-orange-100 { background-color: #f3e8ff !important; }
+:root:not(.dark) .bg-orange-200 { background-color: #e9d5ff !important; }
 :root:not(.dark) .bg-orange-50\/50 { background-color: rgba(250, 245, 255, 0.5) !important; }
 :root:not(.dark) .bg-orange-900\/10 { background-color: rgba(88, 28, 135, 0.1) !important; }
+:root:not(.dark) .bg-orange-900\/20 { background-color: rgba(88, 28, 135, 0.2) !important; }
+:root:not(.dark) .bg-orange-900\/30 { background-color: rgba(88, 28, 135, 0.3) !important; }
+:root:not(.dark) .hover\:bg-orange-200:hover { background-color: #e9d5ff !important; }
+:root:not(.dark) .hover\:bg-orange-900\/30:hover { background-color: rgba(88, 28, 135, 0.3) !important; }
+:root:not(.dark) .text-orange-700 { color: #7c3aed !important; }
+:root:not(.dark) .border-orange-200 { border-color: #e9d5ff !important; }
+:root:not(.dark) .border-orange-300 { border-color: #d8b4fe !important; }
+:root:not(.dark) .ring-orange-500\/20 { --tw-ring-color: rgba(168, 85, 247, 0.2) !important; }
 
 /* Additional icon and accent color overrides */
 :root:not(.dark) .fill-orange-500 { fill: #a855f7 !important; }
