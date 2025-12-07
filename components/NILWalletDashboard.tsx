@@ -44,8 +44,8 @@ const TabButton: React.FC<{
     onClick={onClick}
     className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
       active
-        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-        : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+        ? 'bg-purple-500/20 dark:bg-amber-500/20 text-purple-600 dark:text-amber-400 border border-purple-500/30 dark:border-amber-500/30'
+        : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800'
     }`}
   >
     {children}
@@ -311,10 +311,10 @@ const NILWalletDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-white flex items-center gap-3">
             💰 NIL Wallet
           </h1>
-          <p className="text-zinc-400 mt-1">
+          <p className="text-zinc-600 dark:text-zinc-400 mt-1">
             Track your Name, Image, and Likeness earnings
           </p>
         </div>
@@ -340,8 +340,8 @@ const NILWalletDashboard: React.FC = () => {
               💵
             </div>
             <div>
-              <p className="text-zinc-400 text-sm">Total Earnings</p>
-              <p className="text-2xl font-bold text-white">
+              <p className="text-zinc-600 dark:text-zinc-400 text-sm">Total Earnings</p>
+              <p className="text-2xl font-bold text-zinc-900 dark:text-white">
                 {formatCurrency(wallet?.totalEarnings || 0)}
               </p>
             </div>
@@ -354,8 +354,8 @@ const NILWalletDashboard: React.FC = () => {
               ⏳
             </div>
             <div>
-              <p className="text-zinc-400 text-sm">Pending</p>
-              <p className="text-2xl font-bold text-amber-400">
+              <p className="text-zinc-600 dark:text-zinc-400 text-sm">Pending</p>
+              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
                 {formatCurrency(wallet?.pendingBalance || 0)}
               </p>
             </div>
@@ -368,8 +368,8 @@ const NILWalletDashboard: React.FC = () => {
               💳
             </div>
             <div>
-              <p className="text-zinc-400 text-sm">Available</p>
-              <p className="text-2xl font-bold text-blue-400">
+              <p className="text-zinc-600 dark:text-zinc-400 text-sm">Available</p>
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                 {formatCurrency(wallet?.availableBalance || 0)}
               </p>
             </div>
@@ -382,8 +382,8 @@ const NILWalletDashboard: React.FC = () => {
               🤝
             </div>
             <div>
-              <p className="text-zinc-400 text-sm">Total Deals</p>
-              <p className="text-2xl font-bold text-purple-400">
+              <p className="text-zinc-600 dark:text-zinc-400 text-sm">Total Deals</p>
+              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                 {wallet?.lifetimeDeals || 0}
               </p>
             </div>
@@ -396,8 +396,8 @@ const NILWalletDashboard: React.FC = () => {
         <GlassCard className="p-4 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/30">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-white font-semibold">Ready to withdraw?</p>
-              <p className="text-zinc-400 text-sm">
+              <p className="text-zinc-900 dark:text-white font-semibold">Ready to withdraw?</p>
+              <p className="text-zinc-600 dark:text-zinc-400 text-sm">
                 You have {formatCurrency(wallet?.availableBalance || 0)} available for payout
               </p>
             </div>
@@ -414,8 +414,8 @@ const NILWalletDashboard: React.FC = () => {
           <div className="flex items-center gap-3">
             <span className="text-2xl">👨‍👩‍👧</span>
             <div>
-              <p className="text-white font-medium">Parent/Guardian Managed Account</p>
-              <p className="text-zinc-400 text-sm">
+              <p className="text-zinc-900 dark:text-white font-medium">Parent/Guardian Managed Account</p>
+              <p className="text-zinc-600 dark:text-zinc-400 text-sm">
                 Managed by: {wallet.parentGuardianName} ({wallet.parentGuardianEmail})
               </p>
             </div>
@@ -424,7 +424,7 @@ const NILWalletDashboard: React.FC = () => {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-zinc-800 pb-2">
+      <div className="flex gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-2">
         <TabButton 
           active={activeTab === 'overview'}
           onClick={() => setActiveTab('overview')}
@@ -450,7 +450,7 @@ const NILWalletDashboard: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Recent Deals */}
           <GlassCard className="p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Recent Deals</h3>
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4">Recent Deals</h3>
             {deals.length === 0 ? (
               <EmptyState 
                 type="generic" 
@@ -463,17 +463,17 @@ const NILWalletDashboard: React.FC = () => {
                 {deals.slice(0, 3).map(deal => (
                   <div 
                     key={deal.id}
-                    className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg"
+                    className="flex items-center justify-between p-3 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg"
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">{getDealTypeIcon(deal.dealType)}</span>
                       <div>
-                        <p className="text-white font-medium">{deal.sponsorName}</p>
-                        <p className="text-zinc-400 text-sm">{deal.description}</p>
+                        <p className="text-zinc-900 dark:text-white font-medium">{deal.sponsorName}</p>
+                        <p className="text-zinc-600 dark:text-zinc-400 text-sm">{deal.description}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-green-400 font-bold">{formatCurrency(deal.amount)}</p>
+                      <p className="text-green-600 dark:text-green-400 font-bold">{formatCurrency(deal.amount)}</p>
                       {getDealStatusBadge(deal.status)}
                     </div>
                   </div>
@@ -493,7 +493,7 @@ const NILWalletDashboard: React.FC = () => {
 
           {/* Earnings Chart (simplified) */}
           <GlassCard className="p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Earnings by Type</h3>
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4">Earnings by Type</h3>
             <div className="space-y-4">
               {['social_post', 'appearance', 'camp', 'endorsement'].map(type => {
                 const typeDeals = deals.filter(d => d.dealType === type);
@@ -505,14 +505,14 @@ const NILWalletDashboard: React.FC = () => {
                 return (
                   <div key={type}>
                     <div className="flex justify-between text-sm mb-1">
-                      <span className="text-zinc-400 capitalize">
+                      <span className="text-zinc-600 dark:text-zinc-400 capitalize">
                         {getDealTypeIcon(type as NILDeal['dealType'])} {type.replace('_', ' ')}
                       </span>
-                      <span className="text-white">{formatCurrency(total)}</span>
+                      <span className="text-zinc-900 dark:text-white">{formatCurrency(total)}</span>
                     </div>
-                    <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                    <div className="h-2 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
                       <div 
-                        className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full"
+                        className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 dark:from-amber-500 dark:to-orange-500 rounded-full"
                         style={{ width: `${percentage}%` }}
                       />
                     </div>
@@ -529,7 +529,7 @@ const NILWalletDashboard: React.FC = () => {
           {/* Pending Deals */}
           {deals.filter(d => d.status === 'pending').length > 0 && (
             <div>
-              <h3 className="text-lg font-semibold text-white mb-3">
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-3">
                 ⏳ Pending Approval
               </h3>
               <div className="space-y-3">
@@ -541,13 +541,13 @@ const NILWalletDashboard: React.FC = () => {
                           {getDealTypeIcon(deal.dealType)}
                         </div>
                         <div>
-                          <h4 className="text-white font-semibold">{deal.sponsorName}</h4>
-                          <p className="text-zinc-400 text-sm">{deal.description}</p>
+                          <h4 className="text-zinc-900 dark:text-white font-semibold">{deal.sponsorName}</h4>
+                          <p className="text-zinc-600 dark:text-zinc-400 text-sm">{deal.description}</p>
                           <div className="flex flex-wrap gap-2 mt-2">
                             {deal.requirements?.map((req, i) => (
                               <span 
                                 key={i}
-                                className="px-2 py-1 bg-zinc-800 rounded text-xs text-zinc-400"
+                                className="px-2 py-1 bg-zinc-200 dark:bg-zinc-800 rounded text-xs text-zinc-600 dark:text-zinc-400"
                               >
                                 {req}
                               </span>
@@ -559,7 +559,7 @@ const NILWalletDashboard: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-2xl font-bold text-green-400">
+                        <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                           {formatCurrency(deal.amount)}
                         </p>
                         <div className="flex gap-2 mt-3">
@@ -589,7 +589,7 @@ const NILWalletDashboard: React.FC = () => {
           {/* Active Deals */}
           {deals.filter(d => d.status === 'active').length > 0 && (
             <div>
-              <h3 className="text-lg font-semibold text-white mb-3 mt-6">
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-3 mt-6">
                 🟢 Active Deals
               </h3>
               <div className="space-y-3">
@@ -601,15 +601,15 @@ const NILWalletDashboard: React.FC = () => {
                           {getDealTypeIcon(deal.dealType)}
                         </div>
                         <div>
-                          <h4 className="text-white font-semibold">{deal.sponsorName}</h4>
-                          <p className="text-zinc-400 text-sm">{deal.description}</p>
+                          <h4 className="text-zinc-900 dark:text-white font-semibold">{deal.sponsorName}</h4>
+                          <p className="text-zinc-600 dark:text-zinc-400 text-sm">{deal.description}</p>
                           <p className="text-zinc-500 text-xs mt-2">
                             Due: {formatDate(deal.endDate || deal.startDate)}
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xl font-bold text-green-400">
+                        <p className="text-xl font-bold text-green-600 dark:text-green-400">
                           {formatCurrency(deal.amount)}
                         </p>
                         <Button 
@@ -631,7 +631,7 @@ const NILWalletDashboard: React.FC = () => {
           {/* Completed Deals */}
           {deals.filter(d => ['completed', 'paid'].includes(d.status)).length > 0 && (
             <div>
-              <h3 className="text-lg font-semibold text-white mb-3 mt-6">
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-3 mt-6">
                 ✅ Completed
               </h3>
               <div className="space-y-3">
@@ -643,15 +643,15 @@ const NILWalletDashboard: React.FC = () => {
                           {getDealTypeIcon(deal.dealType)}
                         </div>
                         <div>
-                          <h4 className="text-white font-semibold">{deal.sponsorName}</h4>
-                          <p className="text-zinc-400 text-sm">{deal.description}</p>
+                          <h4 className="text-zinc-900 dark:text-white font-semibold">{deal.sponsorName}</h4>
+                          <p className="text-zinc-600 dark:text-zinc-400 text-sm">{deal.description}</p>
                           <p className="text-zinc-500 text-xs mt-1">
                             Completed: {formatDate(deal.completedAt)}
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xl font-bold text-green-400">
+                        <p className="text-xl font-bold text-green-600 dark:text-green-400">
                           {formatCurrency(deal.amount)}
                         </p>
                         {getDealStatusBadge(deal.status)}
@@ -678,10 +678,10 @@ const NILWalletDashboard: React.FC = () => {
           {payoutHistory.length === 0 ? (
             <GlassCard className="p-8 text-center">
               <div className="text-4xl mb-4">💸</div>
-              <h3 className="text-xl font-semibold text-white mb-2">
+              <h3 className="text-xl font-semibold text-zinc-900 dark:text-white mb-2">
                 No Payouts Yet
               </h3>
-              <p className="text-zinc-400 mb-4">
+              <p className="text-zinc-600 dark:text-zinc-400 mb-4">
                 Complete deals and build up your balance to request payouts
               </p>
               <p className="text-sm text-zinc-500">
@@ -698,16 +698,16 @@ const NILWalletDashboard: React.FC = () => {
                         💸
                       </div>
                       <div>
-                        <p className="text-white font-medium">
+                        <p className="text-zinc-900 dark:text-white font-medium">
                           Payout via {payout.method.replace('_', ' ')}
                         </p>
-                        <p className="text-zinc-400 text-sm">
+                        <p className="text-zinc-600 dark:text-zinc-400 text-sm">
                           {formatDate(payout.date)}
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-xl font-bold text-green-400">
+                      <p className="text-xl font-bold text-green-600 dark:text-green-400">
                         {formatCurrency(payout.amount)}
                       </p>
                       <span className={`text-xs ${
@@ -730,35 +730,35 @@ const NILWalletDashboard: React.FC = () => {
 
       {/* How It Works */}
       <GlassCard className="p-6 mt-8">
-        <h3 className="text-lg font-semibold text-white mb-4">💡 How NIL Deals Work</h3>
+        <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4">💡 How NIL Deals Work</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="text-center p-4">
             <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center text-xl mx-auto mb-2">
               1️⃣
             </div>
-            <p className="text-white font-medium">Get Discovered</p>
-            <p className="text-zinc-400 text-sm">Local sponsors find you through your team page</p>
+            <p className="text-zinc-900 dark:text-white font-medium">Get Discovered</p>
+            <p className="text-zinc-600 dark:text-zinc-400 text-sm">Local sponsors find you through your team page</p>
           </div>
           <div className="text-center p-4">
             <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center text-xl mx-auto mb-2">
               2️⃣
             </div>
-            <p className="text-white font-medium">Review Deals</p>
-            <p className="text-zinc-400 text-sm">Accept or decline offers with parent approval</p>
+            <p className="text-zinc-900 dark:text-white font-medium">Review Deals</p>
+            <p className="text-zinc-600 dark:text-zinc-400 text-sm">Accept or decline offers with parent approval</p>
           </div>
           <div className="text-center p-4">
             <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center text-xl mx-auto mb-2">
               3️⃣
             </div>
-            <p className="text-white font-medium">Complete Work</p>
-            <p className="text-zinc-400 text-sm">Fulfill requirements and mark as complete</p>
+            <p className="text-zinc-900 dark:text-white font-medium">Complete Work</p>
+            <p className="text-zinc-600 dark:text-zinc-400 text-sm">Fulfill requirements and mark as complete</p>
           </div>
           <div className="text-center p-4">
             <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center text-xl mx-auto mb-2">
               4️⃣
             </div>
-            <p className="text-white font-medium">Get Paid</p>
-            <p className="text-zinc-400 text-sm">Request payout to PayPal when ready</p>
+            <p className="text-zinc-900 dark:text-white font-medium">Get Paid</p>
+            <p className="text-zinc-600 dark:text-zinc-400 text-sm">Request payout to PayPal when ready</p>
           </div>
         </div>
       </GlassCard>

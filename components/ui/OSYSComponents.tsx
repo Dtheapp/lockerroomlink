@@ -334,7 +334,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
           {badge}
         </Badge>
       )}
-      <h2 className="osys-text-display">
+      <h2 className="osys-text-display text-zinc-900 dark:text-white">
         {title}
         {highlight && (
           <>
@@ -344,7 +344,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
         )}
       </h2>
       {subtitle && (
-        <p className="text-lg text-slate-400 mt-4">{subtitle}</p>
+        <p className="text-lg text-zinc-600 dark:text-slate-400 mt-4">{subtitle}</p>
       )}
     </div>
   );

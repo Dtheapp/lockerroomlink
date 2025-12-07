@@ -785,3 +785,65 @@
 
 /* Spinner/loader border */
 :root:not(.dark) .border-orange-500 { border-color: #a855f7 !important; }
+
+/* ============================================
+   LIGHT MODE TEXT VISIBILITY FIXES
+   Fix white text being invisible on light backgrounds
+   ============================================ */
+
+/* OSYS text classes need dark text in light mode */
+:root:not(.dark) .osys-text-display {
+    color: #0f172a !important; /* slate-900 */
+}
+
+:root:not(.dark) .osys-text-title {
+    color: #0f172a !important; /* slate-900 */
+}
+
+:root:not(.dark) .osys-text-hero {
+    color: #0f172a !important; /* slate-900 */
+}
+
+/* Fix text-white being invisible in light mode when not on dark backgrounds */
+:root:not(.dark) .osys-glass .text-white,
+:root:not(.dark) .osys-card .text-white {
+    color: #0f172a !important; /* slate-900 */
+}
+
+/* Fix zinc-400 text being too light on white backgrounds */
+:root:not(.dark) .text-zinc-400 {
+    color: #6b7280 !important; /* gray-500 - better contrast */
+}
+
+/* NIL Wallet & Fundraising Page specific fixes */
+/* These pages use dark-themed components - ensure readability in light mode */
+:root:not(.dark) .osys-glass h1,
+:root:not(.dark) .osys-glass h2,
+:root:not(.dark) .osys-glass h3,
+:root:not(.dark) .osys-glass h4,
+:root:not(.dark) .osys-card h1,
+:root:not(.dark) .osys-card h2,
+:root:not(.dark) .osys-card h3,
+:root:not(.dark) .osys-card h4 {
+    color: #0f172a !important; /* slate-900 */
+}
+
+/* Fix GlassCard background for light mode */
+:root:not(.dark) .osys-glass {
+    background: rgba(255, 255, 255, 0.9) !important;
+    border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+:root:not(.dark) .osys-card {
+    background: rgba(255, 255, 255, 0.9) !important;
+    border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Fix slate text colors for better readability */
+:root:not(.dark) .text-slate-400 {
+    color: #6b7280 !important; /* gray-500 */
+}
+
+:root:not(.dark) .text-slate-500 {
+    color: #4b5563 !important; /* gray-600 */
+}
