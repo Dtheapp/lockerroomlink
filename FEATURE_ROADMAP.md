@@ -1,20 +1,165 @@
 # 🏈 LockerRoomLink - Revolutionary Feature Roadmap
 
-## Transform Youth Sports Forever
+## The Operating System for Youth Sports
 
-This document outlines innovative features that will make LockerRoomLink the #1 youth sports platform in the world. Each feature is designed to solve real problems for coaches, parents, players, and fans.
+> **Vision:** Handle ALL team needs. Make them dependent. Capture value at every step.
+
+This document outlines features that will make LockerRoomLink the **#1 youth sports platform in the world** - not just an app, but the operating system every organization runs on.
 
 ---
 
 # 📋 TABLE OF CONTENTS
 
-1. [Tier 1: Revolutionary Features](#tier-1-revolutionary-features-industry-first)
-2. [Tier 2: Engagement & Gamification](#tier-2-engagement--gamification)
-3. [Tier 3: Monetization & Sustainability](#tier-3-monetization--sustainability)
-4. [Tier 4: Futuristic AR/VR Features](#tier-4-futuristic--ar--vr)
-5. [Tier 5: Community & Social](#tier-5-community--social)
-6. [Tier 6: Quick Wins](#tier-6-quick-wins-easier-to-implement)
-7. [Implementation Priority Matrix](#implementation-priority-matrix)
+1. [Tier 0: Platform Revenue Streams (NEW!)](#tier-0-platform-revenue-streams)
+2. [Tier 1: Revolutionary Features](#tier-1-revolutionary-features-industry-first)
+3. [Tier 2: Engagement & Gamification](#tier-2-engagement--gamification)
+4. [Tier 3: Monetization & Sustainability](#tier-3-monetization--sustainability)
+5. [Tier 4: Futuristic AR/VR Features](#tier-4-futuristic--ar--vr)
+6. [Tier 5: Community & Social](#tier-5-community--social)
+7. [Tier 6: Quick Wins](#tier-6-quick-wins-easier-to-implement)
+8. [Implementation Priority Matrix](#implementation-priority-matrix)
+
+---
+
+# TIER 0: PLATFORM REVENUE STREAMS
+
+These are the features that turn LockerRoomLink into a **revenue-generating operating system**:
+
+---
+
+## 0.1 💳 COACH SUBSCRIPTION TIERS
+
+### What Is It?
+Tiered subscription plans that unlock premium features for coaches.
+
+### Pricing Strategy
+| Tier | Price | Features |
+|------|-------|----------|
+| **Free** | $0 | 1 team, basic features, 14-day full trial |
+| **Coach Pro** | $14.99/mo | 3 teams, playbook, video, stats |
+| **Coach Elite** | $29.99/mo | Unlimited teams, AI features, priority support |
+| **Organization** | $99.99/mo | Multiple coaches, league tools, white-label |
+
+### Why Coaches Will Pay
+- Saves 10+ hours/week on admin
+- Professional playbook tools
+- Impresses parents and players
+- Competitive advantage over other coaches
+
+---
+
+## 0.2 🎁 FUNDRAISING PLATFORM
+
+### What Is It?
+Built-in fundraising tools so teams raise money HERE, not on GoFundMe.
+
+### Features
+- Beautiful branded fundraising pages
+- Donation processing (Stripe)
+- Goal tracking with progress bars
+- Donor recognition walls
+- Social sharing integration
+- Tax receipt generation
+
+### Revenue Model
+| Plan | Fee |
+|------|-----|
+| Basic | 5% + payment processing |
+| Pro (with subscription) | 3% + payment processing |
+
+### Fundraiser Types
+- Equipment drives
+- Travel fund
+- Uniform fund
+- Field maintenance
+- Scholarship fund
+
+---
+
+## 0.3 🎟️ DIGITAL GAME TICKETS
+
+### What Is It?
+Ticketmaster for youth sports - digital tickets that save to phone wallets.
+
+### Features
+- QR codes that save to Apple/Google Wallet
+- Ticket scanning app for gate volunteers
+- Season pass support
+- Family pack discounts
+- Attendance tracking & analytics
+
+### Revenue Model
+| Type | Fee |
+|------|-----|
+| Free Events | $0 (tracking only) |
+| Paid Tickets | 5% + $0.50/ticket |
+| Season Passes | 3% |
+
+---
+
+## 0.4 🏋️ PRIVATE COACHING MARKETPLACE
+
+### What Is It?
+CoachUp clone built into the platform - coaches offer paid training sessions.
+
+### Features
+- Coach profiles with credentials & reviews
+- Availability calendar
+- Booking & payment system
+- Session types (1-on-1, small group, position-specific)
+- In-app messaging for coordination
+
+### Revenue Model
+| Type | Fee |
+|------|-----|
+| Standard | 15% of booking |
+| Subscription Coaches | 10% of booking |
+
+---
+
+## 0.5 🤝 NIL MARKETPLACE
+
+### What Is It?
+A marketplace where companies find athletes for NIL deals.
+
+### Features
+- Player profiles (stats, highlights, social following)
+- Company profiles
+- Deal types (sponsorship, appearance, social post)
+- "Looking for" listings by players
+- Contract templates
+- Payment escrow
+- Compliance tracking
+
+### Revenue Model
+| Type | Fee |
+|------|-----|
+| Deal Facilitation | 10% of contract value |
+| Featured Company Listing | $49/mo |
+| Verified Player Badge | $9.99/year |
+
+---
+
+## 0.6 🏆 LEAGUE MANAGEMENT
+
+### What Is It?
+Replace League Lineup with modern league management that uses AI to auto-fill stats.
+
+### Features
+- League dashboard with all teams
+- Automatic standings calculation
+- AI stats from uploaded game video
+- Schedule builder
+- Referee assignment
+- One-click social sharing (FB standings)
+- Playoff bracket generator
+
+### Revenue Model
+| Tier | Price | Teams |
+|------|-------|-------|
+| Starter | $49/season | Up to 8 teams |
+| Pro | $99/season | Up to 16 teams |
+| Enterprise | $199/season | Unlimited |
 
 ---
 
