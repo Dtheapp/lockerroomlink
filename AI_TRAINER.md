@@ -404,6 +404,31 @@ When catching amateur thinking:
 - **Pattern:** Query by `teamIds` array-contains, but also check legacy `teamId` string field
 - **Code:** `where('teamIds', 'array-contains', teamId)` + filter for `doc.data().teamId === teamId`
 
+**L011 - Badge Component Constraints** (Jan 21, 2025)
+- **Amateur:** Assume Badge has size prop and common variants like 'info', 'danger'
+- **Great:** Check actual component props before using
+- **Badge variants:** `'default' | 'primary' | 'gold' | 'success' | 'live' | 'coming' | 'warning' | 'error'`
+- **NO size prop** - Use `className="text-xs"` instead
+- **Mapping:** 'info' → 'warning', 'danger' → 'error'
+
+**L012 - UserRole Type Case Sensitivity** (Jan 21, 2025)
+- **Amateur:** Use lowercase role names like `'fan'`, `'coach'`
+- **Great:** Check the exact UserRole type definition
+- **Correct:** `'Coach' | 'Parent' | 'Fan' | 'SuperAdmin'` (capital first letter)
+- **Pattern:** Always verify enum/type definitions in types.ts
+
+**L013 - Required Type Fields** (Jan 21, 2025)
+- **Amateur:** Assume you know what fields a type requires
+- **Great:** Check service function signatures and type definitions
+- **Example:** NILDeal requires `source: 'listing' | 'offer' | 'recorded' | 'legacy'`
+- **Pattern:** When creating demo data, verify ALL required fields exist
+
+**L014 - Button Component Variants** (Jan 21, 2025)
+- **Amateur:** Use common variants like 'outline', 'secondary'
+- **Great:** Check Button.tsx for actual supported variants
+- **Button variants:** `'primary' | 'gold' | 'ghost'` (NO 'outline')
+- **Pattern:** 'outline' → 'ghost'
+
 ---
 
 ## 🏆 THE STANDARD
@@ -434,6 +459,8 @@ Every app we build together must:
 | Dec 8, 2025 | **SESSION 4**: NewOSYSDashboard 100% feature parity achieved |
 | Dec 8, 2025 | Added lessons L008-L010 (Feature Audits, Component Props, Firebase Queries) |
 | Dec 8, 2025 | Domain changed: lockerroomlink.com → osys.team |
+| Jan 21, 2025 | **SESSION 6**: NIL Marketplace complete, TypeScript errors fixed |
+| Jan 21, 2025 | Added lessons L011-L014 (Badge constraints, UserRole case, Required fields, Button variants) |
 
 ---
 
@@ -441,77 +468,51 @@ Every app we build together must:
 
 > **This section is the "brain dump" from the last session. New AI: Read this first!**
 
-### Last Session: January 20, 2025 (Session 5)
+### Last Session: January 21, 2025 (Session 6)
 
-#### 🎉 MAJOR MILESTONE: PHASE 1 PILOT READY - 100% COMPLETE
+#### 🎉 NIL MARKETPLACE COMPLETE + BUG FIXES
 
-**All Phase 1 polish items are done. The app is demo-ready for the 20-team pilot.**
+**Full NIL (Name, Image, Likeness) marketplace system built and deployed.**
 
 #### ✅ COMPLETED THIS SESSION
 
-1. **31 Traits Audit & Security Hardening**
-   - Reviewed all 31 traits and identified gaps
-   - Added rate limiting to moderation service (10 reports/hour)
-   - Added input validation and field sanitization
-   - Added Firestore rules for `contentReports` and `feedback` collections
-   - Deployed updated Firestore rules to production
+1. **NIL Marketplace Feature (100% Complete)**
+   - `NILMarketplace.tsx` - Browse/filter listings, fan purchase flow
+   - `NILWalletDashboard.tsx` - Athlete earnings tracking with charts
+   - `AthleteNILManager.tsx` - Create/manage NIL listings
+   - `services/nil.ts` - Full CRUD operations, Stripe integration ready
 
-2. **Phase 1 Polish Features (ALL COMPLETE)**
-   | Feature | Status | File | Notes |
-   |---------|--------|------|-------|
-   | EmptyState Component | ✅ | `components/ui/EmptyState.tsx` | 10 SVG illustrations, theme-aware |
-   | Skeleton Loaders | ✅ | `components/ui/Skeleton.tsx` | Card, List, Table, Profile variants |
-   | Feedback Button | ✅ | `components/ui/FeedbackButton.tsx` | Floating button, saves to Firestore |
-   | Sentry Error Monitoring | ✅ | `services/sentry.ts` | Ready for VITE_SENTRY_DSN env var |
-   | Firebase Analytics | ✅ | `services/analytics.ts` | Full tracking integration |
+2. **TypeScript Error Fixes (commit b170f33)**
+   | File | Fix |
+   |------|-----|
+   | `MyTickets.tsx` | Button variant 'outline' → 'ghost' |
+   | `NILWalletDashboard.tsx` | Added `source: 'legacy'` to demo deals, added missing icons |
+   | `NILMarketplace.tsx` | Removed invalid query options, fixed 'fan' → 'Fan' role checks |
+   | `AthleteNILManager.tsx` | Removed Badge size props, fixed variants, added isActive |
+   | `services/fundraising.ts` | Removed duplicate type imports |
 
-3. **EmptyState Integrations**
-   - `Roster.tsx` - Shows empty roster illustration
-   - `VideoLibrary.tsx` - Shows empty videos illustration
-   - `events/EventList.tsx` - Shows empty events illustration
-
-4. **Test Fixes**
-   - Fixed ErrorBoundary test (href assignment vs reload())
-   - All 55 tests passing ✅
-
-#### 🔧 KEY FILES CREATED
+#### 🔧 KEY FILES CREATED/MODIFIED
 
 | File | Purpose |
 |------|---------|
-| `components/ui/EmptyState.tsx` | Reusable empty state with 10 SVG illustrations |
-| `components/ui/Skeleton.tsx` | Loading skeleton components |
-| `components/ui/FeedbackButton.tsx` | Floating feedback button |
-| `services/sentry.ts` | Error monitoring service |
-| `services/analytics.ts` | Analytics tracking |
-
-#### 🔧 KEY FILES MODIFIED
-
-| File | What Changed |
-|------|--------------|
-| `firestore.rules` | Added contentReports and feedback collection rules |
-| `services/moderation.ts` | Added rate limiting, validation, sanitization |
-| `services/firebase.ts` | Added analytics export |
-| `index.tsx` | Added Sentry initialization |
-| `contexts/AuthContext.tsx` | Added Sentry user context |
-| `layout/NewOSYSLayout.tsx` | Added FeedbackButton |
-| `PROGRESS.md` | Updated with Phase 1 completion |
+| `components/NILMarketplace.tsx` | Fan-facing marketplace for NIL deals |
+| `components/NILWalletDashboard.tsx` | Athlete earnings dashboard |
+| `components/AthleteNILManager.tsx` | Athlete listing management |
+| `services/nil.ts` | NIL service with Firestore operations |
 
 #### 📍 CURRENT STATE
 
 ```
 ✅ Phase 1: Pilot Ready - COMPLETE
-   ├── Multi-sport (Basketball/Cheer) ✅
-   ├── AI Content Moderation ✅
-   ├── Onboarding Welcome Modal ✅
-   ├── Getting Started Checklist ✅
-   ├── Empty States ✅
-   ├── Skeleton Loaders ✅
-   ├── Error Monitoring (Sentry) ✅
-   ├── Analytics ✅
-   └── Feedback Button ✅
+✅ NIL Marketplace - COMPLETE
+   ├── Athlete Listing Creation ✅
+   ├── Marketplace Browse/Filter ✅
+   ├── Wallet Dashboard ✅
+   ├── Purchase Flow (Stripe ready) ✅
+   └── Earnings Tracking ✅
 
-⏳ Phase 2: Revenue Foundation - UP NEXT
-   ├── Stripe Integration
+⏳ Phase 2: Revenue Foundation - IN PROGRESS
+   ├── Stripe Integration (NIL ready, needs keys)
    ├── Premium Subscriptions ($24.99/mo per team)
    ├── Parent Photo Purchases
    └── Event Ticket Sales
@@ -519,13 +520,24 @@ Every app we build together must:
 
 #### 💡 IMPORTANT CONTEXT FOR NEW AI
 
-**Environment Variables Needed:**
-- `VITE_SENTRY_DSN` - Set in Netlify for Sentry error monitoring
-- Analytics is auto-configured via Firebase
+**Component Props (VERIFIED):**
+- **Badge:** Variants: `'default' | 'primary' | 'gold' | 'success' | 'live' | 'coming' | 'warning' | 'error'` - NO size prop!
+- **Button:** Variants: `'primary' | 'gold' | 'ghost'` - NO 'outline'!
+- **UserRole:** `'Coach' | 'Parent' | 'Fan' | 'SuperAdmin'` - Capital letters!
 
-**Tests Status:**
-- 55/55 tests passing
-- Build: ~47KB gzipped
+**NIL Types:**
+```typescript
+// NILDeal requires source field
+source: 'listing' | 'offer' | 'recorded' | 'legacy'
+
+// NILDealType icons needed for all types
+const dealTypeIcons = {
+  'merchandise': '👕', 'social_post': '📱', 'appearance': '🎤',
+  'camp_clinic': '🏀', 'autograph': '✍️', 'shoutout': '📣', 'custom': '🎯'
+}
+```
+
+**Tests Status:** Build passes ✅
 
 **Dev Server:** http://localhost:3001/
 
@@ -533,71 +545,14 @@ Every app we build together must:
 
 #### 🎯 USER'S LAST REQUEST
 
-"save learning" - Updated AI_TRAINER.md with new session protocols
+"update training" - Updated AI_TRAINER.md with session context
 
-#### 🚧 NEXT UP - PHASE 2: REVENUE FOUNDATION
+#### 🚧 NEXT UP
 
-See PROGRESS.md for full breakdown. Key items:
-1. Stripe integration
+1. Connect Stripe keys to enable real NIL payments
 2. Premium team subscriptions
 3. Parent photo purchases
-4. Event ticket sales#### 💡 IMPORTANT CONTEXT FOR NEW AI
-
-**Firebase Collections:**
-- `teams/{teamId}` - Team data, record (wins/losses/ties)
-- `teams/{teamId}/bulletin` - Bulletin board posts
-- `teams/{teamId}/events` - Events with attachments
-- `teams/{teamId}/liveStreams` - Live stream sessions
-- `users` - User data, query by `teamIds` array-contains OR legacy `teamId`
-
-**Key Code Patterns:**
-```typescript
-// Theme support - use className conditionals
-<div className={theme === 'light' ? 'bg-white text-gray-900' : 'bg-gray-800 text-white'}>
-
-// GlassCard does NOT accept theme prop - use wrapper div for theming
-
-// uploadFile returns UploadedFile object - access .url property
-const result = await uploadFile(file, 'events');
-const url = result.url;
-
-// GoLiveModal - uses useAuth internally, only needs teamId and teamName
-<GoLiveModal teamId={teamId} teamName={teamName} onClose={() => {}} />
-
-// Coaching staff query - handle both new and legacy structure
-const q = query(usersRef, where('teamIds', 'array-contains', teamId));
-// Also check legacy teamId field for backwards compatibility
-```
-
-**Dev Server:** http://localhost:3000/
-
-**Domain:** osys.team (DNS propagating)
-
-#### 🎯 USER'S LAST REQUEST
-
-"save training" - Continue OSYS UI migration
-
-#### 🚧 NEXT UP - OSYS UI MIGRATION
-
-**Pattern:** Convert all old light/dark theme components to OSYS dark theme with purple accents.
-
-#### ✅ OSYS UI MIGRATION COMPLETED
-- **Chat.tsx** - Purple accents, glass morphism, dark backgrounds
-- **Messenger.tsx** - Matching OSYS styling throughout
-- **OSYSFormElements.tsx** - NEW reusable form components (Modal, Input, Alert, etc.)
-- **NewOSYSDashboard.tsx** - Reference pattern (already OSYS)
-
-#### ⏳ OSYS UI MIGRATION REMAINING
-Priority order:
-1. **Roster.tsx** (2382 lines) - Team roster management
-2. **Profile.tsx** - User profile
-3. **Stats.tsx** - Statistics tracking
-4. **VideoLibrary.tsx** - Film room
-5. **Strategies.tsx** - Strategy discussions
-6. **CoachPlaybook.tsx** (4591 lines) - Play designer (LARGEST)
-7. **Playbook.tsx** - Player view of plays
-
----
+4. Event ticket sales---
 
 ## 🎨 OSYS DESIGN SYSTEM REFERENCE
 
