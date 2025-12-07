@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AnimatedBackground,
@@ -13,50 +13,59 @@ import {
 } from '../components/ui/OSYSComponents';
 import { DemoNavigation } from './ui/DemoNavigation';
 
-// Scrolling feature ticker with typewriter effect
+// Scrolling feature ticker with typewriter effect - types left, scrolls right
 const FeatureTicker: React.FC = () => {
   const features = [
     'Social Media',
     'Fundraising', 
     'Livestreams',
-    'Game Ticketing',
+    'Ticketing',
     'Playbooks',
-    'Player Registration',
+    'Registration',
     'Team Stats',
     'Video Library',
     'Fan Engagement',
-    'Coach Messaging',
+    'Messaging',
     'Player Profiles',
-    'Event Management'
+    'Events'
   ];
   
   const [visibleFeatures, setVisibleFeatures] = useState<string[]>([]);
   const [currentTyping, setCurrentTyping] = useState('');
   const [featureIndex, setFeatureIndex] = useState(0);
   const [charIndex, setCharIndex] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
   
-  const maxVisible = 4; // Show up to 4 features at a time
+  // Check screen size
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  // Mobile shows 2 features, desktop shows 3
+  const maxVisible = isMobile ? 2 : 3;
   
   useEffect(() => {
     const currentFeature = features[featureIndex % features.length];
     
     if (charIndex < currentFeature.length) {
-      // Still typing current feature
+      // Still typing current feature - slowed down by ~15%
       const timeout = setTimeout(() => {
         setCurrentTyping(currentFeature.substring(0, charIndex + 1));
         setCharIndex(charIndex + 1);
-      }, 70);
+      }, 80);
       return () => clearTimeout(timeout);
     } else {
       // Finished typing, pause then move to next
       const timeout = setTimeout(() => {
-        // Add completed feature to visible list
+        // Add completed feature to visible list (prepend so newest is first)
         setVisibleFeatures(prev => {
-          const updated = [...prev, currentFeature];
-          // Keep only the last (maxVisible - 1) completed features
+          const updated = [currentFeature, ...prev];
+          // Keep only the first (maxVisible - 1) completed features
           if (updated.length > maxVisible - 1) {
-            return updated.slice(-maxVisible + 1);
+            return updated.slice(0, maxVisible - 1);
           }
           return updated;
         });
@@ -64,31 +73,33 @@ const FeatureTicker: React.FC = () => {
         setCurrentTyping('');
         setCharIndex(0);
         setFeatureIndex(prev => prev + 1);
-      }, 1200);
+      }, 1400);
       return () => clearTimeout(timeout);
     }
-  }, [charIndex, featureIndex, features]);
+  }, [charIndex, featureIndex, features, maxVisible]);
   
   return (
-    <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 overflow-hidden" ref={containerRef}>
-      {visibleFeatures.map((feature, index) => (
-        <span 
-          key={`${feature}-${index}`}
-          className="text-slate-400 transition-all duration-500 animate-fade-in"
-          style={{ 
-            opacity: Math.max(0.4, 1 - (visibleFeatures.length - index - 1) * 0.2)
-          }}
-        >
-          {feature}
-          <span className="text-purple-500 mx-1">•</span>
-        </span>
-      ))}
+    <div className="flex items-center justify-center gap-x-2 overflow-hidden whitespace-nowrap">
+      {/* Currently typing on the LEFT */}
       {currentTyping && (
-        <span className="text-purple-400 font-medium">
+        <span className="text-purple-400 font-medium shrink-0">
           {currentTyping}
           <span className="animate-pulse text-purple-300">|</span>
         </span>
       )}
+      {/* Completed features scroll to the RIGHT, getting more faded */}
+      {visibleFeatures.map((feature, index) => (
+        <span 
+          key={`${feature}-${featureIndex}-${index}`}
+          className="text-slate-400 transition-all duration-500 shrink-0"
+          style={{ 
+            opacity: Math.max(0.35, 1 - index * 0.3)
+          }}
+        >
+          <span className="text-purple-500 mx-1">•</span>
+          {feature}
+        </span>
+      ))}
     </div>
   );
 };
