@@ -11,6 +11,7 @@ import type { SportType } from '../types';
 import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle, Minus, ExternalLink, Copy, Link as LinkIcon, Users, Crown, User, Image, FileText, Paperclip, Zap, Radio } from 'lucide-react';
 import type { BulletinPost, PlayerSeasonStats, TeamEvent, UserProfile, LiveStream } from '../types';
 import { GoLiveModal, LiveStreamBanner, LiveStreamViewer, SaveStreamToLibraryModal } from './livestream';
+import SeasonManager from './SeasonManager';
 
 // Helper: Format date string (YYYY-MM-DD) to readable format without timezone issues
 const formatEventDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
@@ -1213,6 +1214,29 @@ const Dashboard: React.FC = () => {
             <div className="text-sm text-red-100 opacity-80">Start streaming to your team</div>
           </div>
         </button>
+      )}
+
+      {/* SEASON MANAGEMENT (Coaches Only) */}
+      {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && teamData?.id && (
+        <div className="bg-white dark:bg-gradient-to-br dark:from-zinc-900 dark:to-black rounded-2xl border border-gray-200 dark:border-zinc-800 overflow-hidden shadow-xl">
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg flex items-center justify-center shadow-lg">
+                <Calendar className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">Season Management</h2>
+                <p className="text-xs text-gray-500 dark:text-zinc-500">Manage registration and seasons</p>
+              </div>
+            </div>
+            <SeasonManager
+              teamId={teamData.id}
+              teamName={teamData.name}
+              sport={teamData.sport || 'football'}
+              currentSeasonId={teamData.currentSeasonId}
+            />
+          </div>
+        </div>
       )}
 
       {/* TEAM RECORD */}

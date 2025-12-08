@@ -459,6 +459,39 @@ service cloud.firestore {
         allow read: if isAuthenticated();
         allow write: if isTeamCoach(teamId) || isAdmin();
       }
+      
+      // =============================================================================
+      // SEASONS SUBCOLLECTION - Season management for teams
+      // =============================================================================
+      match /seasons/{seasonId} {
+        // Anyone can read seasons (for public registration pages)
+        allow read: if true;
+        
+        // Only coaches can create/update/delete seasons
+        allow create: if isTeamCoach(teamId) || isAdmin();
+        allow update: if isTeamCoach(teamId) || isAdmin();
+        allow delete: if isTeamCoach(teamId) || isAdmin();
+        
+        // Season registrations subcollection
+        match /registrations/{registrationId} {
+          // Coaches can read all registrations, parents can read their own
+          allow read: if isTeamCoach(teamId) || 
+                         isUser(resource.data.parentId) || 
+                         isAdmin();
+          
+          // Parents can create registrations for their players
+          allow create: if isAuthenticated() && 
+                           request.resource.data.parentId == request.auth.uid;
+          
+          // Coaches can update (approve/reject), parents can update pending registrations
+          allow update: if isTeamCoach(teamId) || 
+                           (isUser(resource.data.parentId) && resource.data.status == 'pending') ||
+                           isAdmin();
+          
+          // Only coaches/admin can delete registrations
+          allow delete: if isTeamCoach(teamId) || isAdmin();
+        }
+      }
     }
     
     // Athletes collection

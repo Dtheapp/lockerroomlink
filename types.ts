@@ -90,6 +90,98 @@ export interface UserProfile {
   followerCount?: number; // Number of followers (for coaches/athletes)
 }
 
+// --- SEASON MANAGEMENT ---
+export type SeasonStatus = 'draft' | 'registration' | 'active' | 'completed';
+
+export interface Season {
+  id: string;
+  teamId: string;
+  name: string; // e.g., "Fall 2025", "Spring League 2026"
+  sport: SportType;
+  year: number; // e.g., 2025
+  status: SeasonStatus;
+  
+  // Season dates (no end date - coach ends manually when playoffs done)
+  startDate: string; // Season start date (YYYY-MM-DD)
+  
+  // Registration settings
+  registrationOpenDate: string; // When parents can start registering
+  registrationCloseDate: string; // Registration deadline
+  registrationFee: number; // Fee in cents (0 = free)
+  maxRosterSize?: number; // Optional roster limit
+  
+  // What's included description (uniform, equipment, etc.)
+  description: string; // What comes with registration
+  includedItems?: string[]; // List of included items (e.g., ["Jersey", "Helmet", "Practice shorts"])
+  
+  // Registration form customization
+  requireMedicalInfo?: boolean;
+  requireEmergencyContact?: boolean;
+  requireUniformSizes?: boolean;
+  customFields?: SeasonCustomField[];
+  
+  // Waiver/consent
+  waiverText?: string; // Custom waiver text
+  requireWaiver?: boolean;
+  
+  // Flyer - created later in Design Studio
+  flyerId?: string; // Reference to designed flyer
+  flyerUrl?: string; // URL to flyer image
+  
+  // Stats
+  playerCount: number; // Current registered players
+  gamesPlayed: number; // Games played this season
+  
+  // Metadata
+  createdAt: any;
+  createdBy: string;
+  updatedAt?: any;
+  endedAt?: any; // When season was ended (manual)
+  endedBy?: string;
+}
+
+export interface SeasonCustomField {
+  id: string;
+  label: string;
+  type: 'text' | 'select' | 'checkbox';
+  required: boolean;
+  options?: string[]; // For select type
+}
+
+// Player registration for a season
+export interface SeasonRegistration {
+  id: string;
+  seasonId: string;
+  teamId: string;
+  playerId: string;
+  playerName: string;
+  parentId: string;
+  parentName: string;
+  parentEmail?: string;
+  
+  // Registration status
+  status: 'pending' | 'approved' | 'waitlist' | 'rejected';
+  
+  // Payment
+  feePaid: boolean;
+  feeAmount: number;
+  paymentId?: string; // Reference to payment transaction
+  paidAt?: any;
+  
+  // Waiver
+  waiverSigned: boolean;
+  waiverSignedAt?: any;
+  waiverSignedBy?: string; // Parent name who signed
+  
+  // Custom field responses
+  customFieldResponses?: { [fieldId: string]: string | boolean };
+  
+  // Metadata
+  registeredAt: any;
+  approvedAt?: any;
+  approvedBy?: string;
+}
+
 // Sport Types - expandable for future sports
 export type SportType = 'football' | 'basketball' | 'soccer' | 'baseball' | 'cheer' | 'volleyball' | 'other';
 
@@ -104,6 +196,10 @@ export interface Team {
   offensiveCoordinatorId?: string | null; // OC - runs the offense
   defensiveCoordinatorId?: string | null; // DC - runs the defense
   specialTeamsCoordinatorId?: string | null; // STC - runs special teams
+  
+  // Season management
+  currentSeasonId?: string | null; // Currently active season
+  
   record?: {
       wins: number;
       losses: number;
