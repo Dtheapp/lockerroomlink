@@ -12,7 +12,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setTheme] = useState<Theme>(() => {
     // Check localStorage for saved preference (using namespaced key to avoid conflicts)
-    const saved = localStorage.getItem('lockerroom_theme') as Theme | null;
+    const saved = localStorage.getItem('osys_theme') as Theme | null;
     if (saved) return saved;
     
     // Check system preference
@@ -24,7 +24,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     // Save preference to localStorage with namespaced key
-    localStorage.setItem('lockerroom_theme', theme);
+    localStorage.setItem('osys_theme', theme);
     
     // Update document class for Tailwind
     if (theme === 'dark') {

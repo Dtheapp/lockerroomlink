@@ -75,7 +75,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
               </h1>
               
               <p className="text-zinc-600 dark:text-zinc-400 mb-6">
-                A new version of LockerRoomLink is available. Please refresh to load the latest version.
+                A new version of OSYS is available. Please refresh to load the latest version.
               </p>
 
               <button

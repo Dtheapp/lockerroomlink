@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lockerroom-v4';
+const CACHE_NAME = 'osys-v4';
 const OFFLINE_URL = '/offline.html';
 
 // Only cache truly static assets needed for offline

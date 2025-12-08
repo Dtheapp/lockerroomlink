@@ -70,7 +70,7 @@ describe('ThemeContext', () => {
       fireEvent.click(screen.getByRole('button', { name: /toggle theme/i }));
     });
 
-    expect(localStorage.setItem).toHaveBeenCalledWith('lockerroom_theme', 'dark');
+    expect(localStorage.setItem).toHaveBeenCalledWith('osys_theme', 'dark');
   });
 
   it('adds dark class to document when theme is dark', () => {

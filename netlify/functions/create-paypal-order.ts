@@ -128,7 +128,7 @@ const handler: Handler = async (event) => {
         items,
       }],
       application_context: {
-        brand_name: 'LockerRoomLink',
+        brand_name: 'OSYS',
         shipping_preference: 'NO_SHIPPING',
         user_action: 'PAY_NOW',
         return_url: `${process.env.URL}/registration/success`,
