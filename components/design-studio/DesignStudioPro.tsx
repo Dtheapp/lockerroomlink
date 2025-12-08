@@ -869,8 +869,8 @@ const DesignStudioPro: React.FC = () => {
 
   // Calculate scale to fit canvas in viewport while maintaining aspect ratio
   const calculatePreviewScale = () => {
-    const maxWidth = window.innerWidth - 80;
-    const maxHeight = window.innerHeight - 120;
+    const maxWidth = window.innerWidth - 100;
+    const maxHeight = window.innerHeight - 160;
     const scaleX = maxWidth / canvas.width;
     const scaleY = maxHeight / canvas.height;
     return Math.min(scaleX, scaleY, 1);
@@ -879,39 +879,53 @@ const DesignStudioPro: React.FC = () => {
   // Preview Mode - View only, maintains aspect ratio
   if (viewMode === 'preview') {
     const previewScale = calculatePreviewScale();
+    const scaledWidth = canvas.width * previewScale;
+    const scaledHeight = canvas.height * previewScale;
     
     return (
       <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center">
-        {/* Close button */}
-        <button
-          onClick={() => setViewMode('editor')}
-          className="absolute top-4 right-4 p-3 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-white z-10 flex items-center gap-2"
-        >
-          <span>✕</span> Back to Editor
-        </button>
+        {/* Top bar with buttons */}
+        <div className="absolute top-0 left-0 right-0 h-16 flex items-center justify-between px-4 z-20">
+          {/* Edit Fullscreen button */}
+          <button
+            onClick={() => setViewMode('fullscreen')}
+            className="px-4 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg text-white flex items-center gap-2 font-medium shadow-lg"
+          >
+            <span>✎</span> Edit Fullscreen
+          </button>
+          
+          {/* Close button */}
+          <button
+            onClick={() => setViewMode('editor')}
+            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-white flex items-center gap-2"
+          >
+            <span>✕</span> Back to Editor
+          </button>
+        </div>
         
-        {/* Switch to fullscreen edit mode */}
-        <button
-          onClick={() => setViewMode('fullscreen')}
-          className="absolute top-4 left-4 px-4 py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white z-10 flex items-center gap-2 font-medium"
-        >
-          <span>✎</span> Edit Fullscreen
-        </button>
-        
-        {/* Canvas Preview - Using CSS transform for proper scaling */}
+        {/* Canvas Preview Container - Wrapper to handle scaled size */}
         <div 
-          className="relative shadow-2xl"
           style={{
-            width: canvas.width,
-            height: canvas.height,
-            backgroundColor: canvas.backgroundColor,
-            backgroundImage: canvas.backgroundImage ? `url(${canvas.backgroundImage})` : undefined,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            transform: `scale(${previewScale})`,
-            transformOrigin: 'center center',
+            width: scaledWidth,
+            height: scaledHeight,
+            overflow: 'hidden',
           }}
         >
+          {/* Canvas - Using CSS transform for proper scaling */}
+          <div 
+            className="relative shadow-2xl"
+            style={{
+              width: canvas.width,
+              height: canvas.height,
+              backgroundColor: canvas.backgroundColor,
+              backgroundImage: canvas.backgroundImage ? `url(${canvas.backgroundImage})` : undefined,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              transform: `scale(${previewScale})`,
+              transformOrigin: 'top left',
+              overflow: 'hidden',
+            }}
+          >
           {/* Gradient overlay if set */}
           {canvas.backgroundGradient && (
             <div
@@ -989,6 +1003,7 @@ const DesignStudioPro: React.FC = () => {
                 )}
               </div>
             ))}
+          </div>
         </div>
         
         {/* Size indicator */}
