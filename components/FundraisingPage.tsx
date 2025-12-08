@@ -19,7 +19,6 @@ import {
 } from './ui/OSYSComponents';
 import { Skeleton } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
-import { DemoNavigation } from './ui/DemoNavigation';
 import { CreateCampaignModal } from './CreateCampaignModal';
 import { DonateModal } from './DonateModal';
 import { 
@@ -585,9 +584,6 @@ const FundraisingPage: React.FC = () => {
           </div>
         </div>
       </footer>
-
-      {/* Demo Navigation */}
-      <DemoNavigation currentPage="fundraising" />
 
       {/* Create Campaign Modal */}
       <CreateCampaignModal

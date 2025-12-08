@@ -12,7 +12,6 @@ import {
   FeatureCard,
   SectionHeader
 } from '../components/ui/OSYSComponents';
-import { DemoNavigation } from './ui/DemoNavigation';
 
 // Scrolling feature ticker with typewriter effect - types left, scrolls right
 const FeatureTicker: React.FC = () => {
@@ -510,9 +509,6 @@ const LandingPage: React.FC = () => {
           </div>
         </div>
       </footer>
-
-      {/* Demo Navigation */}
-      <DemoNavigation currentPage="welcome" />
       
       {/* Toast */}
       {ToastComponent}

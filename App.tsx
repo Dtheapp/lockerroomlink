@@ -60,16 +60,6 @@ const FundraisingPage = lazyWithRetry(() => import('./components/FundraisingPage
 const CampaignDetail = lazyWithRetry(() => import('./components/CampaignDetail'));
 const NILWalletDashboard = lazyWithRetry(() => import('./components/NILWalletDashboard'));
 const NILMarketplace = lazyWithRetry(() => import('./components/NILMarketplace'));
-const OSYSAthleteProfile = lazyWithRetry(() => import('./components/OSYSAthleteProfile'));
-const OSYSTeamPage = lazyWithRetry(() => import('./components/OSYSTeamPage'));
-const OSYSFanHub = lazyWithRetry(() => import('./components/OSYSFanHub'));
-const OSYSDashboard = lazyWithRetry(() => import('./components/OSYSDashboard'));
-const OSYSLivestream = lazyWithRetry(() => import('./components/OSYSLivestream'));
-const OSYSCoachProfile = lazyWithRetry(() => import('./components/OSYSCoachProfile'));
-const OSYSEvents = lazyWithRetry(() => import('./components/OSYSEvents'));
-const OSYSPlaybook = lazyWithRetry(() => import('./components/OSYSPlaybook'));
-const OSYSMessenger = lazyWithRetry(() => import('./components/OSYSMessenger'));
-const OSYSRoster = lazyWithRetry(() => import('./components/OSYSRoster'));
 
 // New OSYS Dashboard with real data
 const NewOSYSDashboard = lazyWithRetry(() => import('./components/NewOSYSDashboard'));
@@ -198,17 +188,6 @@ const AppContent: React.FC = () => {
           <Route path="/fundraising/:campaignId" element={<CampaignDetail />} />
           <Route path="/nil-wallet" element={<NILWalletDashboard />} />
           <Route path="/nil-marketplace" element={<NILMarketplace />} />
-          <Route path="/player" element={<OSYSAthleteProfile />} />
-          <Route path="/team-demo" element={<OSYSTeamPage />} />
-          <Route path="/fan-hub" element={<OSYSFanHub />} />
-          <Route path="/coach-demo" element={<OSYSDashboard />} />
-          <Route path="/live" element={<OSYSLivestream />} />
-          <Route path="/coach-profile" element={<OSYSCoachProfile />} />
-          {/* OSYS Demo routes - prefixed to not conflict with real app routes */}
-          <Route path="/demo/events" element={<OSYSEvents />} />
-          <Route path="/demo/playbook" element={<OSYSPlaybook />} />
-          <Route path="/demo/messages" element={<OSYSMessenger />} />
-          <Route path="/demo/roster" element={<OSYSRoster />} />
           
           {!user ? (
             <>
@@ -242,13 +221,12 @@ const AppContent: React.FC = () => {
             // Fan-specific routes - simplified navigation
             <>
               <Route path="/" element={<Layout />}>
-                <Route index element={<Navigate to="/fan-hub" replace />} />
+                <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard" element={<FanDashboard />} />
-                <Route path="fan-hub" element={<OSYSFanHub />} />
                 <Route path="profile" element={<FanProfile />} />
                 <Route path="events/:eventId/register" element={<RegistrationFlow />} />
               </Route>
-              <Route path="*" element={<Navigate to="/fan-hub" replace />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </>
           ) : (
             // Coach/Parent routes - NEW OSYS Layout

@@ -586,18 +586,6 @@ const AuthScreen: React.FC = () => {
                         </span>
                       </button>
                     </div>
-
-                    {/* Demo link */}
-                    <div className="mt-6 pt-6 border-t border-white/10 text-center">
-                      <p className="text-white/40 text-xs mb-2">Want to explore first?</p>
-                      <Link 
-                        to="/coach-demo" 
-                        className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors"
-                      >
-                        <Play className="w-4 h-4" />
-                        View Demo Dashboard
-                      </Link>
-                    </div>
                   </>
                 )}
               </div>
