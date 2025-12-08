@@ -5,6 +5,7 @@ import { collection, doc, onSnapshot, deleteDoc, serverTimestamp, query, orderBy
 import { db } from '../services/firebase';
 import type { CoachPlay, PlayElement, PlayRoute, TeamPlayAssignment, Team, OffensePlayType, DefensePlayType, Formation, DrawingLine, PlayShape, LineType, Player, PositionAssignment } from '../types';
 import { BookOpen, Eye, X, Plus, Trash2, Shield, Sword, Zap, Users, AlertCircle, ChevronDown, ChevronUp, FolderOpen, Search, Layers, UserPlus, Check, User, Save } from 'lucide-react';
+import { AnimatedBackground, GlassCard } from './ui/OSYSComponents';
 
 const ROUTE_COLORS = [
   '#FACC15', '#06b6d4', '#ec4899', '#a3e635', '#f87171', '#ffffff', '#a855f7', '#ea580c', '#3b82f6', '#14b8a6', '#8b5cf6'
@@ -825,34 +826,38 @@ const TeamPlaybook: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="relative min-h-screen">
+      <AnimatedBackground />
+      <div className="relative z-10 space-y-6 pb-20">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-purple-500 dark:from-orange-600 dark:to-orange-500 rounded-xl p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="bg-white/20 p-3 rounded-xl">
-              <BookOpen className="w-8 h-8 text-white" />
+      <GlassCard className="!p-0 overflow-hidden">
+        <div className="bg-gradient-to-r from-purple-600 to-purple-500 dark:from-orange-600 dark:to-orange-500 p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="bg-white/20 p-3 rounded-xl">
+                <BookOpen className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Team Playbook</h1>
+                <p className="text-purple-100 dark:text-orange-100">View plays assigned to your team</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Team Playbook</h1>
-              <p className="text-purple-100 dark:text-orange-100">View plays assigned to your team</p>
+            <div className="bg-white/20 rounded-lg px-4 py-2">
+              <p className="text-white text-sm font-medium">{loadedPlays.size} plays loaded</p>
             </div>
-          </div>
-          <div className="bg-white/20 rounded-lg px-4 py-2">
-            <p className="text-white text-sm font-medium">{loadedPlays.size} plays loaded</p>
           </div>
         </div>
-      </div>
+      </GlassCard>
 
       {/* Play Type Selection - REQUIRED */}
-      <div className="bg-slate-50 dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-zinc-800 p-6">
+      <GlassCard className="p-6">
         <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
           <Shield className="w-5 h-5 text-purple-500 dark:text-orange-400" />
           Select Play Type
         </h2>
         
         {!selectedPlayType && (
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-500/30 rounded-lg p-4 mb-4 flex items-start gap-3">
+          <div className="bg-amber-50/80 dark:bg-amber-900/20 backdrop-blur-sm border border-amber-200 dark:border-amber-500/30 rounded-lg p-4 mb-4 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
             <div>
               <p className="font-medium text-amber-800 dark:text-amber-200">Choose a play type to view</p>
@@ -868,12 +873,12 @@ const TeamPlaybook: React.FC = () => {
             className={`p-6 rounded-xl border-2 transition-all ${
               selectedPlayType === 'Offense'
                 ? 'bg-blue-500 border-blue-500 text-white shadow-lg shadow-blue-500/20'
-                : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 hover:border-blue-400 dark:hover:border-blue-600'
+                : 'bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm border-slate-200 dark:border-zinc-700 hover:border-blue-400 dark:hover:border-blue-600'
             }`}
           >
             <Sword className={`w-8 h-8 mx-auto mb-3 ${selectedPlayType === 'Offense' ? 'text-white' : 'text-blue-500'}`} />
             <p className={`font-bold text-lg ${selectedPlayType === 'Offense' ? 'text-white' : 'text-slate-900 dark:text-white'}`}>Offense</p>
-            <p className={`text-sm mt-1 ${selectedPlayType === 'Offense' ? 'text-blue-100' : 'text-slate-500'}`}>
+            <p className={`text-sm mt-1 ${selectedPlayType === 'Offense' ? 'text-blue-100' : 'text-slate-500 dark:text-slate-400'}`}>
               {assignments.filter(a => a.category === 'Offense' && loadedPlays.has(a.playId)).length} plays
             </p>
           </button>
@@ -884,12 +889,12 @@ const TeamPlaybook: React.FC = () => {
             className={`p-6 rounded-xl border-2 transition-all ${
               selectedPlayType === 'Defense'
                 ? 'bg-red-500 border-red-500 text-white shadow-lg shadow-red-500/20'
-                : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 hover:border-red-400 dark:hover:border-red-600'
+                : 'bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm border-slate-200 dark:border-zinc-700 hover:border-red-400 dark:hover:border-red-600'
             }`}
           >
             <Shield className={`w-8 h-8 mx-auto mb-3 ${selectedPlayType === 'Defense' ? 'text-white' : 'text-red-500'}`} />
             <p className={`font-bold text-lg ${selectedPlayType === 'Defense' ? 'text-white' : 'text-slate-900 dark:text-white'}`}>Defense</p>
-            <p className={`text-sm mt-1 ${selectedPlayType === 'Defense' ? 'text-red-100' : 'text-slate-500'}`}>
+            <p className={`text-sm mt-1 ${selectedPlayType === 'Defense' ? 'text-red-100' : 'text-slate-500 dark:text-slate-400'}`}>
               {assignments.filter(a => a.category === 'Defense' && loadedPlays.has(a.playId)).length} plays
             </p>
           </button>
@@ -900,23 +905,23 @@ const TeamPlaybook: React.FC = () => {
             className={`p-6 rounded-xl border-2 transition-all ${
               selectedPlayType === 'Special Teams'
                 ? 'bg-purple-500 dark:bg-orange-500 border-purple-500 dark:border-orange-500 text-white shadow-lg shadow-purple-500/20 dark:shadow-orange-500/20'
-                : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 hover:border-purple-400 dark:hover:border-orange-500'
+                : 'bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm border-slate-200 dark:border-zinc-700 hover:border-purple-400 dark:hover:border-orange-500'
             }`}
           >
             <Zap className={`w-8 h-8 mx-auto mb-3 ${selectedPlayType === 'Special Teams' ? 'text-white' : 'text-purple-500 dark:text-orange-400'}`} />
             <p className={`font-bold text-lg ${selectedPlayType === 'Special Teams' ? 'text-white' : 'text-slate-900 dark:text-white'}`}>Special Teams</p>
-            <p className={`text-sm mt-1 ${selectedPlayType === 'Special Teams' ? 'text-purple-100 dark:text-orange-100' : 'text-slate-500'}`}>
+            <p className={`text-sm mt-1 ${selectedPlayType === 'Special Teams' ? 'text-purple-100 dark:text-orange-100' : 'text-slate-500 dark:text-slate-400'}`}>
               {assignments.filter(a => a.category === 'Special Teams' && loadedPlays.has(a.playId)).length} plays
             </p>
           </button>
         </div>
-      </div>
+      </GlassCard>
 
       {/* Plays List - Only shown when play type is selected */}
       {selectedPlayType && (
-        <div className="bg-slate-50 dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-zinc-800 overflow-hidden">
+        <GlassCard className="overflow-hidden !p-0">
           {/* Section Header */}
-          <div className={`p-4 border-b border-slate-200 dark:border-zinc-800 ${
+          <div className={`p-4 border-b border-slate-200/50 dark:border-zinc-700/50 ${
             selectedPlayType === 'Offense' ? 'bg-blue-500/10' 
             : selectedPlayType === 'Defense' ? 'bg-red-500/10' 
             : 'bg-purple-500/10 dark:bg-orange-500/10'
@@ -927,7 +932,7 @@ const TeamPlaybook: React.FC = () => {
                 {selectedPlayType === 'Defense' && <Shield className="w-5 h-5 text-red-500" />}
                 {selectedPlayType === 'Special Teams' && <Zap className="w-5 h-5 text-purple-500 dark:text-orange-400" />}
                 <h3 className="font-bold text-slate-900 dark:text-white">{selectedPlayType} Plays</h3>
-                <span className="bg-slate-200 dark:bg-zinc-800 px-2 py-0.5 rounded text-xs font-medium text-slate-600 dark:text-slate-400">
+                <span className="bg-slate-200/80 dark:bg-zinc-700/80 px-2 py-0.5 rounded text-xs font-medium text-slate-600 dark:text-slate-300">
                   {filteredAssignments.length} plays
                 </span>
               </div>
@@ -960,16 +965,16 @@ const TeamPlaybook: React.FC = () => {
                   <div className="relative flex-1 max-w-xs">
                     <button
                       onClick={() => setShowFormationDropdown(!showFormationDropdown)}
-                      className="w-full px-3 py-1.5 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg text-sm text-left flex items-center justify-between hover:border-purple-400 transition-colors"
+                      className="w-full px-3 py-1.5 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-sm border border-slate-200 dark:border-zinc-600 rounded-lg text-sm text-left flex items-center justify-between hover:border-purple-400 dark:hover:border-orange-500 transition-colors"
                     >
-                      <span className={selectedFormationName ? 'text-slate-900 dark:text-white' : 'text-slate-400'}>
+                      <span className={selectedFormationName ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'}>
                         {selectedFormationName || 'All Formations'}
                       </span>
                       <ChevronDown className="w-4 h-4 text-slate-400" />
                     </button>
                     
                     {showFormationDropdown && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-xl z-50 max-h-64 overflow-hidden">
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-slate-200 dark:border-zinc-700 rounded-lg shadow-xl z-50 max-h-64 overflow-hidden">
                         {/* Search input */}
                         <div className="p-2 border-b border-slate-200 dark:border-zinc-700">
                           <div className="relative">
@@ -979,7 +984,7 @@ const TeamPlaybook: React.FC = () => {
                               value={formationSearch}
                               onChange={e => setFormationSearch(e.target.value)}
                               placeholder="Search formations..."
-                              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded text-sm"
+                              className="w-full pl-8 pr-3 py-1.5 bg-slate-50/80 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-600 rounded text-sm text-slate-900 dark:text-white placeholder-slate-400"
                               autoFocus
                             />
                           </div>
@@ -1045,7 +1050,7 @@ const TeamPlaybook: React.FC = () => {
                         ? type === 'Run' ? 'bg-emerald-500 text-white'
                         : type === 'Pass' ? 'bg-sky-500 text-white'
                         : 'bg-slate-600 text-white'
-                        : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-700 border border-slate-200 dark:border-zinc-700'
+                        : 'bg-white/80 dark:bg-zinc-800/80 backdrop-blur-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-zinc-700 border border-slate-200 dark:border-zinc-600'
                     }`}
                   >
                     {type === 'Run' ? '🏃 Run' : type === 'Pass' ? '🏈 Pass' : 'All'}
@@ -1067,7 +1072,7 @@ const TeamPlaybook: React.FC = () => {
                         ? type === 'Blitz' ? 'bg-amber-500 text-white'
                         : type === 'Normal' ? 'bg-slate-500 text-white'
                         : 'bg-slate-600 text-white'
-                        : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-700 border border-slate-200 dark:border-zinc-700'
+                        : 'bg-white/80 dark:bg-zinc-800/80 backdrop-blur-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-zinc-700 border border-slate-200 dark:border-zinc-600'
                     }`}
                   >
                     {type === 'Blitz' ? '⚡ Blitz' : type === 'Normal' ? '🛡️ Normal' : 'All'}
@@ -1105,7 +1110,7 @@ const TeamPlaybook: React.FC = () => {
                   return (
                     <div 
                       key={assignment.id}
-                      className="bg-white dark:bg-zinc-900 rounded-lg border border-slate-200 dark:border-zinc-800 overflow-hidden hover:shadow-lg transition-shadow group"
+                      className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm rounded-lg border border-slate-200/50 dark:border-zinc-700/50 overflow-hidden hover:shadow-lg hover:shadow-purple-500/10 dark:hover:shadow-orange-500/10 transition-all group"
                     >
                       {/* Play Preview */}
                       <div 
@@ -1164,7 +1169,7 @@ const TeamPlaybook: React.FC = () => {
                         </div>
                         <button
                           onClick={() => handleViewPlay(play, assignment.id)}
-                          className="w-full mt-3 py-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                          className="w-full mt-3 py-2 bg-slate-100/80 dark:bg-zinc-800/80 backdrop-blur-sm hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
                         >
                           <Eye className="w-4 h-4" /> View Play
                         </button>
@@ -1175,13 +1180,13 @@ const TeamPlaybook: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
+        </GlassCard>
       )}
 
       {/* View Play Modal */}
       {viewingPlay && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl w-full max-w-4xl overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl rounded-xl w-full max-w-4xl overflow-hidden shadow-2xl border border-slate-200/50 dark:border-zinc-700/50">
             {/* Header */}
             <div className={`p-4 flex items-center justify-between ${
               viewingPlay.category === 'Offense' ? 'bg-blue-500' 
@@ -1247,7 +1252,7 @@ const TeamPlaybook: React.FC = () => {
             
             {/* Notes if any */}
             {viewingPlay.notes && (
-              <div className="p-4 border-t border-slate-200 dark:border-zinc-800">
+              <div className="p-4 border-t border-slate-200/50 dark:border-zinc-700/50">
                 <h4 className="font-semibold text-slate-900 dark:text-white mb-2">Notes</h4>
                 <p className="text-slate-600 dark:text-slate-400">{viewingPlay.notes}</p>
               </div>
@@ -1258,8 +1263,8 @@ const TeamPlaybook: React.FC = () => {
 
       {/* Add Play Modal */}
       {showAddPlayModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-200 dark:border-zinc-800">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl rounded-xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-200/50 dark:border-zinc-700/50">
             {/* Header */}
             <div className={`p-4 flex items-center justify-between ${
               addPlayCategory === 'Offense' ? 'bg-blue-500' 
@@ -1282,7 +1287,7 @@ const TeamPlaybook: React.FC = () => {
             </div>
 
             {/* Category Selector */}
-            <div className="p-4 border-b border-slate-200 dark:border-zinc-800">
+            <div className="p-4 border-b border-slate-200/50 dark:border-zinc-700/50">
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Play Type</label>
               <div className="flex gap-2">
                 {(['Offense', 'Defense', 'Special Teams'] as const).map(cat => {
@@ -1298,8 +1303,8 @@ const TeamPlaybook: React.FC = () => {
                           : cat === 'Defense' ? 'bg-red-500 text-white'
                           : 'bg-purple-500 dark:bg-orange-500 text-white'
                           : canManage
-                            ? 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-zinc-700'
-                            : 'bg-slate-100 dark:bg-zinc-800 text-slate-400 dark:text-slate-600 cursor-not-allowed'
+                            ? 'bg-slate-100/80 dark:bg-zinc-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-zinc-700'
+                            : 'bg-slate-100/50 dark:bg-zinc-800/50 text-slate-400 dark:text-slate-600 cursor-not-allowed'
                       }`}
                     >
                       {cat}
@@ -1330,8 +1335,8 @@ const TeamPlaybook: React.FC = () => {
                       onClick={() => setSelectedPlayToAdd(play.id)}
                       className={`p-3 rounded-lg border cursor-pointer transition-all ${
                         selectedPlayToAdd === play.id
-                          ? 'border-purple-500 dark:border-orange-500 bg-purple-50 dark:bg-orange-900/20'
-                          : 'border-slate-200 dark:border-zinc-800 hover:border-purple-300 dark:hover:border-orange-500 bg-white dark:bg-zinc-900'
+                          ? 'border-purple-500 dark:border-orange-500 bg-purple-50/80 dark:bg-orange-900/20'
+                          : 'border-slate-200/50 dark:border-zinc-700/50 hover:border-purple-300 dark:hover:border-orange-500 bg-white/80 dark:bg-zinc-800/80'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -1363,10 +1368,10 @@ const TeamPlaybook: React.FC = () => {
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-slate-200 dark:border-zinc-800 flex gap-3">
+            <div className="p-4 border-t border-slate-200/50 dark:border-zinc-700/50 flex gap-3">
               <button
                 onClick={() => { setShowAddPlayModal(false); setSelectedPlayToAdd(null); }}
-                className="flex-1 py-2.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors"
+                className="flex-1 py-2.5 bg-slate-100/80 dark:bg-zinc-800/80 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors"
               >
                 Cancel
               </button>
@@ -1395,8 +1400,8 @@ const TeamPlaybook: React.FC = () => {
 
       {/* Player Assignment Modal */}
       {assigningPosition && selectedElementId && viewingPlay && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl w-full max-w-md overflow-hidden shadow-2xl border border-slate-200 dark:border-zinc-800">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl rounded-xl w-full max-w-md overflow-hidden shadow-2xl border border-slate-200/50 dark:border-zinc-700/50">
             {/* Modal Header */}
             <div className="bg-gradient-to-r from-purple-600 to-purple-500 dark:from-orange-600 dark:to-orange-500 p-4">
               <div className="flex items-center gap-3">
@@ -1456,7 +1461,7 @@ const TeamPlaybook: React.FC = () => {
                     <select
                       id="primary-player-select"
                       defaultValue={currentAssignment?.primaryPlayerId || ''}
-                      className="w-full px-4 py-3 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500 dark:focus:ring-orange-500 focus:border-transparent"
+                      className="w-full px-4 py-3 bg-slate-50/80 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500 dark:focus:ring-orange-500 focus:border-transparent"
                     >
                       <option value="">-- Not Assigned --</option>
                       {availableForPrimary.map(player => (
@@ -1476,7 +1481,7 @@ const TeamPlaybook: React.FC = () => {
                     <select
                       id="secondary-player-select"
                       defaultValue={currentAssignment?.secondaryPlayerId || ''}
-                      className="w-full px-4 py-3 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500 dark:focus:ring-orange-500 focus:border-transparent"
+                      className="w-full px-4 py-3 bg-slate-50/80 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500 dark:focus:ring-orange-500 focus:border-transparent"
                     >
                       <option value="">-- Not Assigned --</option>
                       {roster.map(player => (
@@ -1489,7 +1494,7 @@ const TeamPlaybook: React.FC = () => {
                   
                   {/* Current assignment info */}
                   {currentAssignment && (
-                    <div className="bg-slate-50 dark:bg-zinc-800 rounded-lg p-3 text-sm">
+                    <div className="bg-slate-50/80 dark:bg-zinc-800/80 backdrop-blur-sm rounded-lg p-3 text-sm">
                       <p className="text-slate-500 dark:text-slate-400">
                         Currently assigned:
                       </p>
@@ -1507,14 +1512,14 @@ const TeamPlaybook: React.FC = () => {
             </div>
             
             {/* Modal Footer */}
-            <div className="border-t border-slate-200 dark:border-zinc-800 p-4 flex gap-3">
+            <div className="border-t border-slate-200/50 dark:border-zinc-700/50 p-4 flex gap-3">
               <button
                 onClick={() => {
                   setAssigningPosition(false);
                   setSelectedElementId(null);
                 }}
                 disabled={savingAssignment}
-                className="flex-1 py-2.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors disabled:opacity-50"
+                className="flex-1 py-2.5 bg-slate-100/80 dark:bg-zinc-800/80 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -1545,8 +1550,8 @@ const TeamPlaybook: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl w-full max-w-md overflow-hidden shadow-2xl border border-slate-200 dark:border-zinc-800 p-6">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl rounded-xl w-full max-w-md overflow-hidden shadow-2xl border border-slate-200/50 dark:border-zinc-700/50 p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
                 <Trash2 className="w-5 h-5 text-red-500" />
@@ -1565,7 +1570,7 @@ const TeamPlaybook: React.FC = () => {
               <button
                 onClick={() => setDeleteConfirm(null)}
                 disabled={deleting}
-                className="flex-1 py-2.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors disabled:opacity-50"
+                className="flex-1 py-2.5 bg-slate-100/80 dark:bg-zinc-800/80 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -1587,6 +1592,7 @@ const TeamPlaybook: React.FC = () => {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 };
