@@ -24,7 +24,10 @@ service cloud.firestore {
     }
     
     function isTeamCoach(teamId) {
-      return isCoach() && getUserData().teamIds != null && teamId in getUserData().teamIds;
+      return isCoach() && (
+        getUserData().teamId == teamId ||
+        (getUserData().teamIds != null && teamId in getUserData().teamIds)
+      );
     }
     
     function isTeamMember(teamId) {
