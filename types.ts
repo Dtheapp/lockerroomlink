@@ -74,10 +74,26 @@ export interface UserProfile {
   // For Coaches: Track currently selected team (when coaching multiple teams)
   selectedTeamId?: string;
   
-  // Clone Play Credits System
-  cloneCredits?: number; // Number of remaining clone credits (default: 10 for new coaches)
-  totalClonesUsed?: number; // Total clones ever used (for analytics)
-  purchasedCredits?: number; // Credits purchased (for future monetization)
+  // --- UNIFIED CREDITS SYSTEM ---
+  credits?: number;                    // Current credit balance
+  lifetimeCreditsEarned?: number;      // Total credits ever earned
+  lifetimeCreditsSpent?: number;       // Total credits ever spent  
+  lifetimeCreditsGifted?: number;      // Total credits gifted to others
+  lifetimeCreditsReceived?: number;    // Total credits received as gifts
+  featureUsage?: Record<string, {      // Track usage per feature
+    totalUses: number;
+    freeUsesRemaining: number;
+    lastUsedAt?: Timestamp;
+    lastFreeResetAt?: Timestamp;
+  }>;
+  pilotProgramId?: string;             // Active pilot program
+  pilotExpiresAt?: Timestamp;          // When pilot access expires
+  lastCreditTransactionAt?: Timestamp; // Last credit activity
+  
+  // @deprecated - Legacy fields, will be removed after migration
+  cloneCredits?: number;               // DEPRECATED: Use credits instead
+  totalClonesUsed?: number;            // DEPRECATED: Use featureUsage instead
+  purchasedCredits?: number;           // DEPRECATED: Use credits instead
   
   // --- FAN-SPECIFIC FIELDS ---
   followedAthletes?: string[]; // Array of athlete usernames the fan follows
@@ -577,6 +593,7 @@ export interface PlayerFilmEntry {
   category: VideoCategory;
   description?: string;
   taggedAt: any; // When the player was tagged in this video
+  taggedBy?: string; // User ID who tagged this player
   teamName?: string; // Store team name for display
 }
 

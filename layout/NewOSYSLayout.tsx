@@ -11,7 +11,7 @@ import { useSportConfig } from '../hooks/useSportConfig';
 import TeamSelector from '../components/TeamSelector';
 import PlayerSelector from '../components/PlayerSelector';
 import { AnimatedBackground, Avatar } from '../components/ui/OSYSComponents';
-import { Menu, X, LogOut, Sun, Moon, ChevronDown } from 'lucide-react';
+import { Menu, X, LogOut, Sun, Moon, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import WelcomeModal from '../components/WelcomeModal';
 import FeedbackButton from '../components/ui/FeedbackButton';
 
@@ -26,6 +26,11 @@ const NewOSYSLayout: React.FC = () => {
   const { hasPlaybook } = useSportConfig();
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    // Load collapsed state from localStorage
+    const saved = localStorage.getItem('osys_sidebar_collapsed');
+    return saved === 'true';
+  });
   const [showTeamSelector, setShowTeamSelector] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [pendingNavPath, setPendingNavPath] = useState<string | null>(null);
@@ -33,6 +38,13 @@ const NewOSYSLayout: React.FC = () => {
   
   // Ref for scrolling main content
   const mainContentRef = useRef<HTMLDivElement>(null);
+
+  // Save collapsed state to localStorage
+  const toggleSidebarCollapse = () => {
+    const newState = !isSidebarCollapsed;
+    setIsSidebarCollapsed(newState);
+    localStorage.setItem('osys_sidebar_collapsed', String(newState));
+  };
 
   // Check if user has seen welcome modal
   useEffect(() => {
@@ -146,7 +158,7 @@ const NewOSYSLayout: React.FC = () => {
   };
 
   const navItems = getNavItems();
-  const sections = ['Main', 'Engage', 'Analyze'];
+  const sections = ['Main', 'Create', 'Engage', 'Analyze'];
 
   const hasUnread = (key?: string): boolean => {
     if (!key) return false;
@@ -193,10 +205,11 @@ const NewOSYSLayout: React.FC = () => {
 
       {/* Sidebar */}
       <aside className={`
-        fixed inset-y-0 left-0 z-50 w-64 backdrop-blur-xl border-r
-        transform transition-transform duration-300 ease-in-out
+        fixed inset-y-0 left-0 z-50 backdrop-blur-xl border-r
+        transform transition-all duration-300 ease-in-out
         lg:translate-x-0 overflow-y-auto
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        ${isSidebarCollapsed ? 'lg:w-16' : 'lg:w-64'} w-64
         ${theme === 'dark' 
           ? 'bg-slate-900/95 border-white/10' 
           : 'bg-white/95 border-slate-200'
@@ -206,11 +219,12 @@ const NewOSYSLayout: React.FC = () => {
         <div className={`flex items-center justify-between p-4 border-b ${
           theme === 'dark' ? 'border-white/10' : 'border-slate-200'
         }`}>
-          <button onClick={handleLogoClick} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+          <button onClick={handleLogoClick} className={`flex items-center gap-3 hover:opacity-80 transition-opacity ${isSidebarCollapsed ? 'lg:justify-center lg:w-full' : ''}`}>
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-xl shadow-lg shadow-purple-500/30 text-white">
               ⚡
             </div>
-            <span className="font-bold text-xl tracking-tight">OSYS</span>
+            {!isSidebarCollapsed && <span className="font-bold text-xl tracking-tight lg:block">OSYS</span>}
+            {isSidebarCollapsed && <span className="font-bold text-xl tracking-tight lg:hidden">OSYS</span>}
           </button>
           <button 
             onClick={() => setIsSidebarOpen(false)}
@@ -222,8 +236,21 @@ const NewOSYSLayout: React.FC = () => {
           </button>
         </div>
 
+        {/* Collapse Toggle Button - Desktop only */}
+        <button
+          onClick={toggleSidebarCollapse}
+          className={`hidden lg:flex absolute -right-3 top-20 w-6 h-6 rounded-full border items-center justify-center transition-all z-50 ${
+            theme === 'dark' 
+              ? 'bg-slate-800 border-white/20 hover:bg-slate-700 text-white' 
+              : 'bg-white border-slate-300 hover:bg-slate-100 text-slate-700 shadow-sm'
+          }`}
+          title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        </button>
+
         {/* Team Selector (for Coaches) or Player Selector (for Parents) */}
-        <div className={`p-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'}`}>
+        <div className={`p-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'} ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
           {userData?.role === 'Parent' ? (
             // Player Selector for Parents
             <PlayerSelector />
@@ -258,14 +285,19 @@ const NewOSYSLayout: React.FC = () => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4">
+        <nav className={`flex-1 ${isSidebarCollapsed ? 'lg:p-2' : 'p-4'}`}>
           {sections.map(section => {
             const sectionItems = navItems.filter(item => item.section === section);
             if (sectionItems.length === 0) return null;
             
             return (
               <div key={section} className="mb-6">
-                <div className="text-xs text-slate-500 uppercase tracking-wider mb-2 px-3">{section}</div>
+                {!isSidebarCollapsed && (
+                  <div className="text-xs text-slate-500 uppercase tracking-wider mb-2 px-3 lg:block">{section}</div>
+                )}
+                {isSidebarCollapsed && (
+                  <div className="text-xs text-slate-500 uppercase tracking-wider mb-2 px-3 lg:hidden">{section}</div>
+                )}
                 {sectionItems.map(item => {
                   const isActive = location.pathname === item.path;
                   const showUnread = hasUnread(item.unreadKey);
@@ -275,8 +307,10 @@ const NewOSYSLayout: React.FC = () => {
                       key={item.path + item.label}
                       to={item.path}
                       onClick={(e) => handleNavClick(e, item.path)}
+                      title={isSidebarCollapsed ? item.label : undefined}
                       className={`
                         flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1 transition-all
+                        ${isSidebarCollapsed ? 'lg:justify-center lg:px-2' : ''}
                         ${isActive 
                           ? theme === 'dark'
                             ? 'bg-gradient-to-r from-purple-600/30 to-pink-600/30 text-white border border-purple-500/30 shadow-lg shadow-purple-500/10' 
@@ -288,9 +322,10 @@ const NewOSYSLayout: React.FC = () => {
                       `}
                     >
                       <span className="text-lg">{item.icon}</span>
-                      <span className="flex-1">{item.label}</span>
+                      {!isSidebarCollapsed && <span className="flex-1 lg:block">{item.label}</span>}
+                      {isSidebarCollapsed && <span className="flex-1 lg:hidden">{item.label}</span>}
                       {showUnread && (
-                        <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                        <span className={`w-2 h-2 rounded-full bg-purple-500 animate-pulse ${isSidebarCollapsed ? 'lg:absolute lg:top-1 lg:right-1' : ''}`} />
                       )}
                     </NavLink>
                   );
@@ -301,11 +336,13 @@ const NewOSYSLayout: React.FC = () => {
         </nav>
 
         {/* Bottom Actions */}
-        <div className={`p-4 border-t space-y-2 ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'}`}>
+        <div className={`p-4 border-t space-y-2 ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'} ${isSidebarCollapsed ? 'lg:p-2' : ''}`}>
           <NavLink
             to="/profile"
             onClick={(e) => handleNavClick(e, '/profile')}
+            title={isSidebarCollapsed ? 'Settings' : undefined}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all
+              ${isSidebarCollapsed ? 'lg:justify-center lg:px-2' : ''}
               ${location.pathname === '/profile' 
                 ? theme === 'dark' ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-900'
                 : theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -313,37 +350,46 @@ const NewOSYSLayout: React.FC = () => {
             `}
           >
             <span className="text-lg">⚙️</span>
-            <span>Settings</span>
+            {!isSidebarCollapsed && <span className="lg:block">Settings</span>}
+            {isSidebarCollapsed && <span className="lg:hidden">Settings</span>}
           </NavLink>
           
           <button
             onClick={toggleTheme}
+            title={isSidebarCollapsed ? (theme === 'dark' ? 'Light Mode' : 'Dark Mode') : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+              isSidebarCollapsed ? 'lg:justify-center lg:px-2' : ''
+            } ${
               theme === 'dark' 
                 ? 'text-slate-400 hover:text-white hover:bg-white/5' 
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+            {!isSidebarCollapsed && <span className="lg:block">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>}
+            {isSidebarCollapsed && <span className="lg:hidden">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>}
           </button>
           
           <button
             onClick={handleSignOut}
+            title={isSidebarCollapsed ? 'Sign Out' : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+              isSidebarCollapsed ? 'lg:justify-center lg:px-2' : ''
+            } ${
               theme === 'dark'
                 ? 'text-slate-400 hover:text-red-400 hover:bg-red-500/10'
                 : 'text-slate-600 hover:text-red-600 hover:bg-red-50'
             }`}
           >
             <LogOut className="w-5 h-5" />
-            <span>Sign Out</span>
+            {!isSidebarCollapsed && <span className="lg:block">Sign Out</span>}
+            {isSidebarCollapsed && <span className="lg:hidden">Sign Out</span>}
           </button>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <main ref={mainContentRef} className="lg:ml-64 min-h-screen pt-16 lg:pt-0 overflow-y-auto">
+      <main ref={mainContentRef} className={`${isSidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'} min-h-screen pt-16 lg:pt-0 overflow-y-auto transition-all`}>
         <div className="p-4 lg:p-8">
           <Outlet />
         </div>

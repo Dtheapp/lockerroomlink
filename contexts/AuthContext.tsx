@@ -3,6 +3,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { setSentryUser, clearSentryUser } from '../services/sentry';
+import { migrateUserToNewCreditSystem } from '../services/creditService';
 import type { UserProfile, Team, Player } from '../types';
 
 interface AuthContextType {
@@ -90,6 +91,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (docSnap.exists()) {
                 const profile = docSnap.data() as UserProfile;
                 setUserData(profile);
+
+                // CREDIT SYSTEM: Migrate existing users who don't have credits yet
+                // This gives them their welcome credits (default 10)
+                if (profile.credits === undefined && profile.role !== 'SuperAdmin') {
+                  migrateUserToNewCreditSystem(firebaseUser.uid, profile.cloneCredits ?? 10)
+                    .then(() => console.log('User credits initialized'))
+                    .catch(err => console.error('Credit migration error:', err));
+                }
 
                 // Set Sentry user context for error tracking
                 setSentryUser({

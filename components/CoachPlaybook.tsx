@@ -125,7 +125,7 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
   
   // Clone Play Modal state
   const [showCloneModal, setShowCloneModal] = useState(false);
-  const cloneCredits = userData?.cloneCredits ?? 10; // Default to 10 credits for new users
+  // Note: cloneCredits is now managed internally by ClonePlayModal via useCredits hook
   
   // Trace Play Modal state
   const [showTraceModal, setShowTraceModal] = useState(false);
@@ -4565,7 +4565,6 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
       isOpen={showCloneModal}
       onClose={() => setShowCloneModal(false)}
       onPlayCloned={handlePlayCloned}
-      currentCredits={cloneCredits}
     />
     
     {/* Trace Play Modal - pass current elements and formation name for alignment */}

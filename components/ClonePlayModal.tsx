@@ -2,14 +2,16 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { doc, updateDoc, increment, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { useCredits } from '../hooks/useCredits';
 import type { ClonePlayAnalysis, ClonedPlayer, PlayElement, DrawingLine, PlayShape, LineType, ShapeType } from '../types';
-import { X, Upload, Clipboard, Image, Loader2, AlertCircle, CheckCircle, Sparkles, Zap, RefreshCw, Trash2, HelpCircle, Settings, Wand2, MessageSquare } from 'lucide-react';
+import { X, Upload, Clipboard, Image, Loader2, AlertCircle, CheckCircle, Sparkles, Zap, RefreshCw, Trash2, HelpCircle, Settings, Wand2, MessageSquare, Coins } from 'lucide-react';
+import BuyCreditsModal from './credits/BuyCreditsModal';
 
 interface ClonePlayModalProps {
   isOpen: boolean;
   onClose: () => void;
   onPlayCloned: (elements: PlayElement[], lines: DrawingLine[], shapes: PlayShape[], suggestedCategory: 'Offense' | 'Defense' | 'Special Teams') => void;
-  currentCredits: number;
+  currentCredits?: number; // Deprecated - now uses useCredits hook
 }
 
 // Hint presets for Simple mode
@@ -36,9 +38,10 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
   isOpen,
   onClose,
   onPlayCloned,
-  currentCredits
+  currentCredits: _deprecatedCredits // Deprecated prop, now using useCredits hook
 }) => {
   const { user, userData } = useAuth();
+  const { balance: currentCredits, checkFeature, consumeFeature, refreshBalance, getFeaturePricing, isFreePeriod } = useCredits();
   
   // Mode selection
   const [mode, setMode] = useState<'simple' | 'advanced'>('simple');
@@ -65,8 +68,15 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
   const [previewElements, setPreviewElements] = useState<ClonedPlayer[]>([]);
   const [showHelp, setShowHelp] = useState(false);
   
+  // Buy credits modal
+  const [showBuyModal, setShowBuyModal] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewCanvasRef = useRef<HTMLDivElement>(null);
+  
+  // Get feature pricing
+  const clonePricing = getFeaturePricing('design_clone_play');
+  const creditCost = clonePricing?.creditsPerUse || 1;
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -170,9 +180,13 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
   const analyzeImage = async (isRegenerate: boolean = false) => {
     if (!imagePreview || !user?.uid) return;
     
-    // Check credits
-    if (currentCredits <= 0) {
-      setAnalysisError('No clone credits remaining. Contact your administrator for more credits.');
+    // Check credits using new system
+    const canUse = await checkFeature('design_clone_play');
+    if (!canUse.canUse) {
+      if (canUse.reason === 'Insufficient credits') {
+        setShowBuyModal(true);
+      }
+      setAnalysisError(canUse.reason || 'Cannot use this feature');
       return;
     }
     
@@ -244,25 +258,15 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
         throw new Error(data.error || 'No analysis returned');
       }
       
-      // Decrement user's credits
-      // First, check if cloneCredits field exists and initialize if needed
-      const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
-      const userData = userSnap.data();
+      // Consume credits using new system
+      await consumeFeature('design_clone_play', {
+        imageName,
+        mode,
+        isRegenerate,
+      });
       
-      if (userData?.cloneCredits === undefined) {
-        // Field doesn't exist - initialize with 9 (10 default - 1 for this use)
-        await updateDoc(userRef, {
-          cloneCredits: 9,
-          totalClonesUsed: 1
-        });
-      } else {
-        // Field exists - use increment
-        await updateDoc(userRef, {
-          cloneCredits: increment(-1),
-          totalClonesUsed: increment(1)
-        });
-      }
+      // Refresh balance after consumption
+      await refreshBalance();
       
       setAnalysis(data.analysis);
       setPreviewElements(data.analysis.players || []);
@@ -518,12 +522,22 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-yellow-500/20 px-3 py-1.5 rounded-lg">
-              <Zap className="w-4 h-4 text-yellow-400" />
-              <span className="text-sm font-medium text-yellow-400">
-                {currentCredits} credit{currentCredits !== 1 ? 's' : ''} remaining
-              </span>
-            </div>
+            {isFreePeriod ? (
+              <div className="flex items-center gap-2 bg-green-500/20 px-3 py-1.5 rounded-lg">
+                <Sparkles className="w-4 h-4 text-green-400" />
+                <span className="text-sm font-medium text-green-400">Free during promo!</span>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setShowBuyModal(true)}
+                className="flex items-center gap-2 bg-amber-500/20 hover:bg-amber-500/30 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Coins className="w-4 h-4 text-amber-400" />
+                <span className="text-sm font-medium text-amber-400">
+                  {currentCredits} credit{currentCredits !== 1 ? 's' : ''}
+                </span>
+              </button>
+            )}
             <button
               onClick={() => setShowHelp(!showHelp)}
               className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
@@ -746,9 +760,9 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
               {imagePreview && (
                 <button
                   onClick={() => analyzeImage(false)}
-                  disabled={isAnalyzing || currentCredits <= 0}
+                  disabled={isAnalyzing || (!isFreePeriod && currentCredits < creditCost)}
                   className={`w-full py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors
-                    ${isAnalyzing || currentCredits <= 0
+                    ${isAnalyzing || (!isFreePeriod && currentCredits < creditCost)
                       ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
                       : 'bg-purple-600 hover:bg-purple-500 text-white'
                     }
@@ -759,15 +773,15 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
                       <Loader2 className="w-5 h-5 animate-spin" />
                       Analyzing play diagram...
                     </>
-                  ) : currentCredits <= 0 ? (
+                  ) : !isFreePeriod && currentCredits < creditCost ? (
                     <>
                       <AlertCircle className="w-5 h-5" />
-                      No credits remaining
+                      Need {creditCost} credit{creditCost !== 1 ? 's' : ''} - <span onClick={() => setShowBuyModal(true)} className="underline cursor-pointer">Buy More</span>
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-5 h-5" />
-                      Analyze Play (uses 1 credit)
+                      Analyze Play {isFreePeriod ? '(Free!)' : `(${creditCost} credit${creditCost !== 1 ? 's' : ''})`}
                     </>
                   )}
                 </button>
@@ -857,9 +871,9 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
                   
                   <button
                     onClick={() => analyzeImage(true)}
-                    disabled={isAnalyzing || currentCredits <= 0 || !feedbackText.trim()}
+                    disabled={isAnalyzing || (!isFreePeriod && currentCredits < creditCost) || !feedbackText.trim()}
                     className={`w-full py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors
-                      ${isAnalyzing || currentCredits <= 0 || !feedbackText.trim()
+                      ${isAnalyzing || (!isFreePeriod && currentCredits < creditCost) || !feedbackText.trim()
                         ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
                         : 'bg-orange-600 hover:bg-orange-500 text-white'
                       }
@@ -873,7 +887,7 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
                     ) : (
                       <>
                         <RefreshCw className="w-4 h-4" />
-                        Regenerate (uses 1 credit)
+                        Regenerate {isFreePeriod ? '(Free!)' : `(${creditCost} credit${creditCost !== 1 ? 's' : ''})`}
                       </>
                     )}
                   </button>
@@ -925,6 +939,17 @@ const ClonePlayModal: React.FC<ClonePlayModalProps> = ({
           )}
         </div>
       </div>
+      
+      {/* Buy Credits Modal */}
+      {showBuyModal && (
+        <BuyCreditsModal 
+          onClose={() => setShowBuyModal(false)}
+          onPurchaseComplete={() => {
+            setShowBuyModal(false);
+            refreshBalance();
+          }}
+        />
+      )}
     </div>
   );
 };

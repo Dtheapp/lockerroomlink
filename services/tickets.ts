@@ -192,7 +192,10 @@ export const createTicketOrder = async (
       buyerEmail: request.buyerEmail,
       buyerName: request.buyerName,
       buyerPhone: request.buyerPhone,
-      tickets: request.items,
+      tickets: request.items.map(item => ({
+        ...item,
+        subtotal: (item as any).subtotal ?? (item.quantity * item.priceEach)
+      })),
       ticketCount: totalTickets,
       subtotal: request.subtotal,
       processingFee: request.processingFee,

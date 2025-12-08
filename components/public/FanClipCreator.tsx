@@ -340,11 +340,11 @@ const FanClipCreator: React.FC<FanClipCreatorProps> = ({
         clipData
       );
       
-      const newClip: FanClip = {
+      const newClip = {
         id: docRef.id,
         ...clipData,
         createdAt: new Date(),
-      };
+      } as FanClip;
       
       setSubmitSuccess(true);
       

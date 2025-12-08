@@ -99,6 +99,7 @@ const ManageTeams = lazyWithRetry(() => import('./components/admin/ManageTeams')
 const UserReport = lazyWithRetry(() => import('./components/admin/UserReport'));
 const Announcements = lazyWithRetry(() => import('./components/admin/Announcements'));
 const AppSettings = lazyWithRetry(() => import('./components/admin/AppSettings'));
+const MonetizationSettings = lazyWithRetry(() => import('./components/admin/MonetizationSettings'));
 const TeamReports = lazyWithRetry(() => import('./components/admin/TeamReports'));
 const ContentModeration = lazyWithRetry(() => import('./components/admin/ContentModeration'));
 const DataManagement = lazyWithRetry(() => import('./components/admin/DataManagement'));
@@ -213,6 +214,7 @@ const AppContent: React.FC = () => {
                 <Route path="data" element={<DataManagement />} />
                 <Route path="stats" element={<Stats />} />
                 <Route path="playbook" element={<AdminPlaybook />} />
+                <Route path="monetization" element={<MonetizationSettings />} />
                 <Route path="settings" element={<AppSettings />} />
               </Route>
               <Route path="*" element={<Navigate to="/admin" replace />} />

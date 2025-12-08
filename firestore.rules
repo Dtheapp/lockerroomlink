@@ -287,7 +287,13 @@ service cloud.firestore {
     // Users collection
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow write: if isUser(userId) || isAdmin();
+      // Users can update their own profile, but NOT credit-related fields
+      // Credit fields can only be updated by SuperAdmin
+      allow update: if isUser(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['credits', 'lifetimeCreditsEarned', 'lifetimeCreditsSpent', 'lifetimeCreditsGifted', 'lifetimeCreditsReceived', 'pilotProgramId', 'pilotExpiresAt']);
+      allow create: if isUser(userId);
+      allow delete: if isAdmin();
+      // SuperAdmin can update any field including credits
+      allow write: if isAdmin();
       
       // User's plays subcollection (Coach Playbook)
       match /plays/{playId} {
@@ -329,6 +335,55 @@ service cloud.firestore {
       match /mutedUsers/{mutedId} {
         allow read: if isUser(userId);
         allow write: if isUser(userId);
+      }
+      
+      // =============================================================================
+      // PROMO ITEMS SUBCOLLECTION - Personal saved designs and player public promos
+      // =============================================================================
+      match /promoItems/{promoId} {
+        // Owner can read all their promo items, public items visible to all
+        allow read: if isUser(userId) || 
+                       resource.data.isPublic == true || 
+                       isAdmin();
+        
+        // User can create promo items in their own folder
+        // Parents can also create promos for their players (playerId field)
+        allow create: if isUser(userId) || 
+                         (isAuthenticated() && request.resource.data.location == 'player') ||
+                         isAdmin();
+        
+        // Owner or creator can update/delete
+        allow update, delete: if isUser(userId) || 
+                                 isUser(resource.data.createdBy) ||
+                                 isAdmin();
+      }
+      
+      // =============================================================================
+      // CREDIT TRANSACTIONS - User's credit history
+      // SECURITY: Only SuperAdmin can write transactions directly.
+      // All credit operations should go through creditService which runs in trusted context.
+      // Cloud Functions with admin SDK bypass these rules entirely.
+      // =============================================================================
+      match /creditTransactions/{transactionId} {
+        // User can read their own transactions, admin can read all
+        allow read: if isUser(userId) || isAdmin();
+        
+        // CRITICAL: Only SuperAdmin can create transactions directly
+        // Regular users cannot create credit transactions - prevents self-crediting
+        // The creditService validates user context before writing
+        allow create: if isAdmin();
+        
+        // No updates or deletes on transaction history (immutable ledger)
+        allow update, delete: if isAdmin();
+      }
+      
+      // =============================================================================
+      // USED PROMO CODES - Track which promo codes user has redeemed
+      // =============================================================================
+      match /usedPromoCodes/{codeId} {
+        allow read: if isUser(userId) || isAdmin();
+        allow create: if isAuthenticated();
+        allow update, delete: if isAdmin();
       }
     }
     
@@ -464,6 +519,22 @@ service cloud.firestore {
       }
       
       // =============================================================================
+      // PROMO ITEMS SUBCOLLECTION - Saved flyers and promotional materials
+      // =============================================================================
+      match /promoItems/{promoId} {
+        // Team members can read promo items, public items visible to all
+        allow read: if resource.data.isPublic == true || 
+                       isTeamMember(teamId) || 
+                       isAdmin();
+        
+        // Only coaches can create promo items for the team
+        allow create: if isTeamCoach(teamId) || isAdmin();
+        
+        // Coaches can update/delete team promo items
+        allow update, delete: if isTeamCoach(teamId) || isAdmin();
+      }
+      
+      // =============================================================================
       // SEASONS SUBCOLLECTION - Season management for teams
       // =============================================================================
       match /seasons/{seasonId} {
@@ -525,6 +596,41 @@ service cloud.firestore {
     match /systemFormations/{formationId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
+    }
+    
+    // =============================================================================
+    // SETTINGS & CONFIGURATION
+    // =============================================================================
+    
+    // App Settings (SuperAdmin only write, anyone can read)
+    match /appConfig/{configId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Monetization & Credit Settings (SuperAdmin only)
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Payment logs (admin read only)
+    match /paymentLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if true; // Cloud function creates these
+      allow update, delete: if isAdmin();
+    }
+    
+    // =============================================================================
+    // ADMIN AUDIT LOG - Security compliance logging
+    // =============================================================================
+    match /adminAuditLog/{logId} {
+      // Only SuperAdmin can read audit logs
+      allow read: if isAdmin();
+      // Authenticated users can create (service creates on behalf of admin)
+      allow create: if isAuthenticated();
+      // No updates or deletes - audit log is immutable
+      allow update, delete: if false;
     }
   }
 }

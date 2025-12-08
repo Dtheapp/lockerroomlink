@@ -247,18 +247,18 @@ const LandingPage: React.FC = () => {
           <div className="grid md:grid-cols-3 gap-8 mt-12">
             <GlassCard className="text-center">
               <div className="text-4xl mb-4">👨‍👩‍👧‍👦</div>
-              <h3 className="text-xl font-bold mb-2 text-white">Parents Link to Athletes</h3>
-              <p className="text-slate-300">One account connects to all your children. See their stats, games, and team updates in one dashboard.</p>
+              <h3 className="text-xl font-bold mb-2" style={{ color: '#1e293b' }}>Parents Link to Athletes</h3>
+              <p style={{ color: '#334155' }}>One account connects to all your children. See their stats, games, and team updates in one dashboard.</p>
             </GlassCard>
             <GlassCard className="text-center">
               <div className="text-4xl mb-4">🔗</div>
-              <h3 className="text-xl font-bold mb-2 text-white">Full Play Traceability</h3>
-              <p className="text-slate-300">Every stat links back to the play it came from. Watch the film, see the play diagram, review the details.</p>
+              <h3 className="text-xl font-bold mb-2" style={{ color: '#1e293b' }}>Full Play Traceability</h3>
+              <p style={{ color: '#334155' }}>Every stat links back to the play it came from. Watch the film, see the play diagram, review the details.</p>
             </GlassCard>
             <GlassCard className="text-center">
               <div className="text-4xl mb-4">🛡️</div>
-              <h3 className="text-xl font-bold mb-2 text-white">AI-Monitored Safety</h3>
-              <p className="text-slate-300">All chats and posts are scanned for harmful content. Profanity filters, grooming detection, and 24/7 monitoring.</p>
+              <h3 className="text-xl font-bold mb-2" style={{ color: '#1e293b' }}>AI-Monitored Safety</h3>
+              <p style={{ color: '#334155' }}>All chats and posts are scanned for harmful content. Profanity filters, grooming detection, and 24/7 monitoring.</p>
             </GlassCard>
           </div>
 
@@ -380,9 +380,7 @@ const LandingPage: React.FC = () => {
       <section id="sports" className="py-24 px-6 border-t border-white/5">
         <div className="max-w-6xl mx-auto">
           <SectionHeader
-            badge="Sports"
-            title="Built for"
-            highlight="every sport"
+            title="Built for many sports"
             subtitle="Football, basketball, soccer, baseball, and more."
           />
 
@@ -412,31 +410,31 @@ const LandingPage: React.FC = () => {
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {/* Free Tier */}
             <GlassCard className="text-center">
-              <h3 className="text-xl font-bold mb-2 text-white">Starter</h3>
-              <div className="text-4xl font-bold mb-1 text-white">$0</div>
-              <div className="text-slate-300 text-sm mb-6">Forever free</div>
-              <ul className="text-sm text-slate-200 space-y-3 mb-8 text-left">
+              <h3 className="text-xl font-bold mb-2" style={{ color: '#1e293b' }}>Starter</h3>
+              <div className="text-4xl font-bold mb-1" style={{ color: '#1e293b' }}>$0</div>
+              <div className="text-sm mb-6" style={{ color: '#475569' }}>Forever free</div>
+              <ul className="text-sm space-y-3 mb-8 text-left" style={{ color: '#334155' }}>
                 <li>✓ Up to 25 players</li>
                 <li>✓ Basic playbook</li>
                 <li>✓ Team chat</li>
                 <li>✓ Game scheduling</li>
               </ul>
               <Link to="/auth?signup=true" className="w-full">
-                <Button variant="ghost" className="w-full">Get Started</Button>
+                <Button variant="primary" className="w-full">Get Started</Button>
               </Link>
             </GlassCard>
 
             {/* Pro Tier */}
             <GlassCard glow className="text-center relative">
-              <Badge variant="gold" className="absolute -top-3 left-1/2 -translate-x-1/2">
+              <Badge variant="gold" className="absolute -top-3 left-1/2 -translate-x-1/2 shadow-lg">
                 Most Popular
               </Badge>
-              <h3 className="text-xl font-bold mb-2 text-white">Pro</h3>
-              <div className="text-4xl font-bold mb-1">
-                <GradientText variant="gold">$29</GradientText>
+              <h3 className="text-xl font-bold mb-2 mt-4" style={{ color: '#1e293b' }}>Pro</h3>
+              <div className="text-4xl font-bold mb-1" style={{ color: '#f59e0b' }}>
+                $29
               </div>
-              <div className="text-slate-300 text-sm mb-6">per month</div>
-              <ul className="text-sm text-slate-200 space-y-3 mb-8 text-left">
+              <div className="text-sm mb-6" style={{ color: '#475569' }}>per month</div>
+              <ul className="text-sm space-y-3 mb-8 text-left" style={{ color: '#334155' }}>
                 <li>✓ Unlimited players</li>
                 <li>✓ Advanced playbook</li>
                 <li>✓ Live stats tracking</li>
@@ -451,10 +449,10 @@ const LandingPage: React.FC = () => {
 
             {/* Elite Tier */}
             <GlassCard className="text-center">
-              <h3 className="text-xl font-bold mb-2 text-white">Elite</h3>
-              <div className="text-4xl font-bold mb-1 text-white">$99</div>
-              <div className="text-slate-300 text-sm mb-6">per month</div>
-              <ul className="text-sm text-slate-200 space-y-3 mb-8 text-left">
+              <h3 className="text-xl font-bold mb-2" style={{ color: '#1e293b' }}>Elite</h3>
+              <div className="text-4xl font-bold mb-1" style={{ color: '#1e293b' }}>$99</div>
+              <div className="text-sm mb-6" style={{ color: '#475569' }}>per month</div>
+              <ul className="text-sm space-y-3 mb-8 text-left" style={{ color: '#334155' }}>
                 <li>✓ Everything in Pro</li>
                 <li>✓ Unlimited video storage</li>
                 <li>✓ Advanced analytics</li>
@@ -462,7 +460,7 @@ const LandingPage: React.FC = () => {
                 <li>✓ Priority support</li>
                 <li>✓ Custom branding</li>
               </ul>
-              <Button variant="ghost" className="w-full" onClick={() => showToast('📞 Enterprise sales coming soon!', 'info')}>Contact Sales</Button>
+              <Button variant="primary" className="w-full" onClick={() => showToast('📞 Enterprise sales coming soon!', 'info')}>Contact Sales</Button>
             </GlassCard>
           </div>
         </div>
@@ -473,18 +471,18 @@ const LandingPage: React.FC = () => {
         <div className="max-w-4xl mx-auto text-center">
           <GlassCard className="py-16 px-8">
             <h2 className="mb-4" style={{ fontSize: 'clamp(2rem, 5vw, 4rem)', fontWeight: 700 }}>
-              <span style={{ color: '#ffffff', textShadow: '0 4px 20px rgba(255,255,255,0.3)' }}>Ready to </span>
+              <span style={{ color: '#1e293b' }}>Ready to </span>
               <GradientText>transform</GradientText>
-              <span style={{ color: '#ffffff', textShadow: '0 4px 20px rgba(255,255,255,0.3)' }}> your team?</span>
+              <span style={{ color: '#1e293b' }}> your team?</span>
             </h2>
-            <p className="text-lg text-slate-200 mb-8">
+            <p className="text-lg mb-8" style={{ color: '#334155' }}>
               Join thousands of teams already using OSYS to win more games.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               <Link to="/auth?signup=true">
                 <Button variant="primary" size="lg">Get Started Free</Button>
               </Link>
-              <Button variant="ghost" size="lg" onClick={() => showToast('📅 Demo scheduling coming soon!', 'info')}>Schedule Demo</Button>
+              <Button variant="gold" size="lg" onClick={() => showToast('📅 Demo scheduling coming soon!', 'info')}>Schedule Demo</Button>
             </div>
           </GlassCard>
         </div>

@@ -11,6 +11,7 @@ import { useUnreadMessages } from '../hooks/useUnreadMessages';
 import { useSportConfig } from '../hooks/useSportConfig';
 import PlayerSelector from '../components/PlayerSelector';
 import TeamSelector from '../components/TeamSelector';
+import CreditBalance from '../components/credits/CreditBalance';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
@@ -151,9 +152,12 @@ const Layout: React.FC = () => {
           <button onClick={handleLogoClick} className="text-xl font-black tracking-tighter hover:opacity-80 transition-opacity">
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500">OSYS</span>
           </button>
-          <button onClick={() => setIsSidebarOpen(true)} className="text-zinc-600 dark:text-zinc-300">
-              <Menu className="w-8 h-8" />
-          </button>
+          <div className="flex items-center gap-2">
+            <CreditBalance variant="header" />
+            <button onClick={() => setIsSidebarOpen(true)} className="text-zinc-600 dark:text-zinc-300">
+                <Menu className="w-8 h-8" />
+            </button>
+          </div>
       </div>
 
       {/* SIDEBAR */}
@@ -202,6 +206,13 @@ const Layout: React.FC = () => {
         {!isDesktopCollapsed && userData?.role === 'Parent' && (
           <div className="mb-4">
             <PlayerSelector />
+          </div>
+        )}
+        
+        {/* CREDIT BALANCE (Desktop sidebar) - Shows for Coach, Parent, Athlete */}
+        {!isDesktopCollapsed && userData?.role !== 'Fan' && userData?.role !== 'SuperAdmin' && (
+          <div className="mb-4">
+            <CreditBalance variant="header" />
           </div>
         )}
 

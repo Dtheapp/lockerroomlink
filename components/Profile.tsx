@@ -341,6 +341,7 @@ const Profile: React.FC = () => {
       const teamName = teamDoc.exists() ? (teamDoc.data() as Team).name : 'Unknown Team';
       
       const filmEntry: Omit<PlayerFilmEntry, 'id'> = {
+        videoId: `parent-upload-${Date.now()}`, // Parent-uploaded film, no video document reference
         youtubeId,
         title: newFilmForm.title.trim(),
         description: newFilmForm.description.trim() || undefined,

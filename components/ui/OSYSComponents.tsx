@@ -33,7 +33,7 @@ export const GlassCard: React.FC<GlassCardProps> = ({
 }) => {
   return (
     <div 
-      className={`bg-white dark:bg-slate-800/80 backdrop-blur-md border border-slate-200 dark:border-white/10 rounded-2xl p-6 shadow-lg dark:shadow-none ${glow ? 'osys-card-glow' : ''} ${className}`}
+      className={`osys-glass bg-white dark:bg-slate-800/80 backdrop-blur-md border border-slate-200 dark:border-white/10 rounded-2xl p-6 shadow-lg dark:shadow-none ${glow ? 'osys-card-glow' : ''} ${className}`}
       onClick={onClick}
       style={style}
     >
@@ -63,7 +63,7 @@ export const GlassPanel: React.FC<GlassPanelProps> = ({ children, className = ''
 // ============================================
 interface ButtonProps {
   children: React.ReactNode;
-  variant?: 'primary' | 'gold' | 'ghost';
+  variant?: 'primary' | 'gold' | 'ghost' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   className?: string;
   onClick?: () => void;
@@ -85,7 +85,8 @@ export const Button: React.FC<ButtonProps> = ({
   const variantClass = {
     primary: 'osys-btn-primary',
     gold: 'osys-btn-gold',
-    ghost: 'osys-btn-ghost'
+    ghost: 'osys-btn-ghost',
+    outline: 'osys-btn-outline'
   }[variant];
 
   const sizeClass = {

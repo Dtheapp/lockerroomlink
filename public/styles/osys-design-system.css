@@ -285,6 +285,17 @@
     border-color: rgba(255, 255, 255, 0.25);
 }
 
+.osys-btn-outline {
+    background: transparent;
+    color: var(--osys-orange-400);
+    border: 1px solid var(--osys-orange-500);
+}
+
+.osys-btn-outline:hover {
+    background: rgba(249, 115, 22, 0.1);
+    border-color: var(--osys-orange-400);
+}
+
 .osys-btn-lg {
     padding: 1rem 2rem;
     font-size: 1rem;
@@ -320,8 +331,13 @@
 }
 
 .osys-badge-gold {
-    background: rgba(245, 158, 11, 0.2);
-    color: var(--osys-gold-400);
+    background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.5);
+    border: 1px solid #fbbf24 !important;
+    padding: 0.25rem 0.75rem !important;
+    font-size: 0.75rem !important;
 }
 
 .osys-badge-success {
@@ -839,12 +855,27 @@
 
 /* Fix GlassCard background for light mode */
 :root:not(.dark) .osys-glass {
-    background: rgba(255, 255, 255, 0.9) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
     border-color: rgba(0, 0, 0, 0.1) !important;
 }
 
+:root:not(.dark) .osys-glass p,
+:root:not(.dark) .osys-glass li,
+:root:not(.dark) .osys-glass span:not(.osys-badge):not(.osys-badge-gold) {
+    color: #334155 !important; /* slate-700 */
+}
+
+:root:not(.dark) .osys-glass h1,
+:root:not(.dark) .osys-glass h2,
+:root:not(.dark) .osys-glass h3,
+:root:not(.dark) .osys-glass h4,
+:root:not(.dark) .osys-glass h5,
+:root:not(.dark) .osys-glass h6 {
+    color: #0f172a !important; /* slate-900 */
+}
+
 :root:not(.dark) .osys-card {
-    background: rgba(255, 255, 255, 0.9) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
     border-color: rgba(0, 0, 0, 0.1) !important;
 }
 
