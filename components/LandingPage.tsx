@@ -82,21 +82,21 @@ const FeatureTicker: React.FC = () => {
     <div className="flex items-center justify-center gap-x-2 overflow-hidden whitespace-nowrap">
       {/* Currently typing on the LEFT */}
       {currentTyping && (
-        <span className="text-purple-400 font-medium shrink-0">
+        <span className="text-purple-300 font-semibold shrink-0 drop-shadow-lg">
           {currentTyping}
-          <span className="animate-pulse text-purple-300">|</span>
+          <span className="animate-pulse text-purple-200">|</span>
         </span>
       )}
       {/* Completed features scroll to the RIGHT, getting more faded */}
       {visibleFeatures.map((feature, index) => (
         <span 
           key={`${feature}-${featureIndex}-${index}`}
-          className="text-slate-400 transition-all duration-500 shrink-0"
+          className="text-slate-200 transition-all duration-500 shrink-0"
           style={{ 
-            opacity: Math.max(0.35, 1 - index * 0.3)
+            opacity: Math.max(0.5, 1 - index * 0.25)
           }}
         >
-          <span className="text-purple-500 mx-1">•</span>
+          <span className="text-purple-400 mx-1">•</span>
           {feature}
         </span>
       ))}
@@ -144,7 +144,7 @@ const LandingPage: React.FC = () => {
             <Badge variant="primary">🚀 Now supporting 5 sports</Badge>
           </div>
 
-          <h1 className="osys-text-hero osys-animate-slide-up mb-6">
+          <h1 className="osys-text-hero osys-animate-slide-up mb-6 text-white drop-shadow-lg">
             The Operating System
             <br />
             <GradientText>for Youth Sports</GradientText>
@@ -154,7 +154,7 @@ const LandingPage: React.FC = () => {
             <div className="min-h-[2rem] mb-3">
               <FeatureTicker />
             </div>
-            <p className="text-slate-500 text-lg">Everything your team needs in one powerful platform.</p>
+            <p className="text-slate-200 text-lg">Everything your team needs in one powerful platform.</p>
           </div>
 
           <div className="flex flex-wrap justify-center gap-4 mb-12 osys-animate-slide-up" style={{ animationDelay: '0.2s' }}>
@@ -221,10 +221,10 @@ const LandingPage: React.FC = () => {
       {/* Logos Section */}
       <section className="py-16 border-t border-white/5">
         <div className="max-w-6xl mx-auto px-6">
-          <p className="text-center text-xs text-slate-500 uppercase tracking-widest mb-8">
+          <p className="text-center text-xs text-slate-300 uppercase tracking-widest mb-8">
             Trusted by organizations nationwide
           </p>
-          <div className="flex flex-wrap justify-center gap-8 text-slate-500">
+          <div className="flex flex-wrap justify-center gap-8 text-slate-300">
             <span>🏫 Atlanta Youth League</span>
             <span>⚡ Texas Elite Sports</span>
             <span>🌟 SoCal Athletics</span>
@@ -247,18 +247,18 @@ const LandingPage: React.FC = () => {
           <div className="grid md:grid-cols-3 gap-8 mt-12">
             <GlassCard className="text-center">
               <div className="text-4xl mb-4">👨‍👩‍👧‍👦</div>
-              <h3 className="text-xl font-bold mb-2">Parents Link to Athletes</h3>
-              <p className="text-slate-400">One account connects to all your children. See their stats, games, and team updates in one dashboard.</p>
+              <h3 className="text-xl font-bold mb-2 text-white">Parents Link to Athletes</h3>
+              <p className="text-slate-300">One account connects to all your children. See their stats, games, and team updates in one dashboard.</p>
             </GlassCard>
             <GlassCard className="text-center">
               <div className="text-4xl mb-4">🔗</div>
-              <h3 className="text-xl font-bold mb-2">Full Play Traceability</h3>
-              <p className="text-slate-400">Every stat links back to the play it came from. Watch the film, see the play diagram, review the details.</p>
+              <h3 className="text-xl font-bold mb-2 text-white">Full Play Traceability</h3>
+              <p className="text-slate-300">Every stat links back to the play it came from. Watch the film, see the play diagram, review the details.</p>
             </GlassCard>
             <GlassCard className="text-center">
               <div className="text-4xl mb-4">🛡️</div>
-              <h3 className="text-xl font-bold mb-2">AI-Monitored Safety</h3>
-              <p className="text-slate-400">All chats and posts are scanned for harmful content. Profanity filters, grooming detection, and 24/7 monitoring.</p>
+              <h3 className="text-xl font-bold mb-2 text-white">AI-Monitored Safety</h3>
+              <p className="text-slate-300">All chats and posts are scanned for harmful content. Profanity filters, grooming detection, and 24/7 monitoring.</p>
             </GlassCard>
           </div>
 
@@ -266,11 +266,11 @@ const LandingPage: React.FC = () => {
             <div className="grid md:grid-cols-2 gap-8 items-center">
               <div>
                 <Badge variant="gold" className="mb-4">World-Class Traceability</Badge>
-                <h3 className="text-2xl font-bold mb-4">From Stats to Plays to Film</h3>
-                <p className="text-slate-400 mb-4">
+                <h3 className="text-2xl font-bold mb-4 text-white">From Stats to Plays to Film</h3>
+                <p className="text-slate-200 mb-4">
                   OSYS connects everything. When you record a touchdown, you can tag the exact play from your playbook and link to the game film. Parents and scouts can trace any stat back to its source.
                 </p>
-                <ul className="space-y-2 text-slate-300">
+                <ul className="space-y-2 text-slate-200">
                   <li className="flex items-center gap-2">
                     <span className="text-purple-400">✓</span> Stats linked to specific plays
                   </li>
@@ -392,7 +392,7 @@ const LandingPage: React.FC = () => {
                 {sport}
               </div>
             ))}
-            <div className="osys-glass px-6 py-4 text-lg font-medium text-slate-400">
+            <div className="osys-glass px-6 py-4 text-lg font-medium text-slate-200">
               ✨ & more
             </div>
           </div>
@@ -412,10 +412,10 @@ const LandingPage: React.FC = () => {
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {/* Free Tier */}
             <GlassCard className="text-center">
-              <h3 className="text-xl font-bold mb-2">Starter</h3>
-              <div className="text-4xl font-bold mb-1">$0</div>
-              <div className="text-slate-400 text-sm mb-6">Forever free</div>
-              <ul className="text-sm text-slate-300 space-y-3 mb-8 text-left">
+              <h3 className="text-xl font-bold mb-2 text-white">Starter</h3>
+              <div className="text-4xl font-bold mb-1 text-white">$0</div>
+              <div className="text-slate-300 text-sm mb-6">Forever free</div>
+              <ul className="text-sm text-slate-200 space-y-3 mb-8 text-left">
                 <li>✓ Up to 25 players</li>
                 <li>✓ Basic playbook</li>
                 <li>✓ Team chat</li>
@@ -431,12 +431,12 @@ const LandingPage: React.FC = () => {
               <Badge variant="gold" className="absolute -top-3 left-1/2 -translate-x-1/2">
                 Most Popular
               </Badge>
-              <h3 className="text-xl font-bold mb-2">Pro</h3>
+              <h3 className="text-xl font-bold mb-2 text-white">Pro</h3>
               <div className="text-4xl font-bold mb-1">
                 <GradientText variant="gold">$29</GradientText>
               </div>
-              <div className="text-slate-400 text-sm mb-6">per month</div>
-              <ul className="text-sm text-slate-300 space-y-3 mb-8 text-left">
+              <div className="text-slate-300 text-sm mb-6">per month</div>
+              <ul className="text-sm text-slate-200 space-y-3 mb-8 text-left">
                 <li>✓ Unlimited players</li>
                 <li>✓ Advanced playbook</li>
                 <li>✓ Live stats tracking</li>
@@ -451,10 +451,10 @@ const LandingPage: React.FC = () => {
 
             {/* Elite Tier */}
             <GlassCard className="text-center">
-              <h3 className="text-xl font-bold mb-2">Elite</h3>
-              <div className="text-4xl font-bold mb-1">$99</div>
-              <div className="text-slate-400 text-sm mb-6">per month</div>
-              <ul className="text-sm text-slate-300 space-y-3 mb-8 text-left">
+              <h3 className="text-xl font-bold mb-2 text-white">Elite</h3>
+              <div className="text-4xl font-bold mb-1 text-white">$99</div>
+              <div className="text-slate-300 text-sm mb-6">per month</div>
+              <ul className="text-sm text-slate-200 space-y-3 mb-8 text-left">
                 <li>✓ Everything in Pro</li>
                 <li>✓ Unlimited video storage</li>
                 <li>✓ Advanced analytics</li>
@@ -472,10 +472,10 @@ const LandingPage: React.FC = () => {
       <section className="py-24 px-6">
         <div className="max-w-4xl mx-auto text-center">
           <GlassCard className="py-16 px-8">
-            <h2 className="osys-text-display mb-4">
+            <h2 className="osys-text-display mb-4 text-white drop-shadow-lg">
               Ready to <GradientText>transform</GradientText> your team?
             </h2>
-            <p className="text-lg text-slate-400 mb-8">
+            <p className="text-lg text-slate-200 mb-8">
               Join thousands of teams already using OSYS to win more games.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
@@ -496,14 +496,14 @@ const LandingPage: React.FC = () => {
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center">
                 ⚡
               </div>
-              <span className="font-bold">OSYS</span>
+              <span className="font-bold text-white">OSYS</span>
             </div>
-            <div className="flex gap-6 text-sm text-slate-400">
+            <div className="flex gap-6 text-sm text-slate-300">
               <a href="#" className="hover:text-white transition">Privacy</a>
               <a href="#" className="hover:text-white transition">Terms</a>
               <a href="#" className="hover:text-white transition">Contact</a>
             </div>
-            <div className="text-sm text-slate-500">
+            <div className="text-sm text-slate-300">
               © 2025 OSYS. All rights reserved.
             </div>
           </div>
