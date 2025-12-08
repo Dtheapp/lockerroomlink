@@ -117,19 +117,19 @@ const LandingPage: React.FC = () => {
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-xl">
             ⚡
           </div>
-          <span className="text-xl font-bold">OSYS</span>
+          <span className="text-xl font-bold text-slate-900">OSYS</span>
         </Link>
         
-        <div className="hidden md:flex items-center gap-6 text-sm text-slate-300">
-          <a href="#features" className="hover:text-white transition">Features</a>
-          <a href="#sports" className="hover:text-white transition">Sports</a>
-          <a href="#pricing" className="hover:text-white transition">Pricing</a>
-          <Link to="/fundraising" className="hover:text-white transition">Fundraising</Link>
+        <div className="hidden md:flex items-center gap-6 text-sm text-slate-700 font-medium">
+          <a href="#features" className="hover:text-slate-900 transition">Features</a>
+          <a href="#sports" className="hover:text-slate-900 transition">Sports</a>
+          <a href="#pricing" className="hover:text-slate-900 transition">Pricing</a>
+          <Link to="/fundraising" className="hover:text-slate-900 transition">Fundraising</Link>
         </div>
 
         <div className="flex items-center gap-3 ml-auto">
           <Link to="/auth">
-            <Button variant="ghost" size="sm">Sign In</Button>
+            <button className="px-4 py-2 text-sm font-semibold text-slate-900 hover:text-purple-600 transition">Sign In</button>
           </Link>
           <Link to="/auth?signup=true">
             <Button variant="primary" size="sm">Get Started Free</Button>
@@ -144,8 +144,8 @@ const LandingPage: React.FC = () => {
             <Badge variant="primary">🚀 Now supporting 5 sports</Badge>
           </div>
 
-          <h1 className="osys-text-hero osys-animate-slide-up mb-6 text-white drop-shadow-lg">
-            The Operating System
+          <h1 className="osys-animate-slide-up mb-6" style={{ fontSize: 'clamp(3rem, 8vw, 6rem)', fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1 }}>
+            <span style={{ color: '#ffffff', textShadow: '0 4px 20px rgba(255,255,255,0.3), 0 0 40px rgba(139,92,246,0.5)' }}>The Operating System</span>
             <br />
             <GradientText>for Youth Sports</GradientText>
           </h1>
@@ -207,7 +207,7 @@ const LandingPage: React.FC = () => {
                       <div className="text-4xl font-bold">21</div>
                     </div>
                   </div>
-                  <div className="osys-glass p-3 rounded-xl text-sm">
+                  <div className="bg-slate-800/80 backdrop-blur-sm border border-white/10 p-3 rounded-xl text-sm text-white">
                     <span className="mr-2">🏆</span>
                     TD Pass - M. Johnson → D. Smith
                   </div>
@@ -262,7 +262,7 @@ const LandingPage: React.FC = () => {
             </GlassCard>
           </div>
 
-          <div className="mt-12 osys-glass rounded-2xl p-8">
+          <div className="mt-12 bg-slate-800/80 backdrop-blur-md border border-white/10 rounded-2xl p-8">
             <div className="grid md:grid-cols-2 gap-8 items-center">
               <div>
                 <Badge variant="gold" className="mb-4">World-Class Traceability</Badge>
@@ -285,18 +285,18 @@ const LandingPage: React.FC = () => {
                   </li>
                 </ul>
               </div>
-              <div className="osys-glass rounded-xl p-6">
-                <div className="text-sm text-slate-400 mb-3">Example Stat Trace</div>
+              <div className="bg-slate-700/80 backdrop-blur-md border border-white/10 rounded-xl p-6">
+                <div className="text-sm text-slate-300 mb-3">Example Stat Trace</div>
                 <div className="space-y-3">
-                  <div className="bg-slate-800/50 rounded-lg p-3 flex items-center justify-between">
+                  <div className="bg-slate-600/80 rounded-lg p-3 flex items-center justify-between text-white">
                     <span>🏈 TD Pass</span>
                     <span className="text-purple-400">→</span>
                   </div>
-                  <div className="bg-slate-800/50 rounded-lg p-3 flex items-center justify-between">
+                  <div className="bg-slate-600/80 rounded-lg p-3 flex items-center justify-between text-white">
                     <span>📋 "Power Sweep Right"</span>
                     <span className="text-purple-400">→</span>
                   </div>
-                  <div className="bg-slate-800/50 rounded-lg p-3 flex items-center justify-between">
+                  <div className="bg-slate-600/80 rounded-lg p-3 flex items-center justify-between text-white">
                     <span>🎬 Game Film 2:34</span>
                     <span className="text-emerald-400">✓</span>
                   </div>
@@ -388,11 +388,11 @@ const LandingPage: React.FC = () => {
 
           <div className="flex flex-wrap justify-center gap-6">
             {['🏈 Football', '🏀 Basketball', '⚽ Soccer', '⚾ Baseball', '🏐 Volleyball'].map((sport) => (
-              <div key={sport} className="osys-glass px-6 py-4 text-lg font-medium">
+              <div key={sport} className="bg-slate-800/90 backdrop-blur-md border border-purple-500/30 px-6 py-4 text-lg font-semibold text-white rounded-xl shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 hover:border-purple-400/50 transition-all">
                 {sport}
               </div>
             ))}
-            <div className="osys-glass px-6 py-4 text-lg font-medium text-slate-200">
+            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 text-lg font-semibold text-white rounded-xl shadow-lg shadow-purple-500/30">
               ✨ & more
             </div>
           </div>
@@ -472,8 +472,10 @@ const LandingPage: React.FC = () => {
       <section className="py-24 px-6">
         <div className="max-w-4xl mx-auto text-center">
           <GlassCard className="py-16 px-8">
-            <h2 className="osys-text-display mb-4 text-white drop-shadow-lg">
-              Ready to <GradientText>transform</GradientText> your team?
+            <h2 className="mb-4" style={{ fontSize: 'clamp(2rem, 5vw, 4rem)', fontWeight: 700 }}>
+              <span style={{ color: '#ffffff', textShadow: '0 4px 20px rgba(255,255,255,0.3)' }}>Ready to </span>
+              <GradientText>transform</GradientText>
+              <span style={{ color: '#ffffff', textShadow: '0 4px 20px rgba(255,255,255,0.3)' }}> your team?</span>
             </h2>
             <p className="text-lg text-slate-200 mb-8">
               Join thousands of teams already using OSYS to win more games.

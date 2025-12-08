@@ -33,7 +33,7 @@ export const GlassCard: React.FC<GlassCardProps> = ({
 }) => {
   return (
     <div 
-      className={`osys-card ${glow ? 'osys-card-glow' : ''} ${className}`}
+      className={`bg-slate-800/80 backdrop-blur-md border border-white/10 rounded-2xl p-6 ${glow ? 'osys-card-glow' : ''} ${className}`}
       onClick={onClick}
       style={style}
     >
@@ -334,7 +334,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
           {badge}
         </Badge>
       )}
-      <h2 className="osys-text-display text-zinc-900 dark:text-white">
+      <h2 style={{ fontSize: 'clamp(2rem, 5vw, 4rem)', fontWeight: 700, color: '#ffffff', textShadow: '0 4px 20px rgba(255,255,255,0.3), 0 0 40px rgba(139,92,246,0.5)' }}>
         {title}
         {highlight && (
           <>
@@ -344,7 +344,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
         )}
       </h2>
       {subtitle && (
-        <p className="text-lg text-zinc-600 dark:text-slate-400 mt-4">{subtitle}</p>
+        <p className="text-lg text-slate-300 mt-4">{subtitle}</p>
       )}
     </div>
   );

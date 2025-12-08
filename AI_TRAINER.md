@@ -121,6 +121,46 @@ SERVER: http://localhost:3001/
 | 6 | Hardcoded sport-specific code | Use `sportConfig.ts` helpers |
 | 7 | Visual changes without verification | Check http://localhost:3001/ |
 | 8 | Guessing at preferences | Read this file or ASK |
+| 9 | **Low contrast/invisible text** | **ALL text MUST be fully visible - see CRITICAL UI RULE below** |
+
+---
+
+## 🚨🚨🚨 CRITICAL UI VISIBILITY RULE (HIGHEST PRIORITY) 🚨🚨🚨
+
+> **THIS IS NON-NEGOTIABLE. VIOLATING THIS WASTES THE USER'S TIME.**
+
+### The Rule
+**ALL text, icons, and UI elements MUST have sufficient contrast to be IMMEDIATELY and EASILY readable.** If a user has to squint, lean in, or ask "I can't see this" - YOU FAILED.
+
+### Why This Matters
+- Fegrox is a visual perfectionist
+- Low contrast text = amateur work
+- Every "I can't see this" complaint = wasted time fixing YOUR mistake
+- This is BASIC UI competency - there is no excuse
+
+### Enforcement Checklist (BEFORE shipping any UI):
+| Element | Dark Background | Light Background |
+|---------|-----------------|------------------|
+| **Headings** | `text-white` or bright color + text-shadow | `text-slate-900` or `text-black` |
+| **Body text** | `text-slate-200` minimum (NOT slate-400/500) | `text-slate-700` minimum |
+| **Subtle text** | `text-slate-300` minimum | `text-slate-600` minimum |
+| **Icons** | Bright/white with good contrast | Dark with good contrast |
+| **Inside glass/cards** | ALWAYS explicit `text-white` or dark bg | ALWAYS explicit dark text |
+
+### Common Mistakes to NEVER Make:
+1. **Using `osys-glass` without checking text color** - glass often has light bg, text becomes invisible
+2. **Using CSS classes that override inline colors** - always check what the class does
+3. **Assuming text-white works everywhere** - verify visually
+4. **Using slate-400, slate-500 on dark backgrounds** - TOO DIM, use slate-200/300 minimum
+5. **Forgetting text color inside custom components** - GlassCard, modals, etc. need explicit text colors
+
+### If You're Unsure:
+- Use **inline styles** with explicit hex colors: `style={{ color: '#ffffff' }}`
+- Add **text-shadow** for extra pop: `textShadow: '0 4px 20px rgba(255,255,255,0.3)'`
+- TEST IN BROWSER before saying "done"
+
+### Consequence
+If the user says "I can't see this" or "this text is hard to read" - you made a mistake that should have been prevented. Apologize, fix it immediately, and learn from it.
 
 ---
 
