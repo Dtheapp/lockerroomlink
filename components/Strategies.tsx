@@ -6,6 +6,7 @@ import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import type { Message } from '../types';
 import { Send, AlertCircle, Shield, Lock, Edit2, Trash2, X, Check } from 'lucide-react';
+import { AnimatedBackground, GlassCard } from './ui/OSYSComponents';
 
 const Strategies: React.FC = () => {
   const { user, userData, teamData } = useAuth();
@@ -126,44 +127,53 @@ const Strategies: React.FC = () => {
   // If not a coach, show access denied
   if (!isCoach) {
     return (
-      <div className="h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-zinc-950 rounded-lg shadow-lg border border-slate-200 dark:border-zinc-800 p-8">
-        <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
-          <Lock className="w-10 h-10 text-red-500" />
+      <div className="relative h-full min-h-screen">
+        <AnimatedBackground />
+        <div className="relative z-10 h-full flex items-center justify-center p-8">
+          <GlassCard className="max-w-md text-center p-8">
+            <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4 mx-auto">
+              <Lock className="w-10 h-10 text-red-500" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Coaches Only</h2>
+            <p className="text-slate-500 dark:text-zinc-400">
+              The Strategy Room is a private space for coaches to discuss game plans, plays, and team strategies.
+            </p>
+          </GlassCard>
         </div>
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Coaches Only</h2>
-        <p className="text-slate-500 dark:text-zinc-400 text-center max-w-md">
-          The Strategy Room is a private space for coaches to discuss game plans, plays, and team strategies.
-        </p>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col bg-slate-50 dark:bg-zinc-950 rounded-lg shadow-lg dark:shadow-xl border border-slate-200 dark:border-zinc-800 overflow-hidden">
+    <div className="relative h-full min-h-screen">
+      <AnimatedBackground />
+      <div className="relative z-10 h-full flex flex-col">
+        <GlassCard className="flex-1 flex flex-col overflow-hidden !p-0">
       
       {/* HEADER */}
-      <div className="sticky top-0 z-10 p-4 border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+      <div className="sticky top-0 z-10 p-4 border-b border-slate-200/50 dark:border-white/10 bg-white/80 dark:bg-black/40 backdrop-blur-xl">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Shield className="w-5 h-5 text-purple-500 dark:text-orange-400" />
-            Strategy Room
-            <span className="text-purple-500 dark:text-orange-400 text-sm font-mono uppercase tracking-wider">(Coaches Only)</span>
-          </h1>
-          <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1.5 rounded-full">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-purple-500/20 dark:bg-orange-500/20 rounded-xl flex items-center justify-center">
+              <Shield className="w-5 h-5 text-purple-600 dark:text-orange-400" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-900 dark:text-white">Strategy Room</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Coaches Only</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50/80 dark:bg-emerald-900/20 px-3 py-1.5 rounded-full">
             <Lock className="w-3 h-3" />
             Private
           </div>
         </div>
-        <p className="text-xs text-slate-500 dark:text-zinc-500 mt-1">
-          Discuss plays and game plans with your coaching staff
-        </p>
       </div>
       
       {/* MESSAGES AREA */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-50 dark:bg-black/20">
+      <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-50/50 dark:bg-black/20">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-12">
-            <div className="w-16 h-16 bg-purple-100 dark:bg-orange-900/20 rounded-full flex items-center justify-center mb-4">
+            <div className="w-16 h-16 bg-purple-100/80 dark:bg-orange-900/20 rounded-full flex items-center justify-center mb-4">
               <Shield className="w-8 h-8 text-purple-500 dark:text-orange-400" />
             </div>
             <h3 className="text-lg font-semibold text-slate-700 dark:text-zinc-300 mb-2">
@@ -181,10 +191,10 @@ const Strategies: React.FC = () => {
             
             return (
               <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-xs lg:max-w-md p-3 rounded-2xl shadow-sm ${
+                <div className={`max-w-xs lg:max-w-md p-3 rounded-2xl shadow-lg ${
                   isMe 
                     ? 'bg-gradient-to-br from-purple-600 to-purple-700 dark:from-orange-500 dark:to-orange-600 text-white rounded-br-none'
-                    : 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-zinc-700'
+                    : 'bg-white/80 dark:bg-white/10 backdrop-blur-sm text-slate-900 dark:text-slate-200 rounded-bl-none border border-slate-200/50 dark:border-white/10'
                 }`}>
                   {!isMe && (
                     <p className="text-xs font-bold text-purple-600 dark:text-orange-400 mb-1 flex items-center gap-1">
@@ -226,7 +236,7 @@ const Strategies: React.FC = () => {
                     <>
                       <p className="text-sm leading-relaxed">{msg.text}</p>
                       {/* Footer with timestamp and actions */}
-                      <div className={`text-[10px] mt-1 flex items-center justify-between gap-2 ${isMe ? 'text-purple-200 dark:text-orange-200' : 'text-slate-400'}`}>
+                      <div className={`text-[10px] mt-1 flex items-center justify-between gap-2 ${isMe ? 'text-purple-200 dark:text-orange-200' : 'text-slate-400 dark:text-slate-500'}`}>
                         <span>{isEdited && '(edited)'}</span>
                         <div className="flex items-center gap-2">
                           {isMe && (
@@ -262,12 +272,12 @@ const Strategies: React.FC = () => {
 
       {/* Delete Confirmation */}
       {deleteConfirm && (
-        <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-900/30 flex items-center justify-between">
+        <div className="px-4 py-3 bg-red-50/80 dark:bg-red-900/20 backdrop-blur-sm border-t border-red-200/50 dark:border-red-900/30 flex items-center justify-between">
           <p className="text-sm text-red-600 dark:text-red-400">Delete this message?</p>
           <div className="flex gap-2">
             <button
               onClick={() => setDeleteConfirm(null)}
-              className="px-3 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded"
+              className="px-3 py-1 text-sm text-slate-600 dark:text-zinc-400 hover:bg-slate-200/50 dark:hover:bg-zinc-800 rounded"
             >
               Cancel
             </button>
@@ -283,10 +293,10 @@ const Strategies: React.FC = () => {
       )}
 
       {/* INPUT AREA */}
-      <div className="p-4 border-t border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+      <div className="p-4 border-t border-slate-200/50 dark:border-white/10 bg-white/80 dark:bg-black/40 backdrop-blur-xl">
         {/* Rate limit warning */}
         {rateLimitError && (
-          <div className="mb-3 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg">
+          <div className="mb-3 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm bg-amber-50/80 dark:bg-amber-900/20 backdrop-blur-sm px-3 py-2 rounded-lg">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             {rateLimitError}
           </div>
@@ -297,7 +307,7 @@ const Strategies: React.FC = () => {
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Share a strategy or play idea..."
-            className="flex-1 bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 rounded-full shadow-inner py-3 px-5 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-orange-500 transition-all"
+            className="flex-1 bg-white/80 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 rounded-full shadow-inner py-3 px-5 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 dark:focus:ring-orange-500/50 transition-all"
           />
           <button 
             type="submit" 
@@ -312,6 +322,8 @@ const Strategies: React.FC = () => {
             )}
           </button>
         </form>
+      </div>
+        </GlassCard>
       </div>
     </div>
   );
