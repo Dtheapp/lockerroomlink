@@ -33,7 +33,7 @@ export const GlassCard: React.FC<GlassCardProps> = ({
 }) => {
   return (
     <div 
-      className={`bg-slate-800/80 backdrop-blur-md border border-white/10 rounded-2xl p-6 ${glow ? 'osys-card-glow' : ''} ${className}`}
+      className={`bg-white dark:bg-slate-800/80 backdrop-blur-md border border-slate-200 dark:border-white/10 rounded-2xl p-6 shadow-lg dark:shadow-none ${glow ? 'osys-card-glow' : ''} ${className}`}
       onClick={onClick}
       style={style}
     >

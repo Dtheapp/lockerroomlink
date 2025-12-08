@@ -403,7 +403,7 @@ const AuthScreen: React.FC = () => {
                 </h1>
               </div>
             </div>
-            <p className="text-white/40 text-sm tracking-wide font-medium">OSYS — everything your team needs in one powerful platform</p>
+            <p className="text-white/70 text-sm tracking-wide font-medium">OSYS — everything your team needs in one powerful platform</p>
           </div>
 
           {/* Hero content */}
@@ -413,7 +413,7 @@ const AuthScreen: React.FC = () => {
               <span className="shimmer-text">Champions</span><br />
               Are Made
             </h2>
-            <p className="text-white/60 text-lg max-w-md">
+            <p className="text-white/80 text-lg max-w-md">
               The complete platform for youth sports teams. Track stats, share highlights, connect with fans, and build your legacy.
             </p>
             
@@ -431,7 +431,7 @@ const AuthScreen: React.FC = () => {
                   </div>
                   <div>
                     <div className="font-bold text-white text-sm">{feature.label}</div>
-                    <div className="text-white/40 text-xs">{feature.desc}</div>
+                    <div className="text-white/70 text-xs">{feature.desc}</div>
                   </div>
                 </div>
               ))}
@@ -458,7 +458,7 @@ const AuthScreen: React.FC = () => {
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">OSYS</span>
                 </h1>
               </div>
-              <p className="text-white/40 text-xs tracking-wide">OSYS — everything your team needs in one powerful platform</p>
+              <p className="text-white/70 text-xs tracking-wide">OSYS — everything your team needs in one powerful platform</p>
             </div>
 
             {/* Install banner */}
@@ -514,7 +514,7 @@ const AuthScreen: React.FC = () => {
                 {!isConfirmingReset && isResettingPassword && (
                   <>
                     <h2 className="text-2xl font-black text-white mb-2">Reset Password</h2>
-                    <p className="text-white/50 text-sm mb-6">Enter your email to receive a reset link.</p>
+                    <p className="text-white/70 text-sm mb-6">Enter your email to receive a reset link.</p>
                     {successMessage ? (
                       <div className="bg-green-500/10 border border-green-500/20 p-4 rounded-xl text-green-400 flex items-center gap-3">
                         <CheckCircle className="w-6 h-6 flex-shrink-0" />
@@ -544,7 +544,7 @@ const AuthScreen: React.FC = () => {
                     <h2 className="text-2xl font-black text-white mb-1">
                       {isSignUp ? 'Create Account' : 'Welcome Back'}
                     </h2>
-                    <p className="text-white/50 text-sm mb-6">
+                    <p className="text-white/70 text-sm mb-6">
                       {isSignUp ? 'Join thousands of athletes and coaches' : 'Sign in to continue to your dashboard'}
                     </p>
 
@@ -578,7 +578,7 @@ const AuthScreen: React.FC = () => {
                       <button 
                         type="button" 
                         onClick={() => { setIsSignUp(!isSignUp); setError(''); }} 
-                        className="text-sm text-white/50 hover:text-white transition-colors"
+                        className="text-sm text-white/70 hover:text-white transition-colors"
                       >
                         {isSignUp ? 'Already have an account? ' : 'Need an account? '}
                         <span className="text-purple-400 font-semibold hover:underline">
@@ -593,7 +593,7 @@ const AuthScreen: React.FC = () => {
 
             {/* Social proof */}
             <div className="mt-8 text-center">
-              <p className="text-white/30 text-xs mb-3">Trusted by teams across the nation</p>
+              <p className="text-white/60 text-xs mb-3">Trusted by teams across the nation</p>
               <div className="flex justify-center items-center gap-6 opacity-40">
                 {['🏈', '🏀', '⚽', '🏐', '📣'].map((emoji, i) => (
                   <span key={i} className="text-2xl">{emoji}</span>

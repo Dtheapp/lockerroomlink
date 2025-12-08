@@ -887,7 +887,7 @@ const NewOSYSDashboard: React.FC = () => {
           
           <div className="space-y-3">
             {filteredEvents.length === 0 ? (
-              <p className={`text-center py-4 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>No upcoming events</p>
+              <p className={`text-center py-4 italic ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>No upcoming events</p>
             ) : (
               filteredEvents.slice(0, 3).map((event) => {
                 const date = formatEventDate(event.eventStartDate);
@@ -972,7 +972,7 @@ const NewOSYSDashboard: React.FC = () => {
               </div>
             ))}
             {roster.length === 0 && (
-              <p className={`text-center py-4 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>No players yet</p>
+              <p className={`text-center py-4 italic ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>No players yet</p>
             )}
           </div>
         </GlassCard>
@@ -990,7 +990,7 @@ const NewOSYSDashboard: React.FC = () => {
               <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : coaches.length === 0 ? (
-            <p className={`text-center py-4 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>No coaches assigned</p>
+            <p className={`text-center py-4 italic ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>No coaches assigned</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {coaches.map((coach) => (
@@ -1024,22 +1024,30 @@ const NewOSYSDashboard: React.FC = () => {
                   {/* Role Badges */}
                   <div className="flex flex-wrap gap-1 justify-center">
                     {coach.isHeadCoach && (
-                      <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${
+                        theme === 'dark' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-amber-100 text-amber-700 border-amber-300'
+                      }`}>
                         HC
                       </span>
                     )}
                     {coach.isOC && (
-                      <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-red-500/20 text-red-400 border border-red-500/30">
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${
+                        theme === 'dark' ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'bg-red-100 text-red-700 border-red-300'
+                      }`}>
                         OC
                       </span>
                     )}
                     {coach.isDC && (
-                      <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${
+                        theme === 'dark' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-blue-100 text-blue-700 border-blue-300'
+                      }`}>
                         DC
                       </span>
                     )}
                     {coach.isSTC && (
-                      <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${
+                        theme === 'dark' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' : 'bg-yellow-100 text-yellow-700 border-yellow-300'
+                      }`}>
                         STC
                       </span>
                     )}
@@ -1102,7 +1110,7 @@ const NewOSYSDashboard: React.FC = () => {
           {/* Posts List */}
           <div className="space-y-3 max-h-[300px] overflow-y-auto">
             {posts.length === 0 ? (
-              <p className={`text-center py-4 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>
+              <p className={`text-center py-4 italic ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
                 No announcements yet
               </p>
             ) : (
@@ -1179,7 +1187,7 @@ const NewOSYSDashboard: React.FC = () => {
                           : `${post.text.slice(0, 100)}...`}
                       </div>
                       <div className="flex items-center justify-between mt-2">
-                        <span className={`text-xs ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>
+                        <span className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
                           {post.author} • {formatBulletinDate(post.timestamp)}
                         </span>
                         {canEditPost(post) && (
@@ -1223,10 +1231,10 @@ const NewOSYSDashboard: React.FC = () => {
             </div>
           </div>
           <div className="flex gap-2">
-            <Link to="/roster" className={`px-4 py-2 rounded-lg transition text-sm ${theme === 'dark' ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-slate-200 hover:bg-slate-300 text-zinc-900'}`}>
+            <Link to="/roster" className="px-4 py-2 rounded-lg transition text-sm bg-slate-700 hover:bg-slate-600 dark:bg-white/20 dark:hover:bg-white/30 text-white font-medium border border-slate-600 dark:border-white/20">
               Manage Roster
             </Link>
-            <Link to="/playbook" className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 transition text-sm text-white">
+            <Link to="/playbook" className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition text-sm text-white font-medium shadow-lg shadow-purple-500/30">
               Open Playbook
             </Link>
           </div>
