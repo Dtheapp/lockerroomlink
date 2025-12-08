@@ -71,6 +71,7 @@ export interface DesignData {
   teamLogo?: string;
   title: string;
   subtitle?: string;
+  sport?: string;
   date?: string;
   time?: string;
   location?: string;
@@ -81,6 +82,9 @@ export interface DesignData {
   showQRCode: boolean;
   qrCodeUrl?: string;
   contactInfo?: string;
+  registrationOpens?: string;
+  registrationCloses?: string;
+  notes?: string;
 }
 
 const DesignStudio: React.FC = () => {
@@ -108,6 +112,7 @@ const DesignStudio: React.FC = () => {
     teamLogo: teamData?.logoUrl,
     title: '',
     subtitle: '',
+    sport: teamData?.sport || '',
     date: '',
     time: '',
     location: '',
@@ -118,6 +123,9 @@ const DesignStudio: React.FC = () => {
     showQRCode: false,
     qrCodeUrl: '',
     contactInfo: '',
+    registrationOpens: '',
+    registrationCloses: '',
+    notes: '',
   });
 
   // Fetch pending registrations (seasons without flyers)
@@ -294,32 +302,78 @@ const DesignStudio: React.FC = () => {
       ctx.fillText(teamData.teamName.toUpperCase(), padding + (logoImageLoaded ? 120 * scale : 20 * scale), padding + 47 * scale);
     }
 
-    // Main title
+    // Sport type badge (top right)
+    if (designData.sport) {
+      const sportEmojis: { [key: string]: string } = {
+        football: '🏈',
+        basketball: '🏀',
+        baseball: '⚾',
+        soccer: '⚽',
+        hockey: '🏒',
+        volleyball: '🏐',
+        lacrosse: '🥍',
+        softball: '🥎',
+        tennis: '🎾',
+        swimming: '🏊',
+        wrestling: '🤼',
+        track: '🏃',
+        cheerleading: '📣',
+      };
+      const sportEmoji = sportEmojis[designData.sport.toLowerCase()] || '🏆';
+      const sportLabel = designData.sport.charAt(0).toUpperCase() + designData.sport.slice(1);
+      ctx.font = `bold ${16 * scale}px Inter, system-ui, sans-serif`;
+      const sportWidth = ctx.measureText(sportLabel).width + 50 * scale;
+      ctx.fillStyle = designData.accentColor + 'cc';
+      roundRect(ctx, width - padding - sportWidth, padding + 20 * scale, sportWidth, 36 * scale, 18 * scale);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'right';
+      ctx.fillText(`${sportEmoji} ${sportLabel}`, width - padding - 15 * scale, padding + 45 * scale);
+    }
+
+    // Main title - moved up higher
     ctx.fillStyle = designData.textColor;
     ctx.font = `bold ${72 * scale}px Inter, system-ui, sans-serif`;
     ctx.textAlign = 'center';
-    const titleY = headerImageLoaded ? height * 0.4 : height * 0.25;
+    const titleY = headerImageLoaded ? height * 0.35 : height * 0.15;
     wrapText(ctx, designData.title || 'Your Event Title', width / 2, titleY, width - padding * 2, 80 * scale);
 
-    // Subtitle
+    // Subtitle - more space below title
     if (designData.subtitle) {
       ctx.font = `${32 * scale}px Inter, system-ui, sans-serif`;
       ctx.fillStyle = designData.textColor + 'cc';
-      ctx.fillText(designData.subtitle, width / 2, titleY + 100 * scale);
+      ctx.fillText(designData.subtitle, width / 2, titleY + 110 * scale);
     }
 
-    // Info section
-    let infoY = titleY + (designData.subtitle ? 160 : 100) * scale;
+    // Info section - more spacing between elements
+    let infoY = titleY + (designData.subtitle ? 170 : 120) * scale;
 
-    // Date & Time
-    if (designData.date) {
+    // Registration dates (if present)
+    if (designData.registrationOpens || designData.registrationCloses) {
       ctx.fillStyle = designData.accentColor;
-      roundRect(ctx, width / 2 - 200 * scale, infoY, 400 * scale, 50 * scale, 25 * scale);
+      const regWidth = 420 * scale;
+      roundRect(ctx, width / 2 - regWidth / 2, infoY, regWidth, 50 * scale, 25 * scale);
       ctx.fill();
       ctx.fillStyle = '#ffffff';
-      ctx.font = `bold ${24 * scale}px Inter, system-ui, sans-serif`;
-      const dateText = designData.time ? `📅 ${designData.date}  •  🕐 ${designData.time}` : `📅 ${designData.date}`;
-      ctx.fillText(dateText, width / 2, infoY + 33 * scale);
+      ctx.font = `bold ${20 * scale}px Inter, system-ui, sans-serif`;
+      let regText = '';
+      if (designData.registrationOpens && designData.registrationCloses) {
+        regText = `📅 Registration: ${designData.registrationOpens} - ${designData.registrationCloses}`;
+      } else if (designData.registrationCloses) {
+        regText = `📅 Registration closes ${designData.registrationCloses}`;
+      } else if (designData.registrationOpens) {
+        regText = `📅 Registration opens ${designData.registrationOpens}`;
+      }
+      ctx.fillText(regText, width / 2, infoY + 33 * scale);
+      infoY += 80 * scale;
+    }
+
+    // Date & Time (season start or event date)
+    if (designData.date) {
+      ctx.fillStyle = designData.textColor + 'dd';
+      ctx.font = `${26 * scale}px Inter, system-ui, sans-serif`;
+      const dateText = designData.time ? `${designData.date}  •  ${designData.time}` : designData.date;
+      ctx.fillText(dateText, width / 2, infoY + 30 * scale);
       infoY += 70 * scale;
     }
 
@@ -328,22 +382,30 @@ const DesignStudio: React.FC = () => {
       ctx.fillStyle = designData.textColor + 'dd';
       ctx.font = `${28 * scale}px Inter, system-ui, sans-serif`;
       ctx.fillText(`📍 ${designData.location}`, width / 2, infoY + 30 * scale);
-      infoY += 60 * scale;
+      infoY += 70 * scale;
     }
 
     // Price
     if (designData.price) {
       ctx.fillStyle = designData.accentColor;
-      ctx.font = `bold ${36 * scale}px Inter, system-ui, sans-serif`;
-      ctx.fillText(designData.price, width / 2, infoY + 40 * scale);
-      infoY += 70 * scale;
+      ctx.font = `bold ${40 * scale}px Inter, system-ui, sans-serif`;
+      ctx.fillText(designData.price, width / 2, infoY + 45 * scale);
+      infoY += 80 * scale;
     }
 
-    // Description
+    // Description / What's included
     if (designData.description) {
       ctx.fillStyle = designData.textColor + 'bb';
-      ctx.font = `${24 * scale}px Inter, system-ui, sans-serif`;
-      wrapText(ctx, designData.description, width / 2, infoY + 30 * scale, width - padding * 4, 32 * scale);
+      ctx.font = `${22 * scale}px Inter, system-ui, sans-serif`;
+      wrapText(ctx, designData.description, width / 2, infoY + 25 * scale, width - padding * 4, 32 * scale);
+      infoY += 80 * scale;
+    }
+
+    // Notes section
+    if (designData.notes) {
+      ctx.fillStyle = designData.textColor + '99';
+      ctx.font = `italic ${18 * scale}px Inter, system-ui, sans-serif`;
+      wrapText(ctx, designData.notes, width / 2, infoY + 20 * scale, width - padding * 4, 26 * scale);
     }
 
     // QR Code
@@ -443,12 +505,16 @@ const DesignStudio: React.FC = () => {
                     category: 'registration',
                     title: `${season.name} Registration`,
                     subtitle: teamData?.name || '',
-                    date: season.registrationCloseDate ? `Registration closes ${new Date(season.registrationCloseDate).toLocaleDateString()}` : '',
+                    sport: season.sport || teamData?.sport || '',
+                    date: season.startDate ? `Season starts ${new Date(season.startDate).toLocaleDateString()}` : '',
                     price: season.registrationFee ? `$${(season.registrationFee / 100).toFixed(0)}` : 'Free',
                     description: season.description || '',
                     bulletPoints: season.includedItems || [],
                     showQRCode: true,
                     qrCodeUrl: `${window.location.origin}/#/register/${teamData?.id}/${season.id}`,
+                    registrationOpens: season.registrationOpenDate ? new Date(season.registrationOpenDate).toLocaleDateString() : '',
+                    registrationCloses: season.registrationCloseDate ? new Date(season.registrationCloseDate).toLocaleDateString() : '',
+                    notes: '',
                   }));
                   setStep('template');
                 }}
@@ -654,6 +720,67 @@ const DesignStudio: React.FC = () => {
                 />
               </div>
 
+              {/* Sport Type */}
+              <div>
+                <label className={`text-sm font-medium mb-1 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Sport</label>
+                <select
+                  value={designData.sport || ''}
+                  onChange={(e) => setDesignData(prev => ({ ...prev, sport: e.target.value }))}
+                  className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none ${
+                    theme === 'dark' 
+                      ? 'bg-slate-800 border-slate-700 text-white' 
+                      : 'bg-white border-slate-300 text-zinc-900'
+                  }`}
+                >
+                  <option value="">Select sport...</option>
+                  <option value="football">🏈 Football</option>
+                  <option value="basketball">🏀 Basketball</option>
+                  <option value="baseball">⚾ Baseball</option>
+                  <option value="soccer">⚽ Soccer</option>
+                  <option value="hockey">🏒 Hockey</option>
+                  <option value="volleyball">🏐 Volleyball</option>
+                  <option value="lacrosse">🥍 Lacrosse</option>
+                  <option value="softball">🥎 Softball</option>
+                  <option value="tennis">🎾 Tennis</option>
+                  <option value="swimming">🏊 Swimming</option>
+                  <option value="wrestling">🤼 Wrestling</option>
+                  <option value="track">🏃 Track & Field</option>
+                  <option value="cheerleading">📣 Cheerleading</option>
+                </select>
+              </div>
+
+              {/* Registration Dates */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`text-sm font-medium mb-1 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Reg. Opens</label>
+                  <input
+                    type="text"
+                    value={designData.registrationOpens || ''}
+                    onChange={(e) => setDesignData(prev => ({ ...prev, registrationOpens: e.target.value }))}
+                    placeholder="Jan 1, 2025"
+                    className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none ${
+                      theme === 'dark' 
+                        ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' 
+                        : 'bg-white border-slate-300 text-zinc-900 placeholder-slate-400'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className={`text-sm font-medium mb-1 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Reg. Closes</label>
+                  <input
+                    type="text"
+                    value={designData.registrationCloses || ''}
+                    onChange={(e) => setDesignData(prev => ({ ...prev, registrationCloses: e.target.value }))}
+                    placeholder="Feb 15, 2025"
+                    className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none ${
+                      theme === 'dark' 
+                        ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' 
+                        : 'bg-white border-slate-300 text-zinc-900 placeholder-slate-400'
+                    }`}
+                  />
+                </div>
+              </div>
+
               {/* Date & Time */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -724,8 +851,24 @@ const DesignStudio: React.FC = () => {
                 <textarea
                   value={designData.description || ''}
                   onChange={(e) => setDesignData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Brief description..."
-                  rows={3}
+                  placeholder="What's included..."
+                  rows={2}
+                  className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none resize-none ${
+                    theme === 'dark' 
+                      ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' 
+                      : 'bg-white border-slate-300 text-zinc-900 placeholder-slate-400'
+                  }`}
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className={`text-sm font-medium mb-1 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Notes</label>
+                <textarea
+                  value={designData.notes || ''}
+                  onChange={(e) => setDesignData(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Additional info, requirements, contact..."
+                  rows={2}
                   className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none resize-none ${
                     theme === 'dark' 
                       ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' 
