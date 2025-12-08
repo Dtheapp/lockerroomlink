@@ -48,6 +48,12 @@ const Roster: React.FC = () => {
   const [allCoachesCache, setAllCoachesCache] = useState<UserProfile[]>([]);
   const [coachesCacheLoaded, setCoachesCacheLoaded] = useState(false);
   
+  // Add Player by search (Coach only) - search all players in system by username
+  const [playerSearchQuery, setPlayerSearchQuery] = useState('');
+  const [playerSearchResults, setPlayerSearchResults] = useState<(Player & { teamName?: string })[]>([]);
+  const [searchingPlayers, setSearchingPlayers] = useState(false);
+  const [selectedPlayerToAdd, setSelectedPlayerToAdd] = useState<(Player & { teamName?: string }) | null>(null);
+  
   // Transfer Head Coach state
   const [transferHeadCoachTo, setTransferHeadCoachTo] = useState<{ id: string; name: string } | null>(null);
   const [transferringHeadCoach, setTransferringHeadCoach] = useState(false);
@@ -301,6 +307,109 @@ const Roster: React.FC = () => {
       }
     } catch (error) { 
       console.error(error);
+      alert('Failed to add player. Please try again.');
+    } finally {
+      setAddingPlayer(false);
+    }
+  };
+
+  // Search for players by username across all teams (Coach only)
+  const handleSearchPlayers = async (searchTerm: string) => {
+    setPlayerSearchQuery(searchTerm);
+    
+    if (searchTerm.length < 2) {
+      setPlayerSearchResults([]);
+      return;
+    }
+    
+    setSearchingPlayers(true);
+    try {
+      const normalizedSearch = searchTerm.toLowerCase().replace(/^@/, '');
+      const foundPlayers: (Player & { teamName?: string })[] = [];
+      
+      // Search all teams for players with matching username
+      const teamsSnapshot = await getDocs(collection(db, 'teams'));
+      
+      for (const teamDoc of teamsSnapshot.docs) {
+        const teamName = teamDoc.data().name || 'Unknown Team';
+        const playersSnapshot = await getDocs(collection(db, 'teams', teamDoc.id, 'players'));
+        
+        playersSnapshot.docs.forEach(playerDoc => {
+          const playerData = playerDoc.data();
+          const playerUsername = (playerData.username || '').toLowerCase();
+          const playerName = (playerData.name || '').toLowerCase();
+          
+          // Match username or name
+          if (playerUsername.includes(normalizedSearch) || playerName.includes(normalizedSearch)) {
+            // Don't show players already on this team
+            if (teamDoc.id !== teamData?.id) {
+              foundPlayers.push({
+                id: playerDoc.id,
+                teamId: teamDoc.id,
+                teamName,
+                ...playerData
+              } as Player & { teamName?: string });
+            }
+          }
+        });
+      }
+      
+      setPlayerSearchResults(foundPlayers);
+    } catch (error) {
+      console.error('Error searching players:', error);
+    } finally {
+      setSearchingPlayers(false);
+    }
+  };
+
+  // Add selected player to coach's team
+  const handleAddPlayerToTeam = async () => {
+    if (!selectedPlayerToAdd || !teamData?.id || addingPlayer) return;
+    
+    // Check if player is already on another team
+    if (selectedPlayerToAdd.teamId && selectedPlayerToAdd.teamId !== teamData.id) {
+      alert(`This player is already on another team${selectedPlayerToAdd.teamName ? ` (${selectedPlayerToAdd.teamName})` : ''}. Players can only be on one team at a time.`);
+      return;
+    }
+    
+    // Check if player is already on this team
+    const alreadyOnTeam = roster.some(p => p.username === selectedPlayerToAdd.username);
+    if (alreadyOnTeam) {
+      alert('This player is already on your team.');
+      return;
+    }
+    
+    setAddingPlayer(true);
+    try {
+      // Copy player data to new team
+      const playerData: any = {
+        name: selectedPlayerToAdd.name,
+        username: selectedPlayerToAdd.username,
+        dob: selectedPlayerToAdd.dob,
+        teamId: teamData.id,
+        parentId: selectedPlayerToAdd.parentId,
+        photoUrl: selectedPlayerToAdd.photoUrl,
+        height: selectedPlayerToAdd.height,
+        weight: selectedPlayerToAdd.weight,
+        shirtSize: selectedPlayerToAdd.shirtSize,
+        pantSize: selectedPlayerToAdd.pantSize,
+        bio: selectedPlayerToAdd.bio,
+        medical: selectedPlayerToAdd.medical || { allergies: 'None', conditions: 'None', medications: 'None', bloodType: '' },
+        // Coach will assign these
+        number: 0,
+        position: 'TBD',
+        stats: { td: 0, tkl: 0 }
+      };
+      
+      await addDoc(collection(db, 'teams', teamData.id, 'players'), playerData);
+      
+      // Reset and close
+      setSelectedPlayerToAdd(null);
+      setPlayerSearchQuery('');
+      setPlayerSearchResults([]);
+      setIsAddModalOpen(false);
+    } catch (error) {
+      console.error('Error adding player to team:', error);
       alert('Failed to add player. Please try again.');
     } finally {
       setAddingPlayer(false);
@@ -1667,10 +1776,162 @@ const Roster: React.FC = () => {
               : 'bg-white border-zinc-200'
           }`}>
             <h2 className={`text-2xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
-              {isParent ? 'Add Your Player' : 'Add New Player'}
+              {isParent ? 'Add Your Player' : 'Add Player to Team'}
             </h2>
-            <form onSubmit={handleAddPlayer} className="space-y-4">
-              {isParent && (
+            
+            {/* COACH VIEW: Search for existing players */}
+            {isStaff && (
+              <div className="space-y-4">
+                <p className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                  Search for players by username or name. Players are created by their parents.
+                </p>
+                
+                {/* Search Input */}
+                <div className="relative">
+                  <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`} />
+                  <input
+                    type="text"
+                    value={playerSearchQuery}
+                    onChange={(e) => handleSearchPlayers(e.target.value)}
+                    placeholder="Search by @username or name..."
+                    className={`w-full pl-10 pr-4 py-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                      theme === 'dark' 
+                        ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                        : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                    }`}
+                  />
+                </div>
+                
+                {/* Search Results */}
+                {searchingPlayers && (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+                
+                {!searchingPlayers && playerSearchQuery.length >= 2 && playerSearchResults.length === 0 && (
+                  <div className={`text-center py-8 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>No players found</p>
+                    <p className="text-xs mt-1">Players must be created by their parents first</p>
+                  </div>
+                )}
+                
+                {!searchingPlayers && playerSearchResults.length > 0 && (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {playerSearchResults.map(player => {
+                      const isOnAnotherTeam = player.teamId && player.teamId !== teamData?.id;
+                      const isAlreadyOnThisTeam = roster.some(p => p.username === player.username);
+                      const isDisabled = !!(isOnAnotherTeam || isAlreadyOnThisTeam);
+                      
+                      return (
+                        <button
+                          type="button"
+                          key={`${player.teamId}-${player.id}`}
+                          onClick={() => !isDisabled && setSelectedPlayerToAdd(player)}
+                          disabled={isDisabled}
+                          className={`w-full p-3 rounded-lg border text-left transition-all flex items-center gap-3 ${
+                            isDisabled
+                              ? theme === 'dark'
+                                ? 'bg-black/20 border-white/5 opacity-60 cursor-not-allowed'
+                                : 'bg-zinc-100 border-zinc-200 opacity-60 cursor-not-allowed'
+                              : selectedPlayerToAdd?.id === player.id && selectedPlayerToAdd?.teamId === player.teamId
+                                ? theme === 'dark'
+                                  ? 'bg-orange-500/20 border-orange-500/50'
+                                  : 'bg-orange-50 border-orange-300'
+                                : theme === 'dark'
+                                  ? 'bg-black/30 border-white/10 hover:bg-white/5'
+                                  : 'bg-zinc-50 border-zinc-200 hover:bg-zinc-100'
+                          }`}
+                        >
+                          {player.photoUrl ? (
+                            <img src={player.photoUrl} alt={player.name} className="w-10 h-10 rounded-full object-cover" />
+                          ) : (
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${theme === 'dark' ? 'bg-white/10' : 'bg-zinc-200'}`}>
+                              <User className="w-5 h-5" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className={`font-medium truncate ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                              {player.name}
+                            </div>
+                            <div className={`text-xs truncate ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                              {player.username && <span className="text-orange-500">@{player.username}</span>}
+                              {player.username && player.teamName && ' • '}
+                              {isAlreadyOnThisTeam ? (
+                                <span className="text-green-500">Already on your team</span>
+                              ) : isOnAnotherTeam ? (
+                                <span className="text-red-400">On another team ({player.teamName})</span>
+                              ) : player.teamName ? (
+                                <span>Currently on {player.teamName}</span>
+                              ) : (
+                                <span className="text-green-500">Available</span>
+                              )}
+                            </div>
+                          </div>
+                          {!isDisabled && selectedPlayerToAdd?.id === player.id && selectedPlayerToAdd?.teamId === player.teamId && (
+                            <Check className="w-5 h-5 text-orange-500" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                
+                {/* Selected Player Preview */}
+                {selectedPlayerToAdd && (
+                  <div className={`p-4 rounded-lg border ${theme === 'dark' ? 'bg-orange-500/10 border-orange-500/30' : 'bg-orange-50 border-orange-200'}`}>
+                    <p className={`text-xs font-medium mb-2 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-600'}`}>Selected Player</p>
+                    <div className="flex items-center gap-3">
+                      {selectedPlayerToAdd.photoUrl ? (
+                        <img src={selectedPlayerToAdd.photoUrl} alt={selectedPlayerToAdd.name} className="w-12 h-12 rounded-full object-cover" />
+                      ) : (
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${theme === 'dark' ? 'bg-white/10' : 'bg-zinc-200'}`}>
+                          <User className="w-6 h-6" />
+                        </div>
+                      )}
+                      <div>
+                        <div className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{selectedPlayerToAdd.name}</div>
+                        {selectedPlayerToAdd.username && (
+                          <div className="text-sm text-orange-500">@{selectedPlayerToAdd.username}</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Actions */}
+                <div className="flex justify-end gap-4 mt-6">
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setIsAddModalOpen(false);
+                      setPlayerSearchQuery('');
+                      setPlayerSearchResults([]);
+                      setSelectedPlayerToAdd(null);
+                    }} 
+                    className={`px-4 ${theme === 'dark' ? 'text-zinc-400 hover:text-white' : 'text-zinc-500 hover:text-zinc-900'}`}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleAddPlayerToTeam}
+                    disabled={!selectedPlayerToAdd || addingPlayer}
+                    className="px-6 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-bold disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-orange-500/25"
+                  >
+                    {addingPlayer ? (
+                      <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Adding...</>
+                    ) : (
+                      <><UserPlus className="w-4 h-4" /> Add to Team</>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {/* PARENT VIEW: Create new player form */}
+            {isParent && (
+              <form onSubmit={handleAddPlayer} className="space-y-4">
                 <div>
                   <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Select Team *</label>
                   <select 
@@ -1691,131 +1952,48 @@ const Roster: React.FC = () => {
                   </select>
                   <p className="text-xs text-zinc-500 mt-1">Ask your coach for the Team ID if needed</p>
                 </div>
-              )}
               
-              <div>
-                <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Full Name *</label>
-                <input name="name" value={newPlayer.name} onChange={handleInputChange} placeholder="John Smith" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
-                  theme === 'dark' 
-                    ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
-                    : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
-                }`} required />
-              </div>
-              
-              <div>
-                <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Date of Birth *</label>
-                <input name="dob" type="date" value={newPlayer.dob} onChange={handleInputChange} className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
-                  theme === 'dark' 
-                    ? 'bg-black/30 border-white/10 text-white focus:border-orange-500/50' 
-                    : 'bg-zinc-50 border-zinc-300 text-zinc-900 focus:border-orange-500'
-                }`} required />
-              </div>
+                <div>
+                  <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Full Name *</label>
+                  <input name="name" value={newPlayer.name} onChange={handleInputChange} placeholder="John Smith" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                    theme === 'dark' 
+                      ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                      : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                  }`} required />
+                </div>
+                
+                <div>
+                  <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Date of Birth *</label>
+                  <input name="dob" type="date" value={newPlayer.dob} onChange={handleInputChange} className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                    theme === 'dark' 
+                      ? 'bg-black/30 border-white/10 text-white focus:border-orange-500/50' 
+                      : 'bg-zinc-50 border-zinc-300 text-zinc-900 focus:border-orange-500'
+                  }`} required />
+                </div>
 
-              {/* PARENT FORM: Uniform Sizes */}
-              {isParent && (
-                <>
-                  <div className={`pt-2 border-t ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
-                    <p className="text-xs font-bold text-cyan-600 dark:text-cyan-400 mb-3 uppercase tracking-wider">Physical Info</p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Height</label>
-                        <input name="height" value={newPlayer.height} onChange={handleInputChange} placeholder="4 ft 6 in" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
-                          theme === 'dark' 
-                            ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
-                            : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
-                        }`} />
-                      </div>
-                      <div>
-                        <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Weight</label>
-                        <input name="weight" value={newPlayer.weight} onChange={handleInputChange} placeholder="85 lbs" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
-                          theme === 'dark' 
-                            ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
-                            : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
-                        }`} />
-                      </div>
-                    </div>
-                  </div>
-                  <div className={`pt-2 border-t ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
-                    <p className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-3 uppercase tracking-wider">Uniform Sizing</p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Shirt Size</label>
-                        <select name="shirtSize" value={newPlayer.shirtSize} onChange={handleInputChange} className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
-                          theme === 'dark' 
-                            ? 'bg-black/30 border-white/10 text-white focus:border-orange-500/50' 
-                            : 'bg-zinc-50 border-zinc-300 text-zinc-900 focus:border-orange-500'
-                        }`}>
-                          <option value="">Select size...</option>
-                          <option value="Youth S">Youth S</option>
-                          <option value="Youth M">Youth M</option>
-                          <option value="Youth L">Youth L</option>
-                          <option value="Youth XL">Youth XL</option>
-                          <option value="Adult S">Adult S</option>
-                          <option value="Adult M">Adult M</option>
-                          <option value="Adult L">Adult L</option>
-                          <option value="Adult XL">Adult XL</option>
-                          <option value="Adult 2XL">Adult 2XL</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Pants Size</label>
-                        <select name="pantSize" value={newPlayer.pantSize} onChange={handleInputChange} className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
-                          theme === 'dark' 
-                            ? 'bg-black/30 border-white/10 text-white focus:border-orange-500/50' 
-                            : 'bg-zinc-50 border-zinc-300 text-zinc-900 focus:border-orange-500'
-                        }`}>
-                          <option value="">Select size...</option>
-                          <option value="Youth S">Youth S</option>
-                          <option value="Youth M">Youth M</option>
-                          <option value="Youth L">Youth L</option>
-                          <option value="Youth XL">Youth XL</option>
-                          <option value="Adult S">Adult S</option>
-                          <option value="Adult M">Adult M</option>
-                          <option value="Adult L">Adult L</option>
-                          <option value="Adult XL">Adult XL</option>
-                          <option value="Adult 2XL">Adult 2XL</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* COACH FORM: Jersey, Position, Stats */}
-              {isStaff && (
-                <>
+                <div className={`pt-2 border-t ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
+                  <p className="text-xs font-bold text-cyan-600 dark:text-cyan-400 mb-3 uppercase tracking-wider">Physical Info</p>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Jersey # *</label>
-                      <input name="number" type="number" value={newPlayer.number} onChange={handleInputChange} placeholder="12" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                      <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Height</label>
+                      <input name="height" value={newPlayer.height} onChange={handleInputChange} placeholder="4 ft 6 in" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
                         theme === 'dark' 
                           ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
                           : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
-                      }`} required />
+                      }`} />
                     </div>
                     <div>
-                      <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Position *</label>
-                      <select 
-                        name="position" 
-                        value={newPlayer.position} 
-                        onChange={handleInputChange} 
-                        className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
-                          theme === 'dark' 
-                            ? 'bg-black/30 border-white/10 text-white focus:border-orange-500/50' 
-                            : 'bg-zinc-50 border-zinc-300 text-zinc-900 focus:border-orange-500'
-                        }`}
-                        required
-                      >
-                        <option value="">Select position...</option>
-                        {sportPositions.map(pos => (
-                          <option key={pos.value} value={pos.value}>
-                            {pos.label} {pos.category ? `(${pos.category})` : ''}
-                          </option>
-                        ))}
-                      </select>
+                      <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Weight</label>
+                      <input name="weight" value={newPlayer.weight} onChange={handleInputChange} placeholder="85 lbs" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                        theme === 'dark' 
+                          ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                          : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                      }`} />
                     </div>
                   </div>
-                  
+                </div>
+                <div className={`pt-2 border-t ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
+                  <p className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-3 uppercase tracking-wider">Uniform Sizing</p>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Shirt Size</label>
@@ -1856,61 +2034,20 @@ const Roster: React.FC = () => {
                       </select>
                     </div>
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Height</label>
-                      <input name="height" value={newPlayer.height} onChange={handleInputChange} placeholder="4 ft 6 in" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
-                        theme === 'dark' 
-                          ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
-                          : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
-                      }`} />
-                    </div>
-                    <div>
-                      <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Weight</label>
-                      <input name="weight" value={newPlayer.weight} onChange={handleInputChange} placeholder="85 lbs" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
-                        theme === 'dark' 
-                          ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
-                          : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
-                      }`} />
-                    </div>
-                  </div>
-                </>
-              )}
-              {isStaff && (
-                <div className={`pt-3 border-t ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
-                  <p className={`text-xs font-bold mb-3 uppercase tracking-wider ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Season Stats (Optional)</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Touchdowns</label>
-                      <input name="td" type="number" value={newPlayer.td} onChange={handleInputChange} placeholder="0" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
-                        theme === 'dark' 
-                          ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
-                          : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
-                      }`} />
-                    </div>
-                    <div>
-                      <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Tackles</label>
-                      <input name="tkl" type="number" value={newPlayer.tkl} onChange={handleInputChange} placeholder="0" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
-                        theme === 'dark' 
-                          ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
-                          : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
-                      }`} />
-                    </div>
-                  </div>
                 </div>
-              )}
-              <div className="flex justify-end gap-4 mt-6">
-                <button type="button" onClick={() => setIsAddModalOpen(false)} className={`px-4 ${theme === 'dark' ? 'text-zinc-400 hover:text-white' : 'text-zinc-500 hover:text-zinc-900'}`} disabled={addingPlayer}>Cancel</button>
-                <button type="submit" disabled={addingPlayer} className="px-6 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-bold disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-orange-500/25">
-                  {addingPlayer ? (
-                    <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Adding...</>
-                  ) : (
-                    'Add Player'
-                  )}
-                </button>
-              </div>
-            </form>
+                
+                <div className="flex justify-end gap-4 mt-6">
+                  <button type="button" onClick={() => setIsAddModalOpen(false)} className={`px-4 ${theme === 'dark' ? 'text-zinc-400 hover:text-white' : 'text-zinc-500 hover:text-zinc-900'}`} disabled={addingPlayer}>Cancel</button>
+                  <button type="submit" disabled={addingPlayer} className="px-6 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-bold disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-orange-500/25">
+                    {addingPlayer ? (
+                      <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Adding...</>
+                    ) : (
+                      'Add Player'
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

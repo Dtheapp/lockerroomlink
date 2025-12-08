@@ -129,7 +129,7 @@ const GettingStartedChecklist: React.FC<GettingStartedChecklistProps> = ({ onDis
     const items: ChecklistItem[] = [
       {
         id: 'roster',
-        label: 'Add your first player',
+        label: 'Add a player',
         description: 'Build your roster with player info and photos',
         icon: <Users className="w-5 h-5" />,
         path: '/roster',
