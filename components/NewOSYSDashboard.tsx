@@ -15,6 +15,7 @@ import { GoLiveModal, LiveStreamBanner, LiveStreamViewer, SaveStreamToLibraryMod
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { sanitizeText } from '../services/sanitize';
 import GettingStartedChecklist from './GettingStartedChecklist';
+import SeasonManager from './SeasonManager';
 import type { LiveStream, BulletinPost, UserProfile } from '../types';
 import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image } from 'lucide-react';
 
@@ -343,6 +344,9 @@ const NewOSYSDashboard: React.FC = () => {
     return `${wins}-${losses}`;
   };
 
+  // State for Season Management modal
+  const [showSeasonManager, setShowSeasonManager] = useState(false);
+
   // Quick actions based on sport
   const quickActions = [
     { icon: '📋', label: 'New Play', link: '/playbook' },
@@ -351,6 +355,8 @@ const NewOSYSDashboard: React.FC = () => {
     { icon: '📊', label: 'Log Stats', link: '/stats' },
     { icon: '💰', label: 'Fundraise', link: '/fundraising', comingSoon: true },
     { icon: '💫', label: 'Send Kudos', link: '/chat' },
+    // Coach-only action for season management
+    ...(userData?.role === 'Coach' || userData?.role === 'SuperAdmin' ? [{ icon: '📆', label: 'Manage Season', action: () => setShowSeasonManager(true) }] : []),
   ];
 
   // Format event date
@@ -843,6 +849,25 @@ const NewOSYSDashboard: React.FC = () => {
         />
       )}
 
+      {/* SEASON MANAGEMENT (Coaches Only) */}
+      {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && teamData?.id && (
+        <GlassCard className={`${theme === 'light' ? 'bg-white border-slate-200 shadow-lg' : ''}`}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="text-2xl">📆</div>
+            <div>
+              <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Season Management</h2>
+              <p className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>Manage registration and seasons</p>
+            </div>
+          </div>
+          <SeasonManager
+            teamId={teamData.id}
+            teamName={teamData.name}
+            sport={teamData.sport || 'football'}
+            currentSeasonId={teamData.currentSeasonId}
+          />
+        </GlassCard>
+      )}
+
       {/* Main Grid */}
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Upcoming Events */}
@@ -923,26 +948,45 @@ const NewOSYSDashboard: React.FC = () => {
             <span>⚡</span> Quick Actions
           </h2>
           <div className="grid grid-cols-3 gap-3">
-            {quickActions.map((action, i) => (
-              <Link
-                key={i}
-                to={action.comingSoon ? '#' : action.link}
-                className={`
-                  flex flex-col items-center gap-2 p-4 rounded-xl transition
-                  ${action.comingSoon 
-                    ? `${theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'} opacity-50 cursor-not-allowed` 
-                    : `${theme === 'dark' ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'} hover:scale-105`
-                  }
-                `}
-                onClick={e => action.comingSoon && e.preventDefault()}
-              >
-                <span className="text-2xl">{action.icon}</span>
-                <span className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{action.label}</span>
-                {action.comingSoon && (
-                  <span className={`text-[8px] px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-slate-700 text-slate-400' : 'bg-slate-300 text-slate-600'}`}>SOON</span>
-                )}
-              </Link>
-            ))}
+            {quickActions.map((action, i) => {
+              // If action has a callback function, render as button
+              if ('action' in action && action.action) {
+                return (
+                  <button
+                    key={i}
+                    onClick={action.action}
+                    className={`
+                      flex flex-col items-center gap-2 p-4 rounded-xl transition
+                      ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'} hover:scale-105
+                    `}
+                  >
+                    <span className="text-2xl">{action.icon}</span>
+                    <span className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{action.label}</span>
+                  </button>
+                );
+              }
+              // Otherwise render as Link
+              return (
+                <Link
+                  key={i}
+                  to={action.comingSoon ? '#' : action.link || '#'}
+                  className={`
+                    flex flex-col items-center gap-2 p-4 rounded-xl transition
+                    ${action.comingSoon 
+                      ? `${theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'} opacity-50 cursor-not-allowed` 
+                      : `${theme === 'dark' ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'} hover:scale-105`
+                    }
+                  `}
+                  onClick={e => action.comingSoon && e.preventDefault()}
+                >
+                  <span className="text-2xl">{action.icon}</span>
+                  <span className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{action.label}</span>
+                  {action.comingSoon && (
+                    <span className={`text-[8px] px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-slate-700 text-slate-400' : 'bg-slate-300 text-slate-600'}`}>SOON</span>
+                  )}
+                </Link>
+              );
+            })}
           </div>
         </GlassCard>
 
