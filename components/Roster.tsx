@@ -10,6 +10,7 @@ import { getPositions } from '../config/sportConfig';
 import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link as LinkIcon, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera, UserPlus, ArrowRightLeft, BarChart3, Eye, AtSign, Copy, Check, ExternalLink, Zap } from 'lucide-react';
 import PlayerStatsModal from './stats/PlayerStatsModal';
 import EmptyState from './ui/EmptyState';
+import { GlassCard, AnimatedBackground } from './ui/OSYSComponents';
 
 // Pagination settings
 const PLAYERS_PER_PAGE = 12;
@@ -793,11 +794,21 @@ const Roster: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-20">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">Team Roster</h1>
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          {/* Search Filter */}
+    <div className="relative min-h-screen">
+      {/* Animated Background */}
+      <AnimatedBackground />
+      
+      <div className="relative z-10 space-y-6 pb-20">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Team Roster</h1>
+            <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
+              {roster.length} player{roster.length !== 1 ? 's' : ''} on the roster
+            </p>
+          </div>
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            {/* Search Filter */}
           {roster.length > 0 && (
             <div className="relative flex-1 sm:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
@@ -806,35 +817,51 @@ const Roster: React.FC = () => {
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
                 placeholder="Search players..."
-                className="w-full sm:w-48 bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-lg pl-10 pr-3 py-2 text-sm text-zinc-900 dark:text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500/50 outline-none"
+                className={`w-full sm:w-48 rounded-lg pl-10 pr-3 py-2 text-sm focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                  theme === 'dark' 
+                    ? 'bg-white/5 border border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                    : 'bg-white border border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                }`}
               />
             </div>
+          )}
+          {isStaff && (
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-4 py-2 rounded-lg font-medium transition-all shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40"
+            >
+              <Plus className="w-4 h-4" /> Add Player
+            </button>
           )}
         </div>
       </div>
 
       {/* Results count */}
       {roster.length > 0 && searchFilter && (
-        <p className="text-sm text-zinc-500">
+        <p className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
           Showing {filteredRoster.length} of {roster.length} players
         </p>
       )}
 
       {/* Team Public Page Link - Coaches only */}
       {isStaff && teamData?.id && (
-        <div className={`rounded-xl p-4 border ${theme === 'dark' ? 'bg-purple-500/10 border-purple-500/20' : 'bg-purple-50 border-purple-200'}`}>
+        <GlassCard className={`p-4 ${theme === 'light' ? 'bg-white/80 border-orange-200' : 'border-orange-500/20'}`}>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center">
-                <ExternalLink className="w-5 h-5 text-purple-500" />
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                theme === 'dark' ? 'bg-orange-500/20' : 'bg-orange-100'
+              }`}>
+                <ExternalLink className="w-5 h-5 text-orange-500" />
               </div>
               <div>
-                <p className="font-bold text-zinc-900 dark:text-white">Public Team Page</p>
-                <p className="text-xs text-zinc-500">Share your team's stats, roster, and schedule</p>
+                <p className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Public Team Page</p>
+                <p className={`text-xs ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>Share your team's stats, roster, and schedule</p>
               </div>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <div className="flex-1 sm:flex-none bg-white dark:bg-zinc-800 rounded px-3 py-2 text-xs text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 truncate max-w-[220px]">
+              <div className={`flex-1 sm:flex-none rounded px-3 py-2 text-xs truncate max-w-[220px] ${
+                theme === 'dark' ? 'bg-black/30 text-zinc-300 border border-white/10' : 'bg-zinc-100 text-zinc-600 border border-zinc-200'
+              }`}>
                 osys.team/#/team/{teamData.id}
               </div>
               <button
@@ -842,7 +869,7 @@ const Roster: React.FC = () => {
                 className={`flex items-center gap-1.5 px-3 py-2 rounded text-sm font-medium transition-all ${
                   copiedTeamLink
                     ? 'bg-emerald-500 text-white'
-                    : 'bg-purple-500 hover:bg-purple-600 text-white'
+                    : 'bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/25'
                 }`}
               >
                 {copiedTeamLink ? (
@@ -861,29 +888,35 @@ const Roster: React.FC = () => {
                 href={`#/team/${teamData.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-2 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 rounded transition-colors"
+                className={`p-2 rounded transition-colors ${
+                  theme === 'dark' ? 'bg-white/5 hover:bg-white/10 text-zinc-300' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600'
+                }`}
                 title="View public team page"
               >
-                <Eye className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
+                <Eye className="w-4 h-4" />
               </a>
             </div>
           </div>
-        </div>
+        </GlassCard>
       )}
 
       {!teamData && isParent ? (
-        <div className={`rounded-xl p-8 text-center border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+        <GlassCard className={`p-8 text-center ${theme === 'light' ? 'bg-white/80 border-zinc-200' : ''}`}>
           <Users className="w-12 h-12 text-zinc-400 mx-auto mb-3" />
-          <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-2">No Team Yet</h3>
-          <p className="text-zinc-600 dark:text-zinc-400 mb-4">Add your athlete in your profile to join a team and view the roster.</p>
+          <h3 className={`text-lg font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>No Team Yet</h3>
+          <p className={`mb-4 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Add your athlete in your profile to join a team and view the roster.</p>
           <a 
             href="#/profile" 
-            className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white px-6 py-3 rounded-lg transition-all shadow-lg"
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-6 py-3 rounded-lg transition-all shadow-lg shadow-orange-500/25"
           >
             <Plus className="w-5 h-5" /> Go to My Profile
           </a>
+        </GlassCard>
+      ) : loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : loading ? <p className="text-zinc-500">Loading roster...</p> : filteredRoster.length > 0 ? (
+      ) : filteredRoster.length > 0 ? (
         <>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {paginatedRoster.map(player => {
@@ -893,15 +926,16 @@ const Roster: React.FC = () => {
             const isCaptain = player.isCaptain;
 
             return (
-                <div 
+                <GlassCard 
                   key={player.id} 
-                  className={`rounded-xl p-5 flex flex-col relative overflow-hidden border shadow-lg transition-all duration-300 ${
+                  glow={isStarter}
+                  className={`p-5 flex flex-col relative overflow-hidden transition-all duration-300 ${
                     isStarter 
-                      ? 'border-amber-400 dark:border-amber-500 ring-2 ring-amber-400/50 dark:ring-amber-500/40 shadow-amber-400/20 dark:shadow-amber-500/20' 
+                      ? 'border-amber-400 dark:border-amber-500 ring-2 ring-amber-400/50 dark:ring-amber-500/40' 
                       : theme === 'dark' 
-                        ? 'bg-white/5 border-white/10 hover:border-purple-500/30' 
-                        : 'bg-white border-zinc-200 hover:border-purple-500/30'
-                  } ${isStarter ? (theme === 'dark' ? 'bg-amber-500/5' : 'bg-amber-50') : ''}`}
+                        ? 'hover:border-orange-500/30' 
+                        : 'bg-white/80 hover:border-orange-500/30'
+                  }`}
                   style={isStarter ? { boxShadow: '0 0 20px rgba(251, 191, 36, 0.3), 0 0 40px rgba(251, 191, 36, 0.1)' } : {}}
                 >
                     {/* Starter Badge - Top Left Corner */}
@@ -920,7 +954,7 @@ const Roster: React.FC = () => {
                           className={`w-20 h-20 rounded-full overflow-hidden border-4 cursor-pointer hover:scale-105 transition-transform ${
                           isStarter 
                             ? 'border-amber-400 dark:border-amber-500 shadow-lg shadow-amber-400/30' 
-                            : 'border-zinc-300 dark:border-zinc-700 hover:border-purple-500'
+                            : theme === 'dark' ? 'border-zinc-700 hover:border-orange-500' : 'border-zinc-300 hover:border-orange-500'
                         }`}>
                           <img 
                             src={player.photoUrl} 
@@ -943,19 +977,19 @@ const Roster: React.FC = () => {
                     <div className="absolute top-2 right-2 flex gap-1">
                         {/* PRIVACY FIX: Only Coaches/Staff can see the Medical Alert Button */}
                         {hasMedicalAlert && isStaff && (
-                            <button onClick={() => setViewMedical(player)} className="text-red-500 hover:text-red-400 bg-red-100 dark:bg-red-900/20 p-1.5 rounded-full animate-pulse">
+                            <button onClick={() => setViewMedical(player)} className="text-red-500 hover:text-red-400 bg-red-500/10 p-1.5 rounded-full animate-pulse">
                                 <AlertCircle className="w-4 h-4" />
                             </button>
                         )}
                         {parent && isStaff && (
-                            <button onClick={() => openContact(player.parentId)} className="text-cyan-500 hover:text-cyan-400 bg-cyan-100 dark:bg-cyan-900/20 p-1.5 rounded-full">
+                            <button onClick={() => openContact(player.parentId)} className="text-cyan-500 hover:text-cyan-400 bg-cyan-500/10 p-1.5 rounded-full">
                                 <Phone className="w-4 h-4" />
                             </button>
                         )}
                     </div>
 
                     <div className="text-center mb-4">
-                        <h3 className="text-xl font-bold text-zinc-900 dark:text-white truncate flex items-center justify-center gap-1.5">
+                        <h3 className={`text-xl font-bold truncate flex items-center justify-center gap-1.5 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
                           {player.name}
                           {isCaptain && <Crown className="w-5 h-5 text-amber-500 flex-shrink-0" />}
                         </h3>
@@ -968,29 +1002,35 @@ const Roster: React.FC = () => {
                             className="flex items-center justify-center gap-1 mt-0.5 hover:opacity-80 transition-opacity"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <AtSign className="w-3 h-3 text-purple-500" />
-                            <span className="text-sm text-purple-600 dark:text-purple-400 font-medium hover:underline">{player.username}</span>
+                            <AtSign className="w-3 h-3 text-orange-500" />
+                            <span className="text-sm text-orange-600 dark:text-orange-400 font-medium hover:underline">{player.username}</span>
                           </a>
                         )}
-                        <p className="text-purple-500 font-bold text-sm uppercase tracking-wide">
-                          {player.photoUrl && <span>#{player.number} <span className="text-zinc-400 dark:text-zinc-500">|</span> </span>}{player.position}
+                        <p className="text-orange-500 font-bold text-sm uppercase tracking-wide">
+                          {player.photoUrl && <span>#{player.number} <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}>|</span> </span>}{player.position}
                         </p>
-                        <p className="text-xs text-zinc-500 mt-1">DOB: {player.dob || '--'}</p>
+                        <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}`}>DOB: {player.dob || '--'}</p>
                     </div>
 
                     {/* Quick Stats with View Stats Button */}
                     <div className="mt-auto mb-4">
-                      <div className={`flex justify-center gap-4 p-2 rounded-t-lg border border-b-0 ${theme === 'dark' ? 'bg-black/20 border-white/10' : 'bg-zinc-50 border-zinc-200'}`}>
-                        <div className="flex items-center gap-1 text-sm text-zinc-600 dark:text-zinc-400">
-                            <Sword className="w-3 h-3 text-purple-500" /> <span className="font-bold">{player.stats?.td || 0}</span> TD
+                      <div className={`flex justify-center gap-4 p-2 rounded-t-lg border border-b-0 ${
+                        theme === 'dark' ? 'bg-black/20 border-white/10' : 'bg-zinc-50 border-zinc-200'
+                      }`}>
+                        <div className={`flex items-center gap-1 text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                            <Sword className="w-3 h-3 text-orange-500" /> <span className="font-bold">{player.stats?.td || 0}</span> TD
                         </div>
-                        <div className="flex items-center gap-1 text-sm text-zinc-600 dark:text-zinc-400">
+                        <div className={`flex items-center gap-1 text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
                             <Shield className="w-3 h-3 text-cyan-500" /> <span className="font-bold">{player.stats?.tkl || 0}</span> TKL
                         </div>
                       </div>
                       <button
                         onClick={() => setViewStatsPlayer(player)}
-                        className={`w-full flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-b-lg border border-t-0 transition-colors ${theme === 'dark' ? 'text-purple-400 bg-purple-900/20 hover:bg-purple-900/30 border-purple-900/30' : 'text-purple-600 bg-purple-50 hover:bg-purple-100 border-purple-200'}`}
+                        className={`w-full flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-b-lg border border-t-0 transition-colors ${
+                          theme === 'dark' 
+                            ? 'text-orange-400 bg-orange-900/20 hover:bg-orange-900/30 border-orange-900/30' 
+                            : 'text-orange-600 bg-orange-50 hover:bg-orange-100 border-orange-200'
+                        }`}
                       >
                         <Eye className="w-3 h-3" /> View Stats History
                       </button>
@@ -998,19 +1038,21 @@ const Roster: React.FC = () => {
 
                     {/* Height & Weight - Visible to everyone */}
                     {(player.height || player.weight) && (
-                      <div className={`mb-3 p-2 rounded border ${theme === 'dark' ? 'bg-cyan-900/10 border-cyan-900/30' : 'bg-cyan-50 border-cyan-200'}`}>
+                      <div className={`mb-3 p-2 rounded border ${
+                        theme === 'dark' ? 'bg-cyan-900/10 border-cyan-900/30' : 'bg-cyan-50 border-cyan-200'
+                      }`}>
                         <p className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wider mb-1">Physical</p>
                         <div className="flex justify-around text-xs">
                           {player.height && (
                             <div>
-                              <span className="text-zinc-500 dark:text-zinc-500">Height:</span>
-                              <span className="ml-1 font-bold text-zinc-900 dark:text-white">{player.height}</span>
+                              <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}>Height:</span>
+                              <span className={`ml-1 font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{player.height}</span>
                             </div>
                           )}
                           {player.weight && (
                             <div>
-                              <span className="text-zinc-500 dark:text-zinc-500">Weight:</span>
-                              <span className="ml-1 font-bold text-zinc-900 dark:text-white">{player.weight}</span>
+                              <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}>Weight:</span>
+                              <span className={`ml-1 font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{player.weight}</span>
                             </div>
                           )}
                         </div>
@@ -1019,19 +1061,21 @@ const Roster: React.FC = () => {
 
                     {/* Uniform Sizes - Visible to both Parents and Coaches */}
                     {(player.shirtSize || player.pantSize) && (
-                      <div className={`mb-3 p-2 rounded border ${theme === 'dark' ? 'bg-purple-900/10 border-purple-900/30' : 'bg-purple-50 border-purple-200'}`}>
-                        <p className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider mb-1">Uniform</p>
+                      <div className={`mb-3 p-2 rounded border ${
+                        theme === 'dark' ? 'bg-orange-900/10 border-orange-900/30' : 'bg-orange-50 border-orange-200'
+                      }`}>
+                        <p className="text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider mb-1">Uniform</p>
                         <div className="flex justify-around text-xs">
                           {player.shirtSize && (
                             <div>
-                              <span className="text-zinc-500 dark:text-zinc-500">Shirt:</span>
-                              <span className="ml-1 font-bold text-zinc-900 dark:text-white">{player.shirtSize}</span>
+                              <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}>Shirt:</span>
+                              <span className={`ml-1 font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{player.shirtSize}</span>
                             </div>
                           )}
                           {player.pantSize && (
                             <div>
-                              <span className="text-zinc-500 dark:text-zinc-500">Pants:</span>
-                              <span className="ml-1 font-bold text-zinc-900 dark:text-white">{player.pantSize}</span>
+                              <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}>Pants:</span>
+                              <span className={`ml-1 font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{player.pantSize}</span>
                             </div>
                           )}
                         </div>
@@ -1040,10 +1084,10 @@ const Roster: React.FC = () => {
 
                     {/* Parent: Edit their own child */}
                     {isParent && player.parentId === userData?.uid && (
-                      <div className="flex justify-center border-t border-zinc-200 dark:border-zinc-800 pt-3 mt-2">
+                      <div className={`flex justify-center pt-3 mt-2 ${theme === 'dark' ? 'border-t border-white/10' : 'border-t border-zinc-200'}`}>
                         <button 
                           onClick={() => setEditingPlayer(player)} 
-                          className="text-xs flex items-center gap-1 text-purple-600 hover:text-purple-500 dark:text-purple-400 dark:hover:text-purple-300 font-bold"
+                          className="text-xs flex items-center gap-1 text-orange-600 hover:text-orange-500 dark:text-orange-400 dark:hover:text-orange-300 font-bold"
                         >
                           <Edit2 className="w-3 h-3" /> Edit Player Info
                         </button>
@@ -1055,7 +1099,7 @@ const Roster: React.FC = () => {
                         <div className={`border-t pt-3 mt-2 space-y-2 ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
                             <div className="flex justify-between items-center">
                                 {!player.parentId ? (
-                                    <button onClick={() => { setSelectedPlayerId(player.id); setIsLinkModalOpen(true); }} className="text-xs flex items-center gap-1 text-zinc-400 hover:text-zinc-900 dark:hover:text-white"><LinkIcon className="w-3 h-3" /> Link Parent</button>
+                                    <button onClick={() => { setSelectedPlayerId(player.id); setIsLinkModalOpen(true); }} className={`text-xs flex items-center gap-1 ${theme === 'dark' ? 'text-zinc-400 hover:text-white' : 'text-zinc-400 hover:text-zinc-900'}`}><LinkIcon className="w-3 h-3" /> Link Parent</button>
                                 ) : (
                                     <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><User className="w-3 h-3"/> {parent?.name || 'Linked'}</span>
                                 )}
@@ -1063,13 +1107,13 @@ const Roster: React.FC = () => {
                             </div>
                             <button 
                               onClick={() => setEditingPlayer(player)} 
-                              className="w-full text-xs flex items-center justify-center gap-1 text-purple-600 hover:text-purple-500 dark:text-purple-400 dark:hover:text-purple-300 font-bold"
+                              className="w-full text-xs flex items-center justify-center gap-1 text-orange-600 hover:text-orange-500 dark:text-orange-400 dark:hover:text-orange-300 font-bold"
                             >
                               <Edit2 className="w-3 h-3" /> Edit Player
                             </button>
                         </div>
                     )}
-                </div>
+                </GlassCard>
             );
           })}
         </div>
@@ -1080,7 +1124,11 @@ const Roster: React.FC = () => {
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className={`p-2 rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${theme === 'dark' ? 'bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10' : 'bg-zinc-100 border-zinc-300 text-zinc-700 hover:bg-zinc-200'}`}
+              className={`p-2 rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                theme === 'dark' 
+                  ? 'bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10' 
+                  : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'
+              }`}
               aria-label="Previous page"
             >
               <ChevronLeft className="w-5 h-5" />
@@ -1093,8 +1141,8 @@ const Roster: React.FC = () => {
                   onClick={() => setCurrentPage(page)}
                   className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
                     currentPage === page
-                      ? 'bg-gradient-to-r from-purple-600 to-purple-500 text-white'
-                      : theme === 'dark' ? 'bg-white/5 text-zinc-300 hover:bg-white/10' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                      ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25'
+                      : theme === 'dark' ? 'bg-white/5 text-zinc-300 hover:bg-white/10' : 'bg-white text-zinc-700 hover:bg-zinc-50 border border-zinc-200'
                   }`}
                 >
                   {page}
@@ -1105,7 +1153,11 @@ const Roster: React.FC = () => {
             <button
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className={`p-2 rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${theme === 'dark' ? 'bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10' : 'bg-zinc-100 border-zinc-300 text-zinc-700 hover:bg-zinc-200'}`}
+              className={`p-2 rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                theme === 'dark' 
+                  ? 'bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10' 
+                  : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'
+              }`}
               aria-label="Next page"
             >
               <ChevronRight className="w-5 h-5" />
@@ -1134,10 +1186,10 @@ const Roster: React.FC = () => {
 
       {/* COACHING STAFF SECTION - Only visible to coaches */}
       {isStaff && (
-        <div className={`mt-8 pt-8 border-t ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
+        <GlassCard className={`mt-8 p-6 ${theme === 'light' ? 'bg-white/80 border-zinc-200' : ''}`}>
           <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-            <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-              <Users className="w-5 h-5 text-purple-500" />
+            <h2 className={`text-xl font-bold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+              <Users className="w-5 h-5 text-orange-500" />
               Coaching Staff ({teamCoaches.length})
             </h2>
             <div className="flex items-center gap-2">
@@ -1145,11 +1197,13 @@ const Roster: React.FC = () => {
                 <>
                   <button
                     onClick={() => setIsAddCoachModalOpen(true)}
-                    className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                    className="flex items-center gap-1.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all shadow-lg shadow-orange-500/25"
                   >
                     <UserPlus className="w-4 h-4" /> Add Coach
                   </button>
-                  <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-1 rounded-full flex items-center gap-1">
+                  <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 ${
+                    theme === 'dark' ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-100 text-orange-700'
+                  }`}>
                     <Crown className="w-3 h-3" /> Head Coach
                   </span>
                 </>
@@ -1158,13 +1212,15 @@ const Roster: React.FC = () => {
           </div>
           
           {teamCoaches.length === 0 ? (
-            <div className={`text-center py-8 rounded-lg border border-dashed ${theme === 'dark' ? 'bg-white/5 border-white/20' : 'bg-zinc-50 border-zinc-300'}`}>
+            <div className={`text-center py-8 rounded-lg border border-dashed ${
+              theme === 'dark' ? 'bg-white/5 border-white/20' : 'bg-zinc-50 border-zinc-300'
+            }`}>
               <Users className="w-10 h-10 text-zinc-400 mx-auto mb-2" />
               <p className="text-zinc-500">No coaches on this team yet.</p>
               {isHeadCoach && (
                 <button
                   onClick={() => setIsAddCoachModalOpen(true)}
-                  className="mt-3 inline-flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  className="mt-3 inline-flex items-center gap-1.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-lg shadow-orange-500/25"
                 >
                   <UserPlus className="w-4 h-4" /> Add Your First Coach
                 </button>
@@ -1181,41 +1237,47 @@ const Roster: React.FC = () => {
               return (
               <div 
                 key={coach.uid} 
-                className={`rounded-lg p-4 border ${
+                className={`rounded-lg p-4 border transition-all ${
                   isHC 
-                    ? 'border-purple-500 dark:border-purple-500' 
+                    ? theme === 'dark' ? 'bg-orange-500/10 border-orange-500/30' : 'bg-orange-50 border-orange-200'
                     : (isOC || isDC || isSTC)
-                      ? 'border-purple-400 dark:border-purple-500'
+                      ? theme === 'dark' ? 'bg-white/5 border-orange-500/20' : 'bg-white border-orange-200'
                       : theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-zinc-200'
                 }`}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-700 rounded-full flex items-center justify-center text-white font-bold">
+                    <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg shadow-orange-500/25">
                       {coach.name?.charAt(0).toUpperCase() || 'C'}
                     </div>
                     <div>
-                      <p className="font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                      <p className={`font-bold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
                         {coach.name}
                         {isHC && (
-                          <span title="Head Coach"><Crown className="w-4 h-4 text-purple-500" /></span>
+                          <span title="Head Coach"><Crown className="w-4 h-4 text-orange-500" /></span>
                         )}
                       </p>
                       <p className="text-xs text-zinc-500">@{coach.username || coach.email}</p>
                       {/* Coordinator badges */}
                       <div className="flex gap-1 mt-1">
                         {isOC && (
-                          <span className="text-[10px] bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 ${
+                            theme === 'dark' ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-700'
+                          }`}>
                             <Sword className="w-2.5 h-2.5" /> OC
                           </span>
                         )}
                         {isDC && (
-                          <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 ${
+                            theme === 'dark' ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-100 text-blue-700'
+                          }`}>
                             <Shield className="w-2.5 h-2.5" /> DC
                           </span>
                         )}
                         {isSTC && (
-                          <span className="text-[10px] bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 ${
+                            theme === 'dark' ? 'bg-yellow-900/30 text-yellow-400' : 'bg-yellow-100 text-yellow-700'
+                          }`}>
                             <Zap className="w-2.5 h-2.5" /> STC
                           </span>
                         )}
@@ -1304,16 +1366,20 @@ const Roster: React.FC = () => {
             })}
           </div>
           )}
-        </div>
+        </GlassCard>
       )}
 
       {/* ADD COACH MODAL (Head Coach only) */}
       {isAddCoachModalOpen && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl w-full max-w-md border border-zinc-200 dark:border-zinc-800 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className={`p-6 rounded-2xl w-full max-w-md border shadow-2xl max-h-[90vh] overflow-y-auto ${
+            theme === 'dark' 
+              ? 'bg-zinc-900/95 border-white/10' 
+              : 'bg-white border-zinc-200'
+          }`}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-purple-500" />
+              <h2 className={`text-xl font-bold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                <UserPlus className="w-5 h-5 text-orange-500" />
                 Add Coach to Team
               </h2>
               <button
@@ -1330,7 +1396,7 @@ const Roster: React.FC = () => {
               </button>
             </div>
             
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+            <p className={`text-sm mb-4 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
               Search for coaches who have already signed up. Enter their name, username, or email.
             </p>
             
@@ -1342,12 +1408,16 @@ const Roster: React.FC = () => {
                 value={coachSearchQuery}
                 onChange={(e) => setCoachSearchQuery(e.target.value)}
                 placeholder="Start typing to search coaches..."
-                className={`w-full rounded-lg pl-10 pr-10 py-2.5 text-zinc-900 dark:text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500/50 outline-none ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-zinc-50 border-zinc-300'}`}
+                className={`w-full rounded-lg pl-10 pr-10 py-2.5 focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                  theme === 'dark' 
+                    ? 'bg-white/5 border border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                    : 'bg-zinc-50 border border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                }`}
                 autoFocus
               />
               {searchingCoaches && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               )}
             </div>
@@ -1358,21 +1428,23 @@ const Roster: React.FC = () => {
                 {availableCoaches.map(coach => (
                   <div
                     key={coach.uid}
-                    className={`flex items-center justify-between p-3 rounded-lg border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-zinc-50 border-zinc-200'}`}
+                    className={`flex items-center justify-between p-3 rounded-lg border ${
+                      theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-zinc-50 border-zinc-200'
+                    }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-700 rounded-full flex items-center justify-center text-white font-bold">
+                      <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center text-white font-bold">
                         {coach.name?.charAt(0).toUpperCase() || 'C'}
                       </div>
                       <div>
-                        <p className="font-medium text-zinc-900 dark:text-white">{coach.name}</p>
+                        <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{coach.name}</p>
                         <p className="text-xs text-zinc-500">@{coach.username || coach.email}</p>
                       </div>
                     </div>
                     <button
                       onClick={() => handleAddCoachToTeam(coach)}
                       disabled={addingCoach}
-                      className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-500 disabled:opacity-50 transition-colors flex items-center gap-1"
+                      className="px-3 py-1.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-sm rounded-lg hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 transition-all flex items-center gap-1 shadow-lg shadow-orange-500/25"
                     >
                       {addingCoach ? (
                         <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -1403,30 +1475,38 @@ const Roster: React.FC = () => {
 
       {/* TRANSFER HEAD COACH CONFIRMATION MODAL */}
       {transferHeadCoachTo && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className={`p-6 rounded-xl w-full max-w-sm border shadow-2xl ${theme === 'dark' ? 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border-white/10' : 'bg-white border-zinc-200'}`}>
-            <h2 className="text-xl font-bold mb-4 text-zinc-900 dark:text-white flex items-center gap-2">
-              <ArrowRightLeft className="w-5 h-5 text-purple-500" />
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className={`p-6 rounded-2xl w-full max-w-sm border shadow-2xl ${
+            theme === 'dark' 
+              ? 'bg-zinc-900/95 border-white/10' 
+              : 'bg-white border-zinc-200'
+          }`}>
+            <h2 className={`text-xl font-bold mb-4 flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+              <ArrowRightLeft className="w-5 h-5 text-orange-500" />
               Transfer Head Coach?
             </h2>
-            <p className="text-zinc-600 dark:text-zinc-400 mb-6">
-              Are you sure you want to transfer the <strong className="text-purple-600 dark:text-purple-400">Head Coach</strong> title to <strong className="text-zinc-900 dark:text-white">{transferHeadCoachTo.name}</strong>?
+            <p className={`mb-6 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
+              Are you sure you want to transfer the <strong className="text-orange-600 dark:text-orange-400">Head Coach</strong> title to <strong className={theme === 'dark' ? 'text-white' : 'text-zinc-900'}>{transferHeadCoachTo.name}</strong>?
             </p>
-            <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg mb-6">
+            <p className={`text-sm p-3 rounded-lg mb-6 ${
+              theme === 'dark' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-amber-50 text-amber-600 border border-amber-200'
+            }`}>
               ⚠️ You will lose your Head Coach privileges and only they can transfer it back.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setTransferHeadCoachTo(null)}
                 disabled={transferringHeadCoach}
-                className="flex-1 px-4 py-2 bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                className={`flex-1 px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${
+                  theme === 'dark' ? 'bg-white/5 hover:bg-white/10 text-zinc-300' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
+                }`}
               >
                 Cancel
               </button>
               <button
                 onClick={handleTransferHeadCoach}
                 disabled={transferringHeadCoach}
-                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25"
               >
                 {transferringHeadCoach ? (
                   <>
@@ -1447,21 +1527,27 @@ const Roster: React.FC = () => {
 
       {/* REMOVE COACH CONFIRMATION MODAL */}
       {removeCoachConfirm && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className={`p-6 rounded-xl w-full max-w-sm border shadow-2xl ${theme === 'dark' ? 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border-white/10' : 'bg-white border-zinc-200'}`}>
-            <h2 className="text-xl font-bold mb-4 text-zinc-900 dark:text-white flex items-center gap-2">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className={`p-6 rounded-2xl w-full max-w-sm border shadow-2xl ${
+            theme === 'dark' 
+              ? 'bg-zinc-900/95 border-white/10' 
+              : 'bg-white border-zinc-200'
+          }`}>
+            <h2 className={`text-xl font-bold mb-4 flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
               <AlertCircle className="w-5 h-5 text-red-500" />
               Remove Coach?
             </h2>
-            <p className="text-zinc-600 dark:text-zinc-400 mb-6">
-              Are you sure you want to remove <strong className="text-zinc-900 dark:text-white">{removeCoachConfirm.name}</strong> from the team? 
+            <p className={`mb-6 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
+              Are you sure you want to remove <strong className={theme === 'dark' ? 'text-white' : 'text-zinc-900'}>{removeCoachConfirm.name}</strong> from the team? 
               They will no longer have access to team content.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setRemoveCoachConfirm(null)}
                 disabled={removingCoach}
-                className="flex-1 px-4 py-2 bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                className={`flex-1 px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${
+                  theme === 'dark' ? 'bg-white/5 hover:bg-white/10 text-zinc-300' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
+                }`}
               >
                 Cancel
               </button>
@@ -1489,8 +1575,12 @@ const Roster: React.FC = () => {
 
       {/* ASSIGN COORDINATOR CONFIRMATION MODAL */}
       {assignCoordinatorModal && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className={`p-6 rounded-xl w-full max-w-sm border shadow-2xl ${theme === 'dark' ? 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border-white/10' : 'bg-white border-zinc-200'}`}>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className={`p-6 rounded-2xl w-full max-w-sm border shadow-2xl ${
+            theme === 'dark' 
+              ? 'bg-zinc-900/95 border-white/10' 
+              : 'bg-white border-zinc-200'
+          }`}>
             {(() => {
               const coordType = assignCoordinatorModal.type;
               const currentCoordId = coordType === 'OC' 
@@ -1511,17 +1601,17 @@ const Roster: React.FC = () => {
               
               return (
                 <>
-                  <h2 className="text-xl font-bold mb-4 text-zinc-900 dark:text-white flex items-center gap-2">
+                  <h2 className={`text-xl font-bold mb-4 flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
                     <CoordIcon className={`w-5 h-5 ${colorClass}`} />
                     {isRemoving ? 'Remove' : 'Assign'} {coordLabel} Coordinator
                   </h2>
                   
                   {isRemoving && currentCoach ? (
-                    <p className="text-zinc-600 dark:text-zinc-400 mb-6">
-                      Remove <strong className="text-zinc-900 dark:text-white">{currentCoach.name}</strong> as {coordLabel} Coordinator?
+                    <p className={`mb-6 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                      Remove <strong className={theme === 'dark' ? 'text-white' : 'text-zinc-900'}>{currentCoach.name}</strong> as {coordLabel} Coordinator?
                     </p>
                   ) : selectedCoach ? (
-                    <p className="text-zinc-600 dark:text-zinc-400 mb-6">
+                    <p className={`mb-6 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
                       {currentCoach && (
                         <span className="block mb-2 text-sm">
                           Current {coordShort}: <span className="text-zinc-500">{currentCoach.name}</span>
@@ -1535,7 +1625,9 @@ const Roster: React.FC = () => {
                     <button
                       onClick={() => setAssignCoordinatorModal(null)}
                       disabled={assigningCoordinator}
-                      className="flex-1 px-4 py-2 bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                      className={`flex-1 px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${
+                        theme === 'dark' ? 'bg-white/5 hover:bg-white/10 text-zinc-300' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
+                      }`}
                     >
                       Cancel
                     </button>
@@ -1568,20 +1660,28 @@ const Roster: React.FC = () => {
 
       {/* MODALS (Styled) */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className={`p-6 rounded-xl w-full max-w-md border shadow-2xl ${theme === 'dark' ? 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border-white/10' : 'bg-white border-zinc-200'}`}>
-            <h2 className="text-2xl font-bold mb-4 text-zinc-900 dark:text-white">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className={`p-6 rounded-2xl w-full max-w-md border shadow-2xl max-h-[90vh] overflow-y-auto ${
+            theme === 'dark' 
+              ? 'bg-zinc-900/95 border-white/10' 
+              : 'bg-white border-zinc-200'
+          }`}>
+            <h2 className={`text-2xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
               {isParent ? 'Add Your Player' : 'Add New Player'}
             </h2>
             <form onSubmit={handleAddPlayer} className="space-y-4">
               {isParent && (
                 <div>
-                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Select Team *</label>
+                  <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Select Team *</label>
                   <select 
                     name="teamId" 
                     value={newPlayer.teamId} 
                     onChange={handleInputChange} 
-                    className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                    className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                      theme === 'dark' 
+                        ? 'bg-black/30 border-white/10 text-white focus:border-orange-500/50' 
+                        : 'bg-zinc-50 border-zinc-300 text-zinc-900 focus:border-orange-500'
+                    }`}
                     required
                   >
                     <option value="">Choose a team...</option>
@@ -1594,37 +1694,57 @@ const Roster: React.FC = () => {
               )}
               
               <div>
-                <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Full Name *</label>
-                <input name="name" value={newPlayer.name} onChange={handleInputChange} placeholder="John Smith" className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" required />
+                <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Full Name *</label>
+                <input name="name" value={newPlayer.name} onChange={handleInputChange} placeholder="John Smith" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                  theme === 'dark' 
+                    ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                    : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                }`} required />
               </div>
               
               <div>
-                <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Date of Birth *</label>
-                <input name="dob" type="date" value={newPlayer.dob} onChange={handleInputChange} className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" required />
+                <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Date of Birth *</label>
+                <input name="dob" type="date" value={newPlayer.dob} onChange={handleInputChange} className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                  theme === 'dark' 
+                    ? 'bg-black/30 border-white/10 text-white focus:border-orange-500/50' 
+                    : 'bg-zinc-50 border-zinc-300 text-zinc-900 focus:border-orange-500'
+                }`} required />
               </div>
 
               {/* PARENT FORM: Uniform Sizes */}
               {isParent && (
                 <>
-                  <div className="pt-2 border-t border-zinc-300 dark:border-zinc-800">
+                  <div className={`pt-2 border-t ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
                     <p className="text-xs font-bold text-cyan-600 dark:text-cyan-400 mb-3 uppercase tracking-wider">Physical Info</p>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Height</label>
-                        <input name="height" value={newPlayer.height} onChange={handleInputChange} placeholder="4 ft 6 in" className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
+                        <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Height</label>
+                        <input name="height" value={newPlayer.height} onChange={handleInputChange} placeholder="4 ft 6 in" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                          theme === 'dark' 
+                            ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                            : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                        }`} />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Weight</label>
-                        <input name="weight" value={newPlayer.weight} onChange={handleInputChange} placeholder="85 lbs" className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
+                        <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Weight</label>
+                        <input name="weight" value={newPlayer.weight} onChange={handleInputChange} placeholder="85 lbs" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                          theme === 'dark' 
+                            ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                            : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                        }`} />
                       </div>
                     </div>
                   </div>
-                  <div className="pt-2 border-t border-zinc-300 dark:border-zinc-800">
-                    <p className="text-xs font-bold text-purple-600 dark:text-purple-400 mb-3 uppercase tracking-wider">Uniform Sizing</p>
+                  <div className={`pt-2 border-t ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
+                    <p className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-3 uppercase tracking-wider">Uniform Sizing</p>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Shirt Size</label>
-                        <select name="shirtSize" value={newPlayer.shirtSize} onChange={handleInputChange} className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white">
+                        <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Shirt Size</label>
+                        <select name="shirtSize" value={newPlayer.shirtSize} onChange={handleInputChange} className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                          theme === 'dark' 
+                            ? 'bg-black/30 border-white/10 text-white focus:border-orange-500/50' 
+                            : 'bg-zinc-50 border-zinc-300 text-zinc-900 focus:border-orange-500'
+                        }`}>
                           <option value="">Select size...</option>
                           <option value="Youth S">Youth S</option>
                           <option value="Youth M">Youth M</option>
@@ -1638,8 +1758,12 @@ const Roster: React.FC = () => {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Pants Size</label>
-                        <select name="pantSize" value={newPlayer.pantSize} onChange={handleInputChange} className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white">
+                        <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Pants Size</label>
+                        <select name="pantSize" value={newPlayer.pantSize} onChange={handleInputChange} className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                          theme === 'dark' 
+                            ? 'bg-black/30 border-white/10 text-white focus:border-orange-500/50' 
+                            : 'bg-zinc-50 border-zinc-300 text-zinc-900 focus:border-orange-500'
+                        }`}>
                           <option value="">Select size...</option>
                           <option value="Youth S">Youth S</option>
                           <option value="Youth M">Youth M</option>
@@ -1662,16 +1786,24 @@ const Roster: React.FC = () => {
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Jersey # *</label>
-                      <input name="number" type="number" value={newPlayer.number} onChange={handleInputChange} placeholder="12" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" required />
+                      <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Jersey # *</label>
+                      <input name="number" type="number" value={newPlayer.number} onChange={handleInputChange} placeholder="12" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                        theme === 'dark' 
+                          ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                          : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                      }`} required />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Position *</label>
+                      <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Position *</label>
                       <select 
                         name="position" 
                         value={newPlayer.position} 
                         onChange={handleInputChange} 
-                        className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white w-full" 
+                        className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                          theme === 'dark' 
+                            ? 'bg-black/30 border-white/10 text-white focus:border-orange-500/50' 
+                            : 'bg-zinc-50 border-zinc-300 text-zinc-900 focus:border-orange-500'
+                        }`}
                         required
                       >
                         <option value="">Select position...</option>
@@ -1686,8 +1818,12 @@ const Roster: React.FC = () => {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Shirt Size</label>
-                      <select name="shirtSize" value={newPlayer.shirtSize} onChange={handleInputChange} className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white">
+                      <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Shirt Size</label>
+                      <select name="shirtSize" value={newPlayer.shirtSize} onChange={handleInputChange} className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                        theme === 'dark' 
+                          ? 'bg-black/30 border-white/10 text-white focus:border-orange-500/50' 
+                          : 'bg-zinc-50 border-zinc-300 text-zinc-900 focus:border-orange-500'
+                      }`}>
                         <option value="">Select size...</option>
                         <option value="Youth S">Youth S</option>
                         <option value="Youth M">Youth M</option>
@@ -1701,8 +1837,12 @@ const Roster: React.FC = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Pants Size</label>
-                      <select name="pantSize" value={newPlayer.pantSize} onChange={handleInputChange} className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white">
+                      <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Pants Size</label>
+                      <select name="pantSize" value={newPlayer.pantSize} onChange={handleInputChange} className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                        theme === 'dark' 
+                          ? 'bg-black/30 border-white/10 text-white focus:border-orange-500/50' 
+                          : 'bg-zinc-50 border-zinc-300 text-zinc-900 focus:border-orange-500'
+                      }`}>
                         <option value="">Select size...</option>
                         <option value="Youth S">Youth S</option>
                         <option value="Youth M">Youth M</option>
@@ -1719,34 +1859,50 @@ const Roster: React.FC = () => {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Height</label>
-                      <input name="height" value={newPlayer.height} onChange={handleInputChange} placeholder="4 ft 6 in" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
+                      <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Height</label>
+                      <input name="height" value={newPlayer.height} onChange={handleInputChange} placeholder="4 ft 6 in" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                        theme === 'dark' 
+                          ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                          : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                      }`} />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Weight</label>
-                      <input name="weight" value={newPlayer.weight} onChange={handleInputChange} placeholder="85 lbs" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
+                      <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Weight</label>
+                      <input name="weight" value={newPlayer.weight} onChange={handleInputChange} placeholder="85 lbs" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                        theme === 'dark' 
+                          ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                          : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                      }`} />
                     </div>
                   </div>
                 </>
               )}
               {isStaff && (
-                <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800">
-                  <p className="text-xs font-bold text-zinc-600 dark:text-zinc-400 mb-3 uppercase tracking-wider">Season Stats (Optional)</p>
+                <div className={`pt-3 border-t ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
+                  <p className={`text-xs font-bold mb-3 uppercase tracking-wider ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Season Stats (Optional)</p>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Touchdowns</label>
-                      <input name="td" type="number" value={newPlayer.td} onChange={handleInputChange} placeholder="0" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
+                      <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Touchdowns</label>
+                      <input name="td" type="number" value={newPlayer.td} onChange={handleInputChange} placeholder="0" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                        theme === 'dark' 
+                          ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                          : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                      }`} />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Tackles</label>
-                      <input name="tkl" type="number" value={newPlayer.tkl} onChange={handleInputChange} placeholder="0" className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white" />
+                      <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Tackles</label>
+                      <input name="tkl" type="number" value={newPlayer.tkl} onChange={handleInputChange} placeholder="0" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                        theme === 'dark' 
+                          ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                          : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                      }`} />
                     </div>
                   </div>
                 </div>
               )}
               <div className="flex justify-end gap-4 mt-6">
-                <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 text-zinc-500 hover:text-zinc-900 dark:hover:text-white" disabled={addingPlayer}>Cancel</button>
-                <button type="submit" disabled={addingPlayer} className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold disabled:opacity-50 flex items-center gap-2">
+                <button type="button" onClick={() => setIsAddModalOpen(false)} className={`px-4 ${theme === 'dark' ? 'text-zinc-400 hover:text-white' : 'text-zinc-500 hover:text-zinc-900'}`} disabled={addingPlayer}>Cancel</button>
+                <button type="submit" disabled={addingPlayer} className="px-6 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-bold disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-orange-500/25">
                   {addingPlayer ? (
                     <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Adding...</>
                   ) : (
@@ -1761,19 +1917,27 @@ const Roster: React.FC = () => {
 
       {/* LINK PARENT MODAL */}
       {isLinkModalOpen && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className={`p-6 rounded-xl w-full max-w-md border shadow-2xl ${theme === 'dark' ? 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border-white/10' : 'bg-white border-zinc-200'}`}>
-            <h2 className="text-2xl font-bold mb-4 text-zinc-900 dark:text-white">Link Parent</h2>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className={`p-6 rounded-2xl w-full max-w-md border shadow-2xl ${
+            theme === 'dark' 
+              ? 'bg-zinc-900/95 border-white/10' 
+              : 'bg-white border-zinc-200'
+          }`}>
+            <h2 className={`text-2xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Link Parent</h2>
             <div className="space-y-4">
-              <select value={selectedParentId} onChange={(e) => setSelectedParentId(e.target.value)} className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white">
+              <select value={selectedParentId} onChange={(e) => setSelectedParentId(e.target.value)} className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                theme === 'dark' 
+                  ? 'bg-black/30 border-white/10 text-white focus:border-orange-500/50' 
+                  : 'bg-zinc-50 border-zinc-300 text-zinc-900 focus:border-orange-500'
+              }`}>
                 <option value="">Select a parent...</option>
                 {parents.map(p => (
                   <option key={p.uid} value={p.uid}>{p.name} ({p.username})</option>
                 ))}
               </select>
               <div className="flex justify-end gap-4 mt-6">
-                <button type="button" onClick={() => setIsLinkModalOpen(false)} className="px-4 text-zinc-500 hover:text-zinc-900 dark:hover:text-white" disabled={linkingParent}>Cancel</button>
-                <button onClick={handleLinkParent} disabled={!selectedParentId || linkingParent} className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold disabled:opacity-50 flex items-center gap-2">
+                <button type="button" onClick={() => setIsLinkModalOpen(false)} className={`px-4 ${theme === 'dark' ? 'text-zinc-400 hover:text-white' : 'text-zinc-500 hover:text-zinc-900'}`} disabled={linkingParent}>Cancel</button>
+                <button onClick={handleLinkParent} disabled={!selectedParentId || linkingParent} className="px-6 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-bold disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-orange-500/25">
                   {linkingParent ? (
                     <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Linking...</>
                   ) : (
@@ -1788,35 +1952,41 @@ const Roster: React.FC = () => {
 
       {/* MEDICAL INFO MODAL */}
       {viewMedical && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className={`p-6 rounded-xl w-full max-w-md border shadow-2xl ${theme === 'dark' ? 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border-white/10' : 'bg-white border-zinc-200'}`}>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className={`p-6 rounded-2xl w-full max-w-md border shadow-2xl ${
+            theme === 'dark' 
+              ? 'bg-zinc-900/95 border-white/10' 
+              : 'bg-white border-zinc-200'
+          }`}>
             <h2 className="text-2xl font-bold mb-4 text-red-600 dark:text-red-400 flex items-center gap-2">
               <AlertCircle className="w-6 h-6" /> Medical Alert
             </h2>
             <div className="space-y-3">
-              <div className="bg-red-50 dark:bg-red-900/10 p-3 rounded border border-red-200 dark:border-red-900/30">
-                <h3 className="text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1">Player</h3>
-                <p className="text-zinc-900 dark:text-white">#{viewMedical.number} {viewMedical.name}</p>
+              <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-red-500/10 border-red-500/20' : 'bg-red-50 border-red-200'}`}>
+                <h3 className={`text-sm font-bold mb-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>Player</h3>
+                <p className={theme === 'dark' ? 'text-white' : 'text-zinc-900'}>#{viewMedical.number} {viewMedical.name}</p>
               </div>
-              <div className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800">
-                <h3 className="text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1">Allergies</h3>
-                <p className="text-zinc-900 dark:text-white">{viewMedical.medical?.allergies || 'None'}</p>
+              <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-black/30 border-white/10' : 'bg-zinc-50 border-zinc-200'}`}>
+                <h3 className={`text-sm font-bold mb-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>Allergies</h3>
+                <p className={theme === 'dark' ? 'text-white' : 'text-zinc-900'}>{viewMedical.medical?.allergies || 'None'}</p>
               </div>
-              <div className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800">
-                <h3 className="text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1">Medical Conditions</h3>
-                <p className="text-zinc-900 dark:text-white">{viewMedical.medical?.conditions || 'None'}</p>
+              <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-black/30 border-white/10' : 'bg-zinc-50 border-zinc-200'}`}>
+                <h3 className={`text-sm font-bold mb-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>Medical Conditions</h3>
+                <p className={theme === 'dark' ? 'text-white' : 'text-zinc-900'}>{viewMedical.medical?.conditions || 'None'}</p>
               </div>
-              <div className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800">
-                <h3 className="text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1">Medications</h3>
-                <p className="text-zinc-900 dark:text-white">{viewMedical.medical?.medications || 'None'}</p>
+              <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-black/30 border-white/10' : 'bg-zinc-50 border-zinc-200'}`}>
+                <h3 className={`text-sm font-bold mb-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>Medications</h3>
+                <p className={theme === 'dark' ? 'text-white' : 'text-zinc-900'}>{viewMedical.medical?.medications || 'None'}</p>
               </div>
-              <div className="bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800">
-                <h3 className="text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1">Blood Type</h3>
-                <p className="text-zinc-900 dark:text-white">{viewMedical.medical?.bloodType || 'Unknown'}</p>
+              <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-black/30 border-white/10' : 'bg-zinc-50 border-zinc-200'}`}>
+                <h3 className={`text-sm font-bold mb-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>Blood Type</h3>
+                <p className={theme === 'dark' ? 'text-white' : 'text-zinc-900'}>{viewMedical.medical?.bloodType || 'Unknown'}</p>
               </div>
             </div>
             <div className="flex justify-end mt-6">
-              <button onClick={() => setViewMedical(null)} className="px-6 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg font-bold">Close</button>
+              <button onClick={() => setViewMedical(null)} className={`px-6 py-2 rounded-lg font-bold transition-colors ${
+                theme === 'dark' ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-700'
+              }`}>Close</button>
             </div>
           </div>
         </div>
@@ -2381,7 +2551,7 @@ const Roster: React.FC = () => {
                   {viewPhotoPlayer.name}
                   {viewPhotoPlayer.isCaptain && <Crown className="w-5 h-5 text-amber-500" />}
                 </h3>
-                <p className="text-purple-500 font-bold text-sm uppercase tracking-wide mt-1">
+                <p className="text-orange-500 font-bold text-sm uppercase tracking-wide mt-1">
                   #{viewPhotoPlayer.number} | {viewPhotoPlayer.position}
                 </p>
                 {viewPhotoPlayer.isStarter && (
@@ -2394,6 +2564,7 @@ const Roster: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };
