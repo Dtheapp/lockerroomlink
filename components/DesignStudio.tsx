@@ -1,7 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { GlassCard, Button, Badge } from './ui/OSYSComponents';
 import QRCode from 'qrcode';
+import type { Season } from '../types';
 import { 
   Palette, 
   Type, 
@@ -81,6 +85,7 @@ export interface DesignData {
 
 const DesignStudio: React.FC = () => {
   const { teamData, userData } = useAuth();
+  const { theme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -90,6 +95,7 @@ const DesignStudio: React.FC = () => {
   const [headerImageLoaded, setHeaderImageLoaded] = useState<HTMLImageElement | null>(null);
   const [logoImageLoaded, setLogoImageLoaded] = useState<HTMLImageElement | null>(null);
   const [activeTab, setActiveTab] = useState<'content' | 'style' | 'layout'>('content');
+  const [pendingRegistrations, setPendingRegistrations] = useState<Season[]>([]);
   
   // Design data state
   const [designData, setDesignData] = useState<DesignData>({
@@ -113,6 +119,34 @@ const DesignStudio: React.FC = () => {
     qrCodeUrl: '',
     contactInfo: '',
   });
+
+  // Fetch pending registrations (seasons without flyers)
+  useEffect(() => {
+    const fetchPendingRegistrations = async () => {
+      if (!teamData?.id) return;
+      
+      try {
+        const seasonsRef = collection(db, 'teams', teamData.id, 'seasons');
+        const q = query(seasonsRef, where('status', 'in', ['registration', 'active']));
+        const snapshot = await getDocs(q);
+        
+        const seasons: Season[] = [];
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          // Only include seasons without a flyer
+          if (!data.flyerId) {
+            seasons.push({ id: doc.id, ...data } as Season);
+          }
+        });
+        
+        setPendingRegistrations(seasons);
+      } catch (error) {
+        console.error('Error fetching pending registrations:', error);
+      }
+    };
+    
+    fetchPendingRegistrations();
+  }, [teamData?.id]);
 
   // Generate QR code when URL changes
   useEffect(() => {
@@ -380,9 +414,68 @@ const DesignStudio: React.FC = () => {
   const renderCategoryStep = () => (
     <div className="space-y-6">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">Design Studio</h1>
-        <p className="text-slate-400">Create professional graphics for your team in minutes</p>
+        <h1 className={`text-3xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Design Studio</h1>
+        <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>Create professional graphics for your team in minutes</p>
       </div>
+      
+      {/* Pending Registrations Section */}
+      {pendingRegistrations.length > 0 && (
+        <div className={`p-4 rounded-xl border-2 border-dashed mb-6 ${
+          theme === 'dark' 
+            ? 'border-orange-500/30 bg-orange-500/5' 
+            : 'border-orange-300 bg-orange-50'
+        }`}>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xl">📋</span>
+            <h3 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+              Registrations Needing Flyers
+            </h3>
+            <Badge variant="warning" className="ml-auto">{pendingRegistrations.length} pending</Badge>
+          </div>
+          <div className="space-y-2">
+            {pendingRegistrations.map(season => (
+              <button
+                key={season.id}
+                onClick={() => {
+                  // Pre-fill with season data and go to template selection
+                  setDesignData(prev => ({
+                    ...prev,
+                    category: 'registration',
+                    title: `${season.name} Registration`,
+                    subtitle: teamData?.name || '',
+                    date: season.registrationCloseDate ? `Registration closes ${new Date(season.registrationCloseDate).toLocaleDateString()}` : '',
+                    price: season.registrationFee ? `$${(season.registrationFee / 100).toFixed(0)}` : 'Free',
+                    description: season.description || '',
+                    bulletPoints: season.includedItems || [],
+                    showQRCode: true,
+                    qrCodeUrl: `${window.location.origin}/#/register/${teamData?.id}/${season.id}`,
+                  }));
+                  setStep('template');
+                }}
+                className={`w-full p-3 rounded-lg flex items-center gap-3 transition-all ${
+                  theme === 'dark'
+                    ? 'bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700 hover:border-orange-500'
+                    : 'bg-white hover:bg-orange-50 border border-slate-200 hover:border-orange-400 shadow-sm'
+                }`}
+              >
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  theme === 'dark' ? 'bg-orange-500/20' : 'bg-orange-100'
+                }`}>
+                  <span className="text-xl">📝</span>
+                </div>
+                <div className="flex-1 text-left">
+                  <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{season.name}</p>
+                  <p className={`text-xs ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-500'}`}>
+                    {season.registrationFee ? `$${(season.registrationFee / 100).toFixed(0)} fee` : 'Free registration'} 
+                    {season.playerCount > 0 && ` • ${season.playerCount} registered`}
+                  </p>
+                </div>
+                <ChevronRight className={`w-5 h-5 ${theme === 'dark' ? 'text-orange-500' : 'text-orange-600'}`} />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {DESIGN_CATEGORIES.map(cat => (
@@ -392,11 +485,17 @@ const DesignStudio: React.FC = () => {
               setDesignData(prev => ({ ...prev, category: cat.id }));
               setStep('template');
             }}
-            className="group p-6 rounded-2xl bg-slate-800/50 border border-slate-700 hover:border-purple-500 hover:bg-slate-800 transition-all text-left"
+            className={`group p-6 rounded-2xl border transition-all text-left ${
+              theme === 'dark'
+                ? 'bg-slate-800/50 border-slate-700 hover:border-purple-500 hover:bg-slate-800'
+                : 'bg-white border-slate-200 hover:border-purple-400 hover:bg-purple-50 shadow-sm'
+            }`}
           >
             <div className="text-4xl mb-3">{cat.icon}</div>
-            <h3 className="font-semibold text-white group-hover:text-purple-400 transition-colors">{cat.name}</h3>
-            <p className="text-sm text-slate-400 mt-1">{cat.description}</p>
+            <h3 className={`font-semibold group-hover:text-purple-500 transition-colors ${
+              theme === 'dark' ? 'text-white' : 'text-zinc-900'
+            }`}>{cat.name}</h3>
+            <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>{cat.description}</p>
           </button>
         ))}
       </div>
@@ -409,19 +508,21 @@ const DesignStudio: React.FC = () => {
       <div className="flex items-center gap-4 mb-6">
         <button 
           onClick={() => setStep('category')}
-          className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
+          className={`p-2 rounded-lg transition-colors ${
+            theme === 'dark' ? 'bg-slate-800 hover:bg-slate-700' : 'bg-slate-100 hover:bg-slate-200'
+          }`}
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
         <div>
-          <h2 className="text-2xl font-bold text-white">Choose a Template</h2>
-          <p className="text-slate-400">Select a starting point for your design</p>
+          <h2 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Choose a Template</h2>
+          <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>Select a starting point for your design</p>
         </div>
       </div>
 
       {/* Size selector */}
       <div className="mb-6">
-        <label className="text-sm font-medium text-slate-300 mb-2 block">Output Size</label>
+        <label className={`text-sm font-medium mb-2 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Output Size</label>
         <div className="flex flex-wrap gap-2">
           {Object.entries(FLIER_SIZES).map(([key, size]) => (
             <button
@@ -430,7 +531,9 @@ const DesignStudio: React.FC = () => {
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 designData.size === key 
                   ? 'bg-purple-600 text-white' 
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  : theme === 'dark'
+                    ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               {size.icon} {size.label}
@@ -451,12 +554,14 @@ const DesignStudio: React.FC = () => {
             className={`group p-6 rounded-2xl border transition-all text-left ${
               designData.templateId === template.id
                 ? 'bg-purple-600/20 border-purple-500'
-                : 'bg-slate-800/50 border-slate-700 hover:border-purple-500'
+                : theme === 'dark'
+                  ? 'bg-slate-800/50 border-slate-700 hover:border-purple-500'
+                  : 'bg-white border-slate-200 hover:border-purple-400 shadow-sm'
             }`}
           >
             <div className="text-4xl mb-3">{template.preview}</div>
-            <h3 className="font-semibold text-white">{template.name}</h3>
-            <p className="text-sm text-slate-400 mt-1">{template.description}</p>
+            <h3 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{template.name}</h3>
+            <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>{template.description}</p>
           </button>
         ))}
       </div>
@@ -481,15 +586,17 @@ const DesignStudio: React.FC = () => {
         <div className="flex items-center gap-4 mb-4">
           <button 
             onClick={() => setStep('template')}
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
+            className={`p-2 rounded-lg transition-colors ${
+              theme === 'dark' ? 'bg-slate-800 hover:bg-slate-700' : 'bg-slate-100 hover:bg-slate-200'
+            }`}
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <h2 className="text-xl font-bold text-white">Edit Design</h2>
+          <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Edit Design</h2>
         </div>
 
         {/* Tab navigation */}
-        <div className="flex gap-1 p-1 bg-slate-800/50 rounded-lg">
+        <div className={`flex gap-1 p-1 rounded-lg ${theme === 'dark' ? 'bg-slate-800/50' : 'bg-slate-100'}`}>
           {[
             { id: 'content', label: 'Content', icon: Type },
             { id: 'style', label: 'Style', icon: Palette },
@@ -501,7 +608,9 @@ const DesignStudio: React.FC = () => {
               className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-all ${
                 activeTab === tab.id
                   ? 'bg-purple-600 text-white'
-                  : 'text-slate-400 hover:text-white'
+                  : theme === 'dark' 
+                    ? 'text-slate-400 hover:text-white' 
+                    : 'text-slate-500 hover:text-zinc-900'
               }`}
             >
               <tab.icon className="w-4 h-4" />
@@ -515,97 +624,129 @@ const DesignStudio: React.FC = () => {
             <>
               {/* Title */}
               <div>
-                <label className="text-sm font-medium text-slate-300 mb-1 block">Title *</label>
+                <label className={`text-sm font-medium mb-1 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Title *</label>
                 <input
                   type="text"
                   value={designData.title}
                   onChange={(e) => setDesignData(prev => ({ ...prev, title: e.target.value }))}
                   placeholder="Enter your headline"
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                  className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none ${
+                    theme === 'dark' 
+                      ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' 
+                      : 'bg-white border-slate-300 text-zinc-900 placeholder-slate-400'
+                  }`}
                 />
               </div>
 
               {/* Subtitle */}
               <div>
-                <label className="text-sm font-medium text-slate-300 mb-1 block">Subtitle</label>
+                <label className={`text-sm font-medium mb-1 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Subtitle</label>
                 <input
                   type="text"
                   value={designData.subtitle || ''}
                   onChange={(e) => setDesignData(prev => ({ ...prev, subtitle: e.target.value }))}
                   placeholder="Optional tagline"
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                  className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none ${
+                    theme === 'dark' 
+                      ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' 
+                      : 'bg-white border-slate-300 text-zinc-900 placeholder-slate-400'
+                  }`}
                 />
               </div>
 
               {/* Date & Time */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm font-medium text-slate-300 mb-1 block">Date</label>
+                  <label className={`text-sm font-medium mb-1 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Date</label>
                   <input
                     type="text"
                     value={designData.date || ''}
                     onChange={(e) => setDesignData(prev => ({ ...prev, date: e.target.value }))}
                     placeholder="Dec 15, 2025"
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                    className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none ${
+                      theme === 'dark' 
+                        ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' 
+                        : 'bg-white border-slate-300 text-zinc-900 placeholder-slate-400'
+                    }`}
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-slate-300 mb-1 block">Time</label>
+                  <label className={`text-sm font-medium mb-1 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Time</label>
                   <input
                     type="text"
                     value={designData.time || ''}
                     onChange={(e) => setDesignData(prev => ({ ...prev, time: e.target.value }))}
                     placeholder="6:00 PM"
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                    className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none ${
+                      theme === 'dark' 
+                        ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' 
+                        : 'bg-white border-slate-300 text-zinc-900 placeholder-slate-400'
+                    }`}
                   />
                 </div>
               </div>
 
               {/* Location */}
               <div>
-                <label className="text-sm font-medium text-slate-300 mb-1 block">Location</label>
+                <label className={`text-sm font-medium mb-1 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Location</label>
                 <input
                   type="text"
                   value={designData.location || ''}
                   onChange={(e) => setDesignData(prev => ({ ...prev, location: e.target.value }))}
                   placeholder="Venue name & address"
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                  className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none ${
+                    theme === 'dark' 
+                      ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' 
+                      : 'bg-white border-slate-300 text-zinc-900 placeholder-slate-400'
+                  }`}
                 />
               </div>
 
               {/* Price */}
               <div>
-                <label className="text-sm font-medium text-slate-300 mb-1 block">Price / Cost</label>
+                <label className={`text-sm font-medium mb-1 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Price / Cost</label>
                 <input
                   type="text"
                   value={designData.price || ''}
                   onChange={(e) => setDesignData(prev => ({ ...prev, price: e.target.value }))}
                   placeholder="$25 per player"
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                  className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none ${
+                    theme === 'dark' 
+                      ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' 
+                      : 'bg-white border-slate-300 text-zinc-900 placeholder-slate-400'
+                  }`}
                 />
               </div>
 
               {/* Description */}
               <div>
-                <label className="text-sm font-medium text-slate-300 mb-1 block">Description</label>
+                <label className={`text-sm font-medium mb-1 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Description</label>
                 <textarea
                   value={designData.description || ''}
                   onChange={(e) => setDesignData(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Brief description..."
                   rows={3}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none resize-none"
+                  className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none resize-none ${
+                    theme === 'dark' 
+                      ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' 
+                      : 'bg-white border-slate-300 text-zinc-900 placeholder-slate-400'
+                  }`}
                 />
               </div>
 
               {/* Custom message */}
               <div>
-                <label className="text-sm font-medium text-slate-300 mb-1 block">Call to Action</label>
+                <label className={`text-sm font-medium mb-1 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Call to Action</label>
                 <input
                   type="text"
                   value={designData.customMessage || ''}
                   onChange={(e) => setDesignData(prev => ({ ...prev, customMessage: e.target.value }))}
                   placeholder="Register today! Limited spots!"
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                  className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none ${
+                    theme === 'dark' 
+                      ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' 
+                      : 'bg-white border-slate-300 text-zinc-900 placeholder-slate-400'
+                  }`}
                 />
               </div>
             </>
@@ -615,7 +756,7 @@ const DesignStudio: React.FC = () => {
             <>
               {/* Background color */}
               <div>
-                <label className="text-sm font-medium text-slate-300 mb-1 block">Background Color</label>
+                <label className={`text-sm font-medium mb-1 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Background Color</label>
                 <div className="flex gap-2">
                   <input
                     type="color"
@@ -627,14 +768,18 @@ const DesignStudio: React.FC = () => {
                     type="text"
                     value={designData.backgroundColor}
                     onChange={(e) => setDesignData(prev => ({ ...prev, backgroundColor: e.target.value }))}
-                    className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono text-sm focus:border-purple-500 focus:outline-none"
+                    className={`flex-1 px-3 py-2 border rounded-lg font-mono text-sm focus:border-purple-500 focus:outline-none ${
+                      theme === 'dark' 
+                        ? 'bg-slate-800 border-slate-700 text-white' 
+                        : 'bg-white border-slate-300 text-zinc-900'
+                    }`}
                   />
                 </div>
               </div>
 
               {/* Accent color */}
               <div>
-                <label className="text-sm font-medium text-slate-300 mb-1 block">Accent Color</label>
+                <label className={`text-sm font-medium mb-1 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Accent Color</label>
                 <div className="flex gap-2">
                   <input
                     type="color"
@@ -646,14 +791,18 @@ const DesignStudio: React.FC = () => {
                     type="text"
                     value={designData.accentColor}
                     onChange={(e) => setDesignData(prev => ({ ...prev, accentColor: e.target.value }))}
-                    className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono text-sm focus:border-purple-500 focus:outline-none"
+                    className={`flex-1 px-3 py-2 border rounded-lg font-mono text-sm focus:border-purple-500 focus:outline-none ${
+                      theme === 'dark' 
+                        ? 'bg-slate-800 border-slate-700 text-white' 
+                        : 'bg-white border-slate-300 text-zinc-900'
+                    }`}
                   />
                 </div>
               </div>
 
               {/* Text color */}
               <div>
-                <label className="text-sm font-medium text-slate-300 mb-1 block">Text Color</label>
+                <label className={`text-sm font-medium mb-1 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Text Color</label>
                 <div className="flex gap-2">
                   <input
                     type="color"
@@ -665,14 +814,18 @@ const DesignStudio: React.FC = () => {
                     type="text"
                     value={designData.textColor}
                     onChange={(e) => setDesignData(prev => ({ ...prev, textColor: e.target.value }))}
-                    className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono text-sm focus:border-purple-500 focus:outline-none"
+                    className={`flex-1 px-3 py-2 border rounded-lg font-mono text-sm focus:border-purple-500 focus:outline-none ${
+                      theme === 'dark' 
+                        ? 'bg-slate-800 border-slate-700 text-white' 
+                        : 'bg-white border-slate-300 text-zinc-900'
+                    }`}
                   />
                 </div>
               </div>
 
               {/* Quick color presets */}
               <div>
-                <label className="text-sm font-medium text-slate-300 mb-2 block">Quick Presets</label>
+                <label className={`text-sm font-medium mb-2 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Quick Presets</label>
                 <div className="grid grid-cols-4 gap-2">
                   {[
                     { bg: '#1e3a5f', accent: '#f59e0b' },
@@ -700,7 +853,7 @@ const DesignStudio: React.FC = () => {
 
               {/* Header image upload */}
               <div>
-                <label className="text-sm font-medium text-slate-300 mb-1 block">Header Image</label>
+                <label className={`text-sm font-medium mb-1 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Header Image</label>
                 <input
                   type="file"
                   accept="image/*"
@@ -710,7 +863,11 @@ const DesignStudio: React.FC = () => {
                 />
                 <label
                   htmlFor="header-upload"
-                  className="flex items-center justify-center gap-2 w-full py-3 bg-slate-800 border border-dashed border-slate-600 rounded-lg text-slate-400 hover:border-purple-500 hover:text-purple-400 cursor-pointer transition-colors"
+                  className={`flex items-center justify-center gap-2 w-full py-3 border border-dashed rounded-lg cursor-pointer transition-colors ${
+                    theme === 'dark'
+                      ? 'bg-slate-800 border-slate-600 text-slate-400 hover:border-purple-500 hover:text-purple-400'
+                      : 'bg-slate-50 border-slate-300 text-slate-500 hover:border-purple-400 hover:text-purple-500'
+                  }`}
                 >
                   <ImageIcon className="w-5 h-5" />
                   {designData.headerImage ? 'Change Image' : 'Upload Image'}
@@ -727,7 +884,7 @@ const DesignStudio: React.FC = () => {
 
               {/* Logo upload */}
               <div>
-                <label className="text-sm font-medium text-slate-300 mb-1 block">Team Logo</label>
+                <label className={`text-sm font-medium mb-1 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Team Logo</label>
                 <input
                   type="file"
                   accept="image/*"
@@ -737,7 +894,11 @@ const DesignStudio: React.FC = () => {
                 />
                 <label
                   htmlFor="logo-upload"
-                  className="flex items-center justify-center gap-2 w-full py-3 bg-slate-800 border border-dashed border-slate-600 rounded-lg text-slate-400 hover:border-purple-500 hover:text-purple-400 cursor-pointer transition-colors"
+                  className={`flex items-center justify-center gap-2 w-full py-3 border border-dashed rounded-lg cursor-pointer transition-colors ${
+                    theme === 'dark'
+                      ? 'bg-slate-800 border-slate-600 text-slate-400 hover:border-purple-500 hover:text-purple-400'
+                      : 'bg-slate-50 border-slate-300 text-slate-500 hover:border-purple-400 hover:text-purple-500'
+                  }`}
                 >
                   <ImageIcon className="w-5 h-5" />
                   {designData.teamLogo ? 'Change Logo' : 'Upload Logo'}
@@ -750,7 +911,7 @@ const DesignStudio: React.FC = () => {
             <>
               {/* Size selector */}
               <div>
-                <label className="text-sm font-medium text-slate-300 mb-2 block">Output Size</label>
+                <label className={`text-sm font-medium mb-2 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Output Size</label>
                 <div className="space-y-2">
                   {Object.entries(FLIER_SIZES).map(([key, size]) => (
                     <button
@@ -759,13 +920,15 @@ const DesignStudio: React.FC = () => {
                       className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all ${
                         designData.size === key 
                           ? 'bg-purple-600/20 border border-purple-500 text-white' 
-                          : 'bg-slate-800 border border-slate-700 text-slate-300 hover:border-slate-600'
+                          : theme === 'dark'
+                            ? 'bg-slate-800 border border-slate-700 text-slate-300 hover:border-slate-600'
+                            : 'bg-white border border-slate-200 text-slate-700 hover:border-slate-300'
                       }`}
                     >
                       <span className="text-xl">{size.icon}</span>
                       <div>
                         <div className="font-medium">{size.label}</div>
-                        <div className="text-xs text-slate-500">{size.width} × {size.height}px</div>
+                        <div className={`text-xs ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>{size.width} × {size.height}px</div>
                       </div>
                     </button>
                   ))}
@@ -779,9 +942,11 @@ const DesignStudio: React.FC = () => {
                     type="checkbox"
                     checked={designData.showQRCode}
                     onChange={(e) => setDesignData(prev => ({ ...prev, showQRCode: e.target.checked }))}
-                    className="w-5 h-5 rounded border-slate-600 bg-slate-800 text-purple-600 focus:ring-purple-500"
+                    className={`w-5 h-5 rounded text-purple-600 focus:ring-purple-500 ${
+                      theme === 'dark' ? 'border-slate-600 bg-slate-800' : 'border-slate-300 bg-white'
+                    }`}
                   />
-                  <span className="text-sm font-medium text-slate-300">Include QR Code</span>
+                  <span className={`text-sm font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Include QR Code</span>
                 </label>
                 {designData.showQRCode && (
                   <input
@@ -789,14 +954,18 @@ const DesignStudio: React.FC = () => {
                     value={designData.qrCodeUrl || ''}
                     onChange={(e) => setDesignData(prev => ({ ...prev, qrCodeUrl: e.target.value }))}
                     placeholder="https://your-link.com"
-                    className="w-full mt-2 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none text-sm"
+                    className={`w-full mt-2 px-3 py-2 border rounded-lg text-sm focus:border-purple-500 focus:outline-none ${
+                      theme === 'dark' 
+                        ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' 
+                        : 'bg-white border-slate-300 text-zinc-900 placeholder-slate-400'
+                    }`}
                   />
                 )}
               </div>
 
               {/* Template switcher */}
               <div>
-                <label className="text-sm font-medium text-slate-300 mb-2 block">Template Style</label>
+                <label className={`text-sm font-medium mb-2 block ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Template Style</label>
                 <div className="grid grid-cols-2 gap-2">
                   {TEMPLATES.map(template => (
                     <button
@@ -805,11 +974,13 @@ const DesignStudio: React.FC = () => {
                       className={`p-3 rounded-lg text-left transition-all ${
                         designData.templateId === template.id
                           ? 'bg-purple-600/20 border border-purple-500'
-                          : 'bg-slate-800 border border-slate-700 hover:border-slate-600'
+                          : theme === 'dark'
+                            ? 'bg-slate-800 border border-slate-700 hover:border-slate-600'
+                            : 'bg-white border border-slate-200 hover:border-slate-300'
                       }`}
                     >
                       <span className="text-xl">{template.preview}</span>
-                      <div className="text-sm font-medium text-white mt-1">{template.name}</div>
+                      <div className={`text-sm font-medium mt-1 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{template.name}</div>
                     </button>
                   ))}
                 </div>
@@ -854,13 +1025,21 @@ const DesignStudio: React.FC = () => {
         <div className="flex gap-2">
           <button
             onClick={() => handleDownload('png')}
-            className="flex-1 py-2 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors"
+            className={`flex-1 py-2 text-sm rounded-lg transition-colors ${
+              theme === 'dark' 
+                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' 
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+            }`}
           >
             PNG (High Quality)
           </button>
           <button
             onClick={() => handleDownload('jpg')}
-            className="flex-1 py-2 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors"
+            className={`flex-1 py-2 text-sm rounded-lg transition-colors ${
+              theme === 'dark' 
+                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' 
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+            }`}
           >
             JPG (Smaller Size)
           </button>
@@ -868,10 +1047,14 @@ const DesignStudio: React.FC = () => {
       </div>
 
       {/* Right panel - Canvas preview */}
-      <div className="flex-1 flex items-center justify-center bg-slate-900/50 rounded-2xl p-6 overflow-auto">
+      <div className={`flex-1 flex items-center justify-center rounded-2xl p-6 overflow-auto ${
+        theme === 'dark' ? 'bg-slate-900/50' : 'bg-slate-100'
+      }`}>
         <div className="relative">
           {isRendering && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 rounded-lg z-10">
+            <div className={`absolute inset-0 flex items-center justify-center rounded-lg z-10 ${
+              theme === 'dark' ? 'bg-slate-900/80' : 'bg-white/80'
+            }`}>
               <div className="animate-spin w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full" />
             </div>
           )}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { collection, query, orderBy, limit, getDocs, onSnapshot, where, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -75,6 +75,7 @@ interface CoachDisplay {
 const NewOSYSDashboard: React.FC = () => {
   const { teamData, userData, players } = useAuth();
   const { theme } = useTheme();
+  const navigate = useNavigate();
   const [roster, setRoster] = useState<PlayerData[]>([]);
   const [events, setEvents] = useState<EventData[]>([]);
   const [plays, setPlays] = useState<PlayData[]>([]);
@@ -865,6 +866,7 @@ const NewOSYSDashboard: React.FC = () => {
             sport={teamData.sport || 'football'}
             currentSeasonId={teamData.currentSeasonId}
             rosterCount={roster.length}
+            onNavigateToDesignStudio={() => navigate('/design')}
           />
         </GlassCard>
       )}

@@ -14,6 +14,7 @@ interface SeasonManagerProps {
   currentSeasonId?: string | null;
   rosterCount?: number; // Number of players currently on the roster
   onSeasonChange?: (seasonId: string | null) => void;
+  onNavigateToDesignStudio?: () => void; // Callback to navigate to Design Studio
 }
 
 const SeasonManager: React.FC<SeasonManagerProps> = ({ 
@@ -22,7 +23,8 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
   sport, 
   currentSeasonId,
   rosterCount = 0,
-  onSeasonChange 
+  onSeasonChange,
+  onNavigateToDesignStudio
 }) => {
   const { userData } = useAuth();
   const { theme } = useTheme();
@@ -454,9 +456,15 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
           
           {/* Flyer Status */}
           {!currentSeason.flyerId && (
-            <div className={`mt-4 p-3 rounded-lg border-2 border-dashed ${
-              theme === 'dark' ? 'border-orange-500/30 bg-orange-500/5' : 'border-orange-300 bg-orange-50'
-            }`}>
+            <button
+              onClick={onNavigateToDesignStudio}
+              className={`mt-4 p-3 rounded-lg border-2 border-dashed w-full text-left transition-all hover:scale-[1.01] ${
+                theme === 'dark' 
+                  ? 'border-orange-500/30 bg-orange-500/5 hover:border-orange-500/50 hover:bg-orange-500/10' 
+                  : 'border-orange-300 bg-orange-50 hover:border-orange-400 hover:bg-orange-100'
+              } ${onNavigateToDesignStudio ? 'cursor-pointer' : 'cursor-default'}`}
+              disabled={!onNavigateToDesignStudio}
+            >
               <div className="flex items-center gap-3">
                 <Palette className="w-5 h-5 text-orange-500" />
                 <div className="flex-1">
@@ -469,7 +477,7 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                 </div>
                 <ChevronRight className="w-5 h-5 text-orange-500" />
               </div>
-            </div>
+            </button>
           )}
         </GlassCard>
       ) : (
