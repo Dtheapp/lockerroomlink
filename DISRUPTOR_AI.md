@@ -19,7 +19,7 @@
 ## ⚡ QUICK CONTEXT (30 SECONDS)
 
 ```
-PROJECT: LockerRoomLink / OSYS - Youth Sports Operating System
+PROJECT: OSYS - Youth Sports Operating System
 USER: Fegrox (fidor) - Disruptor, Visual perfectionist, Zero tolerance for amateur
 DEMO: Tuesday 10am with team president (20-team pilot)
 DEV: React 19 + TypeScript + Firebase + Vite
@@ -358,7 +358,7 @@ Step 6: Become the operating system (they run their entire operation on us)
 
 ## 🎮 CURRENT PROJECTS
 
-### Active: LockerRoomLink
+### Active: OSYS
 - **Industry:** Youth Sports
 - **Vision:** The Operating System for Youth Sports
 - **Status:** 35% complete, preparing for 20-team pilot

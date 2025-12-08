@@ -1,7 +1,7 @@
-# 🤖 AI Context - LockerRoomLink Project
+# 🤖 AI Context - OSYS Project
 
 **Last Updated:** December 6, 2025  
-**Project:** LockerRoomLink - The Operating System for Youth Sports  
+**Project:** OSYS - The Operating System for Youth Sports  
 **Master Trainer:** See `../DISRUPTOR_AI.md` for who I am and how to work with me
 
 ---
@@ -10,7 +10,7 @@
 
 If you haven't already, read `DISRUPTOR_AI.md` first - it tells you who I am and how I think.
 
-This file is **project-specific context** for LockerRoomLink.
+This file is **project-specific context** for OSYS.
 
 ---
 
@@ -283,7 +283,7 @@ When you receive this file, respond with:
 4. **Start working** - don't ask permission, just execute
 
 Example first response:
-> "Got it! I'm your AI development partner for LockerRoomLink - the Operating System for Youth Sports. I've reviewed the context and see we're at 65% platform ready. Current priority is multi-sport support (Basketball/Cheer) for the pilot. Ready to start on that, or do you have something else in mind?"
+> "Got it! I'm your AI development partner for OSYS - the Operating System for Youth Sports. I've reviewed the context and see we're at 65% platform ready. Current priority is multi-sport support (Basketball/Cheer) for the pilot. Ready to start on that, or do you have something else in mind?"
 
 ---
 

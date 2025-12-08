@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-LockerRoomLink is a **feature-rich youth sports platform** with exceptional bones. The app is ~65% ready to become the operating system every youth sports organization depends on.
+OSYS is a **feature-rich youth sports platform** with exceptional bones. The app is ~65% ready to become the operating system every youth sports organization depends on.
 
 **What we're building:**
 - The **Shopify** of youth sports (all commerce in one place)
@@ -111,7 +111,7 @@ LockerRoomLink is a **feature-rich youth sports platform** with exceptional bone
 
 ## Competitor Comparison
 
-| Feature | LockerRoomLink | Hudl | TeamSnap | GameChanger |
+| Feature | OSYS | Hudl | TeamSnap | GameChanger |
 |---------|---------------|------|----------|-------------|
 | Play Designer | ⭐⭐⭐⭐⭐ | ⭐⭐ | ❌ | ❌ |
 | Video Library | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ |

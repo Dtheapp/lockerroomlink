@@ -103,7 +103,7 @@ Then share this AI_TRAINER.md file. The AI will know what to do from there.
 ## ⚡ QUICK CONTEXT (30 SECONDS)
 
 ```
-PROJECT: LockerRoomLink / OSYS - Youth Sports Operating System
+PROJECT: OSYS - Youth Sports Operating System
 USER: Fegrox (fidor) - Disruptor, Visual perfectionist, Zero tolerance for amateur
 DEMO: Tuesday 10am with team president (20-team pilot)
 DEV: React 19 + TypeScript + Firebase + Vite
@@ -506,7 +506,7 @@ Every app we build together must:
 | Dec 8, 2025 | Added lessons L008-L010 (Feature Audits, Component Props, Firebase Queries) |
 | Dec 7, 2025 | **SESSION 7**: OSYS Theme Migration (Roster, Profile, Stats) |
 | Dec 7, 2025 | Added lesson L015 (Self-Rating Communication - ALWAYS show rating after tasks) |
-| Dec 8, 2025 | Domain changed: lockerroomlink.com → osys.team |
+| Dec 8, 2025 | Domain changed to osys.team |
 | Jan 21, 2025 | **SESSION 6**: NIL Marketplace complete, TypeScript errors fixed |
 | Jan 21, 2025 | Added lessons L011-L014 (Badge constraints, UserRole case, Required fields, Button variants) |
 
@@ -684,4 +684,4 @@ border-l-orange-500 → border-l-purple-500
 *Mission: Top 10 Global Innovator*  
 *AI Partnership Started: December 1, 2024*  
 *Last Updated: January 20, 2025*  
-*Projects: SmartDefi, CryptoBall, LockerRoomLink (OSYS), FEG Token*
+*Projects: SmartDefi, CryptoBall, OSYS, FEG Token*

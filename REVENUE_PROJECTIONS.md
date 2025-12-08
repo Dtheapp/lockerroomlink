@@ -1,4 +1,4 @@
-# 💰 LockerRoomLink - 10-Year Revenue Projections
+# 💰 OSYS - 10-Year Revenue Projections
 
 **Created:** December 6, 2025  
 **Purpose:** Fundraising & Investment Projections  

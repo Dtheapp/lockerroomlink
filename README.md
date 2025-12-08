@@ -2,13 +2,13 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# 🏆 LockerRoomLink - The Operating System for Youth Sports
+# 🏆 OSYS - The Operating System for Youth Sports
 
 > **Not just an app. The platform every youth sports organization runs on.**
 
 ## Vision
 
-LockerRoomLink handles ALL team needs - making organizations dependent on a single, powerful platform:
+OSYS handles ALL team needs - making organizations dependent on a single, powerful platform:
 - ✅ Team Management & Communication
 - ✅ Playbook Design (BEST IN CLASS)
 - ✅ Stats Tracking

@@ -1,4 +1,4 @@
-# Load Testing Guide for LockerRoom Link
+# Load Testing Guide for OSYS
 
 This guide explains how to perform load testing on the application.
 
