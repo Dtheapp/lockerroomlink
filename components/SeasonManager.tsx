@@ -22,7 +22,7 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
   currentSeasonId,
   onSeasonChange 
 }) => {
-  const { userData } = useAuth();
+  const { userData, players } = useAuth();
   const { theme } = useTheme();
   
   // State
@@ -33,6 +33,7 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
   const [showEndSeasonModal, setShowEndSeasonModal] = useState(false);
   const [selectedSeason, setSelectedSeason] = useState<Season | null>(null);
   const [showRegistrationsModal, setShowRegistrationsModal] = useState(false);
+  const [creatingLegacy, setCreatingLegacy] = useState(false);
   
   // Form state for new season
   const [newSeason, setNewSeason] = useState({
@@ -262,6 +263,59 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
     }
   };
   
+  // Create legacy/activate current season (for teams with existing players but no season)
+  const handleActivateCurrentSeason = async () => {
+    if (!userData || creatingLegacy) return;
+    
+    setCreatingLegacy(true);
+    setActionError(null);
+    
+    try {
+      const now = new Date();
+      const year = now.getFullYear();
+      const seasonId = `season_${teamId}_${year}_${Date.now()}`;
+      
+      // Create the season document
+      const seasonData: Omit<Season, 'id'> = {
+        teamId,
+        name: `Fall ${year} Season`,
+        sport,
+        year,
+        status: 'active',
+        startDate: `${year}-08-01`,
+        registrationOpenDate: `${year}-07-01`,
+        registrationCloseDate: `${year}-08-31`,
+        registrationFee: 0,
+        description: 'Current season (activated from existing roster)',
+        includedItems: [],
+        requireMedicalInfo: false,
+        requireEmergencyContact: true,
+        requireUniformSizes: false,
+        requireWaiver: false,
+        playerCount: players?.length || 0,
+        gamesPlayed: 0,
+        createdAt: serverTimestamp(),
+        createdBy: userData.uid,
+      };
+      
+      // Add season document
+      await addDoc(collection(db, 'teams', teamId, 'seasons'), seasonData).then(async (docRef) => {
+        // Update team with currentSeasonId
+        await updateDoc(doc(db, 'teams', teamId), {
+          currentSeasonId: docRef.id,
+        });
+        
+        onSeasonChange?.(docRef.id);
+      });
+      
+    } catch (error: any) {
+      console.error('Error activating season:', error);
+      setActionError(error.message || 'Failed to activate season');
+    } finally {
+      setCreatingLegacy(false);
+    }
+  };
+  
   // Status badge component
   const StatusBadge: React.FC<{ status: SeasonStatus }> = ({ status }) => {
     const configs: Record<SeasonStatus, { bg: string; text: string; label: string }> = {
@@ -424,15 +478,50 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
             No Active Season
           </h3>
           <p className={`text-sm mb-6 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
-            Create a new season to open registration and start tracking stats
+            {players && players.length > 0 
+              ? 'You have players on your roster. Activate the current season to start tracking.'
+              : 'Create a new season to open registration and start tracking stats'
+            }
           </p>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium flex items-center gap-2 mx-auto transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            Start New Season
-          </button>
+          
+          {actionError && (
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+              {actionError}
+            </div>
+          )}
+          
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            {/* Activate Current Season - show if there are players */}
+            {players && players.length > 0 && (
+              <button
+                onClick={handleActivateCurrentSeason}
+                disabled={creatingLegacy}
+                className="px-6 py-3 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg font-medium flex items-center gap-2 justify-center transition-colors"
+              >
+                {creatingLegacy ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Play className="w-5 h-5" />
+                )}
+                Activate Current Season
+              </button>
+            )}
+            
+            {/* Start New Season */}
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className={`px-6 py-3 rounded-lg font-medium flex items-center gap-2 justify-center transition-colors ${
+                players && players.length > 0
+                  ? theme === 'dark' 
+                    ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700'
+                    : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-300'
+                  : 'bg-orange-600 hover:bg-orange-700 text-white'
+              }`}
+            >
+              <Plus className="w-5 h-5" />
+              Start New Season
+            </button>
+          </div>
         </GlassCard>
       )}
       
