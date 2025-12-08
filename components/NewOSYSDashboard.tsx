@@ -864,6 +864,7 @@ const NewOSYSDashboard: React.FC = () => {
             teamName={teamData.name}
             sport={teamData.sport || 'football'}
             currentSeasonId={teamData.currentSeasonId}
+            rosterCount={roster.length}
           />
         </GlassCard>
       )}

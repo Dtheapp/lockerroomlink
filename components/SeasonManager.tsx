@@ -12,6 +12,7 @@ interface SeasonManagerProps {
   teamName: string;
   sport: SportType;
   currentSeasonId?: string | null;
+  rosterCount?: number; // Number of players currently on the roster
   onSeasonChange?: (seasonId: string | null) => void;
 }
 
@@ -20,9 +21,10 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
   teamName, 
   sport, 
   currentSeasonId,
+  rosterCount = 0,
   onSeasonChange 
 }) => {
-  const { userData, players } = useAuth();
+  const { userData } = useAuth();
   const { theme } = useTheme();
   
   // State
@@ -292,7 +294,7 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
         requireEmergencyContact: true,
         requireUniformSizes: false,
         requireWaiver: false,
-        playerCount: players?.length || 0,
+        playerCount: rosterCount,
         gamesPlayed: 0,
         createdAt: serverTimestamp(),
         createdBy: userData.uid,
@@ -478,7 +480,7 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
             No Active Season
           </h3>
           <p className={`text-sm mb-6 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
-            {players && players.length > 0 
+            {rosterCount > 0 
               ? 'You have players on your roster. Activate the current season to start tracking.'
               : 'Create a new season to open registration and start tracking stats'
             }
@@ -492,7 +494,7 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
           
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             {/* Activate Current Season - show if there are players */}
-            {players && players.length > 0 && (
+            {rosterCount > 0 && (
               <button
                 onClick={handleActivateCurrentSeason}
                 disabled={creatingLegacy}
@@ -511,7 +513,7 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
             <button
               onClick={() => setShowCreateModal(true)}
               className={`px-6 py-3 rounded-lg font-medium flex items-center gap-2 justify-center transition-colors ${
-                players && players.length > 0
+                rosterCount > 0
                   ? theme === 'dark' 
                     ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700'
                     : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-300'
