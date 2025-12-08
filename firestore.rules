@@ -285,12 +285,180 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow write: if isUser(userId) || isAdmin();
+      
+      // User's plays subcollection (Coach Playbook)
+      match /plays/{playId} {
+        allow read: if isAuthenticated();
+        allow write: if isUser(userId) || isAdmin();
+      }
+      
+      // User's formations subcollection
+      match /formations/{formationId} {
+        allow read: if isAuthenticated();
+        allow write: if isUser(userId) || isAdmin();
+      }
+      
+      // User's imported playbooks
+      match /importedPlaybooks/{playbookId} {
+        allow read: if isAuthenticated();
+        allow write: if isUser(userId) || isAdmin();
+      }
+      
+      // Coach announcements (public profile)
+      match /announcements/{announcementId} {
+        allow read: if true;
+        allow write: if isUser(userId) || isAdmin();
+        
+        // Announcement comments
+        match /comments/{commentId} {
+          allow read: if true;
+          allow write: if isAuthenticated();
+        }
+      }
+      
+      // Coach public chat messages
+      match /publicChatMessages/{messageId} {
+        allow read: if true;
+        allow write: if isAuthenticated();
+      }
+      
+      // Coach muted users
+      match /mutedUsers/{mutedId} {
+        allow read: if isUser(userId);
+        allow write: if isUser(userId);
+      }
     }
     
     // Teams collection
     match /teams/{teamId} {
       allow read: if isAuthenticated();
       allow write: if isTeamCoach(teamId) || isAdmin();
+      
+      // Players subcollection
+      match /players/{playerId} {
+        allow read: if isAuthenticated();
+        allow write: if isTeamCoach(teamId) || isAdmin();
+        
+        // Player's film room
+        match /filmRoom/{filmId} {
+          allow read: if isAuthenticated();
+          allow write: if isTeamCoach(teamId) || isAdmin();
+        }
+        
+        // Player's followers (fans)
+        match /followers/{followerId} {
+          allow read: if true;
+          allow write: if isAuthenticated();
+        }
+        
+        // Player's kudos
+        match /kudos/{kudosId} {
+          allow read: if true;
+          allow write: if isAuthenticated();
+        }
+        
+        // Fan clips
+        match /fanClips/{clipId} {
+          allow read: if true;
+          allow write: if isAuthenticated();
+        }
+        
+        // Public chat messages
+        match /publicChatMessages/{messageId} {
+          allow read: if true;
+          allow write: if isAuthenticated();
+        }
+        
+        // Public chat muted
+        match /publicChatMuted/{mutedId} {
+          allow read: if isTeamCoach(teamId);
+          allow write: if isTeamCoach(teamId);
+        }
+      }
+      
+      // Plays subcollection (Team Playbook)
+      match /plays/{playId} {
+        allow read: if isAuthenticated();
+        allow write: if isTeamCoach(teamId) || isAdmin();
+      }
+      
+      // Assigned plays subcollection
+      match /assignedPlays/{assignmentId} {
+        allow read: if isAuthenticated();
+        allow write: if isTeamCoach(teamId) || isAdmin();
+        
+        // Position assignments
+        match /positionAssignments/{positionId} {
+          allow read: if isAuthenticated();
+          allow write: if isTeamCoach(teamId) || isAdmin();
+        }
+      }
+      
+      // Team events subcollection
+      match /events/{eventId} {
+        allow read: if isAuthenticated();
+        allow write: if isTeamCoach(teamId) || isAdmin();
+      }
+      
+      // Team announcements/bulletin
+      match /announcements/{announcementId} {
+        allow read: if isAuthenticated();
+        allow write: if isTeamCoach(teamId) || isAdmin();
+      }
+      
+      // Coaches subcollection
+      match /coaches/{coachId} {
+        allow read: if isAuthenticated();
+        allow write: if isTeamCoach(teamId) || isAdmin();
+      }
+      
+      // Player stats subcollection
+      match /playerStats/{statId} {
+        allow read: if isAuthenticated();
+        allow write: if isTeamCoach(teamId) || isAdmin();
+      }
+      
+      // Live streams subcollection
+      match /liveStreams/{streamId} {
+        allow read: if true;
+        allow write: if isTeamCoach(teamId) || isAdmin();
+      }
+      
+      // Team chat messages
+      match /messages/{messageId} {
+        allow read: if isTeamMember(teamId);
+        allow write: if isTeamMember(teamId);
+      }
+      
+      // Season stats subcollection
+      match /seasonStats/{statId} {
+        allow read: if isAuthenticated();
+        allow write: if isTeamCoach(teamId) || isAdmin();
+      }
+      
+      // Games subcollection
+      match /games/{gameId} {
+        allow read: if isAuthenticated();
+        allow write: if isTeamCoach(teamId) || isAdmin();
+      }
+      
+      // Videos subcollection
+      match /videos/{videoId} {
+        allow read: if isAuthenticated();
+        allow write: if isTeamCoach(teamId) || isAdmin();
+      }
+      
+      // Strategies subcollection
+      match /strategies/{strategyId} {
+        allow read: if isTeamMember(teamId);
+        allow write: if isTeamCoach(teamId) || isAdmin();
+      }
+      
+      // Bulletin subcollection
+      match /bulletin/{bulletinId} {
+        allow read: if isAuthenticated();
+        allow write: if isTeamCoach(teamId) || isAdmin();
+      }
     }
     
     // Athletes collection
@@ -301,6 +469,26 @@ service cloud.firestore {
                       isAdmin();
     }
     
-    // Add more existing collection rules as needed...
+    // =============================================================================
+    // SYSTEM COLLECTIONS (Admin-managed playbooks, plays, formations)
+    // =============================================================================
+    
+    // System Playbooks (published playbook packages)
+    match /systemPlaybooks/{playbookId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // System Plays (plays within playbook packages)
+    match /systemPlays/{playId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // System Formations (formations within playbook packages)
+    match /systemFormations/{formationId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
   }
 }
