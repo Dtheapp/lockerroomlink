@@ -29,8 +29,10 @@ import {
   Activity,
   UserPlus,
   Loader2,
-  Building2
+  Building2,
+  FileText
 } from 'lucide-react';
+import { RulesModal } from '../RulesModal';
 
 export const CommissionerDashboard: React.FC = () => {
   const { user, userData, programData, leagueData } = useAuth();
@@ -46,6 +48,10 @@ export const CommissionerDashboard: React.FC = () => {
     activeGrievances: 0,
     pendingRequests: 0,
   });
+  
+  // Rules modals state
+  const [showRulesModal, setShowRulesModal] = useState(false);
+  const [showConductModal, setShowConductModal] = useState(false);
 
   useEffect(() => {
     if (!userData?.programId) {
@@ -272,6 +278,54 @@ export const CommissionerDashboard: React.FC = () => {
           </Link>
         </div>
 
+        {/* Rules & Code of Conduct Section */}
+        <div className="bg-gray-800 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-700 flex items-center gap-2">
+            <FileText className="w-5 h-5 text-orange-400" />
+            <h2 className="font-semibold text-white">Program Rules & Conduct</h2>
+          </div>
+          
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button
+              onClick={() => setShowRulesModal(true)}
+              className="flex items-center justify-between p-4 bg-gray-700/50 hover:bg-gray-700 border border-gray-600 rounded-xl transition-colors group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center group-hover:bg-orange-500/30 transition-colors">
+                  <FileText className="w-5 h-5 text-orange-400" />
+                </div>
+                <div className="text-left">
+                  <p className="text-white font-medium">Program Rules</p>
+                  <p className="text-xs text-gray-400">Set rules for all teams</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-500 group-hover:text-white transition-colors" />
+            </button>
+            
+            <button
+              onClick={() => setShowConductModal(true)}
+              className="flex items-center justify-between p-4 bg-gray-700/50 hover:bg-gray-700 border border-gray-600 rounded-xl transition-colors group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center group-hover:bg-purple-500/30 transition-colors">
+                  <Shield className="w-5 h-5 text-purple-400" />
+                </div>
+                <div className="text-left">
+                  <p className="text-white font-medium">Code of Conduct</p>
+                  <p className="text-xs text-gray-400">Behavioral guidelines</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-500 group-hover:text-white transition-colors" />
+            </button>
+          </div>
+          
+          <div className="px-4 pb-4">
+            <p className="text-xs text-gray-500">
+              📋 Rules set here will apply to all teams in your program. Teams cannot override these rules.
+            </p>
+          </div>
+        </div>
+
         {/* Teams List */}
         <div className="bg-gray-800 rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
@@ -365,6 +419,24 @@ export const CommissionerDashboard: React.FC = () => {
           </div>
         )}
       </div>
+      
+      {/* Rules Modal - uses leagueId if in league, otherwise programId */}
+      <RulesModal
+        isOpen={showRulesModal}
+        onClose={() => setShowRulesModal(false)}
+        leagueId={leagueData?.id}
+        canEdit={true}
+        type="rules"
+      />
+      
+      {/* Code of Conduct Modal */}
+      <RulesModal
+        isOpen={showConductModal}
+        onClose={() => setShowConductModal(false)}
+        leagueId={leagueData?.id}
+        canEdit={true}
+        type="codeOfConduct"
+      />
     </div>
   );
 };

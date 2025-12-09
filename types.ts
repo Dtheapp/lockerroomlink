@@ -1,6 +1,18 @@
 import { Timestamp } from 'firebase/firestore';
 
-export type UserRole = 'Coach' | 'Parent' | 'Fan' | 'SuperAdmin' | 'LeagueOwner' | 'ProgramCommissioner' | 'Referee';
+export type UserRole = 'Coach' | 'Parent' | 'Fan' | 'SuperAdmin' | 'LeagueOwner' | 'ProgramCommissioner' | 'Referee' | 'Commissioner' | 'Ref';
+
+// --- RULES & CODE OF CONDUCT ---
+
+export interface RulesDocument {
+  content: string;           // The actual rules text (can be markdown)
+  title: string;             // e.g., "League Rules", "Team Code of Conduct"
+  updatedAt?: Timestamp | Date;
+  updatedBy?: string;        // User ID who last edited
+  updatedByName?: string;    // Display name of editor
+  source?: 'team' | 'league'; // Where the rules originated
+  leagueOverride?: boolean;  // True if league overwrote team's own rules
+}
 
 // --- LEAGUE & COMMISSIONER SYSTEM ---
 
@@ -21,6 +33,9 @@ export interface League {
     allowStatsPublic?: boolean;
     requireApproval?: boolean; // If false, auto-accept
   };
+  // Rules & Code of Conduct
+  rules?: RulesDocument;
+  codeOfConduct?: RulesDocument;
   status?: 'active' | 'inactive';
   createdAt?: Timestamp | Date;
   updatedAt?: Timestamp | Date;
@@ -465,6 +480,10 @@ export interface Team {
   leagueLeftReason?: string;
   divisionId?: string;                  // Which division in the league
   maxRosterSize?: number;               // Commissioner can set max players
+  
+  // --- RULES & CODE OF CONDUCT ---
+  rules?: RulesDocument;                // Team rules (or league rules if in league)
+  codeOfConduct?: RulesDocument;        // Team code of conduct (or league's if in league)
 }
 
 // In types.ts

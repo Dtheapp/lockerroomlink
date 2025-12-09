@@ -12,6 +12,7 @@ import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Tr
 import type { BulletinPost, PlayerSeasonStats, TeamEvent, UserProfile, LiveStream } from '../types';
 import { GoLiveModal, LiveStreamBanner, LiveStreamViewer, SaveStreamToLibraryModal } from './livestream';
 import SeasonManager from './SeasonManager';
+import { TeamRulesInfo } from './TeamRulesInfo';
 
 // Helper: Format date string (YYYY-MM-DD) to readable format without timezone issues
 const formatEventDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
@@ -1578,6 +1579,17 @@ const Dashboard: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* TEAM RULES & CODE OF CONDUCT */}
+      {teamData?.id && (
+        <div className="order-3">
+          <TeamRulesInfo 
+            teamId={teamData.id}
+            canEditTeamRules={userData?.role === 'Coach' || userData?.role === 'SuperAdmin'}
+            canEditLeagueRules={userData?.role === 'LeagueOwner' || userData?.role === 'SuperAdmin'}
+          />
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-8">
         {/* BULLETIN BOARD */}
