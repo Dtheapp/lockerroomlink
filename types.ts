@@ -5,21 +5,25 @@ export type UserRole = 'Coach' | 'Parent' | 'Fan' | 'SuperAdmin' | 'LeagueOwner'
 // --- LEAGUE & COMMISSIONER SYSTEM ---
 
 export interface League {
-  id: string;
+  id?: string;
   name: string;
   ownerId: string;           // League Owner user ID
-  ownerName: string;
-  sport: SportType;
+  ownerName?: string;
+  sport?: SportType;
+  city?: string;
+  state?: string;
   region?: string;           // e.g., "North Texas"
-  teamIds: string[];         // Teams currently in league
-  pendingRequests: string[]; // Team IDs requesting to join
-  settings: {
-    allowStandingsPublic: boolean;
-    allowStatsPublic: boolean;
-    requireApproval: boolean; // If false, auto-accept
+  teamIds?: string[];        // Teams currently in league
+  pendingRequests?: string[]; // Team IDs requesting to join
+  programIds?: string[];     // Programs in this league
+  settings?: {
+    allowStandingsPublic?: boolean;
+    allowStatsPublic?: boolean;
+    requireApproval?: boolean; // If false, auto-accept
   };
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  status?: 'active' | 'inactive';
+  createdAt?: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
 }
 
 export interface LeagueSeason {

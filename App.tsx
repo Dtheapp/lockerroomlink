@@ -116,7 +116,15 @@ const CommissionerSignup = lazyWithRetry(() => import('./components/commissioner
 const CommissionerDashboard = lazyWithRetry(() => import('./components/commissioner/CommissionerDashboard'));
 const CommissionerTeamList = lazyWithRetry(() => import('./components/commissioner/CommissionerTeamList'));
 const CommissionerCreateTeam = lazyWithRetry(() => import('./components/commissioner/CommissionerCreateTeam'));
+const CommissionerTeamDetail = lazyWithRetry(() => import('./components/commissioner/CommissionerTeamDetail'));
+const CommissionerAssignCoach = lazyWithRetry(() => import('./components/commissioner/CommissionerAssignCoach'));
 const CommissionerGrievances = lazyWithRetry(() => import('./components/commissioner/CommissionerGrievances'));
+
+// League Owner Pages
+const LeagueDashboard = lazyWithRetry(() => import('./components/league/LeagueDashboard'));
+const LeagueSettings = lazyWithRetry(() => import('./components/league/LeagueSettings'));
+const LeaguePrograms = lazyWithRetry(() => import('./components/league/LeaguePrograms'));
+const LeagueRequests = lazyWithRetry(() => import('./components/league/LeagueRequests'));
 
 // Loading fallback for lazy-loaded components
 const PageLoader = () => (
@@ -248,6 +256,8 @@ const AppContent: React.FC = () => {
                 <Route path="commissioner" element={<CommissionerDashboard />} />
                 <Route path="commissioner/teams" element={<CommissionerTeamList />} />
                 <Route path="commissioner/teams/create" element={<CommissionerCreateTeam />} />
+                <Route path="commissioner/teams/:teamId" element={<CommissionerTeamDetail />} />
+                <Route path="commissioner/teams/:teamId/assign-coach" element={<CommissionerAssignCoach />} />
                 <Route path="commissioner/grievances" element={<CommissionerGrievances />} />
                 <Route path="profile" element={<Profile />} />
                 {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}
@@ -255,11 +265,14 @@ const AppContent: React.FC = () => {
               <Route path="*" element={<Navigate to="/commissioner" replace />} />
             </>
           ) : userData?.role === 'LeagueOwner' ? (
-            // League Owner routes (placeholder - will be built in Phase 4)
+            // League Owner routes - manages entire league with programs and schedules
             <>
               <Route path="/" element={<NewOSYSLayout />}>
                 <Route index element={<Navigate to="/league" replace />} />
-                <Route path="league" element={<div className="p-8 text-center text-white">League Dashboard Coming Soon</div>} />
+                <Route path="league" element={<LeagueDashboard />} />
+                <Route path="league/settings" element={<LeagueSettings />} />
+                <Route path="league/programs" element={<LeaguePrograms />} />
+                <Route path="league/requests" element={<LeagueRequests />} />
                 <Route path="profile" element={<Profile />} />
                 {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}
               </Route>
