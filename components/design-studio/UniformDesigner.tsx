@@ -230,15 +230,19 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
   // Auto-apply team colors option
   const [autoApplyTeamColors, setAutoApplyTeamColors] = useState(true);
   
+  // Home/Away variation state
+  const [uniformVariation, setUniformVariation] = useState<'home' | 'away'>('home');
+  const [awayPieces, setAwayPieces] = useState<GarmentPiece[]>([]);
+  
   // Get the active piece for editing
   const activePiece = pieces.find(p => p.id === activePieceId);
   
   // Fetch user credits on mount
   useEffect(() => {
     const fetchCredits = async () => {
-      if (!userData?.id) return;
+      if (!userData?.uid) return;
       try {
-        const userDoc = await getDoc(doc(db, 'users', userData.id));
+        const userDoc = await getDoc(doc(db, 'users', userData.uid));
         if (userDoc.exists()) {
           setUserCredits(userDoc.data()?.credits || 0);
         }
@@ -247,16 +251,16 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
       }
     };
     fetchCredits();
-  }, [userData?.id]);
+  }, [userData?.uid]);
   
   // Fetch saved uniforms
   useEffect(() => {
     const fetchSavedUniforms = async () => {
-      if (!userData?.id) return;
+      if (!userData?.uid) return;
       try {
         const q = query(
           collection(db, 'savedUniforms'),
-          where('userId', '==', userData.id)
+          where('userId', '==', userData.uid)
         );
         const snapshot = await getDocs(q);
         const uniforms: SavedUniform[] = [];
@@ -269,7 +273,7 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
       }
     };
     fetchSavedUniforms();
-  }, [userData?.id]);
+  }, [userData?.uid]);
   
   // AI Generate design for a piece
   const generateAIDesign = async (pieceId: string) => {
@@ -313,8 +317,8 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
       });
       
       // Deduct credits
-      if (userData?.id) {
-        const userRef = doc(db, 'users', userData.id);
+      if (userData?.uid) {
+        const userRef = doc(db, 'users', userData.uid);
         await updateDoc(userRef, { credits: userCredits - AI_CREDITS_PER_PIECE });
         setUserCredits(prev => prev - AI_CREDITS_PER_PIECE);
       }
@@ -329,7 +333,7 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
   
   // Save uniform to Firestore
   const saveUniform = async () => {
-    if (!userData?.id || !selectedSport) return;
+    if (!userData?.uid || !selectedSport) return;
     
     setIsSaving(true);
     try {
@@ -342,7 +346,7 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
           aiGeneratedImage: p.aiGeneratedImage ? 'has_image' : undefined,
         })),
         teamId: teamData?.id || null,
-        userId: userData.id,
+        userId: userData.uid,
         createdAt: new Date(),
       };
       
@@ -386,6 +390,27 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
       secondaryColor: teamData.secondaryColor || p.secondaryColor,
     })));
   };
+  
+  // Generate away variation by swapping primary/secondary colors
+  const generateAwayVariation = () => {
+    const awayVariant = pieces.map(p => ({
+      ...p,
+      id: `${p.id}_away`,
+      // Swap primary and secondary
+      primaryColor: p.secondaryColor,
+      secondaryColor: p.primaryColor,
+      // Keep accent same or make it the old primary
+      accentColor: p.primaryColor,
+      // Invert number/name colors for contrast
+      numberColor: p.primaryColor,
+      nameColor: p.primaryColor,
+    }));
+    setAwayPieces(awayVariant);
+    setUniformVariation('away');
+  };
+  
+  // Get current pieces based on variation
+  const getCurrentPieces = () => uniformVariation === 'away' ? awayPieces : pieces;
   
   // Add a new piece
   const addPiece = useCallback((category: GarmentCategory, style: TopStyle | BottomStyle | AccessoryType, label: string) => {
@@ -918,9 +943,11 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
   // RENDER: 3D Player Preview
   // ==========================================================================
   const renderPreview = () => {
-    const topPiece = pieces.find(p => p.category === 'top');
-    const bottomPiece = pieces.find(p => p.category === 'bottom');
-    const socksPiece = pieces.find(p => p.style.includes('socks'));
+    // Use current variation's pieces
+    const displayPieces = uniformVariation === 'away' && awayPieces.length > 0 ? awayPieces : pieces;
+    const topPiece = displayPieces.find(p => p.category === 'top');
+    const bottomPiece = displayPieces.find(p => p.category === 'bottom');
+    const socksPiece = displayPieces.find(p => p.style.includes('socks'));
     
     // Calculate rotation for 3D effect
     const getTransform = () => {
@@ -1012,13 +1039,63 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
             />
           </div>
           
+          {/* Home/Away Variation Toggle */}
+          <div>
+            <h3 className="text-sm font-semibold text-slate-300 mb-2">Uniform Variation</h3>
+            <div className="flex gap-2 mb-2">
+              <button
+                onClick={() => setUniformVariation('home')}
+                className={`flex-1 py-2 px-3 rounded-lg font-medium text-sm transition-all ${
+                  uniformVariation === 'home' 
+                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg' 
+                    : 'bg-zinc-800 text-slate-400 hover:bg-zinc-700'
+                }`}
+              >
+                🏠 Home
+              </button>
+              <button
+                onClick={() => {
+                  if (awayPieces.length === 0) {
+                    generateAwayVariation();
+                  } else {
+                    setUniformVariation('away');
+                  }
+                }}
+                className={`flex-1 py-2 px-3 rounded-lg font-medium text-sm transition-all ${
+                  uniformVariation === 'away' 
+                    ? 'bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-lg' 
+                    : 'bg-zinc-800 text-slate-400 hover:bg-zinc-700'
+                }`}
+              >
+                ✈️ Away
+              </button>
+            </div>
+            {uniformVariation === 'home' && pieces.length > 0 && (
+              <button
+                onClick={generateAwayVariation}
+                className="w-full py-2 px-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg text-xs font-medium flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-3 h-3" />
+                Auto-Generate Away Variation
+              </button>
+            )}
+            {uniformVariation === 'away' && awayPieces.length > 0 && (
+              <p className="text-xs text-slate-500 mt-1 text-center">
+                Colors swapped from home uniform
+              </p>
+            )}
+          </div>
+          
           {/* Pieces list */}
           <div>
-            <h3 className="text-sm font-semibold text-slate-300 mb-2">Included Pieces</h3>
+            <h3 className="text-sm font-semibold text-slate-300 mb-2">
+              {uniformVariation === 'away' ? 'Away Pieces' : 'Home Pieces'}
+            </h3>
             <div className="space-y-1">
-              {pieces.map(p => (
+              {displayPieces.map(p => (
                 <div key={p.id} className="flex items-center gap-2 text-sm text-slate-400">
                   <div className="w-3 h-3 rounded" style={{ backgroundColor: p.primaryColor }} />
+                  <div className="w-3 h-3 rounded" style={{ backgroundColor: p.secondaryColor }} />
                   {p.label}
                 </div>
               ))}
@@ -1029,125 +1106,243 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
         {/* 3D Preview area */}
         <div className="flex-1 flex items-center justify-center bg-gradient-to-b from-zinc-800 to-zinc-900 relative overflow-hidden">
           {/* Grid floor effect */}
-          <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-zinc-950/50 to-transparent" />
+          <div className="absolute bottom-0 left-0 right-0 h-40">
+            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 to-transparent" />
+            {/* Floor grid lines */}
+            <svg className="absolute bottom-0 w-full h-20 opacity-20">
+              <defs>
+                <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="0.5"/>
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#grid)" />
+            </svg>
+          </div>
           
-          {/* Player mannequin */}
+          {/* Spotlight effect */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-gradient-radial from-orange-500/10 to-transparent rounded-full blur-3xl" />
+          
+          {/* Player mannequin - Athletic Build */}
           <div 
             className="relative transition-transform duration-200"
             style={{ transform: getTransform() }}
           >
-            {/* Head */}
-            <div className="w-16 h-20 mx-auto bg-gradient-to-b from-amber-200 to-amber-300 rounded-full mb-1" />
+            {/* Head with neck */}
+            <div className="relative mx-auto">
+              {/* Neck */}
+              <div className="w-8 h-6 mx-auto bg-gradient-to-b from-amber-300 to-amber-400 rounded-sm" />
+              {/* Head */}
+              <div className="w-16 h-20 mx-auto -mt-4 bg-gradient-to-b from-amber-200 to-amber-300 rounded-full relative">
+                {/* Face details */}
+                <div className="absolute top-6 left-3 w-2 h-1 bg-amber-400/50 rounded-full" />
+                <div className="absolute top-6 right-3 w-2 h-1 bg-amber-400/50 rounded-full" />
+                {/* Hair */}
+                <div className="absolute -top-1 left-2 right-2 h-6 bg-zinc-800 rounded-t-full" />
+              </div>
+            </div>
+            
+            {/* Shoulders/Upper body frame */}
+            <div className="relative -mt-2">
+              {/* Shoulder muscles */}
+              <div className="absolute -left-12 top-0 w-8 h-10 bg-gradient-to-br from-amber-200 to-amber-300 rounded-full transform -rotate-12" />
+              <div className="absolute -right-12 top-0 w-8 h-10 bg-gradient-to-bl from-amber-200 to-amber-300 rounded-full transform rotate-12" />
+            </div>
             
             {/* Top (Jersey/Shirt) */}
             {topPiece ? (
               <div 
-                className="relative w-40 h-48 mx-auto rounded-lg mb-1 flex flex-col items-center justify-center transition-colors"
+                className="relative w-44 h-52 mx-auto rounded-lg flex flex-col items-center justify-center transition-colors shadow-2xl"
                 style={getPatternStyle(topPiece)}
               >
-                {/* Collar */}
-                <div 
-                  className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-6 rounded-b-full"
-                  style={{ backgroundColor: topPiece.accentColor }}
-                />
-                {/* Number */}
+                {/* Collar - V-neck style */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2">
+                  <div 
+                    className="w-16 h-8 rounded-b-xl"
+                    style={{ backgroundColor: topPiece.accentColor }}
+                  />
+                  <div 
+                    className="absolute top-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-b-[16px] border-l-transparent border-r-transparent"
+                    style={{ borderBottomColor: topPiece.primaryColor }}
+                  />
+                </div>
+                
+                {/* Jersey seams/details */}
+                <div className="absolute top-12 left-4 w-0.5 h-32 bg-black/10 rounded" />
+                <div className="absolute top-12 right-4 w-0.5 h-32 bg-black/10 rounded" />
+                
+                {/* Number/Name */}
                 {(previewRotation >= -90 && previewRotation <= 90) ? (
-                  // Front view
-                  <div className="text-center mt-4">
+                  <div className="text-center mt-6">
+                    {topPiece.logoUrl && (
+                      <div className="w-8 h-8 mx-auto mb-2 bg-white/20 rounded-full flex items-center justify-center text-xs">
+                        Logo
+                      </div>
+                    )}
                     {topPiece.numberFront && (
-                      <div className="text-4xl font-bold" style={{ color: topPiece.numberColor }}>
+                      <div 
+                        className="text-5xl font-black tracking-tight"
+                        style={{ 
+                          color: topPiece.numberColor,
+                          textShadow: '2px 2px 4px rgba(0,0,0,0.3)'
+                        }}
+                      >
                         {topPiece.numberFront}
                       </div>
                     )}
                   </div>
                 ) : (
-                  // Back view
                   <div className="text-center mt-4">
                     {topPiece.nameBack && (
-                      <div className="text-sm font-bold tracking-wider mb-1" style={{ color: topPiece.nameColor }}>
+                      <div 
+                        className="text-sm font-black tracking-[0.2em] mb-2"
+                        style={{ 
+                          color: topPiece.nameColor,
+                          textShadow: '1px 1px 2px rgba(0,0,0,0.3)'
+                        }}
+                      >
                         {topPiece.nameBack}
                       </div>
                     )}
                     {topPiece.numberBack && (
-                      <div className="text-5xl font-bold" style={{ color: topPiece.numberColor }}>
+                      <div 
+                        className="text-6xl font-black"
+                        style={{ 
+                          color: topPiece.numberColor,
+                          textShadow: '3px 3px 6px rgba(0,0,0,0.4)'
+                        }}
+                      >
                         {topPiece.numberBack}
                       </div>
                     )}
                   </div>
                 )}
-                {/* Sleeves */}
+                
+                {/* Arms with muscle definition */}
                 <div 
-                  className="absolute -left-8 top-4 w-10 h-24 rounded-lg"
+                  className="absolute -left-10 top-0 w-12 h-32 rounded-lg shadow-lg overflow-hidden"
                   style={getPatternStyle(topPiece)}
-                />
+                >
+                  {/* Bicep shadow */}
+                  <div className="absolute top-4 right-0 w-3 h-12 bg-black/10 rounded-l-full" />
+                  {/* Arm opening */}
+                  <div className="absolute bottom-0 left-0 right-0 h-4 bg-amber-300 rounded-t-lg" />
+                </div>
                 <div 
-                  className="absolute -right-8 top-4 w-10 h-24 rounded-lg"
+                  className="absolute -right-10 top-0 w-12 h-32 rounded-lg shadow-lg overflow-hidden"
                   style={getPatternStyle(topPiece)}
-                />
+                >
+                  {/* Bicep shadow */}
+                  <div className="absolute top-4 left-0 w-3 h-12 bg-black/10 rounded-r-full" />
+                  {/* Arm opening */}
+                  <div className="absolute bottom-0 left-0 right-0 h-4 bg-amber-300 rounded-t-lg" />
+                </div>
+                
+                {/* Side panels if pattern is panels */}
+                {topPiece.pattern === 'panels' && (
+                  <>
+                    <div className="absolute left-0 top-0 bottom-0 w-4 rounded-l-lg" style={{ backgroundColor: topPiece.secondaryColor }} />
+                    <div className="absolute right-0 top-0 bottom-0 w-4 rounded-r-lg" style={{ backgroundColor: topPiece.secondaryColor }} />
+                  </>
+                )}
               </div>
             ) : (
-              <div className="w-40 h-48 mx-auto rounded-lg mb-1 bg-zinc-700 border-2 border-dashed border-zinc-600 flex items-center justify-center">
+              <div className="w-44 h-52 mx-auto rounded-lg bg-zinc-700 border-2 border-dashed border-zinc-600 flex items-center justify-center">
                 <span className="text-zinc-500 text-sm">No Top</span>
               </div>
             )}
             
+            {/* Waist/Belt area */}
+            <div className="w-36 h-2 mx-auto bg-zinc-800 rounded-full -mt-1 relative z-10" />
+            
             {/* Bottom (Pants/Shorts) */}
             {bottomPiece ? (
               <div 
-                className="relative w-36 h-32 mx-auto rounded-b-lg flex"
-                style={getPatternStyle(bottomPiece)}
+                className="relative w-40 mx-auto rounded-b-lg shadow-xl overflow-hidden"
+                style={{ 
+                  height: bottomPiece.style.includes('shorts') ? '80px' : '140px',
+                  ...getPatternStyle(bottomPiece)
+                }}
               >
-                {/* Left leg */}
+                {/* Crotch seam */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0.5 h-8 bg-black/20" />
+                
+                {/* Leg separation */}
                 <div 
-                  className="flex-1 rounded-bl-lg"
-                  style={getPatternStyle(bottomPiece)}
+                  className="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 bg-zinc-900"
+                  style={{ height: bottomPiece.style.includes('shorts') ? '40px' : '100px' }}
                 />
-                {/* Right leg */}
+                
+                {/* Side stripes */}
                 <div 
-                  className="flex-1 rounded-br-lg"
-                  style={getPatternStyle(bottomPiece)}
-                />
-                {/* Side stripe */}
-                <div 
-                  className="absolute left-0 top-0 w-2 h-full rounded-l-lg"
+                  className="absolute left-0 top-0 w-3 h-full"
                   style={{ backgroundColor: bottomPiece.accentColor }}
                 />
                 <div 
-                  className="absolute right-0 top-0 w-2 h-full rounded-r-lg"
+                  className="absolute right-0 top-0 w-3 h-full"
                   style={{ backgroundColor: bottomPiece.accentColor }}
                 />
+                
+                {/* Inner leg shadows for muscle definition */}
+                <div className="absolute bottom-0 left-8 w-4 h-full bg-black/10 rounded-r-full" />
+                <div className="absolute bottom-0 right-8 w-4 h-full bg-black/10 rounded-l-full" />
               </div>
             ) : (
-              <div className="w-36 h-32 mx-auto rounded-b-lg bg-zinc-700 border-2 border-dashed border-zinc-600 flex items-center justify-center">
+              <div className="w-40 h-32 mx-auto rounded-b-lg bg-zinc-700 border-2 border-dashed border-zinc-600 flex items-center justify-center">
                 <span className="text-zinc-500 text-sm">No Bottom</span>
+              </div>
+            )}
+            
+            {/* Lower legs (visible below shorts) */}
+            {bottomPiece?.style.includes('shorts') && (
+              <div className="flex justify-center gap-6 -mt-1">
+                <div className="w-10 h-20 bg-gradient-to-b from-amber-300 to-amber-400 rounded-b-lg shadow-lg">
+                  {/* Knee definition */}
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 w-6 h-4 bg-amber-400/50 rounded-full" />
+                </div>
+                <div className="w-10 h-20 bg-gradient-to-b from-amber-300 to-amber-400 rounded-b-lg shadow-lg">
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 w-6 h-4 bg-amber-400/50 rounded-full" />
+                </div>
               </div>
             )}
             
             {/* Socks */}
             {socksPiece ? (
-              <div className="flex justify-center gap-4 mt-1">
+              <div className="flex justify-center gap-6 mt-1">
                 <div 
-                  className="w-8 h-16 rounded-b-lg"
+                  className="w-10 h-20 rounded-b-lg shadow-lg relative overflow-hidden"
                   style={getPatternStyle(socksPiece)}
-                />
+                >
+                  {/* Sock stripes */}
+                  <div className="absolute top-2 left-0 right-0 h-1" style={{ backgroundColor: socksPiece.accentColor }} />
+                  <div className="absolute top-4 left-0 right-0 h-1" style={{ backgroundColor: socksPiece.accentColor }} />
+                </div>
                 <div 
-                  className="w-8 h-16 rounded-b-lg"
+                  className="w-10 h-20 rounded-b-lg shadow-lg relative overflow-hidden"
                   style={getPatternStyle(socksPiece)}
-                />
+                >
+                  <div className="absolute top-2 left-0 right-0 h-1" style={{ backgroundColor: socksPiece.accentColor }} />
+                  <div className="absolute top-4 left-0 right-0 h-1" style={{ backgroundColor: socksPiece.accentColor }} />
+                </div>
               </div>
             ) : (
-              <div className="flex justify-center gap-4 mt-1">
-                <div className="w-8 h-16 rounded-b-lg bg-zinc-600" />
-                <div className="w-8 h-16 rounded-b-lg bg-zinc-600" />
+              <div className="flex justify-center gap-6 mt-1">
+                <div className="w-10 h-20 rounded-b-lg bg-zinc-600 shadow-lg" />
+                <div className="w-10 h-20 rounded-b-lg bg-zinc-600 shadow-lg" />
               </div>
             )}
+            
+            {/* Shoes */}
+            <div className="flex justify-center gap-4 mt-1">
+              <div className="w-12 h-6 bg-zinc-900 rounded-lg shadow-lg" />
+              <div className="w-12 h-6 bg-zinc-900 rounded-lg shadow-lg" />
+            </div>
           </div>
           
           {/* Rotation indicator */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-slate-500 text-sm">
-            {previewRotation >= -45 && previewRotation <= 45 ? 'Front View' : 
-             previewRotation > 45 && previewRotation <= 135 ? 'Side View' :
-             previewRotation < -45 && previewRotation >= -135 ? 'Side View' : 'Back View'}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-zinc-800/80 backdrop-blur-sm rounded-full text-slate-400 text-sm border border-zinc-700">
+            {previewRotation >= -45 && previewRotation <= 45 ? '👀 Front View' : 
+             previewRotation > 45 && previewRotation <= 135 ? '👈 Left Side' :
+             previewRotation < -45 && previewRotation >= -135 ? '👉 Right Side' : '🔙 Back View'}
           </div>
         </div>
       </div>
