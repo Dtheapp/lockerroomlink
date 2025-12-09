@@ -1,6 +1,6 @@
 # 📊 OSYS - Master Progress Tracker
 
-**Last Updated:** December 9, 2025 (Evening - Pilot Confirmed!)  
+**Last Updated:** December 9, 2025 (Evening - Draft Lottery + Mobile Optimization!)  
 **Vision:** The Operating System for Youth Sports  
 **Status:** 🎉 PILOT CONFIRMED - Building Feature Roadmap 🚀
 
@@ -370,6 +370,72 @@ Platform Stability:  ██████████████████░�
 ---
 
 ## 🔄 CURRENTLY IN PROGRESS
+
+### 🚨 PILOT BLOCKER: Team Age Groups & Draft System
+
+> **Status:** 🔴 BLOCKER - Must complete before pilot launch
+> **Added:** December 9, 2025
+> **Source:** Pilot feedback - real-world team structure requirements
+
+**The Problem:** Youth organizations have different team structures:
+- **Small cities:** Multi-grade teams (8U-9U combined, 10U-11U combined)
+- **Large cities:** Single-grade teams (separate 8U, 9U, 10U)
+- **Multiple teams:** Same age group may have 3 teams → requires draft
+
+**The Solution:**
+1. Age group selection on team creation (single or multi-grade)
+2. Auto-assign players when only 1 team exists for age group
+3. Draft Day scheduling when multiple teams compete for same players
+
+| Task | Priority | Status | Notes |
+|------|----------|--------|-------|
+| **Phase 1: Team Creation** | 🔴 P0 | ⬜ | Week 1 |
+| Add `ageGroups: string[]` to Team type | 🔴 | ⬜ | ["8U", "9U"] for multi |
+| Add `ageGroupType: 'single' \| 'multi'` | 🔴 | ⬜ | Track type |
+| Create `AgeGroupSelector.tsx` component | 🔴 | ⬜ | Multi-select checkboxes |
+| Update team creation modal with selector | 🔴 | ⬜ | ManageTeams.tsx |
+| Display age group on team cards | 🔴 | ⬜ | "Tigers (8U-9U)" |
+| **Phase 2: Registration Pool** | 🔴 P0 | ⬜ | Week 2 |
+| Create `RegistrationPool` collection | 🔴 | ⬜ | Firestore schema |
+| Calculate ageGroup from birthdate | 🔴 | ⬜ | Utility function |
+| Add registered players to pool | 🔴 | ⬜ | On registration complete |
+| `RegistrationPoolDashboard.tsx` | 🔴 | ⬜ | Admin view of pool |
+| **Phase 3: Auto-Assignment** | 🔴 P0 | ⬜ | Week 2 |
+| Detect single-team scenarios | 🔴 | ⬜ | 1 team = auto-assign |
+| Auto-assign pool to single team | 🔴 | ⬜ | Cloud function or manual |
+| Coach notification on assignment | 🔴 | ⬜ | "15 players assigned!" |
+| **Phase 4: Draft Day** | 🟡 P1 | ⬜ | Week 3 |
+| `DraftScheduler.tsx` | 🟡 | ⬜ | Schedule date/time |
+| Draft order generation | 🟡 | ⬜ | Snake, linear, random |
+| `DraftBoard.tsx` | 🟡 | ⬜ | Live draft interface |
+| Coach pick interface | 🟡 | ⬜ | Select player from pool |
+| **Phase 5: Enhancements** | 🟢 P2 | ⬜ | Week 4 |
+| Draft watch party for parents | 🟢 | ⬜ | View-only mode |
+| Post-draft player trades | 🟢 | ⬜ | Swap between teams |
+| Draft history & analytics | 🟢 | ⬜ | Historical records |
+
+**Data Model (types.ts):**
+```typescript
+// ADD TO Team interface:
+ageGroups?: string[];              // ["8U", "9U"] for multi-grade
+ageGroupType?: 'single' | 'multi';
+draftStatus?: 'not_needed' | 'pending' | 'scheduled' | 'in_progress' | 'completed';
+draftDate?: Timestamp;
+draftOrder?: string[];             // Coach IDs in pick order
+draftType?: 'snake' | 'linear';
+
+// NEW: RegistrationPool collection
+interface RegistrationPool {
+  id: string;
+  programId: string;
+  ageGroup: string;                // "8U" or "8U-9U"
+  players: RegistrationPoolPlayer[];
+  requiresDraft: boolean;
+  teamIds: string[];
+}
+```
+
+---
 
 ### Sprint: Multi-Sport Foundation
 **Goal:** Get Basketball & Cheer working for pilot  
@@ -1278,6 +1344,7 @@ Match players to roster → Confirm → Done!
 | Milestone | Target Date | Status | Notes |
 |-----------|-------------|--------|-------|
 | **PILOT CONFIRMED** | Dec 9, 2025 | ✅ DONE | 20-team organization on board! |
+| 🚨 **Age Groups + Draft System** | Dec 20, 2025 | ⬜ | 🔴 BLOCKER - Team creation fix |
 | 5 Sports Ready | Dec 20, 2025 | ⬜ | Football, Basketball, Baseball, Soccer, Volleyball |
 | **Stat Import (GameChanger)** | Dec 25, 2025 | ⬜ | CSV upload + auto-mapping |
 | Draft System MVP | Dec 25, 2025 | ⬜ | Core draft functionality |
@@ -1519,6 +1586,32 @@ Match players to roster → Confirm → Done!
 - ✅ Updated AI_TRAINER.md with bug fix tracking on "save training"
 - ✅ Created Development Timeline section (this section!)
 - ✅ Deployed Firestore rules to Firebase
+
+#### December 9, 2025 (Evening)
+**Session Focus:** Draft Day Lottery + Mobile Optimization
+
+- ✅ Added Draft Lottery system to FEATURE_ROADMAP.md documentation
+- ✅ Created `LotteryWheel` component - animated SVG wheel with team colors, center hub, pointer arrow
+- ✅ Created `LotteryTicketWinner` component - premium golden ticket with confetti, winner details
+- ✅ Created `LotteryResultsBoard` component - full results display with gradient header
+- ✅ Added `mockLotteryResults` data for 4 teams (positions, colors, emojis, coaches)
+- ✅ Added Draft Lottery section to DraftDayShowcase.tsx with benefits grid and how-it-works steps
+- ✅ Moved lottery section above Live Draft UI (chronologically correct - lottery first)
+- ✅ Added "Step 1: Determine Pick Order" and "Step 2: Make Your Picks" badges
+- ✅ Complete mobile optimization for DraftDayShowcase.tsx:
+  - LotteryWheel responsive (w-64/w-80, center hub, dual icons)
+  - StatRing responsive (100px/120px)
+  - Lottery section header, benefits grid, how-it-works all responsive
+  - Draft Dashboard mockup header (smaller icons/text mobile)
+  - On The Clock section compact cards
+  - Draft History and Teams responsive cards with truncation
+  - Features Grid (1/2/3 column responsive)
+  - Draft Order Types cards (Snake/Linear/Auction) responsive
+  - Implementation Timeline (repositioned line, smaller dots)
+  - Technical Architecture responsive grids
+  - Impact Section (2x2 mobile → 4 col desktop)
+  - CTA Section responsive padding and buttons
+- ✅ Pushed changes to dev and main branches
 
 #### December 6, 2025
 **Session Focus:** Vision Day - Foundation & Planning
@@ -1880,3 +1973,5 @@ Match players to roster → Confirm → Done!
 | Dec 9, 2025 | **Added Development Timeline section** (300+ items chronologically logged!) |
 | Dec 9, 2025 | Updated AI_TRAINER.md "save training" to require timeline updates |
 | Dec 9, 2025 | **Added OSYS AI Support Center** - Voice messages, push reminders, proactive help |
+| Dec 9, 2025 | **Added Draft Lottery UI to /draft showcase** - LotteryWheel, LotteryTicketWinner, LotteryResultsBoard |
+| Dec 9, 2025 | Complete mobile optimization for DraftDayShowcase.tsx |
