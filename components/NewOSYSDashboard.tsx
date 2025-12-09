@@ -17,7 +17,7 @@ import { sanitizeText } from '../services/sanitize';
 import GettingStartedChecklist from './GettingStartedChecklist';
 import SeasonManager, { type RegistrationFlyerData } from './SeasonManager';
 import type { LiveStream, BulletinPost, UserProfile } from '../types';
-import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image } from 'lucide-react';
+import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image, Copy, ExternalLink, Share2 } from 'lucide-react';
 
 // Extended event type with attachments
 interface EventWithAttachments {
@@ -84,6 +84,7 @@ const NewOSYSDashboard: React.FC = () => {
   // Copy states
   const [isCopied, setIsCopied] = useState(false);
   const [isPublicLinkCopied, setIsPublicLinkCopied] = useState(false);
+  const [showShareDropdown, setShowShareDropdown] = useState(false);
   
   // Live stream state
   const [liveStreams, setLiveStreams] = useState<LiveStream[]>([]);
@@ -328,6 +329,40 @@ const NewOSYSDashboard: React.FC = () => {
       setIsPublicLinkCopied(true);
       setTimeout(() => setIsPublicLinkCopied(false), 2000);
     }
+  };
+
+  // Get public URL
+  const getPublicUrl = () => {
+    if (!teamData?.id) return '';
+    const baseUrl = window.location.origin + window.location.pathname;
+    return `${baseUrl}#/team/${teamData.id}`;
+  };
+
+  // Social share functions
+  const shareToFacebook = () => {
+    const url = encodeURIComponent(getPublicUrl());
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank', 'width=600,height=400');
+    setShowShareDropdown(false);
+  };
+
+  const shareToTwitter = () => {
+    const url = encodeURIComponent(getPublicUrl());
+    const text = encodeURIComponent(`Check out ${teamData?.name || 'our team'} on OSYS!`);
+    window.open(`https://twitter.com/intent/tweet?url=${url}&text=${text}`, '_blank', 'width=600,height=400');
+    setShowShareDropdown(false);
+  };
+
+  const shareToLinkedIn = () => {
+    const url = encodeURIComponent(getPublicUrl());
+    window.open(`https://www.linkedin.com/shareArticle?mini=true&url=${url}`, '_blank', 'width=600,height=400');
+    setShowShareDropdown(false);
+  };
+
+  const shareViaEmail = () => {
+    const subject = encodeURIComponent(`Check out ${teamData?.name || 'our team'} on OSYS`);
+    const body = encodeURIComponent(`I wanted to share our team page with you: ${getPublicUrl()}`);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    setShowShareDropdown(false);
   };
 
   // Get greeting based on time
@@ -718,6 +753,126 @@ const NewOSYSDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Public Page Link Banner */}
+      {teamData?.id && (
+        <div className={`p-4 rounded-2xl border ${
+          theme === 'dark' 
+            ? 'bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30' 
+            : 'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium mb-1 ${theme === 'dark' ? 'text-purple-300' : 'text-purple-700'}`}>
+                🌐 Public Team Page
+              </p>
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg truncate ${
+                theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-white border border-purple-200'
+              }`}>
+                <span className={`text-sm truncate ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
+                  {getPublicUrl()}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Copy Link Button */}
+              <button
+                onClick={copyPublicLink}
+                className={`px-3 py-2 rounded-lg transition flex items-center gap-2 text-sm font-medium ${
+                  theme === 'dark'
+                    ? 'bg-white/10 hover:bg-white/20 text-white'
+                    : 'bg-purple-100 hover:bg-purple-200 text-purple-700'
+                }`}
+                title="Copy link"
+              >
+                <Copy className="w-4 h-4" />
+                {isPublicLinkCopied ? 'Copied!' : 'Copy'}
+              </button>
+              
+              {/* View Public Page Button */}
+              <Link
+                to={`/team/${teamData.id}`}
+                target="_blank"
+                className={`px-3 py-2 rounded-lg transition flex items-center gap-2 text-sm font-medium ${
+                  theme === 'dark'
+                    ? 'bg-purple-600 hover:bg-purple-500 text-white'
+                    : 'bg-purple-600 hover:bg-purple-700 text-white'
+                }`}
+                title="View public page"
+              >
+                <ExternalLink className="w-4 h-4" />
+                View
+              </Link>
+              
+              {/* Share Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowShareDropdown(!showShareDropdown)}
+                  className={`px-3 py-2 rounded-lg transition flex items-center gap-2 text-sm font-medium ${
+                    theme === 'dark'
+                      ? 'bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white'
+                      : 'bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white'
+                  }`}
+                  title="Share to social media"
+                >
+                  <Share2 className="w-4 h-4" />
+                  Share
+                </button>
+                
+                {/* Share Dropdown Menu */}
+                {showShareDropdown && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setShowShareDropdown(false)}
+                    />
+                    <div className={`absolute right-0 top-full mt-2 w-48 rounded-xl shadow-xl z-50 overflow-hidden ${
+                      theme === 'dark' ? 'bg-zinc-800 border border-white/10' : 'bg-white border border-slate-200'
+                    }`}>
+                      <button
+                        onClick={shareToFacebook}
+                        className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition ${
+                          theme === 'dark' ? 'hover:bg-white/10 text-white' : 'hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <span className="text-lg">📘</span>
+                        Facebook
+                      </button>
+                      <button
+                        onClick={shareToTwitter}
+                        className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition ${
+                          theme === 'dark' ? 'hover:bg-white/10 text-white' : 'hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <span className="text-lg">🐦</span>
+                        Twitter / X
+                      </button>
+                      <button
+                        onClick={shareToLinkedIn}
+                        className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition ${
+                          theme === 'dark' ? 'hover:bg-white/10 text-white' : 'hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <span className="text-lg">💼</span>
+                        LinkedIn
+                      </button>
+                      <button
+                        onClick={shareViaEmail}
+                        className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition ${
+                          theme === 'dark' ? 'hover:bg-white/10 text-white' : 'hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <span className="text-lg">✉️</span>
+                        Email
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Live Stream Banner */}
       {liveStreams.length > 0 && (
         <LiveStreamBanner
@@ -776,17 +931,6 @@ const NewOSYSDashboard: React.FC = () => {
             }`}
           >
             {isCopied ? '✓ Copied!' : '📋 Team ID'}
-          </button>
-          {/* Copy Public Link */}
-          <button
-            onClick={copyPublicLink}
-            className={`text-xs px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
-              theme === 'dark'
-                ? 'bg-white/10 hover:bg-white/20 text-slate-300'
-                : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-            }`}
-          >
-            {isPublicLinkCopied ? '✓ Copied!' : '🔗 Share'}
           </button>
         </div>
       </div>

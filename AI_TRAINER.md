@@ -70,25 +70,55 @@ Then share this AI_TRAINER.md file. The AI will know what to do from there.
 > - New "never do" rules
 > - Updated session handoff context
 > 
-> **When user says "save learning":**
+> **When user says "save training" or "save learning":**
 > This means the session is ending. You MUST update ALL relevant files:
 > 
 > | File | What to Update |
 > |------|----------------|
 > | **AI_TRAINER.md** | SESSION HANDOFF section, new lessons, Last Updated date |
-> | **PROGRESS.md** | Check off completed items, update phase status |
+> | **PROGRESS.md** | Check off completed items, update phase status, **ADD BUG FIXES TO BUG FIX HISTORY**, **ADD ALL WORK TO DEVELOPMENT TIMELINE** |
 > | **FEATURE_ROADMAP.md** | Mark features as done if we built them |
 > | **MONETIZATION_PLAN.md** | Update if we worked on revenue features |
 > | **WORKING_TRAITS.md** | Add new trait examples or patterns discovered |
 > 
 > **Steps:**
-> 1. Update AI_TRAINER.md SESSION HANDOFF with current work state
-> 2. Update PROGRESS.md with any completed items
-> 3. Update other master plan files if relevant work was done
-> 4. Add any new lessons learned to AI_TRAINER.md
-> 5. Update "Last Updated" dates
-> 6. Commit ALL changes to git with descriptive message
-> 7. Push to remote
+> 1. **REVIEW THE ENTIRE CHAT** - Scan through all messages to find:
+>    - Bug fixes made (any "fix:", error corrections, issue resolutions)
+>    - Features completed
+>    - New patterns discovered
+>    - Files modified
+> 2. Update AI_TRAINER.md SESSION HANDOFF with current work state
+> 3. Update PROGRESS.md with:
+>    - Completed items checked off
+>    - **NEW BUG FIXES added to Bug Fix History section** (categorize properly!)
+>    - **ALL WORK added to Development Timeline section** (chronological entries!)
+>    - Progress bars updated if applicable
+> 4. Update other master plan files if relevant work was done
+> 5. Add any new lessons learned to AI_TRAINER.md
+> 6. Update "Last Updated" dates
+> 7. Commit ALL changes to git with descriptive message
+> 8. Push to remote (unless user said not to)
+> 
+> **BUG FIX TRACKING FORMAT (for PROGRESS.md Bug Fix History):**
+> ```markdown
+> | Date | Fix | Impact |
+> |------|-----|--------|
+> | Dec 9 | [Short description of fix] | [What it enabled/fixed] |
+> ```
+> 
+> **DEVELOPMENT TIMELINE FORMAT (for PROGRESS.md Development Timeline):**
+> ```markdown
+> #### [Date]
+> **Session Focus:** [Main theme of the work]
+> 
+> - ✅ [Task/feature/fix completed]
+> - ✅ [Another item completed]
+> - ✅ [Files modified or created]
+> ```
+> 
+> **IMPORTANT:** 
+> - The Bug Fix History in PROGRESS.md should ALWAYS be up to date. Every session that includes bug fixes MUST add them to the appropriate category in that section.
+> - The Development Timeline should contain a COMPLETE chronological record of ALL work done. Each session gets an entry with all tasks completed.
 > 
 > This ensures the next AI session can pick up exactly where we left off with ALL files in sync.
 
@@ -509,6 +539,10 @@ Every app we build together must:
 | Dec 8, 2025 | Domain changed to osys.team |
 | Jan 21, 2025 | **SESSION 6**: NIL Marketplace complete, TypeScript errors fixed |
 | Jan 21, 2025 | Added lessons L011-L014 (Badge constraints, UserRole case, Required fields, Button variants) |
+| Dec 9, 2025 | **SESSION 8**: Public page sharing + Bug Fix History + Development Timeline |
+| Dec 9, 2025 | Added Bug Fix History section to PROGRESS.md (100+ fixes documented!) |
+| Dec 9, 2025 | Added Development Timeline section to PROGRESS.md (300+ items chronologically logged!) |
+| Dec 9, 2025 | Updated "save training" instructions to include bug fix + timeline tracking |
 
 ---
 
@@ -518,98 +552,124 @@ Every app we build together must:
 
 ### Last Session: December 9, 2025
 
-#### 🔧 UI/UX FIXES AND IMPROVEMENTS
+#### 🔧 PUBLIC PAGE SHARING + DOCUMENTATION OVERHAUL
 
-**Fixed multiple UI issues and added features to improve the OSYS experience.**
+**Added comprehensive public page link sharing to team dashboard with social media integration. Created Bug Fix History (100+ fixes) and Development Timeline (300+ items) sections for complete project tracking.**
 
 #### ✅ COMPLETED THIS SESSION
 
-1. **Season Manager Modal Fix**
-   - Fixed modals being covered by Quick Actions
-   - Implemented React Portal (`createPortal`) for all modals
-   - Z-index set to 99999 to ensure modals are always on top
+1. **Public Page Link Banner (NewOSYSDashboard.tsx)**
+   - Added prominent banner at top of dashboard showing public team URL
+   - Full URL displayed in a styled read-only field
+   - Beautiful gradient styling that matches dark/light themes
+   - Responsive design (stacks on mobile, horizontal on larger screens)
 
-2. **Registration Fee Input Fix**
-   - Changed input step from 0.01 to 1 (whole dollar amounts)
-   - Fixed empty input handling: `value={fee || ''}` instead of `value={fee}`
-   - Proper parsing: `parseInt(val, 10) || 0`
+2. **Copy Link Functionality**
+   - Copy button with clipboard API integration
+   - Visual feedback: "Copied!" confirmation
+   - Uses `getPublicUrl()` helper function to generate consistent URLs
 
-3. **Sidebar Collapse Button Repositioned**
-   - **CRITICAL**: Button moved OUTSIDE the sidebar element
-   - Now a fixed-positioned element separate from sidebar
-   - Uses `left: isSidebarCollapsed ? '48px' : '248px'` to stay on right edge
-   - Z-index 60 to stay above sidebar (50)
-   - Button is now visible and functional like the Design Studio one
+3. **View Public Page Button**
+   - Opens public team page (`/team/{teamId}`) in new tab
+   - Uses `target="_blank"` for external link behavior
+   - Styled with ExternalLink icon
 
-4. **Marketplace Tab Added**
-   - New nav item: `{ icon: '🛒', label: 'Marketplace', path: '#marketplace', section: 'Shop', comingSoon: true }`
-   - Shows "Coming Soon" toast when clicked
-   - New "Shop" section in navigation
+4. **Social Share Dropdown**
+   - Gradient-styled "Share" button with dropdown menu
+   - Share options: Facebook, Twitter/X, LinkedIn, Email
+   - Click-outside-to-close functionality
+   - Smooth dropdown with proper z-index layering
 
-5. **Registration Flyer Auto-Fill (Design Studio Integration)**
-   - `SeasonManager.tsx`: Added `RegistrationFlyerData` interface and exported it
-   - `onNavigateToDesignStudio` callback now accepts optional season data
-   - `NewOSYSDashboard.tsx`: Passes season data when navigating to Design Studio
-   - `DesignStudioPro.tsx`: 
-     - Added `useLocation` hook to receive navigation state
-     - Auto-loads registration template when `registrationData` is in state
-     - Prefills template text elements with:
-       - Season name
-       - Age group/description
-       - Registration dates (formatted)
-       - Registration fee
-       - Team's primary color as background
-     - Sets design name to "[Season Name] Registration Flyer"
-     - Goes directly to editor mode (skips template selector)
+5. **Firestore Rules Fixes**
+   - Fixed public profile access for athletes, coaches, teams, leagues
+   - Added rules for: leagues, programs, coachKudos, coachFeedback, user followers
+   - Added nested rules for: playerStats, filmRoom subcollections
+   - TypeScript errors fixed in AICreatorModal and generate-ai-design.ts
+
+6. **Bug Fix History Section (PROGRESS.md)**
+   - Added comprehensive section with 100+ fixes documented
+   - Organized into 15 categories (Auth, Stats, UI/UX, Video, Playbook, etc.)
+   - Each fix includes date, description, and impact
+   - Summary stats show platform stability at 90%
+
+7. **Development Timeline Section (PROGRESS.md)**
+   - Complete chronological record of ALL work from Sept 2024 to present
+   - 300+ items organized by month and date
+   - Covers: Core foundation, League system, Referee system, NIL Marketplace, 
+     Design Studio, Uniform Designer, Fundraising, Tickets, and more
+   - Each entry includes session focus and bullet points of accomplishments
+
+8. **Updated AI_TRAINER.md "save training" Instructions**
+   - Now requires adding bug fixes to Bug Fix History
+   - Now requires adding ALL work to Development Timeline
+   - Format templates provided for both sections
+
+#### 🐛 BUG FIXES THIS SESSION
+
+| Category | Fix | Impact |
+|----------|-----|--------|
+| Auth & Permissions | Public read for coach/league/program collections | Public profiles work |
+| Auth & Permissions | Public read for game/playerStats, filmRoom | Athlete stats visible |
+| TypeScript | AICreatorModal and generate-ai-design.ts errors | Build passes |
 
 #### 🔧 KEY FILES MODIFIED
 
 | File | Changes |
 |------|---------|
-| `components/SeasonManager.tsx` | Portal for modals, registration fee fix, exported RegistrationFlyerData type, updated callback signature |
-| `components/NewOSYSDashboard.tsx` | Import RegistrationFlyerData, pass season data to Design Studio |
-| `components/design-studio/DesignStudioPro.tsx` | useLocation for navigation state, auto-load registration template with prefill |
-| `layout/NewOSYSLayout.tsx` | Collapse button moved outside sidebar, Marketplace tab added |
+| `components/NewOSYSDashboard.tsx` | Public page link banner with copy/view/share buttons, social sharing |
+| `firestore.rules` | Comprehensive public read access for profile collections |
+| `netlify/functions/generate-ai-design.ts` | Fixed unreachable OPTIONS check |
+| `components/design-studio/AICreatorModal.tsx` | Fixed undefined handling |
+| `PROGRESS.md` | Bug Fix History (100+ fixes), Development Timeline (300+ items), updated change log |
+| `AI_TRAINER.md` | Enhanced "save training" with bug fix + timeline tracking |
 
 #### 💡 IMPORTANT PATTERNS DISCOVERED
 
-**React Portal Pattern for Modals:**
+**Social Share Pattern:**
 ```typescript
-import { createPortal } from 'react-dom';
+const shareToTwitter = () => {
+  const url = encodeURIComponent(getPublicUrl());
+  const text = encodeURIComponent(`Check out ${teamData?.name || 'our team'} on OSYS!`);
+  window.open(`https://twitter.com/intent/tweet?url=${url}&text=${text}`, '_blank', 'width=600,height=400');
+  setShowShareDropdown(false);
+};
+```
 
-// In render:
-{showModal && createPortal(
-  <div className="fixed inset-0 z-[99999]">
-    {/* modal content */}
-  </div>,
-  document.body
+**Dropdown Click-Outside Pattern:**
+```tsx
+{showShareDropdown && (
+  <>
+    <div className="fixed inset-0 z-40" onClick={() => setShowShareDropdown(false)} />
+    <div className="absolute right-0 top-full mt-2 w-48 z-50">
+      {/* dropdown content */}
+    </div>
+  </>
 )}
 ```
 
-**Navigation State Pattern (Design Studio):**
+**Public URL Generation:**
 ```typescript
-// Sending data:
-navigate('/design', { state: { registrationData: data } });
-
-// Receiving data:
-const location = useLocation();
-const state = location.state as { registrationData?: RegistrationFlyerData } | null;
-if (state?.registrationData) {
-  // Use the data to prefill template
-}
+const getPublicUrl = () => {
+  const baseUrl = window.location.origin + window.location.pathname;
+  return `${baseUrl}#/team/${teamData.id}`;
+};
 ```
 
-**Sidebar Collapse Button Pattern:**
-- MUST be outside sidebar element (separate fixed element)
-- Use dynamic `left` positioning based on sidebar state
-- Higher z-index than sidebar
+#### ⚠️ USER PREFERENCES NOTED
+
+- **DO NOT push to git after making changes** (user will handle deployment timing)
 
 #### 🚧 NEXT UP
 
-1. Test registration flyer flow end-to-end
-2. Continue pilot program preparation
-3. Marketing Hub integration improvements
-4. Vendor integration for uniform ordering (future)
+1. Test social share functionality in production
+2. Add similar public page sharing to Coach profile pages
+3. Add QR code generation for public page URLs (future enhancement)
+4. Continue pilot program preparation
+5. Marketing Hub improvements
+
+#### ⚠️ USER PREFERENCES NOTED
+
+- **DO NOT push to git after making changes** (user will handle deployment timing)
 
 ---
 
