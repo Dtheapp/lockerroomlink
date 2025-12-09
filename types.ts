@@ -425,6 +425,7 @@ export interface UserProfile {
   followerCount?: number; // Number of followers (for coaches/athletes)
   
   // --- COMMISSIONER & LEAGUE OWNER FIELDS ---
+  commissionerType?: 'league' | 'team'; // Type of commissioner - league manages leagues, team manages teams
   programId?: string;                  // If ProgramCommissioner - which program they manage
   leagueId?: string;                   // If LeagueOwner - which league they own
   commissionerSince?: Timestamp;       // When they became commissioner/league owner

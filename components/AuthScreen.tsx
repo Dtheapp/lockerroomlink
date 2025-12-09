@@ -11,6 +11,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 type SignUpRole = 'Parent' | 'Coach' | 'Fan' | 'Commissioner' | 'Ref';
+type CommissionerType = 'league' | 'team';
 
 // Floating sport icons for background animation
 const FloatingIcon: React.FC<{ icon: string; delay: number; duration: number; left: string; size: string }> = ({ icon, delay, duration, left, size }) => (
@@ -56,6 +57,7 @@ const AuthScreen: React.FC = () => {
   const initialSignUp = searchParams.get('signup') === 'true' || searchParams.get('mode') === 'signup';
   const [isSignUp, setIsSignUp] = useState(initialSignUp);
   const [signUpRole, setSignUpRole] = useState<SignUpRole>('Parent');
+  const [commissionerType, setCommissionerType] = useState<CommissionerType>('team');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [isConfirmingReset, setIsConfirmingReset] = useState(false);
   const [oobCode, setOobCode] = useState<string | null>(null);
@@ -192,6 +194,11 @@ const AuthScreen: React.FC = () => {
             userProfile.isBanned = false;
           }
           
+          if (signUpRole === 'Commissioner') {
+            userProfile.commissionerType = commissionerType;
+            userProfile.commissionerSince = new Date();
+          }
+          
           await setDoc(doc(db, 'users', user.uid), userProfile);
         } catch (dbErr: any) {
           // If database operations fail, delete the auth user we just created
@@ -322,7 +329,45 @@ const AuthScreen: React.FC = () => {
           <p className="text-xs text-purple-400 mt-2">🎉 Follow athletes, give kudos, and engage with the community!</p>
         )}
         {signUpRole === 'Commissioner' && (
-          <p className="text-xs text-purple-400 mt-2">🏆 Manage leagues, teams, and oversee your youth sports organization!</p>
+          <>
+            <p className="text-xs text-purple-400 mt-2 mb-3">🏆 Manage leagues or teams and oversee your youth sports organization!</p>
+            
+            {/* Commissioner Type Selection */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-white/70">Commissioner Type</label>
+              <div className="grid grid-cols-2 gap-2 p-1 bg-white/5 rounded-xl border border-white/10">
+                <button 
+                  type="button" 
+                  onClick={() => setCommissionerType('team')} 
+                  className={`py-3 px-3 rounded-lg text-sm font-bold transition-all duration-200 ${
+                    commissionerType === 'team' 
+                      ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-lg' 
+                      : 'text-white/50 hover:text-white/80 hover:bg-white/5'
+                  }`}
+                >
+                  <div className="text-lg mb-1">🏈</div>
+                  Team Commissioner
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setCommissionerType('league')} 
+                  className={`py-3 px-3 rounded-lg text-sm font-bold transition-all duration-200 ${
+                    commissionerType === 'league' 
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' 
+                      : 'text-white/50 hover:text-white/80 hover:bg-white/5'
+                  }`}
+                >
+                  <div className="text-lg mb-1">🏆</div>
+                  League Commissioner
+                </button>
+              </div>
+              <p className="text-xs text-white/50">
+                {commissionerType === 'team' 
+                  ? '👉 Create and manage individual teams within a league' 
+                  : '👉 Create and manage entire leagues with multiple teams'}
+              </p>
+            </div>
+          </>
         )}
         {signUpRole === 'Ref' && (
           <p className="text-xs text-purple-400 mt-2">🦓 Get assigned to games, manage schedules, and officiate matches!</p>
