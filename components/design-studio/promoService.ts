@@ -61,6 +61,22 @@ export async function generateThumbnail(
   }
 }
 
+// Generate high quality export image
+export async function generateHighResExport(
+  canvas: CanvasState,
+  elements: DesignElement[],
+  size: FlyerSize
+): Promise<Blob | null> {
+  try {
+    // Dynamic import to avoid circular dependency
+    const { exportToImage } = await import('./ExportUtils');
+    return await exportToImage(elements, size, 'png', 1, canvas.backgroundColor, 'high');
+  } catch (error) {
+    console.error('Error generating high-res export:', error);
+    return null;
+  }
+}
+
 // Save a promo item
 export async function savePromoItem(
   name: string,
@@ -77,6 +93,15 @@ export async function savePromoItem(
   const thumbnailBlob = await generateThumbnail(canvas, elements);
   let thumbnailUrl = '';
   let thumbnailPath = '';
+  
+  // Generate high-res export if requested
+  let highResBlob: Blob | null = null;
+  let highResUrl = '';
+  let highResPath = '';
+  
+  if (options.exportQuality === 'high') {
+    highResBlob = await generateHighResExport(canvas, elements, size);
+  }
   
   // Determine collection path based on location
   let collectionPath: string;
@@ -111,6 +136,7 @@ export async function savePromoItem(
     isArchived: false,
     category: options.category,
     tags: options.tags,
+    exportQuality: options.exportQuality || 'standard',
     // Only include optional fields if they have values
     ...(options.teamId && { teamId: options.teamId }),
     ...(options.playerId && { playerId: options.playerId }),
@@ -137,6 +163,20 @@ export async function savePromoItem(
     await updateDoc(doc(db, collectionPath, docRef.id), {
       thumbnailUrl,
       thumbnailPath,
+    });
+  }
+  
+  // Upload high-res export if generated (for high quality saves)
+  if (highResBlob) {
+    highResPath = `promo-exports/${options.location}/${docRef.id}_4K.png`;
+    const highResRef = ref(storage, highResPath);
+    await uploadBytes(highResRef, highResBlob);
+    highResUrl = await getDownloadURL(highResRef);
+    
+    // Update document with high-res URL
+    await updateDoc(doc(db, collectionPath, docRef.id), {
+      highResUrl,
+      highResPath,
     });
   }
   

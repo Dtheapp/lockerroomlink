@@ -17,6 +17,8 @@ import {
   Globe,
   Lock,
   Tag,
+  Crown,
+  Sparkles,
 } from 'lucide-react';
 import type { 
   SavePromoOptions, 
@@ -24,6 +26,7 @@ import type {
   PlayerOption, 
   TeamOption 
 } from './promoTypes';
+import { HIGH_QUALITY_EXPORT_CREDITS, type ExportQuality } from './ExportUtils';
 
 interface SavePromoModalProps {
   isOpen: boolean;
@@ -43,6 +46,10 @@ interface SavePromoModalProps {
   // Season options for linking
   seasons?: { id: string; name: string }[];
   events?: { id: string; name: string; type: 'registration' | 'game' | 'event' | 'fundraiser' }[];
+  // User credits for high quality export
+  userCredits?: number;
+  // Canvas size for resolution info
+  canvasSize?: { width: number; height: number };
 }
 
 const CATEGORIES = [
@@ -67,6 +74,8 @@ const SavePromoModal: React.FC<SavePromoModalProps> = ({
   currentTeamName,
   seasons = [],
   events = [],
+  userCredits = 0,
+  canvasSize = { width: 1080, height: 1080 },
 }) => {
   const [location, setLocation] = useState<PromoItemLocation>('personal');
   const [selectedTeamId, setSelectedTeamId] = useState(currentTeamId || '');
@@ -80,10 +89,18 @@ const SavePromoModal: React.FC<SavePromoModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  // Export quality selection
+  const [exportQuality, setExportQuality] = useState<ExportQuality>('standard');
+  
   const isCoach = userRole === 'Coach' || userRole === 'SuperAdmin';
   const isParent = userRole === 'Parent';
   const canSaveToTeam = isCoach && teams.length > 0;
   const canSaveToPlayer = isParent && players.length > 0;
+  const canAffordHighQuality = userCredits >= HIGH_QUALITY_EXPORT_CREDITS;
+  
+  // Calculate resolutions for display
+  const standardRes = `${canvasSize.width} × ${canvasSize.height}px`;
+  const highRes = `${canvasSize.width * 2} × ${canvasSize.height * 2}px`;
   
   // Reset form when modal opens
   useEffect(() => {
@@ -94,6 +111,7 @@ const SavePromoModal: React.FC<SavePromoModalProps> = ({
       setSelectedSeasonId('');
       setLinkedEventId('');
       setIsPublic(false);
+      setExportQuality('standard');
       setError(null);
     }
   }, [isOpen, currentTeamId]);
@@ -125,6 +143,12 @@ const SavePromoModal: React.FC<SavePromoModalProps> = ({
       return;
     }
     
+    // Check credits for high quality
+    if (exportQuality === 'high' && !canAffordHighQuality) {
+      setError(`High quality export requires ${HIGH_QUALITY_EXPORT_CREDITS} credits. You have ${userCredits}.`);
+      return;
+    }
+    
     setIsSaving(true);
     setError(null);
     
@@ -143,6 +167,7 @@ const SavePromoModal: React.FC<SavePromoModalProps> = ({
         isPublic,
         category: category as SavePromoOptions['category'],
         tags,
+        exportQuality,
       });
       
       onClose();
@@ -377,6 +402,76 @@ const SavePromoModal: React.FC<SavePromoModalProps> = ({
                   <span>{cat.label}</span>
                 </button>
               ))}
+            </div>
+          </div>
+          
+          {/* Export Quality Selection */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">Export Quality</label>
+            <div className="space-y-2">
+              {/* Standard - Free */}
+              <button
+                onClick={() => setExportQuality('standard')}
+                className={`
+                  w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-left
+                  ${exportQuality === 'standard' 
+                    ? 'border-green-500 bg-green-600/10' 
+                    : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'
+                  }
+                `}
+              >
+                <div className={`p-2 rounded-lg ${exportQuality === 'standard' ? 'bg-green-600/20' : 'bg-zinc-700'}`}>
+                  <Save size={18} className={exportQuality === 'standard' ? 'text-green-400' : 'text-zinc-400'} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-white text-sm">Standard Quality</p>
+                    <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 text-xs rounded">FREE</span>
+                  </div>
+                  <p className="text-xs text-zinc-500">{standardRes} • Good for digital sharing</p>
+                </div>
+                {exportQuality === 'standard' && <Check size={18} className="text-green-400" />}
+              </button>
+              
+              {/* High Quality - Costs credits */}
+              <button
+                onClick={() => canAffordHighQuality && setExportQuality('high')}
+                disabled={!canAffordHighQuality}
+                className={`
+                  w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-left
+                  ${exportQuality === 'high' 
+                    ? 'border-orange-500 bg-orange-600/10' 
+                    : canAffordHighQuality
+                      ? 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'
+                      : 'border-zinc-700/50 bg-zinc-800/30 opacity-60 cursor-not-allowed'
+                  }
+                `}
+              >
+                <div className={`p-2 rounded-lg ${exportQuality === 'high' ? 'bg-orange-600/20' : 'bg-zinc-700'}`}>
+                  <Crown size={18} className={exportQuality === 'high' ? 'text-orange-400' : 'text-zinc-400'} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-white text-sm">High Quality (4K)</p>
+                    <span className="px-1.5 py-0.5 bg-orange-500/20 text-orange-400 text-xs rounded">
+                      {HIGH_QUALITY_EXPORT_CREDITS} Credits
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-500">{highRes} • Print-ready resolution</p>
+                  {!canAffordHighQuality && (
+                    <p className="text-xs text-red-400 mt-0.5">
+                      Need {HIGH_QUALITY_EXPORT_CREDITS - userCredits} more credits
+                    </p>
+                  )}
+                </div>
+                {exportQuality === 'high' && <Check size={18} className="text-orange-400" />}
+              </button>
+            </div>
+            
+            {/* Credits display */}
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-700/50 text-xs">
+              <span className="text-zinc-500">Your credits:</span>
+              <span className="font-semibold text-orange-400">{userCredits}</span>
             </div>
           </div>
           

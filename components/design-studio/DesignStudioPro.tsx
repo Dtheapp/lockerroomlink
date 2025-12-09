@@ -3,7 +3,7 @@
 // Full drag-drop-resize-delete element system
 // =============================================================================
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -25,7 +25,7 @@ import UniformDesigner from './UniformDesigner';
 
 // Utilities
 import { useKeyboardShortcuts, copyToClipboard, getClipboard } from './useKeyboardShortcuts';
-import { downloadImage } from './ExportUtils';
+import { downloadImage, HIGH_QUALITY_EXPORT_CREDITS } from './ExportUtils';
 import { savePromoItem } from './promoService';
 import type { SavePromoOptions, TeamOption, PlayerOption, PromoItem } from './promoTypes';
 
@@ -109,6 +109,9 @@ const DesignStudioPro: React.FC = () => {
   const [availableSeasons, setAvailableSeasons] = useState<{ id: string; name: string }[]>([]);
   const [availableEvents, setAvailableEvents] = useState<{ id: string; name: string; type: 'registration' | 'game' | 'event' | 'fundraiser' }[]>([]);
   
+  // User credits for high quality exports
+  const [userCredits, setUserCredits] = useState(0);
+  
   // Design reminders - items without flyers/ticket designs
   const [designReminders, setDesignReminders] = useState<{
     id: string;
@@ -170,6 +173,22 @@ const DesignStudioPro: React.FC = () => {
     
     fetchPendingRegistrations();
   }, [teamData?.id]);
+
+  // Fetch user credits for high quality exports
+  useEffect(() => {
+    const fetchCredits = async () => {
+      if (!userData?.uid) return;
+      try {
+        const userDoc = await getDoc(doc(db, 'users', userData.uid));
+        if (userDoc.exists()) {
+          setUserCredits(userDoc.data()?.credits || 0);
+        }
+      } catch (err) {
+        console.error('Error fetching credits:', err);
+      }
+    };
+    fetchCredits();
+  }, [userData?.uid]);
 
   // Fetch available teams for coaches
   useEffect(() => {
@@ -600,9 +619,16 @@ const DesignStudioPro: React.FC = () => {
       options
     );
     
+    // Deduct credits for high quality export
+    if (options.exportQuality === 'high') {
+      const userRef = doc(db, 'users', userData.uid);
+      await updateDoc(userRef, { credits: userCredits - HIGH_QUALITY_EXPORT_CREDITS });
+      setUserCredits(prev => prev - HIGH_QUALITY_EXPORT_CREDITS);
+    }
+    
     // Clear unsaved changes flag after successful save
     setHasChanges(false);
-  }, [userData, designName, canvas, elements, currentSize]);
+  }, [userData, designName, canvas, elements, currentSize, userCredits]);
   
   // Handle loading a design from the gallery
   const handleLoadDesign = useCallback((promo: PromoItem) => {
@@ -1513,6 +1539,8 @@ const DesignStudioPro: React.FC = () => {
         currentTeamName={teamData?.name}
         seasons={availableSeasons}
         events={availableEvents}
+        userCredits={userCredits}
+        canvasSize={{ width: canvas.width, height: canvas.height }}
       />
       
       {/* Promo Gallery Modal */}

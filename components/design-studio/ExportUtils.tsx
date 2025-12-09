@@ -1,19 +1,54 @@
 import { DesignElement, FlyerSize, FLYER_SIZES } from './types';
 
+// Export quality options
+export type ExportQuality = 'standard' | 'high';
+
+// Quality multipliers
+// Standard = 1x (native resolution, e.g., 1080px for social)
+// High = 2x (double resolution for print, e.g., 2160px = 4K quality)
+export const QUALITY_MULTIPLIERS: Record<ExportQuality, number> = {
+  standard: 1,
+  high: 2,
+};
+
+// Credits cost for high quality export
+export const HIGH_QUALITY_EXPORT_CREDITS = 3;
+
+// Get effective resolution for export
+export function getExportResolution(size: FlyerSize, quality: ExportQuality): { width: number; height: number } {
+  const sizeConfig = FLYER_SIZES[size];
+  const multiplier = QUALITY_MULTIPLIERS[quality];
+  return {
+    width: sizeConfig.width * multiplier,
+    height: sizeConfig.height * multiplier,
+  };
+}
+
 // Export the canvas to an image
 export async function exportToImage(
   elements: DesignElement[],
   size: FlyerSize,
   format: 'png' | 'jpeg' = 'png',
   quality: number = 1,
-  backgroundColor: string = '#1f2937'
+  backgroundColor: string = '#1f2937',
+  exportQuality: ExportQuality = 'standard'
 ): Promise<Blob> {
   // Create a canvas element
   const canvas = document.createElement('canvas');
   const sizeConfig = FLYER_SIZES[size];
-  canvas.width = sizeConfig.width;
-  canvas.height = sizeConfig.height;
+  const multiplier = QUALITY_MULTIPLIERS[exportQuality];
+  
+  // Apply quality multiplier for high-res export
+  canvas.width = sizeConfig.width * multiplier;
+  canvas.height = sizeConfig.height * multiplier;
   const ctx = canvas.getContext('2d')!;
+  
+  // Enable high quality rendering
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  
+  // Scale context for high-res rendering
+  ctx.scale(multiplier, multiplier);
   
   // Fill background
   ctx.fillStyle = backgroundColor;
@@ -241,13 +276,18 @@ export async function downloadImage(
   elements: DesignElement[],
   size: FlyerSize,
   filename: string = 'flyer',
-  format: 'png' | 'jpeg' = 'png'
+  format: 'png' | 'jpeg' = 'png',
+  exportQuality: ExportQuality = 'standard'
 ) {
-  const blob = await exportToImage(elements, size, format);
+  const blob = await exportToImage(elements, size, format, 1, '#1f2937', exportQuality);
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `${filename}.${format}`;
+  
+  // Add quality suffix to filename
+  const qualitySuffix = exportQuality === 'high' ? '_4K' : '';
+  link.download = `${filename}${qualitySuffix}.${format}`;
+  
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

@@ -3,6 +3,7 @@
 // =============================================================================
 
 import type { DesignElement, CanvasState, FlyerSize } from './types';
+import type { ExportQuality } from './ExportUtils';
 
 export type PromoItemLocation = 'personal' | 'team' | 'player';
 
@@ -19,6 +20,11 @@ export interface PromoItem {
   // Thumbnails for display
   thumbnailUrl?: string; // Generated PNG preview
   thumbnailPath?: string; // Storage path
+  
+  // High quality export (for print)
+  highResUrl?: string; // Full resolution image URL
+  highResPath?: string; // Storage path for high-res
+  exportQuality?: ExportQuality; // Quality level saved
   
   // Ownership
   createdBy: string; // User ID who created it
@@ -57,6 +63,8 @@ export interface SavePromoOptions {
   isPublic: boolean;
   category?: 'flyer' | 'poster' | 'social' | 'banner' | 'story';
   tags?: string[];
+  // Export quality option
+  exportQuality?: ExportQuality; // 'standard' (free) or 'high' (costs credits)
 }
 
 // Player option for parent saving to player profile
