@@ -43,6 +43,7 @@ export interface DesignElement {
   lineHeight?: number;
   letterSpacing?: number;
   textShadow?: string;
+  autoScaleFont?: boolean; // Scale font size with element size (for emojis/icons)
   // Shape-specific
   shapeType?: 'rectangle' | 'circle' | 'triangle' | 'line' | 'star' | 'badge';
   // Effects
@@ -108,9 +109,11 @@ export interface ToolState {
 export const FLYER_SIZES = {
   instagram: { width: 1080, height: 1080, label: 'Instagram Post (1:1)', icon: '📷' },
   instagramStory: { width: 1080, height: 1920, label: 'Instagram Story (9:16)', icon: '📱' },
+  story: { width: 1080, height: 1920, label: 'Story (9:16)', icon: '📱' }, // Alias for instagramStory
   facebook: { width: 1200, height: 630, label: 'Facebook Post (1.91:1)', icon: '📘' },
   twitter: { width: 1200, height: 675, label: 'Twitter/X (16:9)', icon: '🐦' },
   print: { width: 2550, height: 3300, label: 'Print Flyer (8.5x11)', icon: '🖨️' },
+  flyer: { width: 2550, height: 3300, label: 'Flyer (8.5x11)', icon: '🖨️' }, // Alias for print
   poster: { width: 1800, height: 2400, label: 'Poster (18x24)', icon: '📜' },
   banner: { width: 1500, height: 500, label: 'Banner (3:1)', icon: '🏷️' },
 } as const;

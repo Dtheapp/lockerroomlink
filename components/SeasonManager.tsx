@@ -4,8 +4,9 @@ import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import type { Season, SeasonRegistration, SeasonStatus, SportType } from '../types';
-import { Calendar, Users, DollarSign, Play, Square, CheckCircle, Clock, AlertCircle, ChevronRight, Plus, X, FileText, Palette, Trophy, UserPlus, Settings } from 'lucide-react';
+import { Calendar, Users, DollarSign, Play, Square, CheckCircle, Clock, AlertCircle, ChevronRight, Plus, X, FileText, Palette, Trophy, UserPlus, Settings, CalendarDays } from 'lucide-react';
 import { GlassCard } from './ui/OSYSComponents';
+import { GameScheduleManager } from './season/GameScheduleManager';
 
 interface SeasonManagerProps {
   teamId: string;
@@ -37,6 +38,7 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
   const [showEndSeasonModal, setShowEndSeasonModal] = useState(false);
   const [selectedSeason, setSelectedSeason] = useState<Season | null>(null);
   const [showRegistrationsModal, setShowRegistrationsModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [creatingLegacy, setCreatingLegacy] = useState(false);
   
   // Form state for new season
@@ -402,6 +404,20 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                 >
                   <Users className="w-4 h-4" />
                   Registrations
+                </button>
+              )}
+              
+              {/* Schedule Button */}
+              {(currentSeason.status === 'registration' || currentSeason.status === 'active') && (
+                <button
+                  onClick={() => {
+                    setSelectedSeason(currentSeason);
+                    setShowScheduleModal(true);
+                  }}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+                >
+                  <CalendarDays className="w-4 h-4" />
+                  Schedule
                 </button>
               )}
             </div>
@@ -1038,6 +1054,43 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Schedule Modal */}
+      {showScheduleModal && selectedSeason && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className={`w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl border shadow-2xl ${
+            theme === 'dark' ? 'bg-zinc-900/95 border-white/10' : 'bg-white border-zinc-200'
+          }`}>
+            <div className={`sticky top-0 p-6 border-b flex items-center justify-between ${
+              theme === 'dark' ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'
+            } z-10`}>
+              <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                Game Schedule
+              </h2>
+              <button
+                onClick={() => setShowScheduleModal(false)}
+                className={`p-2 rounded-lg transition-colors ${
+                  theme === 'dark' ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <GameScheduleManager
+                teamId={teamId}
+                teamName={teamName}
+                seasonId={selectedSeason.id}
+                seasonName={selectedSeason.name}
+                onNavigateToDesignStudio={onNavigateToDesignStudio ? (gameId) => {
+                  setShowScheduleModal(false);
+                  onNavigateToDesignStudio();
+                } : undefined}
+              />
             </div>
           </div>
         </div>

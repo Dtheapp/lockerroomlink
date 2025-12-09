@@ -2,7 +2,7 @@
 // PROPERTIES PANEL - Right side element properties editor
 // =============================================================================
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Type, 
   Palette, 
@@ -19,10 +19,31 @@ import {
   Unlock,
   RotateCcw,
   Layers,
+  Link,
+  ExternalLink,
 } from 'lucide-react';
 import type { DesignElement, CanvasState } from './types';
 import { FONT_FAMILIES } from './types';
 import { useTheme } from '../../contexts/ThemeContext';
+
+// QR Link destination types
+type QRLinkType = 'custom' | 'registration' | 'game' | 'event' | 'team-page' | 'roster' | 'schedule';
+
+interface QRLinkOption {
+  type: QRLinkType;
+  label: string;
+  icon: string;
+  description: string;
+}
+
+const QR_LINK_OPTIONS: QRLinkOption[] = [
+  { type: 'custom', label: 'Custom URL', icon: '🔗', description: 'Enter any URL' },
+  { type: 'registration', label: 'Registration Form', icon: '📝', description: 'Link to season registration' },
+  { type: 'game', label: 'Game/Event Tickets', icon: '🎟️', description: 'Link to ticket purchase' },
+  { type: 'team-page', label: 'Team Page', icon: '👥', description: 'Link to public team page' },
+  { type: 'roster', label: 'Team Roster', icon: '📋', description: 'Link to view roster' },
+  { type: 'schedule', label: 'Schedule', icon: '📅', description: 'Link to team schedule' },
+];
 
 interface PropertiesPanelProps {
   selectedElement: DesignElement | null;
@@ -32,6 +53,11 @@ interface PropertiesPanelProps {
   onDeleteElement: (id: string) => void;
   onDuplicateElement: (id: string) => void;
   activeTab?: 'element' | 'canvas' | 'layers';
+  // Smart QR linking data
+  teamId?: string;
+  teamSlug?: string;
+  seasons?: { id: string; name: string }[];
+  events?: { id: string; name: string; type: string }[];
 }
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
@@ -42,8 +68,65 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   onDeleteElement,
   onDuplicateElement,
   activeTab = 'element',
+  teamId,
+  teamSlug,
+  seasons = [],
+  events = [],
 }) => {
   const { theme } = useTheme();
+  const [qrLinkType, setQrLinkType] = useState<QRLinkType>('custom');
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string>('');
+  const [selectedEventId, setSelectedEventId] = useState<string>('');
+  
+  // Generate smart QR URL based on link type
+  const generateQRUrl = (type: QRLinkType, resourceId?: string): string => {
+    const baseUrl = window.location.origin;
+    const slug = teamSlug || teamId || 'team';
+    
+    switch (type) {
+      case 'registration':
+        return resourceId 
+          ? `${baseUrl}/register/${slug}/${resourceId}` 
+          : `${baseUrl}/register/${slug}`;
+      case 'game':
+        return resourceId 
+          ? `${baseUrl}/tickets/${slug}/${resourceId}` 
+          : `${baseUrl}/tickets/${slug}`;
+      case 'team-page':
+        return `${baseUrl}/team/${slug}`;
+      case 'roster':
+        return `${baseUrl}/team/${slug}/roster`;
+      case 'schedule':
+        return `${baseUrl}/team/${slug}/schedule`;
+      default:
+        return '';
+    }
+  };
+  
+  // Handle QR link type change
+  const handleQRLinkTypeChange = (type: QRLinkType) => {
+    setQrLinkType(type);
+    if (type !== 'custom' && selectedElement) {
+      const url = generateQRUrl(type);
+      if (url) {
+        onUpdateElement(selectedElement.id, { content: url });
+      }
+    }
+  };
+  
+  // Handle season/event selection
+  const handleResourceSelect = (resourceId: string, type: 'registration' | 'game') => {
+    if (type === 'registration') {
+      setSelectedSeasonId(resourceId);
+    } else {
+      setSelectedEventId(resourceId);
+    }
+    
+    if (selectedElement && resourceId) {
+      const url = generateQRUrl(type, resourceId);
+      onUpdateElement(selectedElement.id, { content: url });
+    }
+  };
   
   // Theme-aware input class
   const inputClass = theme === 'dark' 
@@ -378,20 +461,111 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           </>
         )}
 
-        {/* QR Code URL */}
+        {/* QR Code URL - Smart Linking */}
         {selectedElement.type === 'qrcode' && (
           <>
             <div className="h-px bg-zinc-800" />
-            <div>
-              <label className="text-xs font-medium text-slate-400 mb-2 block">QR Code URL</label>
-              <input
-                type="text"
-                placeholder="https://your-link.com"
-                value={selectedElement.content || ''}
-                onChange={(e) => onUpdateElement(selectedElement.id, { content: e.target.value })}
-                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
-              />
-              <p className="text-xs text-slate-500 mt-1">Enter a URL to generate a QR code</p>
+            <div className="space-y-3">
+              <label className="text-xs font-medium text-slate-400 flex items-center gap-2">
+                <Link className="w-3.5 h-3.5" />
+                QR Code Destination
+              </label>
+              
+              {/* Link Type Selector */}
+              <div className="grid grid-cols-2 gap-1.5">
+                {QR_LINK_OPTIONS.map((option) => (
+                  <button
+                    key={option.type}
+                    onClick={() => handleQRLinkTypeChange(option.type)}
+                    className={`px-2 py-2 rounded-lg text-xs text-left transition-colors ${
+                      qrLinkType === option.type
+                        ? 'bg-purple-600/30 border border-purple-500 text-purple-300'
+                        : 'bg-zinc-800 border border-zinc-700 text-slate-400 hover:border-zinc-600 hover:text-slate-300'
+                    }`}
+                  >
+                    <span className="mr-1">{option.icon}</span>
+                    <span className="font-medium">{option.label}</span>
+                  </button>
+                ))}
+              </div>
+              
+              {/* Season Selector - for Registration links */}
+              {qrLinkType === 'registration' && seasons.length > 0 && (
+                <div>
+                  <label className="text-[10px] text-slate-500 mb-1 block">Select Season</label>
+                  <select
+                    value={selectedSeasonId}
+                    onChange={(e) => handleResourceSelect(e.target.value, 'registration')}
+                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:border-purple-500 focus:outline-none"
+                  >
+                    <option value="">Select a season...</option>
+                    {seasons.map((season) => (
+                      <option key={season.id} value={season.id}>{season.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
+              {/* Event Selector - for Game/Ticket links */}
+              {qrLinkType === 'game' && events.length > 0 && (
+                <div>
+                  <label className="text-[10px] text-slate-500 mb-1 block">Select Game/Event</label>
+                  <select
+                    value={selectedEventId}
+                    onChange={(e) => handleResourceSelect(e.target.value, 'game')}
+                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:border-purple-500 focus:outline-none"
+                  >
+                    <option value="">Select an event...</option>
+                    {events.filter(e => e.type === 'game' || e.type === 'Game').map((event) => (
+                      <option key={event.id} value={event.id}>{event.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
+              {/* Custom URL Input - always shown for custom, and as readonly for others */}
+              <div>
+                <label className="text-[10px] text-slate-500 mb-1 block">
+                  {qrLinkType === 'custom' ? 'Enter URL' : 'Generated URL'}
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="https://your-link.com"
+                    value={selectedElement.content || ''}
+                    onChange={(e) => {
+                      if (qrLinkType === 'custom') {
+                        onUpdateElement(selectedElement.id, { content: e.target.value });
+                      }
+                    }}
+                    readOnly={qrLinkType !== 'custom'}
+                    className={`w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none ${
+                      qrLinkType !== 'custom' ? 'opacity-70 cursor-not-allowed' : ''
+                    }`}
+                  />
+                  {selectedElement.content && (
+                    <a
+                      href={selectedElement.content}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-purple-400"
+                      title="Open link"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+              </div>
+              
+              {/* Smart Link Info */}
+              {qrLinkType !== 'custom' && (
+                <div className="p-2 bg-purple-600/10 border border-purple-500/20 rounded-lg">
+                  <p className="text-[10px] text-purple-300">
+                    💡 <strong>Smart Link:</strong> Users who scan this QR will be directed to the in-app page. 
+                    Non-users will see a signup prompt, then be redirected after login.
+                  </p>
+                </div>
+              )}
             </div>
           </>
         )}

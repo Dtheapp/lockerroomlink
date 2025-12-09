@@ -24,6 +24,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { 
   loadUserPromoItems, 
   loadTeamPromoItems, 
@@ -40,6 +41,7 @@ interface PromoGalleryProps {
 
 const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) => {
   const { userData, teamData } = useAuth();
+  const { theme } = useTheme();
   
   const [activeTab, setActiveTab] = useState<'personal' | 'team' | 'player'>('personal');
   const [promoItems, setPromoItems] = useState<PromoItem[]>([]);
@@ -154,31 +156,37 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
   };
   
   return (
-    <div className="h-full flex flex-col bg-zinc-950">
+    <div className={`h-full flex flex-col ${theme === 'dark' ? 'bg-zinc-950' : 'bg-white'}`}>
       {/* Header */}
-      <div className="p-4 border-b border-zinc-800">
+      <div className={`p-4 border-b ${theme === 'dark' ? 'border-zinc-800' : 'border-slate-200'}`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-violet-600/20 rounded-lg">
-              <FolderOpen size={20} className="text-violet-400" />
+            <div className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-violet-600/20' : 'bg-violet-100'}`}>
+              <FolderOpen size={20} className={theme === 'dark' ? 'text-violet-400' : 'text-violet-600'} />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">My Designs</h2>
-              <p className="text-xs text-zinc-500">{filteredPromos.length} designs</p>
+              <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>My Designs</h2>
+              <p className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>{filteredPromos.length} designs</p>
             </div>
           </div>
           
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-zinc-800 rounded-lg p-1">
+            <div className={`flex items-center gap-1 rounded-lg p-1 ${theme === 'dark' ? 'bg-zinc-800' : 'bg-slate-100'}`}>
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-2 rounded ${viewMode === 'grid' ? 'bg-zinc-700 text-white' : 'text-zinc-400'}`}
+                className={`p-2 rounded ${viewMode === 'grid' 
+                  ? theme === 'dark' ? 'bg-zinc-700 text-white' : 'bg-white text-slate-900 shadow-sm'
+                  : theme === 'dark' ? 'text-zinc-400' : 'text-slate-500'
+                }`}
               >
                 <Grid size={18} />
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-2 rounded ${viewMode === 'list' ? 'bg-zinc-700 text-white' : 'text-zinc-400'}`}
+                className={`p-2 rounded ${viewMode === 'list' 
+                  ? theme === 'dark' ? 'bg-zinc-700 text-white' : 'bg-white text-slate-900 shadow-sm'
+                  : theme === 'dark' ? 'text-zinc-400' : 'text-slate-500'
+                }`}
               >
                 <List size={18} />
               </button>
@@ -194,7 +202,7 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
               flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
               ${activeTab === 'personal' 
                 ? 'bg-violet-600 text-white' 
-                : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                : theme === 'dark' ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }
             `}
           >
@@ -209,7 +217,7 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
                 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
                 ${activeTab === 'team' 
                   ? 'bg-orange-600 text-white' 
-                  : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                  : theme === 'dark' ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }
               `}
             >
@@ -225,7 +233,7 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
                 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
                 ${activeTab === 'player' 
                   ? 'bg-green-600 text-white' 
-                  : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                  : theme === 'dark' ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }
               `}
             >
@@ -238,13 +246,17 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
         {/* Search & Filters */}
         <div className="flex gap-3">
           <div className="flex-1 relative">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <Search size={18} className={`absolute left-3 top-1/2 -translate-y-1/2 ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-400'}`} />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search designs..."
-              className="w-full pl-10 pr-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className={`w-full pl-10 pr-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 ${
+                theme === 'dark'
+                  ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-500'
+                  : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'
+              }`}
             />
           </div>
           
@@ -252,7 +264,11 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="h-full px-4 pr-8 bg-zinc-800 border border-zinc-700 rounded-lg text-white appearance-none focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className={`h-full px-4 pr-8 border rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-violet-500 ${
+                theme === 'dark'
+                  ? 'bg-zinc-800 border-zinc-700 text-white'
+                  : 'bg-white border-slate-200 text-slate-900'
+              }`}
             >
               <option value="all">All Categories</option>
               <option value="flyer">Flyers</option>
@@ -261,7 +277,7 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
               <option value="banner">Banners</option>
               <option value="story">Stories</option>
             </select>
-            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+            <ChevronDown size={14} className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-400'}`} />
           </div>
         </div>
       </div>
@@ -273,7 +289,7 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
             <div className="w-8 h-8 border-3 border-violet-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : filteredPromos.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-zinc-500">
+          <div className={`h-full flex flex-col items-center justify-center ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-400'}`}>
             <FolderOpen size={48} className="mb-4 opacity-50" />
             <p className="text-lg font-medium">No designs found</p>
             <p className="text-sm mt-1">
@@ -288,10 +304,14 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
             {filteredPromos.map(promo => (
               <div
                 key={promo.id}
-                className="group bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800 hover:border-violet-500/50 transition-all"
+                className={`group rounded-xl overflow-hidden border transition-all ${
+                  theme === 'dark'
+                    ? 'bg-zinc-900 border-zinc-800 hover:border-violet-500/50'
+                    : 'bg-white border-slate-200 hover:border-violet-400 shadow-sm'
+                }`}
               >
                 {/* Thumbnail */}
-                <div className="aspect-square bg-zinc-800 relative">
+                <div className={`aspect-square relative ${theme === 'dark' ? 'bg-zinc-800' : 'bg-slate-100'}`}>
                   {promo.thumbnailUrl ? (
                     <img
                       src={promo.thumbnailUrl}
@@ -300,7 +320,7 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
                     />
                   ) : (
                     <div 
-                      className="w-full h-full flex items-center justify-center text-zinc-600"
+                      className={`w-full h-full flex items-center justify-center ${theme === 'dark' ? 'text-zinc-600' : 'text-slate-400'}`}
                       style={{ backgroundColor: promo.canvas.backgroundColor }}
                     >
                       <FolderOpen size={32} />
@@ -312,9 +332,9 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
                     <button
                       onClick={() => onEditDesign?.(promo)}
                       className="p-2 bg-violet-600 rounded-lg text-white hover:bg-violet-700 transition-colors"
-                      title="Edit"
+                      title="View/Edit"
                     >
-                      <Edit size={18} />
+                      <Eye size={18} />
                     </button>
                     <button
                       onClick={() => handleDuplicate(promo)}
@@ -340,7 +360,9 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
                       </span>
                     )}
                     {promo.category && (
-                      <span className="px-2 py-0.5 bg-zinc-800/80 rounded text-[10px] text-zinc-300">
+                      <span className={`px-2 py-0.5 rounded text-[10px] ${
+                        theme === 'dark' ? 'bg-zinc-800/80 text-zinc-300' : 'bg-slate-700/80 text-white'
+                      }`}>
                         {promo.category}
                       </span>
                     )}
@@ -349,15 +371,17 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
                 
                 {/* Info */}
                 <div className="p-3">
-                  <h3 className="font-medium text-white truncate">{promo.name}</h3>
-                  <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500">
+                  <h3 className={`font-medium truncate ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{promo.name}</h3>
+                  <div className={`flex items-center gap-2 mt-1 text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
                     <Calendar size={12} />
                     {new Date(promo.createdAt).toLocaleDateString()}
                   </div>
                   {promo.tags && promo.tags.length > 0 && (
                     <div className="flex items-center gap-1 mt-2 flex-wrap">
                       {promo.tags.slice(0, 3).map(tag => (
-                        <span key={tag} className="px-1.5 py-0.5 bg-zinc-800 rounded text-[10px] text-zinc-400">
+                        <span key={tag} className={`px-1.5 py-0.5 rounded text-[10px] ${
+                          theme === 'dark' ? 'bg-zinc-800 text-zinc-400' : 'bg-slate-100 text-slate-600'
+                        }`}>
                           {tag}
                         </span>
                       ))}
@@ -372,10 +396,14 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
             {filteredPromos.map(promo => (
               <div
                 key={promo.id}
-                className="flex items-center gap-4 p-3 bg-zinc-900 rounded-lg border border-zinc-800 hover:border-violet-500/50 transition-all"
+                className={`flex items-center gap-4 p-3 rounded-lg border transition-all ${
+                  theme === 'dark'
+                    ? 'bg-zinc-900 border-zinc-800 hover:border-violet-500/50'
+                    : 'bg-white border-slate-200 hover:border-violet-400 shadow-sm'
+                }`}
               >
                 {/* Thumbnail */}
-                <div className="w-16 h-16 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0">
+                <div className={`w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 ${theme === 'dark' ? 'bg-zinc-800' : 'bg-slate-100'}`}>
                   {promo.thumbnailUrl ? (
                     <img
                       src={promo.thumbnailUrl}
@@ -384,7 +412,7 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
                     />
                   ) : (
                     <div 
-                      className="w-full h-full flex items-center justify-center text-zinc-600"
+                      className={`w-full h-full flex items-center justify-center ${theme === 'dark' ? 'text-zinc-600' : 'text-slate-400'}`}
                       style={{ backgroundColor: promo.canvas.backgroundColor }}
                     >
                       <FolderOpen size={20} />
@@ -394,14 +422,14 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
                 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-white truncate">{promo.name}</h3>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-zinc-500">
+                  <h3 className={`font-medium truncate ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{promo.name}</h3>
+                  <div className={`flex items-center gap-3 mt-1 text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
                     <span className="flex items-center gap-1">
                       <Calendar size={12} />
                       {new Date(promo.createdAt).toLocaleDateString()}
                     </span>
                     {promo.category && (
-                      <span className="px-1.5 py-0.5 bg-zinc-800 rounded">
+                      <span className={`px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-zinc-800' : 'bg-slate-100'}`}>
                         {promo.category}
                       </span>
                     )}
@@ -415,21 +443,27 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => onEditDesign?.(promo)}
-                    className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
-                    title="Edit"
+                    className={`p-2 rounded-lg transition-colors ${
+                      theme === 'dark' ? 'text-zinc-400 hover:text-white hover:bg-zinc-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                    title="View/Edit"
                   >
-                    <Edit size={18} />
+                    <Eye size={18} />
                   </button>
                   <button
                     onClick={() => handleDuplicate(promo)}
-                    className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                    className={`p-2 rounded-lg transition-colors ${
+                      theme === 'dark' ? 'text-zinc-400 hover:text-white hover:bg-zinc-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
                     title="Duplicate"
                   >
                     <Copy size={18} />
                   </button>
                   <button
                     onClick={() => handleDelete(promo)}
-                    className="p-2 text-zinc-400 hover:text-red-400 hover:bg-zinc-800 rounded-lg transition-colors"
+                    className={`p-2 rounded-lg transition-colors ${
+                      theme === 'dark' ? 'text-zinc-400 hover:text-red-400 hover:bg-zinc-800' : 'text-slate-500 hover:text-red-600 hover:bg-slate-100'
+                    }`}
                     title="Delete"
                   >
                     <Trash2 size={18} />

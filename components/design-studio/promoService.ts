@@ -96,7 +96,7 @@ export async function savePromoItem(
       break;
   }
   
-  // Create the promo item document
+  // Create the promo item document - only include defined fields
   const promoData: Omit<PromoItem, 'id'> = {
     name,
     canvas,
@@ -107,15 +107,16 @@ export async function savePromoItem(
     createdAt: now.toDate(),
     updatedAt: now.toDate(),
     location: options.location,
-    teamId: options.teamId,
-    playerId: options.playerId,
-    seasonId: options.seasonId,
-    linkedEventId: options.linkedEventId,
-    linkedEventType: options.linkedEventType,
     isPublic: options.isPublic,
     isArchived: false,
     category: options.category,
     tags: options.tags,
+    // Only include optional fields if they have values
+    ...(options.teamId && { teamId: options.teamId }),
+    ...(options.playerId && { playerId: options.playerId }),
+    ...(options.seasonId && { seasonId: options.seasonId }),
+    ...(options.linkedEventId && { linkedEventId: options.linkedEventId }),
+    ...(options.linkedEventType && { linkedEventType: options.linkedEventType }),
   };
   
   // Add to Firestore
@@ -144,36 +145,41 @@ export async function savePromoItem(
 
 // Load promo items for a user (personal)
 export async function loadUserPromoItems(userId: string): Promise<PromoItem[]> {
+  // Don't filter by isArchived in query since it may not exist on all docs
+  // Filter in memory instead to handle missing fields
   const q = query(
     collection(db, `users/${userId}/promoItems`),
-    where('isArchived', '==', false),
     orderBy('createdAt', 'desc')
   );
   
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate(),
-    updatedAt: doc.data().updatedAt?.toDate(),
-  } as PromoItem));
+  return snapshot.docs
+    .map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate(),
+      updatedAt: doc.data().updatedAt?.toDate(),
+    } as PromoItem))
+    .filter(item => !item.isArchived); // Filter archived in memory
 }
 
 // Load promo items for a team
 export async function loadTeamPromoItems(teamId: string): Promise<PromoItem[]> {
+  // Don't filter by isArchived in query since it may not exist on all docs
   const q = query(
     collection(db, `teams/${teamId}/promoItems`),
-    where('isArchived', '==', false),
     orderBy('createdAt', 'desc')
   );
   
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate(),
-    updatedAt: doc.data().updatedAt?.toDate(),
-  } as PromoItem));
+  return snapshot.docs
+    .map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate(),
+      updatedAt: doc.data().updatedAt?.toDate(),
+    } as PromoItem))
+    .filter(item => !item.isArchived); // Filter archived in memory
 }
 
 // Load public promo items for a player

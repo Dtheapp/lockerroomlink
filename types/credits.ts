@@ -21,6 +21,7 @@ export type CreditTransactionType =
   | 'admin_adjust';   // Manual admin adjustment
 
 export type CreditFeatureType =
+  | 'ai_design_generate'   // AI design generation (logos, flyers, etc)
   | 'design_clone_play'    // AI play cloning from image
   | 'design_trace_play'    // Trace play from image
   | 'design_flyer'         // Create flyer/poster
@@ -281,6 +282,15 @@ export const DEFAULT_BUNDLES: CreditBundle[] = [
 ];
 
 export const DEFAULT_FEATURE_PRICING: FeaturePricing[] = [
+  {
+    featureType: 'ai_design_generate',
+    name: 'AI Design Generation',
+    description: 'Generate logos, flyers, posters with AI',
+    creditsPerUse: 5,
+    freeUsesPerMonth: 1,
+    enabled: true,
+    category: 'ai',
+  },
   {
     featureType: 'design_clone_play',
     name: 'Clone Play from Image',

@@ -20,6 +20,7 @@ import TemplateSelector from './TemplateSelector';
 import QuickAddPanel from './QuickAddPanel';
 import SavePromoModal from './SavePromoModal';
 import PromoGallery from './PromoGallery';
+import AICreatorModal from './AICreatorModal';
 
 // Utilities
 import { useKeyboardShortcuts, copyToClipboard, getClipboard } from './useKeyboardShortcuts';
@@ -38,10 +39,11 @@ import type {
   DesignTemplate,
 } from './types';
 import { FLYER_SIZES, generateId, createDefaultElement } from './types';
-import { getTemplateById } from './templates';
+import { getTemplateById, DESIGN_TEMPLATES } from './templates';
 import type { Season } from '../../types';
 
 type ViewMode = 'selector' | 'editor' | 'preview' | 'fullscreen';
+
 
 const DesignStudioPro: React.FC = () => {
   const { theme } = useTheme();
@@ -88,13 +90,27 @@ const DesignStudioPro: React.FC = () => {
   // Right panel tab state
   const [rightPanelTab, setRightPanelTab] = useState<'element' | 'canvas' | 'layers'>('element');
   
+  // Panel collapse state
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
+  
   // Save modal state
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
+  const [showAICreator, setShowAICreator] = useState(false);
   const [availableTeams, setAvailableTeams] = useState<TeamOption[]>([]);
   const [availablePlayers, setAvailablePlayers] = useState<PlayerOption[]>([]);
   const [availableSeasons, setAvailableSeasons] = useState<{ id: string; name: string }[]>([]);
   const [availableEvents, setAvailableEvents] = useState<{ id: string; name: string; type: 'registration' | 'game' | 'event' | 'fundraiser' }[]>([]);
+  
+  // Design reminders - items without flyers/ticket designs
+  const [designReminders, setDesignReminders] = useState<{
+    id: string;
+    type: 'registration' | 'game' | 'event';
+    name: string;
+    date?: string;
+    suggestedTemplate: string;
+  }[]>([]);
 
   // Fetch pending registrations
   useEffect(() => {
@@ -220,23 +236,89 @@ const DesignStudioPro: React.FC = () => {
         const seasonsQ = query(seasonsRef, where('status', 'in', ['registration', 'active']));
         const seasonsSnap = await getDocs(seasonsQ);
         
-        const seasons = seasonsSnap.docs.map(doc => ({
-          id: doc.id,
-          name: doc.data().name,
-        }));
+        // Also fetch team's promo items to check for linked designs
+        const promoItemsRef = collection(db, 'teams', teamData.id, 'promoItems');
+        const promoSnap = await getDocs(promoItemsRef);
+        
+        // Build a set of season IDs that have linked flyers
+        const seasonsWithFlyers = new Set<string>();
+        const eventsWithDesigns = new Set<string>();
+        
+        promoSnap.docs.forEach(doc => {
+          const data = doc.data();
+          // Check if promo is linked to a season (registration flyer)
+          if (data.linkedEventId && data.linkedEventType === 'registration') {
+            seasonsWithFlyers.add(data.linkedEventId);
+          }
+          // Also check seasonId field for backwards compatibility
+          if (data.seasonId) {
+            seasonsWithFlyers.add(data.seasonId);
+          }
+          // Check for game/event linked designs
+          if (data.linkedEventId && (data.linkedEventType === 'game' || data.linkedEventType === 'event')) {
+            eventsWithDesigns.add(data.linkedEventId);
+          }
+        });
+        
+        const seasons: { id: string; name: string; hasFlyer: boolean; closeDate?: string }[] = [];
+        const reminders: typeof designReminders = [];
+        
+        seasonsSnap.docs.forEach(doc => {
+          const data = doc.data();
+          // Check flyerId on season doc OR if there's a promo item linked to this season
+          const hasFlyer = !!data.flyerId || !!data.flyerUrl || seasonsWithFlyers.has(doc.id);
+          seasons.push({
+            id: doc.id,
+            name: data.name,
+            hasFlyer,
+          });
+          
+          // Add to reminders if no flyer and status is registration
+          if (!hasFlyer && data.status === 'registration') {
+            reminders.push({
+              id: doc.id,
+              type: 'registration',
+              name: data.name,
+              date: data.registrationCloseDate ? `Closes: ${data.registrationCloseDate}` : undefined,
+              suggestedTemplate: 'registration-modern',
+            });
+          }
+        });
+        
         setAvailableSeasons(seasons);
         
-        // Fetch upcoming events
+        // Fetch upcoming events (games)
         const eventsRef = collection(db, 'events');
         const eventsQ = query(eventsRef, where('teamId', '==', teamData.id));
         const eventsSnap = await getDocs(eventsQ);
         
-        const events = eventsSnap.docs.map(doc => ({
-          id: doc.id,
-          name: doc.data().title || doc.data().name,
-          type: doc.data().eventType || 'event',
-        }));
+        const events: typeof availableEvents = [];
+        
+        eventsSnap.docs.forEach(doc => {
+          const data = doc.data();
+          const eventType = (data.eventType || data.type || 'event').toLowerCase();
+          
+          events.push({
+            id: doc.id,
+            name: data.title || data.name,
+            type: eventType as any,
+          });
+          
+          // Add game to reminders if no ticket design (check both ticketDesignId and promoItems)
+          const hasDesign = !!data.ticketDesignId || eventsWithDesigns.has(doc.id);
+          if (eventType === 'game' && !hasDesign) {
+            reminders.push({
+              id: doc.id,
+              type: 'game',
+              name: data.title || data.name,
+              date: data.date ? `Game: ${data.date}` : undefined,
+              suggestedTemplate: 'ticket-gameday',
+            });
+          }
+        });
+        
         setAvailableEvents(events);
+        setDesignReminders(reminders);
       } catch (error) {
         console.error('Error fetching seasons/events:', error);
       }
@@ -431,16 +513,43 @@ const DesignStudioPro: React.FC = () => {
   }, [selectedIds, saveToHistory]);
   
   const handleZoomIn = useCallback(() => {
-    setZoom(prev => Math.min(prev + 25, 400));
+    setZoom(prev => Math.min(prev + 5, 400));
   }, []);
   
   const handleZoomOut = useCallback(() => {
-    setZoom(prev => Math.max(prev - 25, 25));
+    setZoom(prev => Math.max(prev - 5, 10));
   }, []);
   
   const handleZoomReset = useCallback(() => {
     setZoom(100);
   }, []);
+  
+  const handleZoomChange = useCallback((value: number) => {
+    setZoom(Math.max(10, Math.min(400, value)));
+  }, []);
+  
+  // Fit to screen - calculate zoom to fit canvas in viewport with padding
+  const handleFitToScreen = useCallback(() => {
+    // Get available viewport size (accounting for panels and padding)
+    // Left toolbar ~64px, Quick Add panel ~240px, Right panel ~300px, padding ~64px
+    const leftPanelWidth = leftPanelCollapsed ? 64 : 304; // toolbar + quick add
+    const rightPanelWidth = rightPanelCollapsed ? 0 : 300;
+    const headerHeight = 56;
+    const padding = 64; // 32px on each side
+    
+    const availableWidth = window.innerWidth - leftPanelWidth - rightPanelWidth - padding;
+    const availableHeight = window.innerHeight - headerHeight - padding;
+    
+    // Calculate zoom to fit both dimensions
+    const zoomX = (availableWidth / canvas.width) * 100;
+    const zoomY = (availableHeight / canvas.height) * 100;
+    
+    // Use the smaller zoom to ensure canvas fits
+    const fitZoom = Math.floor(Math.min(zoomX, zoomY));
+    
+    // Clamp to valid range
+    setZoom(Math.max(10, Math.min(400, fitZoom)));
+  }, [canvas.width, canvas.height, leftPanelCollapsed, rightPanelCollapsed]);
   
   const handleSaveDesign = useCallback(() => {
     setShowSaveModal(true);
@@ -633,10 +742,14 @@ const DesignStudioPro: React.FC = () => {
     setViewMode('editor');
   }, []);
 
-  const handleStartBlank = useCallback((size: FlyerSize) => {
+  const handleStartBlank = useCallback((size: FlyerSize, customWidth?: number, customHeight?: number) => {
+    // Use custom dimensions if provided, otherwise use preset size
+    const width = customWidth || FLYER_SIZES[size].width;
+    const height = customHeight || FLYER_SIZES[size].height;
+    
     setCanvas({
-      width: FLYER_SIZES[size].width,
-      height: FLYER_SIZES[size].height,
+      width,
+      height,
       backgroundColor: (teamData as any)?.primaryColor || '#1e3a5f',
     });
     setElements([]);
@@ -645,6 +758,17 @@ const DesignStudioPro: React.FC = () => {
     setDesignName('Untitled Design');
     setViewMode('editor');
   }, [teamData]);
+
+  // Handle AI-generated design import
+  const handleAIImport = useCallback((aiElements: DesignElement[], aiCanvas: CanvasState, size: FlyerSize) => {
+    setCanvas(aiCanvas);
+    setElements(aiElements.map(el => ({ ...el, id: generateId() })));
+    setDesignName('AI Generated Design');
+    setSelectedIds([]);
+    setCurrentSize(size);
+    setShowAICreator(false);
+    setViewMode('editor');
+  }, []);
 
   // ==========================================================================
   // EXPORT
@@ -843,6 +967,15 @@ const DesignStudioPro: React.FC = () => {
           onStartBlank={handleStartBlank}
           onBack={() => window.history.back()}
           onOpenGallery={() => setShowGallery(true)}
+          onOpenAICreator={() => setShowAICreator(true)}
+          reminders={designReminders}
+          onReminderClick={(reminder) => {
+            // Load the suggested template for this reminder
+            const template = DESIGN_TEMPLATES.find(t => t.id === reminder.suggestedTemplate);
+            if (template) {
+              handleSelectTemplate(template);
+            }
+          }}
         />
         
         {/* Promo Gallery Modal - Available from selector */}
@@ -862,6 +995,24 @@ const DesignStudioPro: React.FC = () => {
               />
             </div>
           </div>
+        )}
+        
+        {/* AI Creator Modal */}
+        {showAICreator && (
+          <AICreatorModal
+            onClose={() => setShowAICreator(false)}
+            onImportDesign={handleAIImport}
+            teamData={teamData ? {
+              id: teamData.id,
+              name: teamData.name,
+              sport: teamData.sport,
+              logoUrl: (teamData as any)?.logoUrl,
+              primaryColor: (teamData as any)?.primaryColor,
+              secondaryColor: (teamData as any)?.secondaryColor,
+            } : undefined}
+            availableSeasons={availableSeasons}
+            availableEvents={availableEvents}
+          />
         )}
       </>
     );
@@ -1097,6 +1248,7 @@ const DesignStudioPro: React.FC = () => {
             selectedIds={selectedIds}
             toolState={toolState}
             zoom={zoom}
+            gridEnabled={gridEnabled}
             onSelectElement={selectElement}
             onDeselectAll={deselectAll}
             onUpdateElement={updateElement}
@@ -1161,9 +1313,12 @@ const DesignStudioPro: React.FC = () => {
         onSizeChange={handleSizeChange}
         onNameChange={setDesignName}
         onPreview={() => setViewMode('preview')}
+        onFullscreen={() => setViewMode('fullscreen')}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onZoomReset={handleZoomReset}
+        onZoomChange={handleZoomChange}
+        onFitToScreen={handleFitToScreen}
       />
 
       {/* Main Content */}
@@ -1177,14 +1332,30 @@ const DesignStudioPro: React.FC = () => {
         />
 
         {/* Quick Add Panel - Collapsible */}
-        <QuickAddPanel
-          canvasCenter={{ x: canvas.width / 2, y: canvas.height / 2 }}
-          onAddElement={(element) => {
-            saveToHistory();
-            setElements(prev => [...prev, element]);
-            setSelectedIds([element.id]);
-          }}
-        />
+        <div className={`relative transition-all duration-300 ${leftPanelCollapsed ? 'w-0' : 'w-auto'}`}>
+          {!leftPanelCollapsed && (
+            <QuickAddPanel
+              canvasCenter={{ x: canvas.width / 2, y: canvas.height / 2 }}
+              onAddElement={(element) => {
+                saveToHistory();
+                setElements(prev => [...prev, element]);
+                setSelectedIds([element.id]);
+              }}
+            />
+          )}
+          {/* Collapse/Expand button for left panel */}
+          <button
+            onClick={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
+            className={`absolute top-1/2 -translate-y-1/2 z-20 w-5 h-12 flex items-center justify-center rounded-r-md transition-colors ${
+              theme === 'dark' 
+                ? 'bg-zinc-800 hover:bg-zinc-700 text-slate-400 hover:text-white border border-l-0 border-zinc-700' 
+                : 'bg-slate-200 hover:bg-slate-300 text-slate-600 hover:text-slate-900 border border-l-0 border-slate-300'
+            } ${leftPanelCollapsed ? 'left-0' : '-right-5'}`}
+            title={leftPanelCollapsed ? 'Show Quick Add' : 'Hide Quick Add'}
+          >
+            {leftPanelCollapsed ? '›' : '‹'}
+          </button>
+        </div>
 
         {/* Canvas Area - Takes remaining space */}
         <DesignCanvas
@@ -1193,6 +1364,7 @@ const DesignStudioPro: React.FC = () => {
           selectedIds={selectedIds}
           toolState={toolState}
           zoom={zoom}
+          gridEnabled={gridEnabled}
           onSelectElement={selectElement}
           onDeselectAll={deselectAll}
           onUpdateElement={updateElement}
@@ -1202,56 +1374,77 @@ const DesignStudioPro: React.FC = () => {
           onAddElementAt={addElementAt}
         />
 
-        {/* Right Panel - Combined Element/Canvas/Layers */}
-        <div className={`w-72 border-l flex flex-col ${theme === 'dark' ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'}`}>
-          {/* Tab Bar */}
-          <div className={`flex border-b ${theme === 'dark' ? 'border-zinc-800' : 'border-slate-200'}`}>
-            {[
-              { id: 'element', label: 'Element' },
-              { id: 'canvas', label: 'Canvas' },
-              { id: 'layers', label: 'Layers' },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setRightPanelTab(tab.id as 'element' | 'canvas' | 'layers')}
-                className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-                  rightPanelTab === tab.id
-                    ? theme === 'dark' 
-                      ? 'text-purple-400 border-b-2 border-purple-500 bg-zinc-800/50' 
-                      : 'text-purple-600 border-b-2 border-purple-500 bg-slate-50'
-                    : theme === 'dark' 
-                      ? 'text-slate-400 hover:text-white hover:bg-zinc-800' 
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        {/* Right Panel - Combined Element/Canvas/Layers - Collapsible */}
+        <div className={`relative transition-all duration-300 flex ${rightPanelCollapsed ? 'w-0' : 'w-72'}`}>
+          {/* Collapse/Expand button for right panel */}
+          <button
+            onClick={() => setRightPanelCollapsed(!rightPanelCollapsed)}
+            className={`absolute top-1/2 -translate-y-1/2 z-20 w-5 h-12 flex items-center justify-center rounded-l-md transition-colors ${
+              theme === 'dark' 
+                ? 'bg-zinc-800 hover:bg-zinc-700 text-slate-400 hover:text-white border border-r-0 border-zinc-700' 
+                : 'bg-slate-200 hover:bg-slate-300 text-slate-600 hover:text-slate-900 border border-r-0 border-slate-300'
+            } ${rightPanelCollapsed ? 'right-0' : '-left-5'}`}
+            title={rightPanelCollapsed ? 'Show Properties' : 'Hide Properties'}
+          >
+            {rightPanelCollapsed ? '‹' : '›'}
+          </button>
+          
+          {!rightPanelCollapsed && (
+            <div className={`w-72 border-l flex flex-col ${theme === 'dark' ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'}`}>
+              {/* Tab Bar */}
+              <div className={`flex border-b ${theme === 'dark' ? 'border-zinc-800' : 'border-slate-200'}`}>
+                {[
+                  { id: 'element', label: 'Element' },
+                  { id: 'canvas', label: 'Canvas' },
+                  { id: 'layers', label: 'Layers' },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setRightPanelTab(tab.id as 'element' | 'canvas' | 'layers')}
+                    className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                      rightPanelTab === tab.id
+                        ? theme === 'dark' 
+                          ? 'text-purple-400 border-b-2 border-purple-500 bg-zinc-800/50' 
+                          : 'text-purple-600 border-b-2 border-purple-500 bg-slate-50'
+                        : theme === 'dark' 
+                          ? 'text-slate-400 hover:text-white hover:bg-zinc-800' 
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
 
-          {/* Tab Content */}
-          <div className="flex-1 overflow-y-auto">
-            {rightPanelTab === 'layers' ? (
-              <LayersPanel
-                elements={elements}
-                selectedIds={selectedIds}
-                onSelect={selectElement}
-                onUpdate={updateElement}
-                onDelete={deleteElement}
-                onReorder={handleReorderLayers}
-              />
-            ) : (
-              <PropertiesPanel
-                selectedElement={selectedElement}
-                canvas={canvas}
-                onUpdateElement={updateElement}
-                onUpdateCanvas={updateCanvas}
-                onDeleteElement={deleteElement}
-                onDuplicateElement={duplicateElement}
-                activeTab={rightPanelTab}
-              />
-            )}
-          </div>
+              {/* Tab Content */}
+              <div className="flex-1 overflow-y-auto">
+                {rightPanelTab === 'layers' ? (
+                  <LayersPanel
+                    elements={elements}
+                    selectedIds={selectedIds}
+                    onSelect={selectElement}
+                    onUpdate={updateElement}
+                    onDelete={deleteElement}
+                    onReorder={handleReorderLayers}
+                  />
+                ) : (
+                  <PropertiesPanel
+                    selectedElement={selectedElement}
+                    canvas={canvas}
+                    onUpdateElement={updateElement}
+                    onUpdateCanvas={updateCanvas}
+                    onDeleteElement={deleteElement}
+                    onDuplicateElement={duplicateElement}
+                    activeTab={rightPanelTab}
+                    teamId={teamData?.id}
+                    teamSlug={(teamData as any)?.slug}
+                    seasons={availableSeasons}
+                    events={availableEvents}
+                  />
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
       

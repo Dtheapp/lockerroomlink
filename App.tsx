@@ -75,6 +75,9 @@ const PublicEventPage = lazyWithRetry(() => import('./components/events/PublicEv
 // Design Studio
 const DesignStudio = lazyWithRetry(() => import('./components/DesignStudio'));
 
+// Marketing Hub
+const MarketingHub = lazyWithRetry(() => import('./components/MarketingHub'));
+
 // Lazy-loaded pages for code splitting (reduces initial bundle size)
 const Dashboard = lazyWithRetry(() => import('./components/Dashboard'));
 const Roster = lazyWithRetry(() => import('./components/Roster'));
@@ -254,6 +257,8 @@ const AppContent: React.FC = () => {
                 <Route path="events/:eventId/register" element={<RegistrationFlow />} />
                 {/* Design Studio */}
                 <Route path="design" element={<DesignStudio />} />
+                {/* Marketing Hub */}
+                <Route path="marketing" element={<MarketingHub />} />
               </Route>
               {/* Keep old demo route for reference */}
               <Route path="/old-dashboard" element={<Layout />}>

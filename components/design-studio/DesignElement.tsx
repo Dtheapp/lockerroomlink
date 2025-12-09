@@ -105,9 +105,8 @@ export const DesignElementComponent: React.FC<DesignElementProps> = ({
     if (element.locked || isEditing) return;
     e.stopPropagation();
     onSelect(element.id, e.shiftKey);
-    if (!e.shiftKey) {
-      onStartDrag(element.id, e);
-    }
+    // Always start drag - multi-select drag is handled in DesignCanvas
+    onStartDrag(element.id, e);
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
@@ -161,12 +160,17 @@ export const DesignElementComponent: React.FC<DesignElementProps> = ({
             />
           );
         }
+        // Calculate font size for auto-scaling (emojis/icons)
+        const effectiveFontSize = element.autoScaleFont 
+          ? Math.min(element.size.width, element.size.height) * 0.7
+          : element.fontSize;
+        
         return (
           <div
-            className="w-full h-full overflow-hidden whitespace-pre-wrap break-words"
+            className="w-full h-full overflow-hidden whitespace-pre-wrap break-words flex items-center justify-center"
             style={{
               color: element.color,
-              fontSize: element.fontSize,
+              fontSize: effectiveFontSize,
               fontFamily: element.fontFamily,
               fontWeight: element.fontWeight,
               fontStyle: element.fontStyle,

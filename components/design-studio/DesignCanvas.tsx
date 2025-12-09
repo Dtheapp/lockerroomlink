@@ -13,6 +13,7 @@ interface DesignCanvasProps {
   selectedIds: string[];
   toolState: ToolState;
   zoom: number;
+  gridEnabled: boolean;
   onSelectElement: (id: string, addToSelection?: boolean) => void;
   onDeselectAll: () => void;
   onUpdateElement: (id: string, updates: Partial<DesignElement>) => void;
@@ -28,6 +29,7 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
   selectedIds,
   toolState,
   zoom,
+  gridEnabled,
   onSelectElement,
   onDeselectAll,
   onUpdateElement,
@@ -45,6 +47,8 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
     position: { x: 0, y: 0 },
     size: { width: 0, height: 0 },
   });
+  // Track start positions of all selected elements for multi-drag
+  const [multiDragStarts, setMultiDragStarts] = useState<Map<string, Position>>(new Map());
   const [activeElementId, setActiveElementId] = useState<string | null>(null);
   const [resizeHandle, setResizeHandle] = useState<ResizeHandle | null>(null);
   const [isPanning, setIsPanning] = useState(false);
@@ -75,6 +79,20 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
     setActiveElementId(id);
     setDragStart({ x: e.clientX, y: e.clientY });
     setElementStart({ position: { ...element.position }, size: { ...element.size } });
+    
+    // If this element is in the selection, capture start positions of ALL selected elements
+    if (selectedIds.includes(id) && selectedIds.length > 1) {
+      const starts = new Map<string, Position>();
+      selectedIds.forEach(selId => {
+        const el = elements.find(e => e.id === selId);
+        if (el && !el.locked) {
+          starts.set(selId, { ...el.position });
+        }
+      });
+      setMultiDragStarts(starts);
+    } else {
+      setMultiDragStarts(new Map());
+    }
   };
 
   // Handle element resize start
@@ -105,12 +123,25 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
     const deltaY = (e.clientY - dragStart.y) / scale;
 
     if (isDragging) {
-      onUpdateElement(activeElementId, {
-        position: {
-          x: Math.round(elementStart.position.x + deltaX),
-          y: Math.round(elementStart.position.y + deltaY),
-        },
-      });
+      // If we have multiple selected elements, move them all together
+      if (multiDragStarts.size > 1) {
+        multiDragStarts.forEach((startPos, id) => {
+          onUpdateElement(id, {
+            position: {
+              x: Math.round(startPos.x + deltaX),
+              y: Math.round(startPos.y + deltaY),
+            },
+          });
+        });
+      } else {
+        // Single element drag
+        onUpdateElement(activeElementId, {
+          position: {
+            x: Math.round(elementStart.position.x + deltaX),
+            y: Math.round(elementStart.position.y + deltaY),
+          },
+        });
+      }
     }
 
     if (isResizing && resizeHandle) {
@@ -160,7 +191,7 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
         size: { width: Math.round(newSize.width), height: Math.round(newSize.height) },
       });
     }
-  }, [isDragging, isResizing, isPanning, activeElementId, dragStart, elementStart, resizeHandle, scale, panStart, onUpdateElement]);
+  }, [isDragging, isResizing, isPanning, activeElementId, dragStart, elementStart, resizeHandle, scale, panStart, onUpdateElement, multiDragStarts]);
 
   // Handle mouse up
   const handleMouseUp = useCallback(() => {
@@ -169,6 +200,7 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
     setIsPanning(false);
     setActiveElementId(null);
     setResizeHandle(null);
+    setMultiDragStarts(new Map());
   }, []);
 
   // Add global mouse listeners
@@ -264,20 +296,28 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
         onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
       >
-        {/* Canvas - Use transform scale for proper zooming */}
-        <div
-          className="relative shadow-2xl canvas-bg"
+        {/* Wrapper div to maintain proper spacing when scaled */}
+        <div 
           style={{
-            width: canvas.width,
-            height: canvas.height,
-            backgroundColor: canvas.backgroundColor,
-            backgroundImage: canvas.backgroundImage ? `url(${canvas.backgroundImage})` : undefined,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${scale})`,
-            transformOrigin: 'center center',
+            width: canvas.width * scale,
+            height: canvas.height * scale,
+            flexShrink: 0,
           }}
         >
+          {/* Canvas - Use transform scale for proper zooming */}
+          <div
+            className="relative shadow-2xl canvas-bg"
+            style={{
+              width: canvas.width,
+              height: canvas.height,
+              backgroundColor: canvas.backgroundColor,
+              backgroundImage: canvas.backgroundImage ? `url(${canvas.backgroundImage})` : undefined,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${scale})`,
+              transformOrigin: 'top left',
+            }}
+          >
           {/* Gradient overlay if set */}
           {canvas.backgroundGradient && (
             <div
@@ -288,6 +328,32 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
                   : `radial-gradient(circle, ${canvas.backgroundGradient.stops.map(s => `${s.color} ${s.offset * 100}%`).join(', ')})`
               }}
             />
+          )}
+
+          {/* Grid Overlay */}
+          {gridEnabled && (
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                backgroundImage: `
+                  linear-gradient(to right, rgba(128, 128, 128, 0.3) 1px, transparent 1px),
+                  linear-gradient(to bottom, rgba(128, 128, 128, 0.3) 1px, transparent 1px)
+                `,
+                backgroundSize: '20px 20px',
+              }}
+            >
+              {/* Major grid lines every 100px */}
+              <div
+                className="absolute inset-0"
+                style={{
+                  backgroundImage: `
+                    linear-gradient(to right, rgba(128, 128, 128, 0.5) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(128, 128, 128, 0.5) 1px, transparent 1px)
+                  `,
+                  backgroundSize: '100px 100px',
+                }}
+              />
+            </div>
           )}
 
           {/* Elements */}
@@ -309,6 +375,7 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
                 onDoubleClick={handleElementDoubleClick}
               />
             ))}
+          </div>
         </div>
       </div>
     </div>

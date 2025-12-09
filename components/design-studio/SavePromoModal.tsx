@@ -459,9 +459,9 @@ const SavePromoModal: React.FC<SavePromoModalProps> = ({
           
           {/* Error Message */}
           {error && (
-            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
-              <AlertCircle size={16} />
-              {error}
+            <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+              <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+              <span className="break-words overflow-hidden">{error}</span>
             </div>
           )}
         </div>

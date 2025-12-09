@@ -8,10 +8,11 @@ import { useAppConfig } from '../contexts/AppConfigContext';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
 import { useUnreadMessages } from '../hooks/useUnreadMessages';
 import { useSportConfig } from '../hooks/useSportConfig';
+import { useCredits } from '../hooks/useCredits';
 import TeamSelector from '../components/TeamSelector';
 import PlayerSelector from '../components/PlayerSelector';
 import { AnimatedBackground, Avatar } from '../components/ui/OSYSComponents';
-import { Menu, X, LogOut, Sun, Moon, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Menu, X, LogOut, Sun, Moon, ChevronDown, ChevronLeft, ChevronRight, Coins } from 'lucide-react';
 import WelcomeModal from '../components/WelcomeModal';
 import FeedbackButton from '../components/ui/FeedbackButton';
 
@@ -24,6 +25,8 @@ const NewOSYSLayout: React.FC = () => {
   const { hasUnsavedChanges, setHasUnsavedChanges } = useUnsavedChanges();
   const { unread, markAsRead } = useUnreadMessages();
   const { hasPlaybook } = useSportConfig();
+  const { balance: creditBalance, loading: creditsLoading } = useCredits();
+  const [showBuyCreditsModal, setShowBuyCreditsModal] = useState(false);
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -138,6 +141,7 @@ const NewOSYSLayout: React.FC = () => {
       { icon: '👥', label: 'Roster', path: '/roster', section: 'Main' },
       { icon: '📅', label: 'Schedule', path: '/events', section: 'Main' },
       { icon: '🎨', label: 'Design Studio', path: '/design', section: 'Create', coachOnly: true },
+      { icon: '📢', label: 'Marketing', path: '/marketing', section: 'Create' },
       { icon: '💬', label: 'Messages', path: '/messenger', section: 'Engage', configKey: 'messengerEnabled', unreadKey: 'messenger' },
       { icon: '🗨️', label: 'Team Chat', path: '/chat', section: 'Engage', configKey: 'chatEnabled', unreadKey: 'teamChat' },
       { icon: '🛡️', label: 'Strategy', path: '/strategies', section: 'Engage', configKey: 'chatEnabled', coachOnly: true, unreadKey: 'strategy' },
@@ -281,6 +285,52 @@ const NewOSYSLayout: React.FC = () => {
                 </div>
               )}
             </>
+          )}
+        </div>
+
+        {/* Credits Display - Top Priority */}
+        <div className={`p-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'} ${isSidebarCollapsed ? 'lg:p-2' : ''}`}>
+          <button
+            onClick={() => navigate('/profile', { state: { openTab: 'credits' } })}
+            title={isSidebarCollapsed ? `${creditBalance ?? 0} Credits` : undefined}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+              isSidebarCollapsed ? 'lg:justify-center lg:px-2' : ''
+            } ${
+              theme === 'dark'
+                ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 hover:border-amber-500/50 text-amber-400'
+                : 'bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 hover:border-amber-300 text-amber-700'
+            }`}
+          >
+            <Coins className="w-5 h-5" />
+            {!isSidebarCollapsed && (
+              <div className="flex-1 flex items-center justify-between lg:flex">
+                <span className="text-sm font-medium">Credits</span>
+                <span className={`text-sm font-bold ${
+                  (creditBalance ?? 0) < 10 
+                    ? 'text-red-400 animate-pulse' 
+                    : theme === 'dark' ? 'text-amber-300' : 'text-amber-600'
+                }`}>
+                  {creditsLoading ? '...' : (creditBalance ?? 0)}
+                </span>
+              </div>
+            )}
+            {isSidebarCollapsed && (
+              <div className="flex-1 flex items-center justify-between lg:hidden">
+                <span className="text-sm font-medium">Credits</span>
+                <span className={`text-sm font-bold ${
+                  (creditBalance ?? 0) < 10 
+                    ? 'text-red-400 animate-pulse' 
+                    : theme === 'dark' ? 'text-amber-300' : 'text-amber-600'
+                }`}>
+                  {creditsLoading ? '...' : (creditBalance ?? 0)}
+                </span>
+              </div>
+            )}
+          </button>
+          {!isSidebarCollapsed && (creditBalance ?? 0) < 10 && (
+            <p className={`text-xs mt-1.5 px-1 ${theme === 'dark' ? 'text-amber-400/70' : 'text-amber-600/70'}`}>
+              ⚠️ Low credits! Buy more to continue using premium features.
+            </p>
           )}
         </div>
 

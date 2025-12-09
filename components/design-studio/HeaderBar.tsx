@@ -2,7 +2,7 @@
 // HEADER BAR - Top navigation with file operations, undo/redo, export
 // =============================================================================
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   ChevronLeft,
   Download,
@@ -20,6 +20,7 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { FLYER_SIZES, FlyerSize } from './types';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -41,9 +42,12 @@ interface HeaderBarProps {
   onSizeChange: (size: FlyerSize) => void;
   onNameChange: (name: string) => void;
   onPreview: () => void;
+  onFullscreen: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onZoomReset: () => void;
+  onZoomChange: (zoom: number) => void;
+  onFitToScreen: () => void;
 }
 
 const HeaderBar: React.FC<HeaderBarProps> = ({
@@ -63,15 +67,28 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
   onSizeChange,
   onNameChange,
   onPreview,
+  onFullscreen,
   onZoomIn,
   onZoomOut,
   onZoomReset,
+  onZoomChange,
+  onFitToScreen,
 }) => {
   const { theme } = useTheme();
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showSizeMenu, setShowSizeMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditingZoom, setIsEditingZoom] = useState(false);
+  const [zoomInput, setZoomInput] = useState(zoom.toString());
   const inputRef = useRef<HTMLInputElement>(null);
+  const zoomInputRef = useRef<HTMLInputElement>(null);
+
+  // Update zoomInput when zoom changes externally
+  useEffect(() => {
+    if (!isEditingZoom) {
+      setZoomInput(zoom.toString());
+    }
+  }, [zoom, isEditingZoom]);
 
   return (
     <div className={`h-14 border-b flex items-center justify-between px-4 ${
@@ -198,21 +215,64 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
               ? 'text-slate-300 hover:bg-zinc-800 hover:text-white' 
               : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
-          title="Zoom Out"
+          title="Zoom Out (-5%)"
         >
           <ZoomOut className="w-4 h-4" />
         </button>
-        <button
-          onClick={onZoomReset}
-          className={`px-2 py-1 rounded-lg text-sm min-w-[50px] text-center transition-colors ${
-            theme === 'dark' 
-              ? 'text-slate-300 hover:bg-zinc-800 hover:text-white' 
-              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-          title="Reset Zoom"
-        >
-          {zoom}%
-        </button>
+        {isEditingZoom ? (
+          <input
+            ref={zoomInputRef}
+            type="number"
+            value={zoomInput}
+            onChange={(e) => setZoomInput(e.target.value)}
+            onBlur={() => {
+              const val = parseInt(zoomInput);
+              if (!isNaN(val) && val >= 10 && val <= 400) {
+                onZoomChange(val);
+              } else {
+                setZoomInput(zoom.toString());
+              }
+              setIsEditingZoom(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const val = parseInt(zoomInput);
+                if (!isNaN(val) && val >= 10 && val <= 400) {
+                  onZoomChange(val);
+                }
+                setIsEditingZoom(false);
+              }
+              if (e.key === 'Escape') {
+                setZoomInput(zoom.toString());
+                setIsEditingZoom(false);
+              }
+            }}
+            className={`w-16 px-2 py-1 rounded text-sm text-center border focus:outline-none focus:border-purple-500 ${
+              theme === 'dark' 
+                ? 'bg-zinc-800 border-zinc-600 text-white' 
+                : 'bg-white border-slate-300 text-slate-900'
+            }`}
+            autoFocus
+            min="10"
+            max="400"
+          />
+        ) : (
+          <button
+            onClick={() => {
+              setZoomInput(zoom.toString());
+              setIsEditingZoom(true);
+              setTimeout(() => zoomInputRef.current?.select(), 0);
+            }}
+            className={`px-2 py-1 rounded-lg text-sm min-w-[50px] text-center transition-colors ${
+              theme === 'dark' 
+                ? 'text-slate-300 hover:bg-zinc-800 hover:text-white' 
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+            title="Click to enter custom zoom (10-400%)"
+          >
+            {zoom}%
+          </button>
+        )}
         <button
           onClick={onZoomIn}
           className={`p-2 rounded-lg transition-colors ${
@@ -220,9 +280,20 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
               ? 'text-slate-300 hover:bg-zinc-800 hover:text-white' 
               : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
-          title="Zoom In"
+          title="Zoom In (+5%)"
         >
           <ZoomIn className="w-4 h-4" />
+        </button>
+        <button
+          onClick={onFitToScreen}
+          className={`p-2 rounded-lg transition-colors ${
+            theme === 'dark' 
+              ? 'text-slate-300 hover:bg-zinc-800 hover:text-white' 
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+          }`}
+          title="Fit to Screen"
+        >
+          <Minimize2 className="w-4 h-4" />
         </button>
       </div>
 
@@ -270,6 +341,15 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
           title="Preview"
         >
           <Eye className="w-5 h-5" />
+        </button>
+
+        {/* Fullscreen Edit */}
+        <button
+          onClick={onFullscreen}
+          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-orange-500 hover:bg-orange-600 text-white`}
+          title="Edit Fullscreen"
+        >
+          ⛶ Fullscreen
         </button>
 
         <div className={`w-px h-6 ${theme === 'dark' ? 'bg-zinc-700' : 'bg-slate-200'}`} />
