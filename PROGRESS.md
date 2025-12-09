@@ -371,6 +371,72 @@ Platform Stability:  ██████████████████░�
 
 ## 🔄 CURRENTLY IN PROGRESS
 
+### 🚨 PILOT BLOCKER: Team Age Groups & Draft System
+
+> **Status:** 🔴 BLOCKER - Must complete before pilot launch
+> **Added:** December 9, 2025
+> **Source:** Pilot feedback - real-world team structure requirements
+
+**The Problem:** Youth organizations have different team structures:
+- **Small cities:** Multi-grade teams (8U-9U combined, 10U-11U combined)
+- **Large cities:** Single-grade teams (separate 8U, 9U, 10U)
+- **Multiple teams:** Same age group may have 3 teams → requires draft
+
+**The Solution:**
+1. Age group selection on team creation (single or multi-grade)
+2. Auto-assign players when only 1 team exists for age group
+3. Draft Day scheduling when multiple teams compete for same players
+
+| Task | Priority | Status | Notes |
+|------|----------|--------|-------|
+| **Phase 1: Team Creation** | 🔴 P0 | ⬜ | Week 1 |
+| Add `ageGroups: string[]` to Team type | 🔴 | ⬜ | ["8U", "9U"] for multi |
+| Add `ageGroupType: 'single' \| 'multi'` | 🔴 | ⬜ | Track type |
+| Create `AgeGroupSelector.tsx` component | 🔴 | ⬜ | Multi-select checkboxes |
+| Update team creation modal with selector | 🔴 | ⬜ | ManageTeams.tsx |
+| Display age group on team cards | 🔴 | ⬜ | "Tigers (8U-9U)" |
+| **Phase 2: Registration Pool** | 🔴 P0 | ⬜ | Week 2 |
+| Create `RegistrationPool` collection | 🔴 | ⬜ | Firestore schema |
+| Calculate ageGroup from birthdate | 🔴 | ⬜ | Utility function |
+| Add registered players to pool | 🔴 | ⬜ | On registration complete |
+| `RegistrationPoolDashboard.tsx` | 🔴 | ⬜ | Admin view of pool |
+| **Phase 3: Auto-Assignment** | 🔴 P0 | ⬜ | Week 2 |
+| Detect single-team scenarios | 🔴 | ⬜ | 1 team = auto-assign |
+| Auto-assign pool to single team | 🔴 | ⬜ | Cloud function or manual |
+| Coach notification on assignment | 🔴 | ⬜ | "15 players assigned!" |
+| **Phase 4: Draft Day** | 🟡 P1 | ⬜ | Week 3 |
+| `DraftScheduler.tsx` | 🟡 | ⬜ | Schedule date/time |
+| Draft order generation | 🟡 | ⬜ | Snake, linear, random |
+| `DraftBoard.tsx` | 🟡 | ⬜ | Live draft interface |
+| Coach pick interface | 🟡 | ⬜ | Select player from pool |
+| **Phase 5: Enhancements** | 🟢 P2 | ⬜ | Week 4 |
+| Draft watch party for parents | 🟢 | ⬜ | View-only mode |
+| Post-draft player trades | 🟢 | ⬜ | Swap between teams |
+| Draft history & analytics | 🟢 | ⬜ | Historical records |
+
+**Data Model (types.ts):**
+```typescript
+// ADD TO Team interface:
+ageGroups?: string[];              // ["8U", "9U"] for multi-grade
+ageGroupType?: 'single' | 'multi';
+draftStatus?: 'not_needed' | 'pending' | 'scheduled' | 'in_progress' | 'completed';
+draftDate?: Timestamp;
+draftOrder?: string[];             // Coach IDs in pick order
+draftType?: 'snake' | 'linear';
+
+// NEW: RegistrationPool collection
+interface RegistrationPool {
+  id: string;
+  programId: string;
+  ageGroup: string;                // "8U" or "8U-9U"
+  players: RegistrationPoolPlayer[];
+  requiresDraft: boolean;
+  teamIds: string[];
+}
+```
+
+---
+
 ### Sprint: Multi-Sport Foundation
 **Goal:** Get Basketball & Cheer working for pilot  
 **Deadline:** ASAP (Season is NOW!)
@@ -1278,6 +1344,7 @@ Match players to roster → Confirm → Done!
 | Milestone | Target Date | Status | Notes |
 |-----------|-------------|--------|-------|
 | **PILOT CONFIRMED** | Dec 9, 2025 | ✅ DONE | 20-team organization on board! |
+| 🚨 **Age Groups + Draft System** | Dec 20, 2025 | ⬜ | 🔴 BLOCKER - Team creation fix |
 | 5 Sports Ready | Dec 20, 2025 | ⬜ | Football, Basketball, Baseball, Soccer, Volleyball |
 | **Stat Import (GameChanger)** | Dec 25, 2025 | ⬜ | CSV upload + auto-mapping |
 | Draft System MVP | Dec 25, 2025 | ⬜ | Core draft functionality |

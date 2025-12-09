@@ -10,6 +10,7 @@ This document outlines features that will make OSYS the **#1 youth sports platfo
 
 # 📋 TABLE OF CONTENTS
 
+0. [🚨 PILOT CRITICAL: Team Age Groups & Draft System](#-pilot-critical-team-age-groups--draft-system) 🔴 **BLOCKER**
 1. [Tier 0: Platform Revenue Streams](#tier-0-platform-revenue-streams)
 2. [Tier 0.5: Growth & Trust Infrastructure](#tier-05-growth--trust-infrastructure) 🆕
    - [0.10 Stat Import from Competitor Apps](#010--stat-import-from-competitor-apps) 🆕
@@ -20,6 +21,287 @@ This document outlines features that will make OSYS the **#1 youth sports platfo
 7. [Tier 5: Community & Social](#tier-5-community--social)
 8. [Tier 6: Quick Wins](#tier-6-quick-wins-easier-to-implement)
 9. [Implementation Priority Matrix](#implementation-priority-matrix)
+
+---
+
+# 🚨 PILOT CRITICAL: Team Age Groups & Draft System
+
+> **STATUS:** 🔴 BLOCKER - Must complete before pilot launch
+> **Priority:** P0 - Blocks entire registration → team → draft flow
+> **Feedback Source:** Pilot program discussions
+
+## The Problem (Real-World Feedback)
+
+Youth sports organizations have **different team structures** based on city size and player availability:
+
+| City Type | Team Structure | Example |
+|-----------|----------------|---------|
+| **Small City** | Multi-grade teams | 8U-9U combined, 10U-11U combined |
+| **Large City** | Single-grade teams | Separate 8U, 9U, 10U, 11U teams |
+| **Mixed** | Some combined, some single | 8U, 9U-10U, 11U |
+
+Additionally, programs may have **multiple teams of the same age group** (e.g., 3 separate 8U teams), which requires a **draft system** to fairly distribute players.
+
+---
+
+## The Solution: Age Group Selection + Smart Draft
+
+### 1️⃣ Team Creation: Age Group Selection
+
+When creating a team, the program admin selects:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  CREATE NEW TEAM                                        │
+├─────────────────────────────────────────────────────────┤
+│  Team Name: [ Tigers                    ]               │
+│                                                         │
+│  Age Group Type:                                        │
+│  ○ Single Age Group                                     │
+│  ● Multi-Age Group (combined grades)                    │
+│                                                         │
+│  Select Age Groups:                                     │
+│  ┌─────────────────────────────────────┐                │
+│  │ [✓] 8U  (Ages 7-8)                  │                │
+│  │ [✓] 9U  (Ages 8-9)                  │                │
+│  │ [ ] 10U (Ages 9-10)                 │                │
+│  │ [ ] 11U (Ages 10-11)                │                │
+│  │ [ ] 12U (Ages 11-12)                │                │
+│  │ [ ] 13U (Ages 12-13)                │                │
+│  │ [ ] 14U (Ages 13-14)                │                │
+│  └─────────────────────────────────────┘                │
+│                                                         │
+│  This team accepts: 8U-9U players                       │
+│                                                         │
+│  [ Cancel ]                    [ Create Team ]          │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 2️⃣ Multiple Teams of Same Age → Draft Required
+
+When a program has multiple teams for the same age group:
+
+| Scenario | Teams | Draft Type |
+|----------|-------|------------|
+| **1 team for 8U** | Tigers 8U | **Auto-assign** - All 8U registrants go to this team |
+| **3 teams for 8U** | Tigers 8U Red, Blue, Gold | **Draft Day** - Coaches pick players |
+| **2 teams for 8U-9U** | Tigers 8U-9U A, B | **Draft Day** - Coaches pick from combined pool |
+
+### 3️⃣ Draft Day Scheduling
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  DRAFT SETUP - 8U Division (3 Teams)                    │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  You have 3 teams competing for 8U players.             │
+│  Registration Pool: 45 players                          │
+│  Players per team: ~15                                  │
+│                                                         │
+│  📅 Draft Date: [ December 28, 2025    ] [📅]           │
+│  🕐 Draft Time: [ 6:00 PM              ] [🕐]           │
+│  📍 Location:   [ Zoom / In-Person     ]                │
+│                                                         │
+│  Draft Order:                                           │
+│  ○ Random (generated at draft time)                     │
+│  ● Snake Draft (1-2-3, 3-2-1, 1-2-3...)                │
+│  ○ Custom Order                                         │
+│                                                         │
+│  Coaches to Notify:                                     │
+│  [✓] Coach Smith (Tigers Red)                           │
+│  [✓] Coach Johnson (Tigers Blue)                        │
+│  [✓] Coach Williams (Tigers Gold)                       │
+│                                                         │
+│  [ Cancel ]                    [ Schedule Draft ]       │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Data Model Changes
+
+### Team Interface Updates (types.ts)
+
+```typescript
+export interface Team {
+  // ... existing fields ...
+  
+  // 🆕 AGE GROUP CONFIGURATION
+  ageGroups?: string[];              // Array: ["8U", "9U"] for multi-grade teams
+  ageGroupType?: 'single' | 'multi'; // Single or combined age group
+  minAge?: number;                   // Calculated from age groups (e.g., 7)
+  maxAge?: number;                   // Calculated from age groups (e.g., 9)
+  
+  // 🆕 DRAFT CONFIGURATION  
+  draftStatus?: 'not_needed' | 'pending' | 'scheduled' | 'in_progress' | 'completed';
+  draftDate?: Timestamp;             // When draft is scheduled
+  draftOrder?: string[];             // Order of coaches picking (coach IDs)
+  draftType?: 'snake' | 'linear' | 'custom';
+  draftRounds?: number;              // How many rounds
+}
+```
+
+### New: Registration Pool Interface
+
+```typescript
+export interface RegistrationPool {
+  id: string;
+  programId: string;
+  seasonId: string;
+  ageGroup: string;                  // "8U" or "8U-9U" for combined
+  players: RegistrationPoolPlayer[];
+  status: 'collecting' | 'ready_for_draft' | 'drafted';
+  createdAt: Timestamp;
+  
+  // Draft info (if multiple teams)
+  requiresDraft: boolean;
+  teamCount: number;                 // How many teams competing for these players
+  teamIds: string[];                 // Teams in this pool
+}
+
+export interface RegistrationPoolPlayer {
+  playerId: string;
+  playerName: string;
+  age: number;
+  ageGroup: string;                  // Calculated: "8U", "9U", etc.
+  parentId: string;
+  registeredAt: Timestamp;
+  
+  // Draft tracking
+  draftedToTeamId?: string;
+  draftRound?: number;
+  draftPick?: number;
+}
+```
+
+### New: Draft Event Interface
+
+```typescript
+export interface DraftEvent {
+  id: string;
+  programId: string;
+  seasonId: string;
+  ageGroup: string;
+  
+  // Schedule
+  scheduledDate: Timestamp;
+  location?: string;                 // "Zoom" or physical address
+  
+  // Teams & Coaches
+  teamIds: string[];
+  coachIds: string[];
+  
+  // Draft Config
+  draftType: 'snake' | 'linear' | 'custom';
+  draftOrder: string[];              // Coach IDs in pick order
+  currentRound: number;
+  currentPick: number;
+  
+  // Pool
+  poolId: string;
+  totalPlayers: number;
+  
+  // Status
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  startedAt?: Timestamp;
+  completedAt?: Timestamp;
+  
+  // Results
+  picks: DraftPick[];
+}
+
+export interface DraftPick {
+  round: number;
+  pick: number;
+  teamId: string;
+  coachId: string;
+  playerId: string;
+  playerName: string;
+  pickedAt: Timestamp;
+}
+```
+
+---
+
+## Implementation Phases
+
+### Phase 1: Team Creation Update (Week 1) 🔴
+- [ ] Add age group selection UI to team creation
+- [ ] Allow multi-select for combined age groups (8U-9U)
+- [ ] Update Team interface in types.ts
+- [ ] Store ageGroups array in Firestore
+- [ ] Display age group on team cards/lists
+
+### Phase 2: Registration Pool (Week 2) 🔴
+- [ ] Create RegistrationPool collection in Firestore
+- [ ] When player registers, add to age-appropriate pool
+- [ ] Calculate ageGroup from player birthdate
+- [ ] Show pool counts to program admins
+- [ ] UI: "Registration Pool" dashboard for admins
+
+### Phase 3: Auto-Assignment Logic (Week 2) 🔴
+- [ ] Detect single-team scenarios (1 team per age group)
+- [ ] Auto-assign all pool players to single team
+- [ ] Notify coach when players are assigned
+- [ ] Update roster automatically
+
+### Phase 4: Draft Day System (Week 3) 🟡
+- [ ] Draft scheduling UI for multi-team scenarios
+- [ ] Draft order generation (random, snake)
+- [ ] Live draft board UI (real-time with Firestore)
+- [ ] Coach pick interface
+- [ ] Draft results export
+
+### Phase 5: Draft Day Enhancements (Week 4) 🟢
+- [ ] Draft watch party for parents
+- [ ] Trade system during draft
+- [ ] Player trading between teams post-draft
+- [ ] Draft history & analytics
+
+---
+
+## UI Components Needed
+
+| Component | Priority | Description |
+|-----------|----------|-------------|
+| `AgeGroupSelector.tsx` | 🔴 P0 | Multi-select checkboxes for age groups |
+| `TeamCreationModal.tsx` | 🔴 P0 | Updated with age group selection |
+| `RegistrationPoolDashboard.tsx` | 🔴 P0 | Shows players awaiting assignment |
+| `DraftScheduler.tsx` | 🟡 P1 | Schedule draft day |
+| `DraftBoard.tsx` | 🟡 P1 | Live draft board |
+| `DraftPickModal.tsx` | 🟡 P1 | Coach selects a player |
+| `DraftResults.tsx` | 🟢 P2 | View completed draft |
+| `DraftWatchParty.tsx` | 🟢 P2 | Parent view during draft |
+
+---
+
+## Age Group Reference
+
+| Age Group | Birth Year Range | Age Range |
+|-----------|------------------|-----------|
+| 6U | 2019-2020 | 5-6 |
+| 7U | 2018-2019 | 6-7 |
+| 8U | 2017-2018 | 7-8 |
+| 9U | 2016-2017 | 8-9 |
+| 10U | 2015-2016 | 9-10 |
+| 11U | 2014-2015 | 10-11 |
+| 12U | 2013-2014 | 11-12 |
+| 13U | 2012-2013 | 12-13 |
+| 14U | 2011-2012 | 13-14 |
+
+> Note: Birth years calculated from December 2025 cutoff. Adjust annually.
+
+---
+
+## Success Metrics
+
+| Metric | Target |
+|--------|--------|
+| Teams can create multi-age groups | ✅ Working |
+| Single-team auto-assignment works | < 1 min after registration closes |
+| Draft day can be scheduled | ✅ Working |
+| Live draft completes without errors | 100% |
+| Coaches receive draft notifications | 100% |
 
 ---
 
