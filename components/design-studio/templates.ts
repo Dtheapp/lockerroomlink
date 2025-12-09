@@ -15,6 +15,7 @@ export const TEMPLATE_CATEGORIES = [
   { id: 'ticket', name: 'Tickets', icon: '🎟️' },
   { id: 'announcement', name: 'Announcements', icon: '📢' },
   { id: 'social', name: 'Social Media', icon: '📱' },
+  { id: 'uniform', name: 'Uniforms', icon: '👕' },
 ];
 
 // Z-index counter for proper layering within a template
@@ -312,6 +313,225 @@ const buildCountdownTemplate = (): DesignElement[] => {
 };
 
 // =============================================================================
+// UNIFORM TEMPLATE BUILDERS
+// =============================================================================
+
+const buildJerseyFrontTemplate = (): DesignElement[] => {
+  resetZ();
+  const w = 800;
+  return [
+    // Jersey body shape
+    createShapeAbs(100, 150, 600, 700, '#f97316', 20), // Main body (orange as example)
+    // Collar
+    createShapeAbs(300, 100, 200, 80, '#ffffff', 40),
+    createShapeAbs(320, 120, 160, 60, '#1a1a2e', 30), // Collar opening
+    // Sleeve panels
+    createShapeAbs(50, 180, 100, 200, '#ffffff', 10), // Left sleeve accent
+    createShapeAbs(650, 180, 100, 200, '#ffffff', 10), // Right sleeve accent
+    // Logo placeholder
+    createShapeAbs(300, 300, 200, 200, '#ffffff22', 100, 'circle'),
+    createTextAbs('LOGO', 370, 380, 60, 24, '#ffffff88', 'bold', 'center'),
+    // Team name
+    createTextAbs('TEAM NAME', 100, 550, 600, 48, '#ffffff', 'bold', 'center'),
+    // Side stripes
+    createShapeAbs(100, 400, 15, 300, '#000000', 5),
+    createShapeAbs(685, 400, 15, 300, '#000000', 5),
+    // Label
+    createTextAbs('Jersey Front', 300, 900, 200, 18, '#ffffff66', 'normal', 'center'),
+  ];
+};
+
+const buildJerseyBackTemplate = (): DesignElement[] => {
+  resetZ();
+  return [
+    // Jersey body shape
+    createShapeAbs(100, 150, 600, 700, '#f97316', 20),
+    // Collar
+    createShapeAbs(300, 100, 200, 80, '#ffffff', 40),
+    createShapeAbs(340, 150, 120, 30, '#1a1a2e', 5), // Back collar detail
+    // Sleeve panels
+    createShapeAbs(50, 180, 100, 200, '#ffffff', 10),
+    createShapeAbs(650, 180, 100, 200, '#ffffff', 10),
+    // Player name area
+    createTextAbs('PLAYER NAME', 100, 280, 600, 36, '#ffffff', 'bold', 'center'),
+    // Number (large)
+    createTextAbs('00', 200, 350, 400, 200, '#ffffff', 'bold', 'center'),
+    // Side stripes
+    createShapeAbs(100, 400, 15, 300, '#000000', 5),
+    createShapeAbs(685, 400, 15, 300, '#000000', 5),
+    // Label
+    createTextAbs('Jersey Back', 300, 900, 200, 18, '#ffffff66', 'normal', 'center'),
+  ];
+};
+
+const buildShirtFrontTemplate = (): DesignElement[] => {
+  resetZ();
+  return [
+    // Shirt body
+    createShapeAbs(100, 120, 600, 650, '#f97316', 15),
+    // Collar (crew neck)
+    createShapeAbs(320, 80, 160, 70, '#f97316', 35),
+    createShapeAbs(340, 100, 120, 50, '#1a1a2e', 25),
+    // Sleeves
+    createShapeAbs(60, 130, 80, 180, '#f97316', 8),
+    createShapeAbs(660, 130, 80, 180, '#f97316', 8),
+    // Logo area
+    createShapeAbs(300, 250, 200, 200, '#ffffff22', 100, 'circle'),
+    createTextAbs('LOGO', 370, 330, 60, 24, '#ffffff88', 'bold', 'center'),
+    // Label
+    createTextAbs('T-Shirt Front', 300, 820, 200, 18, '#ffffff66', 'normal', 'center'),
+  ];
+};
+
+const buildShirtBackTemplate = (): DesignElement[] => {
+  resetZ();
+  return [
+    // Shirt body
+    createShapeAbs(100, 120, 600, 650, '#f97316', 15),
+    // Collar back
+    createShapeAbs(320, 80, 160, 70, '#f97316', 35),
+    createShapeAbs(350, 110, 100, 30, '#1a1a2e', 5),
+    // Sleeves
+    createShapeAbs(60, 130, 80, 180, '#f97316', 8),
+    createShapeAbs(660, 130, 80, 180, '#f97316', 8),
+    // Back text/number area
+    createTextAbs('TEXT OR', 100, 300, 600, 32, '#ffffff', 'bold', 'center'),
+    createTextAbs('NUMBER', 100, 350, 600, 32, '#ffffff', 'bold', 'center'),
+    // Label
+    createTextAbs('T-Shirt Back', 300, 820, 200, 18, '#ffffff66', 'normal', 'center'),
+  ];
+};
+
+const buildShortsFrontTemplate = (): DesignElement[] => {
+  resetZ();
+  return [
+    // Waistband
+    createShapeAbs(100, 50, 500, 60, '#000000', 5),
+    // Left leg
+    createShapeAbs(100, 110, 230, 400, '#f97316', 10),
+    // Right leg
+    createShapeAbs(370, 110, 230, 400, '#f97316', 10),
+    // Side stripes
+    createShapeAbs(100, 110, 30, 400, '#ffffff', 5),
+    createShapeAbs(570, 110, 30, 400, '#ffffff', 5),
+    // Logo area
+    createShapeAbs(260, 200, 180, 100, '#ffffff22', 10),
+    createTextAbs('LOGO', 310, 235, 80, 20, '#ffffff88', 'bold', 'center'),
+    // Label
+    createTextAbs('Shorts Front', 250, 540, 200, 18, '#ffffff66', 'normal', 'center'),
+  ];
+};
+
+const buildShortsBackTemplate = (): DesignElement[] => {
+  resetZ();
+  return [
+    // Waistband
+    createShapeAbs(100, 50, 500, 60, '#000000', 5),
+    // Left leg
+    createShapeAbs(100, 110, 230, 400, '#f97316', 10),
+    // Right leg
+    createShapeAbs(370, 110, 230, 400, '#f97316', 10),
+    // Side stripes
+    createShapeAbs(100, 110, 30, 400, '#ffffff', 5),
+    createShapeAbs(570, 110, 30, 400, '#ffffff', 5),
+    // Label
+    createTextAbs('Shorts Back', 250, 540, 200, 18, '#ffffff66', 'normal', 'center'),
+  ];
+};
+
+const buildPantsFrontTemplate = (): DesignElement[] => {
+  resetZ();
+  return [
+    // Waistband
+    createShapeAbs(50, 50, 500, 80, '#000000', 5),
+    // Left leg
+    createShapeAbs(50, 130, 220, 1000, '#f97316', 10),
+    // Right leg
+    createShapeAbs(330, 130, 220, 1000, '#f97316', 10),
+    // Side stripes
+    createShapeAbs(50, 130, 30, 1000, '#ffffff', 5),
+    createShapeAbs(520, 130, 30, 1000, '#ffffff', 5),
+    // Logo on thigh
+    createShapeAbs(220, 300, 160, 100, '#ffffff22', 10),
+    createTextAbs('LOGO', 260, 335, 80, 20, '#ffffff88', 'bold', 'center'),
+    // Label
+    createTextAbs('Pants Front', 200, 1150, 200, 18, '#ffffff66', 'normal', 'center'),
+  ];
+};
+
+const buildPantsBackTemplate = (): DesignElement[] => {
+  resetZ();
+  return [
+    // Waistband
+    createShapeAbs(50, 50, 500, 80, '#000000', 5),
+    // Left leg
+    createShapeAbs(50, 130, 220, 1000, '#f97316', 10),
+    // Right leg
+    createShapeAbs(330, 130, 220, 1000, '#f97316', 10),
+    // Side stripes
+    createShapeAbs(50, 130, 30, 1000, '#ffffff', 5),
+    createShapeAbs(520, 130, 30, 1000, '#ffffff', 5),
+    // Label
+    createTextAbs('Pants Back', 200, 1150, 200, 18, '#ffffff66', 'normal', 'center'),
+  ];
+};
+
+const buildSocksSideTemplate = (): DesignElement[] => {
+  resetZ();
+  return [
+    // Main sock body
+    createShapeAbs(50, 50, 200, 600, '#f97316', 15),
+    // Foot section
+    createShapeAbs(30, 600, 240, 150, '#f97316', 40),
+    // Top stripe
+    createShapeAbs(50, 50, 200, 40, '#ffffff', 10),
+    // Middle stripe
+    createShapeAbs(50, 250, 200, 30, '#000000', 5),
+    // Logo area
+    createShapeAbs(80, 350, 140, 100, '#ffffff22', 10),
+    createTextAbs('LOGO', 110, 385, 80, 18, '#ffffff88', 'bold', 'center'),
+    // Label
+    createTextAbs('Socks Side', 50, 770, 200, 16, '#ffffff66', 'normal', 'center'),
+  ];
+};
+
+const buildFullUniformTemplate = (): DesignElement[] => {
+  resetZ();
+  return [
+    // Title
+    createTextAbs('FULL UNIFORM', 200, 30, 400, 32, '#ffffff', 'bold', 'center'),
+    
+    // Jersey section
+    createTextAbs('Jersey', 300, 100, 200, 20, '#ffffff88', 'normal', 'center'),
+    createShapeAbs(200, 150, 400, 450, '#f97316', 15), // Body
+    createShapeAbs(350, 120, 100, 50, '#ffffff', 25), // Collar
+    createShapeAbs(160, 170, 60, 130, '#ffffff', 8), // Left sleeve
+    createShapeAbs(580, 170, 60, 130, '#ffffff', 8), // Right sleeve
+    createTextAbs('00', 300, 300, 200, 120, '#ffffff', 'bold', 'center'),
+    
+    // Separator
+    createShapeAbs(100, 650, 600, 3, '#ffffff33', 1),
+    
+    // Shorts/Pants section
+    createTextAbs('Shorts', 300, 680, 200, 20, '#ffffff88', 'normal', 'center'),
+    createShapeAbs(200, 720, 180, 350, '#f97316', 10), // Left leg
+    createShapeAbs(420, 720, 180, 350, '#f97316', 10), // Right leg
+    createShapeAbs(200, 720, 25, 350, '#ffffff', 5), // Left stripe
+    createShapeAbs(575, 720, 25, 350, '#ffffff', 5), // Right stripe
+    
+    // Socks
+    createTextAbs('Socks', 300, 1100, 200, 20, '#ffffff88', 'normal', 'center'),
+    createShapeAbs(220, 1140, 80, 350, '#f97316', 10), // Left sock
+    createShapeAbs(500, 1140, 80, 350, '#f97316', 10), // Right sock
+    createShapeAbs(220, 1140, 80, 30, '#ffffff', 5), // Left stripe
+    createShapeAbs(500, 1140, 80, 30, '#ffffff', 5), // Right stripe
+    
+    // Label
+    createTextAbs('Full Uniform Set', 250, 1550, 300, 18, '#ffffff66', 'normal', 'center'),
+  ];
+};
+
+// =============================================================================
 // TEMPLATES
 // =============================================================================
 
@@ -457,6 +677,160 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
       backgroundColor: '#0c4a6e',
     },
     elements: buildCountdownTemplate(),
+  },
+
+  // =============================================================================
+  // UNIFORM TEMPLATES
+  // =============================================================================
+
+  // JERSEY FRONT
+  {
+    id: 'uniform-jersey-front',
+    name: 'Jersey Front',
+    description: 'Football/sports jersey front view',
+    preview: '👕',
+    category: 'uniform',
+    canvas: {
+      width: 800,
+      height: 1000,
+      backgroundColor: '#1a1a2e',
+    },
+    elements: buildJerseyFrontTemplate(),
+  },
+
+  // JERSEY BACK
+  {
+    id: 'uniform-jersey-back',
+    name: 'Jersey Back',
+    description: 'Jersey back with number and name',
+    preview: '👕',
+    category: 'uniform',
+    canvas: {
+      width: 800,
+      height: 1000,
+      backgroundColor: '#1a1a2e',
+    },
+    elements: buildJerseyBackTemplate(),
+  },
+
+  // T-SHIRT FRONT
+  {
+    id: 'uniform-shirt-front',
+    name: 'T-Shirt Front',
+    description: 'Casual team shirt front',
+    preview: '👔',
+    category: 'uniform',
+    canvas: {
+      width: 800,
+      height: 900,
+      backgroundColor: '#1a1a2e',
+    },
+    elements: buildShirtFrontTemplate(),
+  },
+
+  // T-SHIRT BACK
+  {
+    id: 'uniform-shirt-back',
+    name: 'T-Shirt Back',
+    description: 'Casual team shirt back',
+    preview: '👔',
+    category: 'uniform',
+    canvas: {
+      width: 800,
+      height: 900,
+      backgroundColor: '#1a1a2e',
+    },
+    elements: buildShirtBackTemplate(),
+  },
+
+  // SHORTS FRONT
+  {
+    id: 'uniform-shorts-front',
+    name: 'Shorts Front',
+    description: 'Athletic shorts front view',
+    preview: '🩳',
+    category: 'uniform',
+    canvas: {
+      width: 700,
+      height: 600,
+      backgroundColor: '#1a1a2e',
+    },
+    elements: buildShortsFrontTemplate(),
+  },
+
+  // SHORTS BACK
+  {
+    id: 'uniform-shorts-back',
+    name: 'Shorts Back',
+    description: 'Athletic shorts back view',
+    preview: '🩳',
+    category: 'uniform',
+    canvas: {
+      width: 700,
+      height: 600,
+      backgroundColor: '#1a1a2e',
+    },
+    elements: buildShortsBackTemplate(),
+  },
+
+  // PANTS FRONT
+  {
+    id: 'uniform-pants-front',
+    name: 'Pants Front',
+    description: 'Athletic pants front view',
+    preview: '👖',
+    category: 'uniform',
+    canvas: {
+      width: 600,
+      height: 1200,
+      backgroundColor: '#1a1a2e',
+    },
+    elements: buildPantsFrontTemplate(),
+  },
+
+  // PANTS BACK
+  {
+    id: 'uniform-pants-back',
+    name: 'Pants Back',
+    description: 'Athletic pants back view',
+    preview: '👖',
+    category: 'uniform',
+    canvas: {
+      width: 600,
+      height: 1200,
+      backgroundColor: '#1a1a2e',
+    },
+    elements: buildPantsBackTemplate(),
+  },
+
+  // SOCKS SIDE VIEW
+  {
+    id: 'uniform-socks-side',
+    name: 'Socks Side View',
+    description: 'Team socks side view',
+    preview: '🧦',
+    category: 'uniform',
+    canvas: {
+      width: 300,
+      height: 800,
+      backgroundColor: '#1a1a2e',
+    },
+    elements: buildSocksSideTemplate(),
+  },
+
+  // FULL UNIFORM
+  {
+    id: 'uniform-full',
+    name: 'Full Uniform Set',
+    description: 'Complete uniform overview',
+    preview: '🏃',
+    category: 'uniform',
+    canvas: {
+      width: 800,
+      height: 1600,
+      backgroundColor: '#1a1a2e',
+    },
+    elements: buildFullUniformTemplate(),
   },
 ];
 

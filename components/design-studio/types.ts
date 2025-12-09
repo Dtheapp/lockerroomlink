@@ -116,6 +116,17 @@ export const FLYER_SIZES = {
   flyer: { width: 2550, height: 3300, label: 'Flyer (8.5x11)', icon: '🖨️' }, // Alias for print
   poster: { width: 1800, height: 2400, label: 'Poster (18x24)', icon: '📜' },
   banner: { width: 1500, height: 500, label: 'Banner (3:1)', icon: '🏷️' },
+  // Uniform sizes - optimized aspect ratios for each garment type
+  jerseyFront: { width: 800, height: 1000, label: 'Jersey Front', icon: '👕' },
+  jerseyBack: { width: 800, height: 1000, label: 'Jersey Back', icon: '👕' },
+  shirtFront: { width: 800, height: 900, label: 'T-Shirt Front', icon: '👔' },
+  shirtBack: { width: 800, height: 900, label: 'T-Shirt Back', icon: '👔' },
+  pantsFront: { width: 600, height: 1200, label: 'Pants Front', icon: '👖' },
+  pantsBack: { width: 600, height: 1200, label: 'Pants Back', icon: '👖' },
+  shortsFront: { width: 700, height: 600, label: 'Shorts Front', icon: '🩳' },
+  shortsBack: { width: 700, height: 600, label: 'Shorts Back', icon: '🩳' },
+  socksSide: { width: 300, height: 800, label: 'Socks Side View', icon: '🧦' },
+  uniformFull: { width: 800, height: 1600, label: 'Full Uniform', icon: '🏃' },
 } as const;
 
 export type FlyerSize = keyof typeof FLYER_SIZES;

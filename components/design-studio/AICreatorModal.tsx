@@ -46,7 +46,20 @@ type DesignType =
   | 'social-post' 
   | 'player-spotlight' 
   | 'announcement' 
-  | 'celebration';
+  | 'celebration'
+  | 'uniform';
+
+type UniformPiece = 
+  | 'jersey-front'
+  | 'jersey-back'
+  | 'shirt-front'
+  | 'shirt-back'
+  | 'pants-front'
+  | 'pants-back'
+  | 'shorts-front'
+  | 'shorts-back'
+  | 'socks-side'
+  | 'full-uniform';
 
 type StylePreset = 
   | 'modern' 
@@ -105,6 +118,20 @@ const DESIGN_TYPES: { id: DesignType; icon: string; label: string; description: 
   { id: 'player-spotlight', icon: '🏆', label: 'Player Spotlight', description: 'Highlight athlete achievements', examplePrompt: 'Create a player of the week spotlight. Include space for player photo, name, stats, and a quote. Make it feel prestigious.' },
   { id: 'announcement', icon: '📢', label: 'Announcement', description: 'Team news, schedule changes', examplePrompt: 'Create an announcement graphic for a schedule change. Practice moved from Tuesday to Thursday at 5pm.' },
   { id: 'celebration', icon: '🎉', label: 'Celebration', description: 'Win announcement, milestones', examplePrompt: 'Create a victory celebration graphic for winning the regional championship! Include confetti, trophy elements, and "CHAMPIONS" text.' },
+  { id: 'uniform', icon: '👕', label: 'Uniform Design', description: 'Jersey, shirt, pants, shorts, socks', examplePrompt: 'Create a professional sports uniform design with team colors and logo. Make it look modern and athletic.' },
+];
+
+const UNIFORM_PIECES: { id: UniformPiece; icon: string; label: string; description: string; sizeKey: FlyerSize }[] = [
+  { id: 'jersey-front', icon: '👕', label: 'Jersey Front', description: 'Football/sports jersey front', sizeKey: 'jerseyFront' },
+  { id: 'jersey-back', icon: '👕', label: 'Jersey Back', description: 'With number and name', sizeKey: 'jerseyBack' },
+  { id: 'shirt-front', icon: '👔', label: 'T-Shirt Front', description: 'Casual team shirt front', sizeKey: 'shirtFront' },
+  { id: 'shirt-back', icon: '👔', label: 'T-Shirt Back', description: 'Casual team shirt back', sizeKey: 'shirtBack' },
+  { id: 'pants-front', icon: '👖', label: 'Pants Front', description: 'Athletic pants front view', sizeKey: 'pantsFront' },
+  { id: 'pants-back', icon: '👖', label: 'Pants Back', description: 'Athletic pants back view', sizeKey: 'pantsBack' },
+  { id: 'shorts-front', icon: '🩳', label: 'Shorts Front', description: 'Athletic shorts front', sizeKey: 'shortsFront' },
+  { id: 'shorts-back', icon: '🩳', label: 'Shorts Back', description: 'Athletic shorts back', sizeKey: 'shortsBack' },
+  { id: 'socks-side', icon: '🧦', label: 'Socks Side', description: 'Team socks side view', sizeKey: 'socksSide' },
+  { id: 'full-uniform', icon: '🏃', label: 'Full Uniform', description: 'Complete uniform set', sizeKey: 'uniformFull' },
 ];
 
 const STYLE_PRESETS: { id: StylePreset; label: string; preview: string }[] = [
@@ -162,6 +189,7 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
   
   // Step 1: Design type
   const [designType, setDesignType] = useState<DesignType | null>(null);
+  const [selectedUniformPiece, setSelectedUniformPiece] = useState<UniformPiece | null>(null);
   
   // Step 2: Reference images
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
@@ -245,8 +273,53 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
     const typeInfo = DESIGN_TYPES.find(t => t.id === designType);
     const parts: string[] = [];
     
-    // Design type
-    parts.push(`Create a ${typeInfo?.label || 'design'} for a ${sport || 'sports'} team.`);
+    // Special handling for uniform designs
+    if (designType === 'uniform' && selectedUniformPiece) {
+      const uniformInfo = UNIFORM_PIECES.find(p => p.id === selectedUniformPiece);
+      
+      // Build uniform-specific prompt
+      parts.push(`Create a professional ${uniformInfo?.label || 'uniform piece'} design for a ${sport || 'sports'} team.`);
+      parts.push(`This is a flat, template-style view showing the ${uniformInfo?.description || 'garment'}.`);
+      
+      // Specific instructions based on piece
+      switch (selectedUniformPiece) {
+        case 'jersey-front':
+          parts.push('Show the front of a football/sports jersey with space for team logo, name, and sponsor area. Include collar, sleeves, and body panel details.');
+          break;
+        case 'jersey-back':
+          parts.push('Show the back of a football/sports jersey with a large number area (centered), player name area above the number. Include collar and shoulder details.');
+          break;
+        case 'shirt-front':
+          parts.push('Show the front of a t-shirt/casual team shirt with space for logo on chest. Show collar, sleeves, and hem.');
+          break;
+        case 'shirt-back':
+          parts.push('Show the back of a t-shirt with space for text, logo, or number. Clean design with visible seams.');
+          break;
+        case 'pants-front':
+          parts.push('Show the front view of athletic pants with side stripe areas, waistband, and leg panels.');
+          break;
+        case 'pants-back':
+          parts.push('Show the back view of athletic pants with pocket areas and leg panel details.');
+          break;
+        case 'shorts-front':
+          parts.push('Show the front of athletic shorts with side panel areas, waistband, and optional logo placement.');
+          break;
+        case 'shorts-back':
+          parts.push('Show the back of athletic shorts with panel details.');
+          break;
+        case 'socks-side':
+          parts.push('Show a side view of athletic team socks, full length from foot to calf. Include stripe patterns or logo areas.');
+          break;
+        case 'full-uniform':
+          parts.push('Show a complete uniform set: jersey on top, pants/shorts below. Like a product catalog layout showing the full outfit.');
+          break;
+      }
+      
+      parts.push('Use a clean, flat design style suitable for manufacturing. Show clear color blocks and panel separations.');
+    } else {
+      // Standard design type
+      parts.push(`Create a ${typeInfo?.label || 'design'} for a ${sport || 'sports'} team.`);
+    }
     
     // Team info
     if (teamName) parts.push(`Team name: "${teamName}".`);
@@ -271,10 +344,22 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
     // Things to avoid
     if (avoidElements) parts.push(`Avoid: ${avoidElements}`);
     
-    // Size context - handle custom size
+    // Size context - handle custom size (or use uniform-specific sizes)
     let sizeWidth: number;
     let sizeHeight: number;
-    if (outputSize === 'custom') {
+    
+    // For uniforms, use the predefined uniform sizes
+    if (designType === 'uniform' && selectedUniformPiece) {
+      const uniformInfo = UNIFORM_PIECES.find(p => p.id === selectedUniformPiece);
+      if (uniformInfo) {
+        const uniformSize = FLYER_SIZES[uniformInfo.sizeKey];
+        sizeWidth = uniformSize.width;
+        sizeHeight = uniformSize.height;
+      } else {
+        sizeWidth = 800;
+        sizeHeight = 1000;
+      }
+    } else if (outputSize === 'custom') {
       sizeWidth = customWidth;
       sizeHeight = customHeight;
     } else {
@@ -285,7 +370,7 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
     parts.push(`Output size: ${sizeWidth}x${sizeHeight} pixels.`);
     
     return parts.join(' ');
-  }, [designType, teamName, primaryColor, secondaryColor, sport, style, mood, briefText, uploadedImages, additionalText, avoidElements, outputSize, customWidth, customHeight]);
+  }, [designType, selectedUniformPiece, teamName, primaryColor, secondaryColor, sport, style, mood, briefText, uploadedImages, additionalText, avoidElements, outputSize, customWidth, customHeight]);
   
   // Generate designs (mock for now - will connect to real AI API)
   const handleGenerate = useCallback(async () => {
@@ -308,9 +393,27 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
       const prompt = buildPrompt();
       console.log('AI Prompt:', prompt);
       
-      // Get the actual dimensions for the selected size
-      const actualWidth = outputSize === 'custom' ? customWidth : FLYER_SIZES[outputSize].width;
-      const actualHeight = outputSize === 'custom' ? customHeight : FLYER_SIZES[outputSize].height;
+      // Get the actual dimensions for the selected size (including uniform sizes)
+      let actualWidth: number;
+      let actualHeight: number;
+      
+      if (designType === 'uniform' && selectedUniformPiece) {
+        const uniformInfo = UNIFORM_PIECES.find(p => p.id === selectedUniformPiece);
+        if (uniformInfo) {
+          const uniformSize = FLYER_SIZES[uniformInfo.sizeKey];
+          actualWidth = uniformSize.width;
+          actualHeight = uniformSize.height;
+        } else {
+          actualWidth = 800;
+          actualHeight = 1000;
+        }
+      } else if (outputSize === 'custom') {
+        actualWidth = customWidth;
+        actualHeight = customHeight;
+      } else {
+        actualWidth = FLYER_SIZES[outputSize].width;
+        actualHeight = FLYER_SIZES[outputSize].height;
+      }
       
       // Call the real AI generation API
       setGenerationStep('Generating AI design with DALL-E 3...');
@@ -570,13 +673,18 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
   // Check if can proceed to next step
   const canProceed = useCallback(() => {
     switch (currentStep) {
-      case 1: return designType !== null;
+      case 1: 
+        // For uniform, also require piece selection
+        if (designType === 'uniform') {
+          return selectedUniformPiece !== null;
+        }
+        return designType !== null;
       case 2: return true; // Images are optional
       case 3: return teamName.trim() !== '' && briefText.trim() !== '';
       case 4: return true;
       default: return false;
     }
-  }, [currentStep, designType, teamName, briefText]);
+  }, [currentStep, designType, selectedUniformPiece, teamName, briefText]);
   
   // Navigation
   const nextStep = () => {
@@ -633,7 +741,12 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
         {DESIGN_TYPES.map(type => (
           <button
             key={type.id}
-            onClick={() => setDesignType(type.id)}
+            onClick={() => {
+              setDesignType(type.id);
+              if (type.id !== 'uniform') {
+                setSelectedUniformPiece(null);
+              }
+            }}
             className={`p-4 rounded-xl border-2 transition-all text-left ${
               designType === type.id
                 ? 'border-purple-500 bg-purple-500/20'
@@ -648,6 +761,36 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
           </button>
         ))}
       </div>
+      
+      {/* Uniform Piece Selector - shown when uniform is selected */}
+      {designType === 'uniform' && (
+        <div className={`mt-6 p-4 rounded-xl ${theme === 'dark' ? 'bg-zinc-800/50 border border-zinc-700' : 'bg-slate-50 border border-slate-200'}`}>
+          <h4 className={`font-medium mb-3 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+            Select Uniform Piece
+          </h4>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+            {UNIFORM_PIECES.map(piece => (
+              <button
+                key={piece.id}
+                onClick={() => setSelectedUniformPiece(piece.id)}
+                className={`p-3 rounded-lg border-2 transition-all text-center ${
+                  selectedUniformPiece === piece.id
+                    ? 'border-orange-500 bg-orange-500/20'
+                    : theme === 'dark' 
+                      ? 'border-zinc-600 bg-zinc-700/50 hover:border-zinc-500' 
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div className="text-2xl mb-1">{piece.icon}</div>
+                <div className={`text-xs font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{piece.label}</div>
+              </button>
+            ))}
+          </div>
+          <p className={`text-xs mt-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+            💡 Tip: Upload a reference image of your existing design (e.g., jersey front) to help AI match the style for other pieces
+          </p>
+        </div>
+      )}
     </div>
   );
   
