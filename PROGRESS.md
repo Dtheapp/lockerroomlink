@@ -881,6 +881,166 @@ Real-time Chat    → Google Translate API (optimized)
 
 ---
 
+## 🤖 OSYS AI SUPPORT CENTER - World-Class Customer Service (NEW FEATURE)
+
+> **Vision:** "Never leave a user stuck. Instant help, any format, any time."
+> **Competitive Advantage:** No youth sports platform has AI-trained support, voice messages, contextual help, and push follow-ups.
+
+### Why This Matters
+
+| Problem | OSYS Solution |
+|---------|---------------|
+| Coaches don't have time to learn new software | AI guides them step-by-step |
+| Email support takes 24-48 hours | Instant AI response |
+| Can't train every user individually | AI scales infinitely |
+| Users get frustrated and churn | Proactive help catches issues early |
+| No voice support anywhere in youth sports | Speak your problem → get voice answer |
+
+### Support Channels
+
+| Channel | Description | Availability |
+|---------|-------------|--------------|
+| 💬 AI Chat | Text conversation with trained AI | All users |
+| 🎤 Voice Messages | Speak problem → get voice + text answer | Pro+ |
+| 📚 Help Library | Save solutions for later | All users |
+| 🔔 Push Reminders | Get reminded to complete saved steps | All users |
+| 🤝 Human Escalation | Connect to real support | Pro/Elite |
+| 📞 Screen Share Call | Live video support | Elite only |
+
+### AI Chat Features
+
+| Feature | Description |
+|---------|-------------|
+| **Contextual Awareness** | AI knows who you are, what page, what you're trying to do |
+| **"Highlight for me"** | AI visually highlights UI elements on screen |
+| **"Show me a video"** | 30-second tutorial clips embedded |
+| **Quick Actions** | One-click to perform common tasks |
+| **Related Help** | "People who asked this also asked..." |
+| **Multi-language** | Responds in user's preferred language |
+
+### Voice Support Flow
+
+```
+User speaks question → Whisper API transcription → GPT-4 processes →
+Text response generated + ElevenLabs voice → Both displayed to user
+```
+
+**Voice Features:**
+- Natural, friendly voice (not robotic)
+- Playback controls (speed, rewind, pause)
+- Save audio + text for later
+- Multi-language response
+
+### Save & Follow-Up System
+
+| Feature | Description |
+|---------|-------------|
+| Help Library | User's personal saved solutions |
+| Push Reminders | "Ready to share your playbook? Here's how..." |
+| Email Steps | Get instructions emailed |
+| Share Help | Send solution to assistant coach |
+
+### Proactive Assistance (The Magic ✨)
+
+| Trigger | Condition | AI Response |
+|---------|-----------|-------------|
+| Stuck on page | 60+ seconds, no actions | "Need help with this page?" |
+| Repeated errors | Same error 3+ times | "I noticed an issue. Let me help!" |
+| Abandoned action | Started but didn't finish | "Need help finishing that?" |
+| Feature unused | Never tried a key feature | "Did you know you can [feature]?" |
+| Upgrade opportunity | Hit free plan limit | "See how Pro unlocks this" |
+
+### Knowledge Base Structure
+
+| Category | Topics |
+|----------|--------|
+| Getting Started | Setup, role selection, team creation |
+| Roster | Add players, parent invites, positions |
+| Playbook | Create plays, formations, sharing |
+| Stats | Enter game stats, view leaders |
+| Video | Upload, tag players, organize |
+| Events | Create, registration, payments |
+| Messaging | Team chat, DMs, announcements |
+| Settings | Profile, notifications, privacy |
+| Billing | Subscriptions, credits, invoices |
+| Troubleshooting | Common errors & solutions |
+
+### Cost Analysis (at Scale)
+
+| Service | Use Case | Cost |
+|---------|----------|------|
+| OpenAI GPT-4 | Chat responses | ~$0.03/conversation |
+| Whisper API | Speech-to-text | ~$0.006/minute |
+| ElevenLabs | Text-to-speech (natural) | ~$0.30/1000 chars |
+| Google TTS | Text-to-speech (budget) | ~$0.004/1000 chars |
+
+| Users | Monthly Conversations | Estimated Cost |
+|-------|----------------------|----------------|
+| 1,000 | 5,000 | ~$250 |
+| 10,000 | 50,000 | ~$2,500 |
+
+### AI Support Components
+
+| Component | Purpose |
+|-----------|---------|
+| `AISupportWidget.tsx` | Floating chat widget (all pages) |
+| `AIChatPanel.tsx` | Full chat interface |
+| `VoiceRecorder.tsx` | Record voice messages |
+| `VoicePlayer.tsx` | Play AI voice responses |
+| `SupportContext.tsx` | Gather context about user state |
+| `ProactiveHelper.tsx` | Detect struggles, offer help |
+| `HelpLibrary.tsx` | User's saved solutions |
+| `PushReminderScheduler.tsx` | Schedule follow-up notifications |
+| `EscalationPanel.tsx` | Connect to human support |
+| `KnowledgeAdmin.tsx` | Admin: manage knowledge base |
+| `SupportAnalytics.tsx` | Admin: view support metrics |
+
+### AI Support Implementation Phases
+
+#### Phase 1: AI Chat Foundation (Week 1-2)
+| Task | Priority | Status |
+|------|----------|--------|
+| OpenAI integration | 🔴 Critical | ⬜ |
+| Knowledge base schema | 🔴 Critical | ⬜ |
+| Initial knowledge entries (50+) | 🔴 Critical | ⬜ |
+| Basic chat widget | 🔴 Critical | ⬜ |
+| Context gathering service | 🔴 Critical | ⬜ |
+
+#### Phase 2: Voice Support (Week 3-4)
+| Task | Priority | Status |
+|------|----------|--------|
+| Speech-to-text (Whisper) | 🟡 High | ⬜ |
+| Text-to-speech (ElevenLabs/Google) | 🟡 High | ⬜ |
+| Voice recorder UI | 🟡 High | ⬜ |
+| Voice player UI | 🟡 High | ⬜ |
+| Voice response generation | 🟡 High | ⬜ |
+
+#### Phase 3: Save & Follow-up (Week 5-6)
+| Task | Priority | Status |
+|------|----------|--------|
+| Help Library | 🟡 High | ⬜ |
+| Push notification scheduling | 🟡 High | ⬜ |
+| Email delivery | 🟢 Medium | ⬜ |
+| Reminder system | 🟢 Medium | ⬜ |
+
+#### Phase 4: Proactive & Escalation (Week 7-8)
+| Task | Priority | Status |
+|------|----------|--------|
+| Proactive help triggers | 🟢 Medium | ⬜ |
+| UI highlighting system | 🟢 Medium | ⬜ |
+| Human escalation flow | 🟢 Medium | ⬜ |
+| Support ticket creation | 🟢 Medium | ⬜ |
+
+#### Phase 5: Analytics & Improvement (Week 9-10)
+| Task | Priority | Status |
+|------|----------|--------|
+| Support analytics dashboard | 🟢 Medium | ⬜ |
+| Unanswered question tracking | 🟢 Medium | ⬜ |
+| Auto-learning system | 🟢 Medium | ⬜ |
+| Knowledge base admin UI | 🟢 Medium | ⬜ |
+
+---
+
 ## 📋 THE FULL ROADMAP
 
 ### Phase 1: Pilot Ready (December 2025)
@@ -1202,6 +1362,32 @@ Real-time Chat    → Google Translate API (optimized)
 - Draft: DraftSetup, DraftPool, DraftRoom, DraftPlayerCard, DraftPickModal, DraftedNotification, DraftHistory, DraftWatchParty
 - Certification: CertificationCenter, CoursePlayer, AssessmentEngine, BadgeDisplay, BadgeWall, CertificateGenerator, AdminBadgeManager, RefereeCertification
 - Wellness: WellnessCenter, MealPlanGenerator, FitnessPlanGenerator, PracticePlanGenerator, WellnessCalendar, WellnessProgress, DrillLibrary
+
+#### December 9, 2025 (Late Night Session)
+**Session Focus:** AI Support Center - World-Class Customer Service
+
+- ✅ Designed OSYS AI Support Center architecture
+- ✅ AI Chat with contextual awareness (knows user, page, role, team, history)
+- ✅ Voice Message Support (speak problem → get voice + text answer)
+- ✅ Speech-to-text (Whisper API) + Text-to-speech (ElevenLabs/Google)
+- ✅ Help Library (save solutions for later)
+- ✅ Push notification follow-ups with scheduled reminders
+- ✅ Proactive assistance (detects struggling users, offers help)
+- ✅ Human escalation system (Email, Live Chat for Pro, Video call for Elite)
+- ✅ Knowledge base schema for training AI on OSYS
+- ✅ Cost analysis for API usage at scale
+- ✅ Added AI Support Center to PROGRESS.md
+
+**Key Decisions:**
+- Voice support differentiates from all competitors (nobody has this in youth sports)
+- Contextual awareness = magic (AI knows what user is trying to do)
+- Proactive help catches churn before it happens
+- Knowledge base grows smarter over time (track unanswered questions)
+
+**New Components Needed (11 total):**
+- Support: AISupportWidget, AIChatPanel, VoiceRecorder, VoicePlayer, SupportContext
+- Features: ProactiveHelper, HelpLibrary, PushReminderScheduler, EscalationPanel
+- Admin: KnowledgeAdmin, SupportAnalytics
 
 #### December 9, 2025
 **Session Focus:** Public Profile Fixes, Dashboard Enhancements, Documentation
@@ -1579,3 +1765,4 @@ Real-time Chat    → Google Translate API (optimized)
 | Dec 9, 2025 | Updated Public Profiles section with new features |
 | Dec 9, 2025 | **Added Development Timeline section** (300+ items chronologically logged!) |
 | Dec 9, 2025 | Updated AI_TRAINER.md "save training" to require timeline updates |
+| Dec 9, 2025 | **Added OSYS AI Support Center** - Voice messages, push reminders, proactive help |
