@@ -85,6 +85,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (firebaseUser) {
         setUser(firebaseUser);
 
+        // Track migration attempts to prevent loops
+        let migrationAttempted = false;
+
         // 1. LISTEN TO USER PROFILE (Real-time)
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         unsubscribeUserDoc = onSnapshot(userDocRef, async (docSnap) => {
@@ -93,8 +96,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 setUserData(profile);
 
                 // CREDIT SYSTEM: Migrate existing users who don't have credits yet
-                // This gives them their welcome credits (default 10)
-                if (profile.credits === undefined && profile.role !== 'SuperAdmin') {
+                // Only attempt once per session to prevent error loops
+                if (!migrationAttempted && profile.credits === undefined && profile.role !== 'SuperAdmin') {
+                  migrationAttempted = true;
                   migrateUserToNewCreditSystem(firebaseUser.uid, profile.cloneCredits ?? 10)
                     .then(() => console.log('User credits initialized'))
                     .catch(err => console.error('Credit migration error:', err));

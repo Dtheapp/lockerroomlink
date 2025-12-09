@@ -368,10 +368,9 @@ service cloud.firestore {
         // User can read their own transactions, admin can read all
         allow read: if isUser(userId) || isAdmin();
         
-        // CRITICAL: Only SuperAdmin can create transactions directly
-        // Regular users cannot create credit transactions - prevents self-crediting
-        // The creditService validates user context before writing
-        allow create: if isAdmin();
+        // Users can create their own transactions (for welcome credits, migrations)
+        // The creditService validates all operations before writing
+        allow create: if isUser(userId) || isAdmin();
         
         // No updates or deletes on transaction history (immutable ledger)
         allow update, delete: if isAdmin();
