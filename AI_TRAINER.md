@@ -516,88 +516,121 @@ Every app we build together must:
 
 > **This section is the "brain dump" from the last session. New AI: Read this first!**
 
-### Last Session: December 8, 2025
+### Last Session: December 8, 2025 (Evening)
 
-#### 🎨 AI CREATOR & DESIGN STUDIO FIXES
+#### 👕 UNIFORM DESIGNER PRO - WORLD-CLASS UNIFORM CREATION
 
-**Fixed AI Creator to actually use prompt data and added unsaved changes warning to Design Studio.**
+**Built the best uniform generator with multi-piece selection, 3D preview, AI generation, Home/Away variations, and quality-based saving.**
 
 #### ✅ COMPLETED THIS SESSION
 
-1. **AI Creator Modal - Prompt Integration (components/design-studio/AICreatorModal.tsx)**
-   - `createMockElements` now accepts params object with: `briefText`, `additionalText`, `selectedEvent`, `sport`
-   - Subtitle generation priority: additionalText > selectedEvent > extracted brief text > default
-   - Added sport-specific icons: ⚾🏀🏈⚽🏐🎾🏒🥍🏊🏃🤼🤸📣
-   - Brief text displays as tagline if ≤60 chars
-   - Credit balance shows loading state ("...") while fetching
-   - Added `refreshBalance()` call on modal mount
+1. **Uniform Designer Pro (components/design-studio/UniformDesigner.tsx)**
+   - **4-step wizard**: Sport → Pieces → Customize → Preview
+   - **Multi-piece support**: Tops, bottoms, accessories (socks, hats, sleeves, etc.)
+   - **AI Generation per piece**: 3 credits to generate AI design via DALL-E 3
+   - **Save/Load uniforms**: Firestore persistence to `savedUniforms` collection
+   - **Export flat templates**: PNG export for manufacturing
+   - **Team color auto-apply**: One-click to apply team primary/secondary colors
+   - **Home/Away variations**: Toggle between Home/Away with auto-generate button
+   - **Quality-based saving**:
+     - Standard (FREE): Saves uniform config to Firestore
+     - High Quality (5 credits): Renders and uploads print-ready images to Firebase Storage
+       - 2000×2500px PNG per garment piece
+       - Full mannequin preview image (1200×1800px)
+       - Images stored in `/uniforms/{userId}/` path
 
-2. **Design Studio - Unsaved Changes (components/design-studio/DesignStudioPro.tsx)**
-   - Integrated `useUnsavedChanges` context
-   - Added `beforeunload` browser warning for unsaved changes
-   - `hasChanges` flag tracks element modifications
-   - Clears flag on successful save or when loading existing design
+2. **Enhanced 3D Mannequin Preview**
+   - Athletic build with muscle definition
+   - Neck, shoulder muscles, bicep shadows
+   - V-neck collar style, jersey seams, side panels
+   - Grid floor effect with perspective
+   - Spotlight glow effect
+   - View indicator: 👀 Front, 👈 Left Side, 👉 Right Side, 🔙 Back View
 
-3. **Credits Hook - Debug Logging (hooks/useCredits.ts)**
-   - Added console logging: `[useCredits] Loading balance for user:`, `[useCredits] Loaded balance:`
-   - Helps debug why credit balance might show 0
+3. **Design Studio - High Quality Exports**
+   - **ExportUtils.tsx**: Quality multiplier (1x standard, 2x high = 4K)
+   - **SavePromoModal.tsx**: Quality selection UI with credit display
+   - **promoService.ts**: Uploads high-res to `promo-exports/{location}/{id}_4K.png`
+   - **DesignStudioPro.tsx**: Added `userCredits` and `canvasSize` props, credit deduction
+
+4. **Uniform Category Added**
+   - Added 'uniform' (👕) category to SavePromoModal
+   - Added uniform filter to PromoGallery dropdown
+   - Updated promoTypes with 'uniform' in category type
 
 #### 🔧 KEY FILES MODIFIED
 
 | File | Changes |
 |------|---------|
-| `components/design-studio/AICreatorModal.tsx` | createMockElements params, sport icons, brief text integration |
-| `components/design-studio/DesignStudioPro.tsx` | Unsaved changes warning, beforeunload event |
-| `hooks/useCredits.ts` | Debug logging for balance loading |
+| `components/design-studio/UniformDesigner.tsx` | Full uniform designer with all features |
+| `components/design-studio/ExportUtils.tsx` | Quality multipliers, high-res export |
+| `components/design-studio/SavePromoModal.tsx` | Quality selection UI, uniform category |
+| `components/design-studio/promoService.ts` | High-res upload to Storage |
+| `components/design-studio/promoTypes.ts` | exportQuality type, uniform category |
+| `components/design-studio/PromoGallery.tsx` | Uniform filter option |
+| `components/design-studio/DesignStudioPro.tsx` | userCredits prop, credit deduction |
 
-#### 📍 KNOWN ISSUES (User Reported)
+#### 💰 EXPORT QUALITY RESOLUTIONS
 
-1. **Credit balance showing 0** - Added logging to debug. Actual balance is 92.
-2. **Credits not deducting** - Code looks correct, may need to check Firestore data
-3. **Save error** - User reported error on save (need actual error message)
-4. **Generic designs** - Fixed by passing briefText to createMockElements
+| Type | Standard (FREE) | High Quality (Credits) |
+|------|-----------------|------------------------|
+| **Design Studio** | 1x (1080p social) | 2x (4K - 2160p+) = 3 credits |
+| **Uniform Designer** | Config only | 2000×2500px print-ready = 5 credits |
+
+| Canvas Size | Standard | High Quality |
+|-------------|----------|--------------|
+| Instagram Post | 1080×1080 | 2160×2160 |
+| Instagram Story | 1080×1920 | 2160×3840 |
+| Print Flyer | 2550×3300 | 5100×6600 |
+| Poster | 1800×2400 | 3600×4800 |
 
 #### 💡 IMPORTANT CONTEXT FOR NEW AI
 
-**AI Creator Flow:**
-1. User selects design type (Step 1)
-2. User uploads reference images (Step 2) 
-3. User fills brief: team name, colors, sport, style, mood, briefText (Step 3)
-4. Advanced options: size, additionalText, avoidElements (Step 4)
-5. Generate creates 3 variations using `createMockElements()`
-6. Results show `DesignPreviewCanvas` components
+**Uniform Designer Flow:**
+1. Select sport (football, basketball, baseball, soccer, etc.)
+2. Pick pieces: tops, bottoms, accessories
+3. Customize each piece: colors, patterns, numbers, names
+4. Preview on 3D mannequin, rotate/zoom
+5. Toggle Home/Away variations
+6. Save with quality choice (standard free / high quality 5 credits)
 
-**createMockElements Parameters:**
+**Key Types:**
 ```typescript
-interface CreateMockElementsParams {
-  designType: DesignType;
-  teamName: string;
-  primaryColor: string;
-  secondaryColor: string;
-  width: number;
-  height: number;
-  variation?: number;      // 1, 2, or 3
-  style?: StylePreset;     // 'modern', 'vintage', 'playful', etc.
-  mood?: MoodPreset;       // 'energetic', 'celebratory', 'fun', etc.
-  briefText?: string;      // User's description
-  additionalText?: string; // Specific text to include
-  selectedEvent?: string;  // Event name
-  sport?: string;          // Sport type for icons
+interface GarmentPiece {
+  id: string;
+  category: 'top' | 'bottom' | 'accessory';
+  style: TopStyle | BottomStyle | AccessoryType;
+  primaryColor, secondaryColor, accentColor: string;
+  pattern: 'solid' | 'stripes' | 'gradient' | 'camo' | 'panels';
+  numberFront?, numberBack?, numberColor?: string;
+  nameBack?, nameColor?: string;
+  aiGeneratedImage?: string; // base64 from DALL-E
+}
+
+interface SavedUniform {
+  quality: 'standard' | 'high';
+  previewImageUrl?: string;        // High-quality preview
+  pieceImageUrls?: { pieceId: string; url: string; storagePath: string }[];
 }
 ```
 
-**Credit System:**
-- `ai_design_generate` = 5 credits per use, 1 free use per month
-- `useCredits` hook returns: `{ balance, loading, checkFeature, consumeFeature, refreshBalance, getFeaturePricing }`
+**Credit Constants:**
+- `AI_CREDITS_PER_PIECE = 3` (AI generation per garment)
+- `HIGH_QUALITY_SAVE_CREDITS = 5` (Uniform high-res save)
+- `HIGH_QUALITY_EXPORT_CREDITS = 3` (Design Studio high-res export)
 
 #### 🎯 USER'S PREFERENCES (This Session)
 
-- **Only push to git when explicitly told**
-- **Only start dev server after successful builds**
+- Standard/High quality save options for all designed items
+- High quality = print-ready resolution for manufacturing
+- Uniform category for filtering in library
 
 #### 🚧 NEXT UP
 
-1. Test AI Creator with actual prompts - verify designs vary
+1. Continue pilot program preparation
+2. Test uniform designer end-to-end
+3. Vendor integration for uniform ordering (future)
+4. Marketing Hub integration
 2. Debug credit balance display (check browser console for `[useCredits]` logs)
 3. Get actual save error message to fix save functionality
 4. Continue Marketing Hub integration---
