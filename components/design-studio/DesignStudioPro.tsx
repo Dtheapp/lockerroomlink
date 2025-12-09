@@ -8,6 +8,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useUnsavedChanges } from '../../contexts/UnsavedChangesContext';
 import QRCode from 'qrcode';
 
 // Components
@@ -48,7 +49,11 @@ type ViewMode = 'selector' | 'editor' | 'preview' | 'fullscreen';
 const DesignStudioPro: React.FC = () => {
   const { theme } = useTheme();
   const { teamData, userData } = useAuth();
+  const { setHasUnsavedChanges } = useUnsavedChanges();
   const exportCanvasRef = useRef<HTMLCanvasElement>(null);
+  
+  // Track if design has been modified
+  const [hasChanges, setHasChanges] = useState(false);
   
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>('selector');
@@ -111,6 +116,32 @@ const DesignStudioPro: React.FC = () => {
     date?: string;
     suggestedTemplate: string;
   }[]>([]);
+
+  // Track unsaved changes and warn on page leave
+  useEffect(() => {
+    setHasUnsavedChanges(hasChanges);
+  }, [hasChanges, setHasUnsavedChanges]);
+  
+  // Browser beforeunload warning for unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasChanges && viewMode === 'editor') {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasChanges, viewMode]);
+  
+  // Mark as changed when elements are modified
+  useEffect(() => {
+    if (viewMode === 'editor' && elements.length > 0) {
+      setHasChanges(true);
+    }
+  }, [elements, viewMode]);
 
   // Fetch pending registrations
   useEffect(() => {
@@ -567,6 +598,9 @@ const DesignStudioPro: React.FC = () => {
       userData.name || 'Unknown',
       options
     );
+    
+    // Clear unsaved changes flag after successful save
+    setHasChanges(false);
   }, [userData, designName, canvas, elements, currentSize]);
   
   // Handle loading a design from the gallery
@@ -580,6 +614,7 @@ const DesignStudioPro: React.FC = () => {
     setHistory({ past: [], future: [] });
     setShowGallery(false);
     setViewMode('editor');
+    setHasChanges(false); // Fresh load = no unsaved changes
   }, []);
   
   // Note: handleExportShortcut is defined as inline function in useKeyboardShortcuts

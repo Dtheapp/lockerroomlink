@@ -39,15 +39,19 @@ export const useCredits = (): UseCreditsResult => {
   useEffect(() => {
     const load = async () => {
       if (!user?.uid) {
+        console.log('[useCredits] No user.uid, skipping load');
         setLoading(false);
         return;
       }
+      
+      console.log('[useCredits] Loading balance for user:', user.uid);
       
       try {
         const [bal, monetization] = await Promise.all([
           getUserCreditBalance(user.uid),
           getMonetizationSettings(),
         ]);
+        console.log('[useCredits] Loaded balance:', bal);
         setBalance(bal);
         setSettings(monetization);
       } catch (err) {
@@ -63,7 +67,9 @@ export const useCredits = (): UseCreditsResult => {
   // Refresh balance
   const refreshBalance = useCallback(async () => {
     if (!user?.uid) return;
+    console.log('[useCredits] Refreshing balance for user:', user.uid);
     const bal = await getUserCreditBalance(user.uid);
+    console.log('[useCredits] Refreshed balance:', bal);
     setBalance(bal);
   }, [user?.uid]);
   

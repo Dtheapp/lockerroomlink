@@ -197,6 +197,13 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
   const aiGeneratePricing = getFeaturePricing('ai_design_generate');
   const creditsPerGenerate = aiGeneratePricing?.creditsPerUse ?? CREDIT_COSTS.generate;
   
+  // Refresh credit balance on mount
+  useEffect(() => {
+    if (userData?.uid) {
+      refreshBalance();
+    }
+  }, [userData?.uid, refreshBalance]);
+  
   // Handle image upload
   const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -337,7 +344,21 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
         id: generateId(),
         imageUrl: '', // Will be actual generated image from AI
         prompt,
-        elements: createMockElements(designType!, teamName, primaryColor, secondaryColor, actualWidth, actualHeight, variation, style, mood),
+        elements: createMockElements({
+          designType: designType!,
+          teamName,
+          primaryColor,
+          secondaryColor,
+          width: actualWidth,
+          height: actualHeight,
+          variation,
+          style,
+          mood,
+          briefText,
+          additionalText,
+          selectedEvent,
+          sport,
+        }),
       }));
       
       setGeneratedDesigns(mockDesigns);
@@ -350,7 +371,7 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
       setIsGenerating(false);
       setGenerationStep('');
     }
-  }, [userData?.uid, designType, buildPrompt, teamName, primaryColor, secondaryColor, outputSize, customWidth, customHeight, checkFeature, consumeFeature, refreshBalance, creditsPerGenerate, style, mood]);
+  }, [userData?.uid, designType, buildPrompt, teamName, primaryColor, secondaryColor, outputSize, customWidth, customHeight, checkFeature, consumeFeature, refreshBalance, creditsPerGenerate, style, mood, briefText, additionalText, selectedEvent, sport]);
   
   // Handle refinement
   const handleRefine = useCallback(async () => {
@@ -407,7 +428,21 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
         id: generateId(),
         imageUrl: '',
         prompt: refinedPrompt,
-        elements: createMockElements(designType!, teamName, primaryColor, secondaryColor, actualWidth, actualHeight, variation, style, mood),
+        elements: createMockElements({
+          designType: designType!,
+          teamName,
+          primaryColor,
+          secondaryColor,
+          width: actualWidth,
+          height: actualHeight,
+          variation,
+          style,
+          mood,
+          briefText: `${briefText} ${refinementFeedback}`,
+          additionalText,
+          selectedEvent,
+          sport,
+        }),
       }));
       
       setGeneratedDesigns(mockDesigns);
@@ -421,7 +456,7 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
       setIsGenerating(false);
       setGenerationStep('');
     }
-  }, [refinementFeedback, userData?.uid, checkFeature, consumeFeature, refreshBalance, creditsPerGenerate, buildPrompt, designType, teamName, primaryColor, secondaryColor, outputSize, customWidth, customHeight, style, mood]);
+  }, [refinementFeedback, userData?.uid, checkFeature, consumeFeature, refreshBalance, creditsPerGenerate, buildPrompt, designType, teamName, primaryColor, secondaryColor, outputSize, customWidth, customHeight, style, mood, briefText, additionalText, selectedEvent, sport]);
   
   // Import selected design to editor
   const handleImport = useCallback(() => {
@@ -1102,7 +1137,14 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
           
           {/* Credit balance */}
           <div className="flex items-center gap-4">
-            {!loadingCredits && creditBalance !== null && (
+            {loadingCredits ? (
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
+                theme === 'dark' ? 'bg-zinc-800' : 'bg-slate-100'
+              }`}>
+                <Coins className="w-4 h-4 text-yellow-500 animate-pulse" />
+                <span className={`text-sm font-medium ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>...</span>
+              </div>
+            ) : (
               <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
                 theme === 'dark' ? 'bg-zinc-800' : 'bg-slate-100'
               }`}>
@@ -1201,17 +1243,39 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
 // HELPER: Create mock elements for import with variations
 // =============================================================================
 
-function createMockElements(
-  designType: DesignType,
-  teamName: string,
-  primaryColor: string,
-  secondaryColor: string,
-  width: number,
-  height: number,
-  variation: number = 1,
-  style: StylePreset = 'modern',
-  mood: MoodPreset = 'energetic'
-): DesignElement[] {
+interface CreateMockElementsParams {
+  designType: DesignType;
+  teamName: string;
+  primaryColor: string;
+  secondaryColor: string;
+  width: number;
+  height: number;
+  variation?: number;
+  style?: StylePreset;
+  mood?: MoodPreset;
+  briefText?: string;
+  additionalText?: string;
+  selectedEvent?: string;
+  sport?: string;
+}
+
+function createMockElements(params: CreateMockElementsParams): DesignElement[] {
+  const {
+    designType,
+    teamName,
+    primaryColor,
+    secondaryColor,
+    width,
+    height,
+    variation = 1,
+    style = 'modern',
+    mood = 'energetic',
+    briefText = '',
+    additionalText = '',
+    selectedEvent = '',
+    sport = '',
+  } = params;
+  
   const elements: DesignElement[] = [];
   
   // Color variations based on variation number
@@ -1356,8 +1420,8 @@ function createMockElements(
     textShadow: '0 4px 20px rgba(0,0,0,0.5)',
   });
   
-  // Subtitle based on design type with variations
-  const subtitles: Record<DesignType, string[]> = {
+  // Subtitle based on design type with variations - use user input when available
+  const defaultSubtitles: Record<DesignType, string[]> = {
     'logo': ['EST.', 'TEAM SPIRIT', 'ATHLETICS'],
     'registration-flyer': ['REGISTRATION OPEN', 'SIGN UP NOW', 'JOIN THE TEAM'],
     'event-poster': ['GAME DAY', 'LET\'S GO!', 'MATCH DAY'],
@@ -1366,7 +1430,23 @@ function createMockElements(
     'announcement': ['ANNOUNCEMENT', 'NEWS UPDATE', 'IMPORTANT'],
     'celebration': ['CHAMPIONS!', 'VICTORY!', 'WE WON!'],
   };
-  const subtitle = subtitles[designType]?.[variation - 1] || 'TEAM SPIRIT';
+  
+  // Use additionalText, selectedEvent, or extract key phrases from briefText
+  let subtitle: string;
+  if (additionalText && additionalText.trim()) {
+    // User specified exact text to include
+    subtitle = additionalText.trim().toUpperCase();
+  } else if (selectedEvent && selectedEvent.trim()) {
+    // Use the selected event name
+    subtitle = selectedEvent.toUpperCase();
+  } else if (briefText && briefText.trim()) {
+    // Extract key info from brief - take first meaningful phrase (up to 30 chars)
+    const cleaned = briefText.trim().replace(/[,.!?;:]/g, ' ').split(/\s+/);
+    const keyWords = cleaned.slice(0, 4).join(' ').toUpperCase().substring(0, 30);
+    subtitle = keyWords || defaultSubtitles[designType]?.[variation - 1] || 'TEAM SPIRIT';
+  } else {
+    subtitle = defaultSubtitles[designType]?.[variation - 1] || 'TEAM SPIRIT';
+  }
   
   const subtitleWidth = Math.min(width * 0.7, 350);
   const subtitleX = layout.centerText ? (width - subtitleWidth) / 2 : width * 0.05;
@@ -1466,6 +1546,74 @@ function createMockElements(
       textAlign: 'center',
       color: '#ffffff',
       backgroundColor: 'transparent',
+    });
+  }
+  
+  // Add sport-specific icon if sport is specified
+  const sportIcons: Record<string, string> = {
+    'baseball': '⚾',
+    'softball': '🥎',
+    'basketball': '🏀',
+    'football': '🏈',
+    'soccer': '⚽',
+    'volleyball': '🏐',
+    'tennis': '🎾',
+    'hockey': '🏒',
+    'lacrosse': '🥍',
+    'swimming': '🏊',
+    'track': '🏃',
+    'wrestling': '🤼',
+    'gymnastics': '🤸',
+    'cheerleading': '📣',
+  };
+  
+  const sportLower = sport?.toLowerCase() || '';
+  const sportIcon = Object.entries(sportIcons).find(([key]) => sportLower.includes(key))?.[1];
+  
+  if (sportIcon && variation !== 2) {
+    elements.push({
+      id: generateId(),
+      type: 'text',
+      position: { x: width * 0.08, y: height * 0.88 },
+      size: { width: 60, height: 60 },
+      rotation: 0,
+      opacity: 60,
+      zIndex: 8,
+      locked: false,
+      visible: true,
+      content: sportIcon,
+      fontFamily: 'Arial',
+      fontSize: 48,
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+      textAlign: 'center',
+      color: '#ffffff',
+      backgroundColor: 'transparent',
+    });
+  }
+  
+  // Add brief text as a tagline if it's short enough and not already used
+  if (briefText && briefText.trim().length > 0 && briefText.trim().length <= 60 && !additionalText) {
+    const taglineY = variation === 1 ? 0.92 : variation === 2 ? 0.92 : 0.55;
+    elements.push({
+      id: generateId(),
+      type: 'text',
+      position: { x: width * 0.1, y: height * taglineY },
+      size: { width: width * 0.8, height: 40 },
+      rotation: 0,
+      opacity: 90,
+      zIndex: 12,
+      locked: false,
+      visible: true,
+      content: briefText.trim(),
+      fontFamily: 'Arial',
+      fontSize: Math.min(18, width * 0.02),
+      fontWeight: 'normal',
+      fontStyle: style === 'elegant' ? 'italic' : 'normal',
+      textAlign: 'center',
+      color: variation === 2 ? colors.bg : colors.accent,
+      backgroundColor: 'transparent',
+      letterSpacing: 1,
     });
   }
   
