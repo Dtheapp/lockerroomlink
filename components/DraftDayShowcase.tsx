@@ -393,23 +393,6 @@ export const DraftDayShowcase: React.FC = () => {
               <StatRing value={animatedStats.fairness} label="Team Fairness" color="#22c55e" />
               <StatRing value={animatedStats.excitement} label="Player Excitement" color="#a855f7" />
             </div>
-            
-            {/* CTA */}
-            <div className="flex justify-center gap-4">
-              <a 
-                href="#mockup"
-                className="group flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-400 hover:to-pink-400 rounded-xl text-white font-bold text-lg transition-all hover:scale-105 shadow-xl shadow-orange-500/30"
-              >
-                See Live Mockup
-                <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-              </a>
-              <a 
-                href="#features"
-                className="flex items-center gap-2 px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-xl text-white font-bold text-lg transition-all"
-              >
-                View All Features
-              </a>
-            </div>
           </div>
         </section>
 
