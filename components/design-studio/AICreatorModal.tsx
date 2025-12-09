@@ -26,7 +26,8 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
-  Coins
+  Coins,
+  Maximize2
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -549,8 +550,7 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
       const aiImageElement: DesignElement = {
         id: generateId(),
         type: 'image',
-        content: design.imageUrl,
-        imageUrl: design.imageUrl,
+        src: design.imageUrl, // DesignStudioPro uses 'src' for image elements
         position: { x: 0, y: 0 },
         size: { width, height },
         rotation: 0,
@@ -1068,7 +1068,7 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
           </div>
           <div className="text-right">
             <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{CREDIT_COSTS.generate} credits</div>
-            <div className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Generates 3 design variations</div>
+            <div className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Generates 1 AI design</div>
           </div>
         </div>
         {creditBalance !== null && (
@@ -1103,43 +1103,79 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
     </div>
   );
   
+  // State for image preview popup
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  
   const renderResults = () => (
     <div className="space-y-6">
       <div className="text-center mb-6">
-        <h3 className={`text-xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Your Generated Designs</h3>
-        <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>Select a design to import and edit</p>
+        <h3 className={`text-xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Your Generated Design</h3>
+        <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>Click View to see full size, or Import to Editor</p>
       </div>
       
-      {/* Generated designs - centered single image */}
-      <div className="flex justify-center">
+      {/* Generated design - centered single image */}
+      <div className="flex flex-col items-center gap-4">
         {generatedDesigns.map((design, idx) => (
-          <div
-            key={design.id}
-            className={`relative w-64 aspect-square rounded-xl overflow-hidden border-2 transition-all border-purple-500 ring-2 ring-purple-500/50`}
-          >
-            {/* Render actual design preview */}
-            <DesignPreviewCanvas 
-              elements={design.elements} 
-              width={outputSize === 'custom' ? customWidth : FLYER_SIZES[outputSize].width}
-              height={outputSize === 'custom' ? customHeight : FLYER_SIZES[outputSize].height}
-              backgroundColor={secondaryColor}
-              imageUrl={design.imageUrl}
-            />
-            
-            {/* Variation label */}
-            <div className="absolute bottom-2 left-2 right-2 text-center">
-              <div className={`text-xs px-2 py-1 rounded bg-black/60 ${theme === 'dark' ? 'text-white' : 'text-white'}`}>
-                Variation {idx + 1}
+          <div key={design.id} className="flex flex-col items-center gap-3">
+            <div
+              className={`relative w-72 aspect-square rounded-xl overflow-hidden border-2 transition-all border-purple-500 ring-2 ring-purple-500/50`}
+            >
+              {/* Show the actual AI image */}
+              {design.imageUrl ? (
+                <img 
+                  src={design.imageUrl} 
+                  alt="AI Generated Design"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <DesignPreviewCanvas 
+                  elements={design.elements} 
+                  width={outputSize === 'custom' ? customWidth : FLYER_SIZES[outputSize].width}
+                  height={outputSize === 'custom' ? customHeight : FLYER_SIZES[outputSize].height}
+                  backgroundColor={secondaryColor}
+                  imageUrl={design.imageUrl}
+                />
+              )}
+              
+              {/* Selected checkmark */}
+              <div className="absolute top-2 right-2 w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
+                <Check className="w-4 h-4 text-white" />
               </div>
             </div>
             
-            {/* Always show selected checkmark */}
-            <div className="absolute top-2 right-2 w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
-              <Check className="w-4 h-4 text-white" />
-            </div>
+            {/* View button */}
+            <button
+              onClick={() => setShowImagePreview(true)}
+              className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg flex items-center gap-2 text-sm transition-colors"
+            >
+              <Maximize2 className="w-4 h-4" />
+              View Full Size
+            </button>
           </div>
         ))}
       </div>
+      
+      {/* Full size image preview popup */}
+      {showImagePreview && generatedDesigns[0]?.imageUrl && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setShowImagePreview(false)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh]">
+            <img 
+              src={generatedDesigns[0].imageUrl} 
+              alt="AI Generated Design - Full Size"
+              className="max-w-full max-h-[85vh] object-contain rounded-lg"
+            />
+            <button
+              onClick={() => setShowImagePreview(false)}
+              className="absolute top-2 right-2 w-10 h-10 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+      )}
       
       {/* Refinement feedback */}
       <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-zinc-800' : 'bg-slate-100'}`}>
