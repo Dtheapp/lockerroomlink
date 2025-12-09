@@ -312,50 +312,54 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
       const actualHeight = outputSize === 'custom' ? customHeight : FLYER_SIZES[outputSize].height;
       
       // Call the real AI generation API
-      setGenerationStep('Generating AI designs...');
+      setGenerationStep('Generating AI designs with DALL-E 3...');
       
       let aiImages: { url: string; revisedPrompt?: string }[] = [];
-      let usedRealAI = false;
+      let aiError: string | null = null;
       
-      try {
-        const response = await fetch('/.netlify/functions/generate-ai-design', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${userData.uid}`,
-          },
-          body: JSON.stringify({
-            prompt,
-            width: actualWidth,
-            height: actualHeight,
-            designType: designType!,
-            style,
-            mood,
-            numVariations: 3,
-          }),
-        });
+      const response = await fetch('/.netlify/functions/generate-ai-design', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${userData.uid}`,
+        },
+        body: JSON.stringify({
+          prompt,
+          width: actualWidth,
+          height: actualHeight,
+          designType: designType!,
+          style,
+          mood,
+          numVariations: 3,
+        }),
+      });
+      
+      console.log('AI Response status:', response.status);
+      
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const data = await response.json();
+        console.log('AI Response data:', data);
         
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const data = await response.json();
-          
-          if (response.ok && data.success && data.images?.length > 0) {
-            aiImages = data.images;
-            usedRealAI = true;
-            console.log('AI Generation successful:', data.images.length, 'images');
-          } else if (data.error) {
-            console.warn('AI Generation returned error:', data.error, data.details);
-            // Fall back to mock if AI fails
-          }
+        if (response.ok && data.success && data.images?.length > 0) {
+          aiImages = data.images;
+          console.log('AI Generation successful:', data.images.length, 'images');
         } else {
-          console.warn('AI endpoint returned non-JSON response');
+          aiError = data.error || data.details || `AI returned status ${response.status}`;
+          console.error('AI Generation failed:', aiError);
         }
-      } catch (aiError) {
-        console.warn('AI generation failed, using fallback:', aiError);
-        // Continue to fallback mock generation
+      } else {
+        const text = await response.text();
+        aiError = `AI endpoint returned non-JSON: ${text.substring(0, 200)}`;
+        console.error(aiError);
       }
       
-      // Consume credits AFTER successful generation (or fallback)
+      // If AI failed, throw the error - don't silently fallback
+      if (aiImages.length === 0) {
+        throw new Error(aiError || 'AI generation failed. Please try again.');
+      }
+      
+      // Consume credits AFTER successful generation
       setGenerationStep('Processing...');
       const consumed = await consumeFeature('ai_design_generate', {
         itemName: `AI Design Generation: ${DESIGN_TYPES.find(t => t.id === designType)?.label}`,
@@ -368,43 +372,13 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
       // Refresh balance after consuming
       await refreshBalance();
       
-      // Create designs - either from AI or fallback to mock
-      let designs: GeneratedDesign[];
-      
-      if (usedRealAI && aiImages.length > 0) {
-        // Use real AI-generated images
-        designs = aiImages.map((img, idx) => ({
-          id: generateId(),
-          imageUrl: img.url,
-          prompt: img.revisedPrompt || prompt,
-          elements: [], // AI images don't need mock elements
-        }));
-      } else {
-        // Fallback to mock generation with improved messaging
-        console.log('Using mock generation (AI not available)');
-        setGenerationStep('Creating design previews...');
-        
-        designs = [1, 2, 3].map(variation => ({
-          id: generateId(),
-          imageUrl: '', // No AI image
-          prompt,
-          elements: createMockElements({
-            designType: designType!,
-            teamName,
-            primaryColor,
-            secondaryColor,
-            width: actualWidth,
-            height: actualHeight,
-            variation,
-            style,
-            mood,
-            briefText,
-            additionalText,
-            selectedEvent,
-            sport,
-          }),
-        }));
-      }
+      // Create designs from AI images
+      const designs: GeneratedDesign[] = aiImages.map((img) => ({
+        id: generateId(),
+        imageUrl: img.url,
+        prompt: img.revisedPrompt || prompt,
+        elements: [], // AI images don't need mock elements
+      }));
       
       setGeneratedDesigns(designs);
       setCurrentStep(5); // Go to results step
