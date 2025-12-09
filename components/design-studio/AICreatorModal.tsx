@@ -514,11 +514,10 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
     }
   }, [refinementFeedback, userData?.uid, checkFeature, consumeFeature, refreshBalance, creditsPerGenerate, buildPrompt, designType, teamName, primaryColor, secondaryColor, outputSize, customWidth, customHeight, style, mood, briefText, additionalText, selectedEvent, sport]);
   
-  // Import selected design to editor
+  // Import selected design to editor (auto-selects first design since we only generate one)
   const handleImport = useCallback(() => {
-    if (!selectedDesign) return;
-    
-    const design = generatedDesigns.find(d => d.id === selectedDesign);
+    // Use the first generated design since we only generate one
+    const design = generatedDesigns[0];
     if (!design) return;
     
     // Handle custom size vs preset size
@@ -566,7 +565,7 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
     
     onImportDesign(elements, canvas, sizeKey);
     onClose();
-  }, [selectedDesign, generatedDesigns, outputSize, customWidth, customHeight, onImportDesign, onClose]);
+  }, [generatedDesigns, outputSize, customWidth, customHeight, onImportDesign, onClose]);
   
   // Check if can proceed to next step
   const canProceed = useCallback(() => {
@@ -1111,19 +1110,12 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
         <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>Select a design to import and edit</p>
       </div>
       
-      {/* Generated designs grid */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Generated designs - centered single image */}
+      <div className="flex justify-center">
         {generatedDesigns.map((design, idx) => (
-          <button
+          <div
             key={design.id}
-            onClick={() => setSelectedDesign(design.id)}
-            className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
-              selectedDesign === design.id
-                ? 'border-purple-500 ring-2 ring-purple-500/50'
-                : theme === 'dark'
-                  ? 'border-zinc-700 hover:border-zinc-600'
-                  : 'border-slate-300 hover:border-slate-400'
-            }`}
+            className={`relative w-64 aspect-square rounded-xl overflow-hidden border-2 transition-all border-purple-500 ring-2 ring-purple-500/50`}
           >
             {/* Render actual design preview */}
             <DesignPreviewCanvas 
@@ -1141,12 +1133,11 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
               </div>
             </div>
             
-            {selectedDesign === design.id && (
-              <div className="absolute top-2 right-2 w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
-                <Check className="w-4 h-4 text-white" />
-              </div>
-            )}
-          </button>
+            {/* Always show selected checkmark */}
+            <div className="absolute top-2 right-2 w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
+              <Check className="w-4 h-4 text-white" />
+            </div>
+          </div>
         ))}
       </div>
       
@@ -1197,7 +1188,7 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
         </button>
         <button
           onClick={handleImport}
-          disabled={!selectedDesign}
+          disabled={generatedDesigns.length === 0}
           className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500 to-orange-500 hover:from-purple-600 hover:to-orange-600 disabled:from-zinc-600 disabled:to-zinc-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-all flex items-center justify-center gap-2"
         >
           <Sparkles className="w-5 h-5" />
