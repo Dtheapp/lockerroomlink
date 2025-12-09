@@ -4,7 +4,7 @@
  * Designed to wow pilot program stakeholders
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Trophy,
   Users,
@@ -38,7 +38,11 @@ import {
   Tv,
   Calendar,
   MapPin,
-  Hash
+  Hash,
+  Ticket,
+  Shuffle,
+  PartyPopper,
+  Dices
 } from 'lucide-react';
 
 // ============================================================================
@@ -68,6 +72,224 @@ const draftHistory = [
   { pick: 2, team: 'Storm Raiders', player: 'DeShawn Williams', position: 'RB', time: '1:58' },
   { pick: 3, team: 'Fire Dragons', player: 'Tyler Chen', position: 'WR', time: '2:15' },
 ];
+
+// Mock lottery results
+const mockLotteryResults = [
+  { position: 1, team: 'Ice Wolves', emoji: '🐺', color: '#06b6d4', coach: 'Coach Martinez' },
+  { position: 2, team: 'Fire Dragons', emoji: '🐉', color: '#ef4444', coach: 'Coach Williams' },
+  { position: 3, team: 'Thunder Hawks', emoji: '🦅', color: '#f97316', coach: 'Coach Johnson' },
+  { position: 4, team: 'Storm Raiders', emoji: '⛈️', color: '#3b82f6', coach: 'Coach Chen' },
+];
+
+// ============================================================================
+// LOTTERY COMPONENTS
+// ============================================================================
+
+// Animated Lottery Wheel
+const LotteryWheel: React.FC<{ isSpinning: boolean; winner?: typeof mockLotteryResults[0] }> = ({ isSpinning, winner }) => {
+  const teams = mockTeams;
+  const segmentAngle = 360 / teams.length;
+  
+  return (
+    <div className="relative w-80 h-80 mx-auto">
+      {/* Outer glow ring */}
+      <div className={`absolute -inset-4 rounded-full ${isSpinning ? 'animate-pulse' : ''}`}
+           style={{ 
+             background: 'conic-gradient(from 0deg, #f97316, #ec4899, #8b5cf6, #3b82f6, #06b6d4, #22c55e, #f97316)',
+             filter: 'blur(20px)',
+             opacity: isSpinning ? 0.8 : 0.4
+           }} />
+      
+      {/* Wheel background */}
+      <div className={`relative w-full h-full rounded-full border-4 border-white/20 shadow-2xl overflow-hidden transition-transform duration-[5000ms] ease-out ${isSpinning ? 'animate-spin' : ''}`}
+           style={{ 
+             transform: winner ? `rotate(${(mockLotteryResults.findIndex(r => r.team === winner.team) * segmentAngle) + 720}deg)` : undefined,
+             background: 'conic-gradient(from 0deg, #f97316 0deg 90deg, #3b82f6 90deg 180deg, #ef4444 180deg 270deg, #06b6d4 270deg 360deg)'
+           }}>
+        {/* Team segments */}
+        {teams.map((team, idx) => (
+          <div 
+            key={team.id}
+            className="absolute top-1/2 left-1/2 w-1/2 h-8 flex items-center justify-end pr-4 origin-left"
+            style={{ transform: `rotate(${idx * segmentAngle + segmentAngle/2}deg) translateY(-50%)` }}
+          >
+            <span className="text-2xl drop-shadow-lg">{team.emoji}</span>
+          </div>
+        ))}
+        
+        {/* Center hub */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-gradient-to-br from-zinc-800 to-zinc-900 border-4 border-white/30 flex items-center justify-center shadow-xl">
+          <Dices size={32} className="text-orange-400" />
+        </div>
+      </div>
+      
+      {/* Pointer */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 z-10">
+        <div className="w-0 h-0 border-l-[15px] border-l-transparent border-r-[15px] border-r-transparent border-t-[30px] border-t-orange-500 drop-shadow-lg" />
+      </div>
+    </div>
+  );
+};
+
+// Lottery Ticket Component - Winner Display
+const LotteryTicketWinner: React.FC<{ result: typeof mockLotteryResults[0]; isRevealing?: boolean }> = ({ result, isRevealing }) => {
+  return (
+    <div className="relative group perspective-1000">
+      {/* Ticket glow effect */}
+      <div className={`absolute -inset-2 bg-gradient-to-r from-yellow-400 via-orange-500 to-pink-500 rounded-3xl blur-xl transition-opacity ${isRevealing ? 'opacity-100 animate-pulse' : 'opacity-60 group-hover:opacity-100'}`} />
+      
+      {/* Main ticket */}
+      <div className="relative bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 rounded-3xl border-2 border-yellow-500/50 overflow-hidden shadow-2xl transform transition-transform group-hover:scale-[1.02]">
+        {/* Golden header */}
+        <div className="relative bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-500 px-6 py-4">
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjMpIi8+PC9zdmc+')] opacity-50" />
+          <div className="relative flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                <Trophy size={28} className="text-yellow-900" />
+              </div>
+              <div>
+                <p className="text-yellow-900/80 text-xs font-bold tracking-wider">OSYS DRAFT LOTTERY</p>
+                <p className="text-yellow-900 text-xl font-black">2026 SEASON</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-yellow-900/80 text-xs">WINNING PICK</p>
+              <p className="text-6xl font-black text-yellow-900 leading-none">#{result.position}</p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Perforated edge effect */}
+        <div className="flex justify-between px-2 -my-2 relative z-10">
+          {[...Array(20)].map((_, i) => (
+            <div key={i} className="w-4 h-4 rounded-full bg-black" />
+          ))}
+        </div>
+        
+        {/* Winner info section */}
+        <div className="px-8 py-8 bg-gradient-to-b from-zinc-800/50 to-zinc-900">
+          {/* Team display */}
+          <div className="flex items-center gap-6 mb-6">
+            <div className="relative">
+              <div className="absolute -inset-2 rounded-full animate-pulse" style={{ backgroundColor: result.color, opacity: 0.3 }} />
+              <div className="relative w-24 h-24 rounded-full flex items-center justify-center text-6xl shadow-xl"
+                   style={{ backgroundColor: result.color + '30', border: `3px solid ${result.color}` }}>
+                {result.emoji}
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="text-slate-400 text-sm font-medium mb-1">LOTTERY WINNER</p>
+              <h3 className="text-3xl font-black text-white mb-1">{result.team}</h3>
+              <p className="text-slate-500">{result.coach}</p>
+            </div>
+          </div>
+          
+          {/* Confetti celebration text */}
+          <div className="relative bg-gradient-to-r from-orange-500/20 via-pink-500/20 to-purple-500/20 rounded-2xl p-4 border border-white/10">
+            <div className="flex items-center gap-3">
+              <PartyPopper size={24} className="text-yellow-400" />
+              <div>
+                <p className="text-white font-bold">Congratulations!</p>
+                <p className="text-slate-400 text-sm">First pick in the 2026 OSYS Draft</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Ticket details */}
+          <div className="mt-6 grid grid-cols-3 gap-4 text-center">
+            <div className="bg-zinc-800/50 rounded-xl p-3">
+              <p className="text-xs text-slate-500">DRAFT DATE</p>
+              <p className="text-white font-bold">March 15</p>
+            </div>
+            <div className="bg-zinc-800/50 rounded-xl p-3">
+              <p className="text-xs text-slate-500">LOTTERY #</p>
+              <p className="text-orange-400 font-mono font-bold">L-2026-001</p>
+            </div>
+            <div className="bg-zinc-800/50 rounded-xl p-3">
+              <p className="text-xs text-slate-500">LEAGUE</p>
+              <p className="text-white font-bold truncate">Thunder Youth</p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Bottom barcode section */}
+        <div className="bg-zinc-950 px-8 py-4 flex items-center justify-between border-t border-white/5">
+          <div className="flex gap-1">
+            {[...Array(30)].map((_, i) => (
+              <div key={i} className="w-1 bg-white/80" style={{ height: Math.random() * 20 + 20 }} />
+            ))}
+          </div>
+          <p className="text-slate-600 text-xs font-mono">OSYS-2026-DRAFT-LOTTERY-VERIFIED</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Full Lottery Results Board
+const LotteryResultsBoard: React.FC = () => {
+  const [revealedPositions, setRevealedPositions] = useState<number[]>([4, 3, 2, 1]);
+  
+  return (
+    <div className="bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 rounded-3xl border border-white/10 overflow-hidden">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-orange-600 px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+            <Shuffle size={24} className="text-white" />
+          </div>
+          <div>
+            <h3 className="text-white font-bold text-lg">DRAFT LOTTERY RESULTS</h3>
+            <p className="text-white/70 text-sm">2026 Thunder Youth Football League</p>
+          </div>
+        </div>
+      </div>
+      
+      {/* Results list */}
+      <div className="p-6 space-y-3">
+        {mockLotteryResults.map((result, idx) => (
+          <div 
+            key={result.position}
+            className={`flex items-center gap-4 p-4 rounded-xl transition-all duration-500 ${
+              revealedPositions.includes(result.position) 
+                ? result.position === 1 
+                  ? 'bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30' 
+                  : 'bg-zinc-800/50 border border-white/5'
+                : 'bg-zinc-900/50 opacity-50'
+            }`}
+          >
+            {/* Position badge */}
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-xl ${
+              result.position === 1 
+                ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-yellow-900' 
+                : 'bg-zinc-700 text-white'
+            }`}>
+              #{result.position}
+            </div>
+            
+            {/* Team info */}
+            <div className="flex items-center gap-3 flex-1">
+              <span className="text-3xl">{result.emoji}</span>
+              <div>
+                <p className="font-bold text-white">{result.team}</p>
+                <p className="text-xs text-slate-500">{result.coach}</p>
+              </div>
+            </div>
+            
+            {/* Status */}
+            {result.position === 1 && revealedPositions.includes(1) && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/20 rounded-lg">
+                <Crown size={16} className="text-yellow-400" />
+                <span className="text-yellow-400 text-sm font-bold">1ST PICK!</span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 // ============================================================================
 // COMPONENTS
@@ -717,6 +939,122 @@ export const DraftDayShowcase: React.FC = () => {
           </div>
         </section>
 
+        {/* 🎰 DRAFT LOTTERY SECTION - NFL STYLE */}
+        <section className="py-20 px-4 bg-gradient-to-b from-transparent via-purple-900/10 to-transparent overflow-hidden">
+          <div className="max-w-7xl mx-auto">
+            {/* Section Header */}
+            <div className="text-center mb-16">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 border border-purple-500/30 rounded-full mb-6">
+                <Shuffle size={16} className="text-purple-400" />
+                <span className="text-purple-400 font-medium">New Feature</span>
+              </div>
+              <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
+                🎰 Draft Lottery
+              </h2>
+              <p className="text-xl text-slate-400 max-w-3xl mx-auto">
+                NFL-style lottery system for ultimate fairness. Enable lottery mode and let fate 
+                decide the draft order with a <span className="text-purple-400 font-semibold">live animated reveal</span>.
+              </p>
+            </div>
+            
+            {/* Main Lottery Display */}
+            <div className="grid lg:grid-cols-2 gap-12 items-center mb-16">
+              {/* Left - Lottery Wheel */}
+              <div className="relative">
+                <div className="text-center">
+                  <h3 className="text-2xl font-bold text-white mb-8 flex items-center justify-center gap-3">
+                    <Dices size={28} className="text-purple-400" />
+                    Live Lottery Wheel
+                  </h3>
+                  <LotteryWheel isSpinning={false} winner={mockLotteryResults[0]} />
+                  <p className="text-slate-400 mt-8 max-w-sm mx-auto">
+                    All coaches watch the wheel spin live. Real-time sync ensures everyone sees the same results simultaneously.
+                  </p>
+                </div>
+              </div>
+              
+              {/* Right - Results Board */}
+              <div>
+                <LotteryResultsBoard />
+              </div>
+            </div>
+            
+            {/* Winner Ticket Showcase */}
+            <div className="mb-16">
+              <div className="text-center mb-8">
+                <h3 className="text-2xl font-bold text-white mb-2">🎫 Winning Lottery Ticket</h3>
+                <p className="text-slate-400">What the #1 pick winner sees after the lottery</p>
+              </div>
+              <div className="max-w-lg mx-auto">
+                <LotteryTicketWinner result={mockLotteryResults[0]} />
+              </div>
+            </div>
+            
+            {/* Lottery Benefits Grid */}
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                {
+                  icon: Shield,
+                  title: 'Ultimate Fairness',
+                  description: 'No coach can be accused of rigging the order. Pure random chance.',
+                  gradient: 'from-green-500 to-emerald-500'
+                },
+                {
+                  icon: Sparkles,
+                  title: 'NFL-Style Drama',
+                  description: 'Create "Remember when we won the lottery?" moments for your league.',
+                  gradient: 'from-purple-500 to-pink-500'
+                },
+                {
+                  icon: Users,
+                  title: 'Watch Together',
+                  description: 'Parents & players gather for the live lottery reveal event.',
+                  gradient: 'from-blue-500 to-cyan-500'
+                },
+                {
+                  icon: Trophy,
+                  title: 'Saved History',
+                  description: 'All lottery results stored forever. Relive the excitement each season.',
+                  gradient: 'from-orange-500 to-amber-500'
+                }
+              ].map((benefit, idx) => (
+                <div key={idx} className="group relative overflow-hidden bg-gradient-to-br from-zinc-800/50 to-zinc-900/50 backdrop-blur-md rounded-2xl border border-white/10 p-6 hover:border-purple-500/30 transition-all hover:scale-[1.02]">
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${benefit.gradient} flex items-center justify-center mb-4 shadow-lg`}>
+                    <benefit.icon size={24} className="text-white" />
+                  </div>
+                  <h4 className="text-lg font-bold text-white mb-2">{benefit.title}</h4>
+                  <p className="text-slate-400 text-sm">{benefit.description}</p>
+                </div>
+              ))}
+            </div>
+            
+            {/* How It Works */}
+            <div className="mt-16 bg-gradient-to-br from-zinc-800/30 to-zinc-900/30 rounded-3xl border border-white/10 p-8">
+              <h3 className="text-2xl font-bold text-white text-center mb-8">How Lottery Mode Works</h3>
+              <div className="grid md:grid-cols-4 gap-8">
+                {[
+                  { step: 1, title: 'Enable Lottery', desc: 'Commissioner toggles lottery mode when creating the draft', icon: '⚙️' },
+                  { step: 2, title: 'Coaches Join', desc: 'All team coaches join the draft lobby before lottery starts', icon: '👥' },
+                  { step: 3, title: 'Live Draw', desc: 'Animated wheel/ball draw reveals pick order in real-time', icon: '🎰' },
+                  { step: 4, title: 'Draft Begins', desc: 'With order set, the draft starts immediately', icon: '🏈' },
+                ].map((item) => (
+                  <div key={item.step} className="text-center">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 flex items-center justify-center mx-auto mb-4">
+                      <span className="text-3xl">{item.icon}</span>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-purple-500 text-white font-bold flex items-center justify-center mx-auto mb-2">
+                      {item.step}
+                    </div>
+                    <h4 className="font-bold text-white mb-1">{item.title}</h4>
+                    <p className="text-sm text-slate-400">{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Implementation Timeline */}
         <section className="py-20 px-4 bg-gradient-to-b from-transparent via-zinc-900/50 to-transparent">
           <div className="max-w-5xl mx-auto">
@@ -814,6 +1152,7 @@ export const DraftDayShowcase: React.FC = () => {
                     { name: 'drafts/{id}/picks', desc: 'Individual pick records' },
                     { name: 'drafts/{id}/players', desc: 'Available player pool' },
                     { name: 'drafts/{id}/teams', desc: 'Team rosters & order' },
+                    { name: 'drafts/{id}/lottery', desc: '🆕 Lottery results & history' },
                     { name: 'draftSettings', desc: 'League draft configurations' },
                     { name: 'draftHistory', desc: 'Historical draft records' },
                   ].map((col, idx) => (
@@ -839,6 +1178,8 @@ export const DraftDayShowcase: React.FC = () => {
                     { name: 'DraftLobby.tsx', desc: 'Main draft room interface' },
                     { name: 'DraftBoard.tsx', desc: 'Visual player board' },
                     { name: 'DraftTimer.tsx', desc: 'Pick countdown timer' },
+                    { name: 'DraftLottery.tsx', desc: '🆕 Live lottery wheel animation' },
+                    { name: 'LotteryTicket.tsx', desc: '🆕 Winner ticket display' },
                     { name: 'PlayerCard.tsx', desc: 'Player profile cards' },
                     { name: 'DraftHistory.tsx', desc: 'Pick history display' },
                     { name: 'DraftSettings.tsx', desc: 'Commissioner config' },
