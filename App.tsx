@@ -119,6 +119,7 @@ const CommissionerCreateTeam = lazyWithRetry(() => import('./components/commissi
 const CommissionerTeamDetail = lazyWithRetry(() => import('./components/commissioner/CommissionerTeamDetail'));
 const CommissionerAssignCoach = lazyWithRetry(() => import('./components/commissioner/CommissionerAssignCoach'));
 const CommissionerGrievances = lazyWithRetry(() => import('./components/commissioner/CommissionerGrievances'));
+const TeamScheduleView = lazyWithRetry(() => import('./components/commissioner/TeamScheduleView'));
 
 // League Owner Pages
 const LeagueDashboard = lazyWithRetry(() => import('./components/league/LeagueDashboard'));
@@ -263,6 +264,7 @@ const AppContent: React.FC = () => {
                 <Route path="commissioner/teams/:teamId" element={<CommissionerTeamDetail />} />
                 <Route path="commissioner/teams/:teamId/assign-coach" element={<CommissionerAssignCoach />} />
                 <Route path="commissioner/grievances" element={<CommissionerGrievances />} />
+                <Route path="commissioner/schedule" element={<TeamScheduleView />} />
                 <Route path="profile" element={<Profile />} />
                 {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}
               </Route>

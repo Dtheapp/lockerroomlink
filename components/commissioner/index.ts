@@ -10,3 +10,4 @@ export { default as CommissionerCreateTeam } from './CommissionerCreateTeam';
 export { default as CommissionerTeamDetail } from './CommissionerTeamDetail';
 export { default as CommissionerAssignCoach } from './CommissionerAssignCoach';
 export { default as CommissionerGrievances } from './CommissionerGrievances';
+export { default as TeamScheduleView } from './TeamScheduleView';

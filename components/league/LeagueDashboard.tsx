@@ -230,7 +230,7 @@ export const LeagueDashboard: React.FC = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <Link
             to="/league/programs"
             className="bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-purple-500/50 rounded-xl p-4 flex flex-col items-center gap-2 transition-all group"
@@ -242,31 +242,41 @@ export const LeagueDashboard: React.FC = () => {
           </Link>
           
           <Link
-            to="/league/teams"
+            to="/league/seasons"
             className="bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-blue-500/50 rounded-xl p-4 flex flex-col items-center gap-2 transition-all group"
           >
             <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center group-hover:bg-blue-500/30 transition-colors">
-              <Users className="w-6 h-6 text-blue-400" />
+              <Calendar className="w-6 h-6 text-blue-400" />
             </div>
-            <span className="text-white font-medium text-sm">Teams</span>
+            <span className="text-white font-medium text-sm">Seasons</span>
           </Link>
           
           <Link
-            to="/league/schedule"
+            to="/league/standings"
             className="bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-green-500/50 rounded-xl p-4 flex flex-col items-center gap-2 transition-all group"
           >
             <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center group-hover:bg-green-500/30 transition-colors">
-              <Calendar className="w-6 h-6 text-green-400" />
+              <Activity className="w-6 h-6 text-green-400" />
             </div>
-            <span className="text-white font-medium text-sm">Schedule</span>
+            <span className="text-white font-medium text-sm">Standings</span>
+          </Link>
+          
+          <Link
+            to="/league/playoffs"
+            className="bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-yellow-500/50 rounded-xl p-4 flex flex-col items-center gap-2 transition-all group"
+          >
+            <div className="w-12 h-12 bg-yellow-500/20 rounded-xl flex items-center justify-center group-hover:bg-yellow-500/30 transition-colors">
+              <Trophy className="w-6 h-6 text-yellow-400" />
+            </div>
+            <span className="text-white font-medium text-sm">Playoffs</span>
           </Link>
           
           <Link
             to="/league/requests"
-            className="bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-yellow-500/50 rounded-xl p-4 flex flex-col items-center gap-2 transition-all group relative"
+            className="bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-red-500/50 rounded-xl p-4 flex flex-col items-center gap-2 transition-all group relative"
           >
-            <div className="w-12 h-12 bg-yellow-500/20 rounded-xl flex items-center justify-center group-hover:bg-yellow-500/30 transition-colors">
-              <FileText className="w-6 h-6 text-yellow-400" />
+            <div className="w-12 h-12 bg-red-500/20 rounded-xl flex items-center justify-center group-hover:bg-red-500/30 transition-colors">
+              <FileText className="w-6 h-6 text-red-400" />
             </div>
             <span className="text-white font-medium text-sm">Requests</span>
             {pendingRequests.length > 0 && (
