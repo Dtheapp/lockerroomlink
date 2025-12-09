@@ -826,21 +826,23 @@ export const DraftDayShowcase: React.FC = () => {
             </div>
             
             {/* Draft Dashboard Mockup */}
-            <div className="bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
+            <div className="bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 rounded-2xl sm:rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
               {/* Header Bar */}
-              <div className="bg-gradient-to-r from-orange-600 to-pink-600 px-6 py-4">
+              <div className="bg-gradient-to-r from-orange-600 to-pink-600 px-3 py-3 sm:px-6 sm:py-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <Trophy size={28} className="text-white" />
+                  <div className="flex items-center gap-2 sm:gap-4">
+                    <Trophy size={20} className="text-white sm:hidden" />
+                    <Trophy size={28} className="text-white hidden sm:block" />
                     <div>
-                      <h3 className="font-bold text-white text-lg">OSYS Draft Day 2026</h3>
-                      <p className="text-white/80 text-sm">Thunder Hawks Youth Football League</p>
+                      <h3 className="font-bold text-white text-sm sm:text-lg">OSYS Draft Day 2026</h3>
+                      <p className="text-white/80 text-xs sm:text-sm hidden sm:block">Thunder Hawks Youth Football League</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white/20 rounded-lg">
-                      <Radio size={16} className="text-white animate-pulse" />
-                      <span className="text-white font-medium">LIVE</span>
+                  <div className="flex items-center gap-2 sm:gap-4">
+                    <div className="flex items-center gap-1.5 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 bg-white/20 rounded-lg">
+                      <Radio size={12} className="text-white animate-pulse sm:hidden" />
+                      <Radio size={16} className="text-white animate-pulse hidden sm:block" />
+                      <span className="text-white font-medium text-xs sm:text-base">LIVE</span>
                     </div>
                     <DraftTimer seconds={draftTime} isActive={true} />
                   </div>
@@ -848,39 +850,40 @@ export const DraftDayShowcase: React.FC = () => {
               </div>
               
               {/* Main Content */}
-              <div className="grid lg:grid-cols-3 gap-6 p-6">
+              <div className="grid lg:grid-cols-3 gap-4 sm:gap-6 p-3 sm:p-6">
                 {/* Left Column - Live Stream */}
-                <div className="lg:col-span-2 space-y-6">
+                <div className="lg:col-span-2 space-y-4 sm:space-y-6">
                   <LiveStreamMockup />
                   
                   {/* Current On The Clock */}
-                  <div className="bg-gradient-to-r from-orange-500/20 to-pink-500/20 border border-orange-500/30 rounded-2xl p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-pink-500 rounded-xl flex items-center justify-center">
-                          <span className="text-3xl">🦅</span>
+                  <div className="bg-gradient-to-r from-orange-500/20 to-pink-500/20 border border-orange-500/30 rounded-xl sm:rounded-2xl p-4 sm:p-6">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 sm:gap-4">
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-orange-500 to-pink-500 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
+                          <span className="text-2xl sm:text-3xl">🦅</span>
                         </div>
-                        <div>
-                          <p className="text-orange-400 font-bold text-sm">ON THE CLOCK</p>
-                          <h3 className="text-2xl font-bold text-white">Thunder Hawks</h3>
-                          <p className="text-slate-400">Round 1, Pick #4</p>
+                        <div className="min-w-0">
+                          <p className="text-orange-400 font-bold text-xs sm:text-sm">ON THE CLOCK</p>
+                          <h3 className="text-lg sm:text-2xl font-bold text-white truncate">Thunder Hawks</h3>
+                          <p className="text-slate-400 text-xs sm:text-base">Round 1, Pick #4</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-slate-400 text-sm">Team Needs</p>
-                        <div className="flex gap-2 mt-1">
-                          <span className="px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded font-medium">OL</span>
-                          <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded font-medium">DL</span>
-                          <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded font-medium">CB</span>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-slate-400 text-xs sm:text-sm">Team Needs</p>
+                        <div className="flex gap-1 sm:gap-2 mt-1">
+                          <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-red-500/20 text-red-400 text-[10px] sm:text-xs rounded font-medium">OL</span>
+                          <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-yellow-500/20 text-yellow-400 text-[10px] sm:text-xs rounded font-medium">DL</span>
+                          <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-blue-500/20 text-blue-400 text-[10px] sm:text-xs rounded font-medium">CB</span>
                         </div>
                       </div>
                     </div>
                   </div>
                   
                   {/* Available Players */}
-                  <div className="bg-zinc-800/50 rounded-2xl border border-white/10 p-6">
-                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                      <Users size={20} className="text-orange-400" />
+                  <div className="bg-zinc-800/50 rounded-xl sm:rounded-2xl border border-white/10 p-4 sm:p-6">
+                    <h3 className="text-base sm:text-lg font-bold text-white mb-3 sm:mb-4 flex items-center gap-2">
+                      <Users size={18} className="text-orange-400 sm:hidden" />
+                      <Users size={20} className="text-orange-400 hidden sm:block" />
                       Available Players
                     </h3>
                     <div className="space-y-3">
@@ -892,42 +895,45 @@ export const DraftDayShowcase: React.FC = () => {
                 </div>
                 
                 {/* Right Column - Draft History & Teams */}
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                   {/* Featured Player Card */}
                   <div>
-                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                      <Star size={20} className="text-yellow-400" />
+                    <h3 className="text-base sm:text-lg font-bold text-white mb-3 sm:mb-4 flex items-center gap-2">
+                      <Star size={18} className="text-yellow-400 sm:hidden" />
+                      <Star size={20} className="text-yellow-400 hidden sm:block" />
                       Top Available
                     </h3>
                     <PlayerDraftCard player={mockPlayers[3]} featured onDraft={() => {}} />
                   </div>
                   
                   {/* Draft History */}
-                  <div className="bg-zinc-800/50 rounded-2xl border border-white/10 p-6">
-                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                      <Clock size={20} className="text-blue-400" />
+                  <div className="bg-zinc-800/50 rounded-xl sm:rounded-2xl border border-white/10 p-4 sm:p-6">
+                    <h3 className="text-base sm:text-lg font-bold text-white mb-3 sm:mb-4 flex items-center gap-2">
+                      <Clock size={18} className="text-blue-400 sm:hidden" />
+                      <Clock size={20} className="text-blue-400 hidden sm:block" />
                       Draft History
                     </h3>
-                    <div className="space-y-3">
+                    <div className="space-y-2 sm:space-y-3">
                       {draftHistory.map((pick, idx) => (
-                        <div key={idx} className="flex items-center gap-4 p-3 bg-zinc-900/50 rounded-xl border border-white/5">
-                          <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-pink-500 rounded-lg flex items-center justify-center font-bold text-white">
+                        <div key={idx} className="flex items-center gap-2 sm:gap-4 p-2 sm:p-3 bg-zinc-900/50 rounded-lg sm:rounded-xl border border-white/5">
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-orange-500 to-pink-500 rounded-lg flex items-center justify-center font-bold text-white text-sm sm:text-base flex-shrink-0">
                             #{pick.pick}
                           </div>
-                          <div className="flex-1">
-                            <p className="font-medium text-white">{pick.player}</p>
-                            <p className="text-xs text-slate-400">{pick.team} • {pick.position}</p>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-white text-sm sm:text-base truncate">{pick.player}</p>
+                            <p className="text-[10px] sm:text-xs text-slate-400">{pick.team} • {pick.position}</p>
                           </div>
-                          <span className="text-xs text-slate-500">{pick.time}</span>
+                          <span className="text-[10px] sm:text-xs text-slate-500 flex-shrink-0">{pick.time}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                   
                   {/* Teams */}
-                  <div className="bg-zinc-800/50 rounded-2xl border border-white/10 p-6">
-                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                      <Shield size={20} className="text-purple-400" />
+                  <div className="bg-zinc-800/50 rounded-xl sm:rounded-2xl border border-white/10 p-4 sm:p-6">
+                    <h3 className="text-base sm:text-lg font-bold text-white mb-3 sm:mb-4 flex items-center gap-2">
+                      <Shield size={18} className="text-purple-400 sm:hidden" />
+                      <Shield size={20} className="text-purple-400 hidden sm:block" />
                       Teams
                     </h3>
                     <div className="space-y-2">
@@ -957,16 +963,16 @@ export const DraftDayShowcase: React.FC = () => {
         </section>
 
         {/* Features Grid */}
-        <section id="features" className="py-20 px-4 bg-gradient-to-b from-transparent via-zinc-900/50 to-transparent">
+        <section id="features" className="py-12 sm:py-20 px-4 bg-gradient-to-b from-transparent via-zinc-900/50 to-transparent">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
+            <div className="text-center mb-8 sm:mb-16">
+              <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold text-white mb-3 sm:mb-4">
                 Everything You Need for Draft Day
               </h2>
-              <p className="text-xl text-slate-400">Powerful features that make every pick memorable</p>
+              <p className="text-base sm:text-xl text-slate-400">Powerful features that make every pick memorable</p>
             </div>
             
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               <FeatureCard 
                 icon={Tv}
                 title="Live Streaming"
@@ -1008,26 +1014,26 @@ export const DraftDayShowcase: React.FC = () => {
         </section>
 
         {/* Draft Order Types */}
-        <section className="py-20 px-4">
+        <section className="py-12 sm:py-20 px-4">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
+            <div className="text-center mb-8 sm:mb-16">
+              <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold text-white mb-3 sm:mb-4">
                 Flexible Draft Formats
               </h2>
-              <p className="text-xl text-slate-400">Choose the format that works best for your league</p>
+              <p className="text-base sm:text-xl text-slate-400">Choose the format that works best for your league</p>
             </div>
             
-            <div className="grid md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-8">
               {/* Snake Draft */}
               <div className="relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-orange-500 to-pink-500 rounded-3xl blur opacity-25 group-hover:opacity-50 transition-opacity" />
-                <div className="relative bg-zinc-900 rounded-3xl border border-white/10 p-8 h-full">
-                  <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-pink-500 rounded-2xl flex items-center justify-center mb-6">
-                    <span className="text-3xl">🐍</span>
+                <div className="absolute -inset-1 bg-gradient-to-r from-orange-500 to-pink-500 rounded-2xl sm:rounded-3xl blur opacity-25 group-hover:opacity-50 transition-opacity" />
+                <div className="relative bg-zinc-900 rounded-2xl sm:rounded-3xl border border-white/10 p-5 sm:p-8 h-full">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-orange-500 to-pink-500 rounded-xl sm:rounded-2xl flex items-center justify-center mb-4 sm:mb-6">
+                    <span className="text-2xl sm:text-3xl">🐍</span>
                   </div>
-                  <h3 className="text-2xl font-bold text-white mb-4">Snake Draft</h3>
-                  <p className="text-slate-400 mb-6">Order reverses each round for maximum fairness. Team picking last in round 1 picks first in round 2.</p>
-                  <div className="bg-zinc-800 rounded-xl p-4">
+                  <h3 className="text-xl sm:text-2xl font-bold text-white mb-3 sm:mb-4">Snake Draft</h3>
+                  <p className="text-slate-400 text-sm sm:text-base mb-4 sm:mb-6">Order reverses each round for maximum fairness. Team picking last in round 1 picks first in round 2.</p>
+                  <div className="bg-zinc-800 rounded-lg sm:rounded-xl p-3 sm:p-4">
                     <p className="text-xs text-slate-500 mb-2">Example Order:</p>
                     <div className="space-y-1 text-sm">
                       <p className="text-slate-300">R1: A → B → C → D</p>
@@ -1040,14 +1046,14 @@ export const DraftDayShowcase: React.FC = () => {
               
               {/* Linear Draft */}
               <div className="relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-3xl blur opacity-25 group-hover:opacity-50 transition-opacity" />
-                <div className="relative bg-zinc-900 rounded-3xl border border-white/10 p-8 h-full">
-                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center mb-6">
-                    <span className="text-3xl">📏</span>
+                <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl sm:rounded-3xl blur opacity-25 group-hover:opacity-50 transition-opacity" />
+                <div className="relative bg-zinc-900 rounded-2xl sm:rounded-3xl border border-white/10 p-5 sm:p-8 h-full">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl sm:rounded-2xl flex items-center justify-center mb-4 sm:mb-6">
+                    <span className="text-2xl sm:text-3xl">📏</span>
                   </div>
-                  <h3 className="text-2xl font-bold text-white mb-4">Linear Draft</h3>
-                  <p className="text-slate-400 mb-6">Same order every round. Simple and straightforward for smaller leagues or quick drafts.</p>
-                  <div className="bg-zinc-800 rounded-xl p-4">
+                  <h3 className="text-xl sm:text-2xl font-bold text-white mb-3 sm:mb-4">Linear Draft</h3>
+                  <p className="text-slate-400 text-sm sm:text-base mb-4 sm:mb-6">Same order every round. Simple and straightforward for smaller leagues or quick drafts.</p>
+                  <div className="bg-zinc-800 rounded-lg sm:rounded-xl p-3 sm:p-4">
                     <p className="text-xs text-slate-500 mb-2">Example Order:</p>
                     <div className="space-y-1 text-sm">
                       <p className="text-slate-300">R1: A → B → C → D</p>
@@ -1060,14 +1066,14 @@ export const DraftDayShowcase: React.FC = () => {
               
               {/* Auction Draft */}
               <div className="relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-green-500 to-emerald-500 rounded-3xl blur opacity-25 group-hover:opacity-50 transition-opacity" />
-                <div className="relative bg-zinc-900 rounded-3xl border border-white/10 p-8 h-full">
-                  <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center mb-6">
-                    <span className="text-3xl">💰</span>
+                <div className="absolute -inset-1 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl sm:rounded-3xl blur opacity-25 group-hover:opacity-50 transition-opacity" />
+                <div className="relative bg-zinc-900 rounded-2xl sm:rounded-3xl border border-white/10 p-5 sm:p-8 h-full">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl sm:rounded-2xl flex items-center justify-center mb-4 sm:mb-6">
+                    <span className="text-2xl sm:text-3xl">💰</span>
                   </div>
-                  <h3 className="text-2xl font-bold text-white mb-4">Auction Draft</h3>
-                  <p className="text-slate-400 mb-6">Teams bid virtual currency on players. Most strategic format with budget management.</p>
-                  <div className="bg-zinc-800 rounded-xl p-4">
+                  <h3 className="text-xl sm:text-2xl font-bold text-white mb-3 sm:mb-4">Auction Draft</h3>
+                  <p className="text-slate-400 text-sm sm:text-base mb-4 sm:mb-6">Teams bid virtual currency on players. Most strategic format with budget management.</p>
+                  <div className="bg-zinc-800 rounded-lg sm:rounded-xl p-3 sm:p-4">
                     <p className="text-xs text-slate-500 mb-2">Example:</p>
                     <div className="space-y-1 text-sm">
                       <p className="text-slate-300">Budget: $100 per team</p>
@@ -1082,21 +1088,21 @@ export const DraftDayShowcase: React.FC = () => {
         </section>
 
         {/* Implementation Timeline */}
-        <section className="py-20 px-4 bg-gradient-to-b from-transparent via-zinc-900/50 to-transparent">
+        <section className="py-12 sm:py-20 px-4 bg-gradient-to-b from-transparent via-zinc-900/50 to-transparent">
           <div className="max-w-5xl mx-auto">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
+            <div className="text-center mb-8 sm:mb-16">
+              <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold text-white mb-3 sm:mb-4">
                 Implementation Roadmap
               </h2>
-              <p className="text-xl text-slate-400">How we'll bring Draft Day to life</p>
+              <p className="text-base sm:text-xl text-slate-400">How we'll bring Draft Day to life</p>
             </div>
             
             <div className="relative">
               {/* Timeline Line */}
-              <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-orange-500 via-pink-500 to-purple-500" />
+              <div className="absolute left-4 sm:left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-orange-500 via-pink-500 to-purple-500" />
               
               {/* Timeline Items */}
-              <div className="space-y-12">
+              <div className="space-y-6 sm:space-y-12">
                 {[
                   {
                     phase: 'Phase 1',
@@ -1123,26 +1129,26 @@ export const DraftDayShowcase: React.FC = () => {
                     weeks: '2 weeks'
                   },
                 ].map((phase, idx) => (
-                  <div key={idx} className="relative pl-20">
+                  <div key={idx} className="relative pl-10 sm:pl-20">
                     {/* Dot */}
-                    <div className={`absolute left-6 w-5 h-5 rounded-full bg-${phase.color}-500 border-4 border-zinc-900 -translate-x-1/2`} 
+                    <div className={`absolute left-2 sm:left-6 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-${phase.color}-500 border-4 border-zinc-900 -translate-x-1/2`} 
                          style={{ backgroundColor: phase.color === 'orange' ? '#f97316' : phase.color === 'pink' ? '#ec4899' : '#a855f7' }} />
                     
-                    <div className="bg-zinc-800/50 rounded-2xl border border-white/10 p-6">
-                      <div className="flex items-start justify-between mb-4">
+                    <div className="bg-zinc-800/50 rounded-xl sm:rounded-2xl border border-white/10 p-4 sm:p-6">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-0 mb-3 sm:mb-4">
                         <div>
-                          <span className={`text-${phase.color}-400 font-bold text-sm`} 
+                          <span className={`text-${phase.color}-400 font-bold text-xs sm:text-sm`} 
                                 style={{ color: phase.color === 'orange' ? '#fb923c' : phase.color === 'pink' ? '#f472b6' : '#c084fc' }}>
                             {phase.phase}
                           </span>
-                          <h3 className="text-xl font-bold text-white">{phase.title}</h3>
+                          <h3 className="text-lg sm:text-xl font-bold text-white">{phase.title}</h3>
                         </div>
-                        <span className="px-3 py-1 bg-white/10 rounded-full text-sm text-slate-400">{phase.weeks}</span>
+                        <span className="px-2 sm:px-3 py-1 bg-white/10 rounded-full text-xs sm:text-sm text-slate-400 w-fit">{phase.weeks}</span>
                       </div>
-                      <p className="text-slate-400 mb-4">{phase.description}</p>
-                      <div className="flex flex-wrap gap-2">
+                      <p className="text-slate-400 text-sm sm:text-base mb-3 sm:mb-4">{phase.description}</p>
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2">
                         {phase.items.map((item, i) => (
-                          <span key={i} className="px-3 py-1 bg-zinc-700/50 rounded-lg text-sm text-slate-300">
+                          <span key={i} className="px-2 sm:px-3 py-0.5 sm:py-1 bg-zinc-700/50 rounded-lg text-xs sm:text-sm text-slate-300">
                             {item}
                           </span>
                         ))}
@@ -1156,23 +1162,23 @@ export const DraftDayShowcase: React.FC = () => {
         </section>
 
         {/* Database Schema */}
-        <section className="py-20 px-4">
+        <section className="py-12 sm:py-20 px-4">
           <div className="max-w-6xl mx-auto">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
+            <div className="text-center mb-8 sm:mb-16">
+              <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold text-white mb-3 sm:mb-4">
                 Technical Architecture
               </h2>
-              <p className="text-xl text-slate-400">Built on our proven Firebase infrastructure</p>
+              <p className="text-base sm:text-xl text-slate-400">Built on our proven Firebase infrastructure</p>
             </div>
             
-            <div className="grid md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
               {/* Database Collections */}
-              <div className="bg-zinc-800/50 rounded-2xl border border-white/10 p-6">
-                <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                  <span className="text-2xl">🗄️</span>
+              <div className="bg-zinc-800/50 rounded-xl sm:rounded-2xl border border-white/10 p-4 sm:p-6">
+                <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6 flex items-center gap-2">
+                  <span className="text-xl sm:text-2xl">🗄️</span>
                   Firestore Collections
                 </h3>
-                <div className="space-y-3 font-mono text-sm">
+                <div className="space-y-2 sm:space-y-3 font-mono text-xs sm:text-sm">
                   {[
                     { name: 'drafts', desc: 'Draft events with settings & status' },
                     { name: 'drafts/{id}/picks', desc: 'Individual pick records' },
@@ -1194,12 +1200,12 @@ export const DraftDayShowcase: React.FC = () => {
               </div>
               
               {/* Components */}
-              <div className="bg-zinc-800/50 rounded-2xl border border-white/10 p-6">
-                <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                  <span className="text-2xl">⚛️</span>
+              <div className="bg-zinc-800/50 rounded-xl sm:rounded-2xl border border-white/10 p-4 sm:p-6">
+                <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6 flex items-center gap-2">
+                  <span className="text-xl sm:text-2xl">⚛️</span>
                   React Components
                 </h3>
-                <div className="space-y-3 font-mono text-sm">
+                <div className="space-y-2 sm:space-y-3 font-mono text-xs sm:text-sm">
                   {[
                     { name: 'DraftLobby.tsx', desc: 'Main draft room interface' },
                     { name: 'DraftBoard.tsx', desc: 'Visual player board' },
@@ -1225,29 +1231,30 @@ export const DraftDayShowcase: React.FC = () => {
         </section>
 
         {/* Impact Section */}
-        <section className="py-20 px-4 bg-gradient-to-b from-transparent via-orange-500/5 to-transparent">
+        <section className="py-12 sm:py-20 px-4 bg-gradient-to-b from-transparent via-orange-500/5 to-transparent">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
+            <div className="text-center mb-8 sm:mb-16">
+              <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold text-white mb-3 sm:mb-4">
                 The OSYS Difference
               </h2>
-              <p className="text-xl text-slate-400">Why Draft Day will transform your league</p>
+              <p className="text-base sm:text-xl text-slate-400">Why Draft Day will transform your league</p>
             </div>
             
-            <div className="grid md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
               {[
                 { icon: Heart, value: '3x', label: 'Parent Engagement', desc: 'Watch parties & live chat' },
                 { icon: Shield, value: '100%', label: 'Transparency', desc: 'Every pick is public' },
                 { icon: Star, value: '5 min', label: 'Setup Time', desc: 'Commissioner dashboard' },
                 { icon: TrendingUp, value: '∞', label: 'Memories', desc: 'Relive draft highlights' },
               ].map((stat, idx) => (
-                <div key={idx} className="bg-gradient-to-br from-zinc-800/50 to-zinc-900/50 backdrop-blur-md rounded-2xl border border-white/10 p-6 text-center hover:border-orange-500/30 transition-all hover:scale-[1.02]">
-                  <div className="w-14 h-14 bg-gradient-to-br from-orange-500/20 to-pink-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <stat.icon size={28} className="text-orange-400" />
+                <div key={idx} className="bg-gradient-to-br from-zinc-800/50 to-zinc-900/50 backdrop-blur-md rounded-xl sm:rounded-2xl border border-white/10 p-3 sm:p-6 text-center hover:border-orange-500/30 transition-all hover:scale-[1.02]">
+                  <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-br from-orange-500/20 to-pink-500/20 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto mb-2 sm:mb-4">
+                    <stat.icon size={20} className="text-orange-400 sm:hidden" />
+                    <stat.icon size={28} className="text-orange-400 hidden sm:block" />
                   </div>
-                  <div className="text-4xl font-black text-white mb-1">{stat.value}</div>
-                  <div className="text-lg font-semibold text-orange-400">{stat.label}</div>
-                  <p className="text-sm text-slate-500 mt-1">{stat.desc}</p>
+                  <div className="text-2xl sm:text-4xl font-black text-white mb-0.5 sm:mb-1">{stat.value}</div>
+                  <div className="text-sm sm:text-lg font-semibold text-orange-400">{stat.label}</div>
+                  <p className="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1">{stat.desc}</p>
                 </div>
               ))}
             </div>
@@ -1255,34 +1262,35 @@ export const DraftDayShowcase: React.FC = () => {
         </section>
 
         {/* CTA Section */}
-        <section className="py-20 px-4">
+        <section className="py-12 sm:py-20 px-4">
           <div className="max-w-4xl mx-auto">
-            <div className="relative overflow-hidden bg-gradient-to-br from-orange-600/20 via-pink-600/20 to-purple-600/20 rounded-3xl border border-white/10 p-12 text-center">
+            <div className="relative overflow-hidden bg-gradient-to-br from-orange-600/20 via-pink-600/20 to-purple-600/20 rounded-2xl sm:rounded-3xl border border-white/10 p-6 sm:p-12 text-center">
               <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute -top-20 -left-20 w-64 h-64 bg-orange-500/30 rounded-full blur-3xl" />
-                <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-purple-500/30 rounded-full blur-3xl" />
+                <div className="absolute -top-20 -left-20 w-40 sm:w-64 h-40 sm:h-64 bg-orange-500/30 rounded-full blur-3xl" />
+                <div className="absolute -bottom-20 -right-20 w-40 sm:w-64 h-40 sm:h-64 bg-purple-500/30 rounded-full blur-3xl" />
               </div>
               
               <div className="relative z-10">
-                <div className="text-6xl mb-6">🏆</div>
-                <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+                <div className="text-4xl sm:text-6xl mb-4 sm:mb-6">🏆</div>
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-3 sm:mb-4">
                   Ready to Transform Your League?
                 </h2>
-                <p className="text-xl text-slate-300 mb-8 max-w-2xl mx-auto">
+                <p className="text-base sm:text-xl text-slate-300 mb-6 sm:mb-8 max-w-2xl mx-auto">
                   Draft Day is coming to OSYS. Be among the first leagues to experience 
                   the future of youth sports team building.
                 </p>
-                <div className="flex flex-col sm:flex-row justify-center gap-4">
+                <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
                   <a 
                     href="/#/progress"
-                    className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-400 hover:to-pink-400 rounded-xl text-white font-bold text-lg transition-all hover:scale-105 shadow-xl shadow-orange-500/30"
+                    className="inline-flex items-center justify-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-400 hover:to-pink-400 rounded-xl text-white font-bold text-base sm:text-lg transition-all hover:scale-105 shadow-xl shadow-orange-500/30"
                   >
                     View Development Progress
-                    <ArrowRight size={20} />
+                    <ArrowRight size={18} className="sm:hidden" />
+                    <ArrowRight size={20} className="hidden sm:block" />
                   </a>
                   <a 
                     href="/#/"
-                    className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-xl text-white font-bold text-lg transition-all"
+                    className="inline-flex items-center justify-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-xl text-white font-bold text-base sm:text-lg transition-all"
                   >
                     Back to OSYS Home
                   </a>
