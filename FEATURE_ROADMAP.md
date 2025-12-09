@@ -102,10 +102,24 @@ When a program has multiple teams for the same age group:
 │  🕐 Draft Time: [ 6:00 PM              ] [🕐]           │
 │  📍 Location:   [ Zoom / In-Person     ]                │
 │                                                         │
-│  Draft Order:                                           │
-│  ○ Random (generated at draft time)                     │
+│  Draft Order Selection:                                 │
+│  ○ Pre-Set Order (you choose the order now)             │
 │  ● Snake Draft (1-2-3, 3-2-1, 1-2-3...)                │
-│  ○ Custom Order                                         │
+│  ○ Linear Draft (1-2-3, 1-2-3, 1-2-3...)               │
+│                                                         │
+│  🎱 LOTTERY MODE:                                       │
+│  [✓] Enable Draft Lottery                               │
+│      ↳ Picking order will be randomly determined        │
+│        at draft start (live lottery animation!)         │
+│                                                         │
+│  If lottery enabled, order is revealed live:            │
+│  ┌─────────────────────────────────────────┐            │
+│  │  🎰 DRAFT LOTTERY RESULTS               │            │
+│  │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━│            │
+│  │  #1 Pick: 🎉 Tigers Blue (Coach Johnson)│            │
+│  │  #2 Pick: Tigers Red (Coach Smith)      │            │
+│  │  #3 Pick: Tigers Gold (Coach Williams)  │            │
+│  └─────────────────────────────────────────┘            │
 │                                                         │
 │  Coaches to Notify:                                     │
 │  [✓] Coach Smith (Tigers Red)                           │
@@ -197,17 +211,33 @@ export interface DraftEvent {
   currentRound: number;
   currentPick: number;
   
+  // 🆕 LOTTERY CONFIGURATION
+  lotteryEnabled: boolean;           // If true, order determined by lottery
+  lotteryCompleted: boolean;         // Has lottery been run?
+  lotteryResults?: LotteryResult[];  // Results of lottery draw
+  lotteryAnimationSeen?: string[];   // Coach IDs who have seen the animation
+  
   // Pool
   poolId: string;
   totalPlayers: number;
   
   // Status
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'scheduled' | 'lottery_pending' | 'in_progress' | 'completed' | 'cancelled';
   startedAt?: Timestamp;
   completedAt?: Timestamp;
   
   // Results
   picks: DraftPick[];
+}
+
+// 🆕 Lottery Result Interface
+export interface LotteryResult {
+  position: number;                  // 1st pick, 2nd pick, etc.
+  teamId: string;
+  coachId: string;
+  teamName: string;
+  coachName: string;
+  drawnAt: Timestamp;
 }
 
 export interface DraftPick {
@@ -247,7 +277,12 @@ export interface DraftPick {
 
 ### Phase 4: Draft Day System (Week 3) 🟡
 - [ ] Draft scheduling UI for multi-team scenarios
-- [ ] Draft order generation (random, snake)
+- [ ] Draft order generation (snake, linear, custom)
+- [ ] **🎱 Draft Lottery System:**
+  - [ ] Lottery toggle on draft setup
+  - [ ] Live lottery animation (spinning wheel / ball draw)
+  - [ ] Real-time reveal of pick order
+  - [ ] Lottery results saved to Firestore
 - [ ] Live draft board UI (real-time with Firestore)
 - [ ] Coach pick interface
 - [ ] Draft results export
@@ -257,6 +292,7 @@ export interface DraftPick {
 - [ ] Trade system during draft
 - [ ] Player trading between teams post-draft
 - [ ] Draft history & analytics
+- [ ] Lottery history (who got #1 picks over seasons)
 
 ---
 
@@ -267,11 +303,73 @@ export interface DraftPick {
 | `AgeGroupSelector.tsx` | 🔴 P0 | Multi-select checkboxes for age groups |
 | `TeamCreationModal.tsx` | 🔴 P0 | Updated with age group selection |
 | `RegistrationPoolDashboard.tsx` | 🔴 P0 | Shows players awaiting assignment |
-| `DraftScheduler.tsx` | 🟡 P1 | Schedule draft day |
+| `DraftScheduler.tsx` | 🟡 P1 | Schedule draft day + lottery toggle |
+| `DraftLottery.tsx` | 🟡 P1 | 🎱 **Live lottery animation** - spinning wheel reveals pick order |
 | `DraftBoard.tsx` | 🟡 P1 | Live draft board |
 | `DraftPickModal.tsx` | 🟡 P1 | Coach selects a player |
 | `DraftResults.tsx` | 🟢 P2 | View completed draft |
 | `DraftWatchParty.tsx` | 🟢 P2 | Parent view during draft |
+| `LotteryHistory.tsx` | 🟢 P2 | Historical lottery results by season |
+
+---
+
+## 🎱 Draft Lottery System
+
+### How It Works
+
+When lottery mode is enabled:
+
+1. **At Draft Time** - Instead of pre-set order, lottery runs first
+2. **Live Animation** - Spinning wheel or ball machine reveals each pick position
+3. **Real-Time Sync** - All coaches see lottery results simultaneously
+4. **Order Locked** - Once lottery completes, draft proceeds with that order
+
+### Lottery UI Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    🎱 DRAFT LOTTERY                         │
+│                                                             │
+│     ┌─────────────────────────────────────┐                │
+│     │                                     │                │
+│     │      🎰 SPINNING...                 │                │
+│     │                                     │                │
+│     │    [Tigers Red]  [Tigers Blue]      │                │
+│     │         [Tigers Gold]               │                │
+│     │                                     │                │
+│     └─────────────────────────────────────┘                │
+│                                                             │
+│     Determining #1 Overall Pick...                         │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+
+                        ⬇️ After lottery
+
+┌─────────────────────────────────────────────────────────────┐
+│                 🎉 LOTTERY RESULTS                          │
+│                                                             │
+│     #1 OVERALL PICK: 🏆 Tigers Blue (Coach Johnson)        │
+│     #2 PICK: Tigers Red (Coach Smith)                       │
+│     #3 PICK: Tigers Gold (Coach Williams)                   │
+│                                                             │
+│     Draft Order (Snake):                                    │
+│     Round 1: Blue → Red → Gold                              │
+│     Round 2: Gold → Red → Blue                              │
+│     Round 3: Blue → Red → Gold                              │
+│                                                             │
+│                    [ 🏈 Start Draft ]                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Why Lottery Matters
+
+| Benefit | Description |
+|---------|-------------|
+| **Fairness** | No coach gets accused of rigging the order |
+| **Excitement** | Creates NFL-style anticipation and buzz |
+| **Engagement** | Parents and players watch the lottery event |
+| **Transparency** | Everyone sees the same random draw |
+| **Memories** | "Remember when we won the lottery in 2025?" |
 
 ---
 
