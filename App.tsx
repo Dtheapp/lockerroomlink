@@ -130,6 +130,10 @@ const LeagueSeasons = lazyWithRetry(() => import('./components/league/LeagueSeas
 const SeasonSchedule = lazyWithRetry(() => import('./components/league/SeasonSchedule'));
 const LeaguePlayoffs = lazyWithRetry(() => import('./components/league/LeaguePlayoffs'));
 const LeagueStandings = lazyWithRetry(() => import('./components/league/LeagueStandings'));
+const LeagueSignup = lazyWithRetry(() => import('./components/league/LeagueSignup'));
+
+// Public Pages
+const PublicLeaguePage = lazyWithRetry(() => import('./components/public/PublicLeaguePage'));
 
 // Loading fallback for lazy-loaded components
 const PageLoader = () => (
@@ -205,6 +209,7 @@ const AppContent: React.FC = () => {
           <Route path="/athlete/:username" element={<PublicAthleteProfile />} />
           <Route path="/team/:teamId" element={<PublicTeamProfile />} />
           <Route path="/coach/:username" element={<PublicCoachProfile />} />
+          <Route path="/league/:leagueId" element={<PublicLeaguePage />} />
           <Route path="/event/:eventId" element={<PublicEventPage />} />
           <Route path="/e/:shareableLink" element={<PublicEventPage />} />
           <Route path="/welcome" element={<LandingPage />} />
@@ -316,6 +321,8 @@ const AppContent: React.FC = () => {
                 <Route path="marketing" element={<MarketingHub />} />
                 {/* Commissioner Signup for users who want to become commissioners */}
                 <Route path="commissioner/signup" element={<CommissionerSignup />} />
+                {/* League Signup for users who want to create a league */}
+                <Route path="league/signup" element={<LeagueSignup />} />
               </Route>
               {/* Keep old demo route for reference */}
               <Route path="/old-dashboard" element={<Layout />}>

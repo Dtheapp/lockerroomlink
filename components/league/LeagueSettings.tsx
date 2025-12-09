@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { League, SportType } from '../../types';
-import { ChevronLeft, Save, Settings, MapPin, Trophy, Calendar, AlertCircle, CheckCircle } from 'lucide-react';
+import { ChevronLeft, Save, Settings, MapPin, Trophy, Calendar, AlertCircle, CheckCircle, Globe, Lock, Copy, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const SPORTS: SportType[] = ['football', 'basketball', 'baseball', 'soccer', 'volleyball', 'cheer', 'other'];
@@ -25,8 +25,12 @@ export default function LeagueSettings() {
     website: '',
     registrationOpen: false,
     seasonStartMonth: 1,
-    seasonEndMonth: 12
+    seasonEndMonth: 12,
+    publicProfile: true
   });
+
+  const [copied, setCopied] = useState(false);
+
 
   useEffect(() => {
     if (leagueData) {
@@ -41,10 +45,19 @@ export default function LeagueSettings() {
         website: (leagueData as any).website || '',
         registrationOpen: (leagueData as any).registrationOpen || false,
         seasonStartMonth: (leagueData as any).seasonStartMonth || 1,
-        seasonEndMonth: (leagueData as any).seasonEndMonth || 12
+        seasonEndMonth: (leagueData as any).seasonEndMonth || 12,
+        publicProfile: (leagueData as any).publicProfile !== false // Default true
       });
     }
   }, [leagueData]);
+
+  const publicUrl = leagueData ? `${window.location.origin}/#/league/${leagueData.id}` : '';
+
+  const copyPublicUrl = () => {
+    navigator.clipboard.writeText(publicUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -303,6 +316,75 @@ export default function LeagueSettings() {
                   When enabled, teams and programs can request to join your league
                 </p>
               </div>
+            </div>
+          </div>
+
+          {/* Public Profile */}
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Globe className="w-5 h-5 text-cyan-400" />
+              Public Profile
+            </h2>
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  {formData.publicProfile ? (
+                    <Globe className="w-5 h-5 text-green-400" />
+                  ) : (
+                    <Lock className="w-5 h-5 text-gray-400" />
+                  )}
+                  <div>
+                    <p className="font-medium text-white">Public League Page</p>
+                    <p className="text-sm text-gray-400">
+                      {formData.publicProfile 
+                        ? "Anyone can view your standings, schedules, and teams" 
+                        : "Only league members can view details"
+                      }
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, publicProfile: !formData.publicProfile })}
+                  className={`relative w-12 h-6 rounded-full transition-colors ${formData.publicProfile ? 'bg-green-500' : 'bg-gray-600'}`}
+                >
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${formData.publicProfile ? 'left-7' : 'left-1'}`} />
+                </button>
+              </div>
+
+              {formData.publicProfile && leagueData && (
+                <div className="p-4 bg-gray-700/50 rounded-lg">
+                  <p className="text-sm text-gray-400 mb-2">Shareable Public URL:</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={publicUrl}
+                      className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-sm text-gray-300"
+                    />
+                    <button
+                      type="button"
+                      onClick={copyPublicUrl}
+                      className="flex items-center gap-1 px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg transition-colors"
+                      title="Copy URL"
+                    >
+                      <Copy className="w-4 h-4" />
+                      {copied ? 'Copied!' : 'Copy'}
+                    </button>
+                    <a
+                      href={publicUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                      title="Open in new tab"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      View
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

@@ -480,3 +480,158 @@ export const removeAssistantCommissioner = async (userId: string): Promise<void>
     updatedAt: serverTimestamp(),
   });
 };
+
+// =============================================================================
+// SEASON LIFECYCLE (Start/End with Registration & Roster Clearing)
+// =============================================================================
+
+/**
+ * Start a league season
+ * - Sets status to 'active'
+ * - Opens registration for teams
+ */
+export const startLeagueSeason = async (leagueId: string, seasonId: string): Promise<void> => {
+  const batch = writeBatch(db);
+  
+  // Update season status to active
+  batch.update(doc(db, 'leagues', leagueId, 'seasons', seasonId), {
+    status: 'active',
+    registrationOpen: true,
+    startedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  
+  await batch.commit();
+};
+
+/**
+ * Close registration for a season
+ */
+export const closeSeasonRegistration = async (leagueId: string, seasonId: string): Promise<void> => {
+  await updateDoc(doc(db, 'leagues', leagueId, 'seasons', seasonId), {
+    registrationOpen: false,
+    updatedAt: serverTimestamp(),
+  });
+};
+
+/**
+ * End a league season
+ * - Sets status to 'completed'
+ * - Archives player stats for history
+ * - Clears all rosters from all teams in the league
+ */
+export const endLeagueSeason = async (leagueId: string, seasonId: string): Promise<{
+  teamsCleared: number;
+  playersRemoved: number;
+}> => {
+  // Get all programs in the league
+  const programsSnap = await getDocs(
+    query(collection(db, 'programs'), where('leagueId', '==', leagueId))
+  );
+  
+  let teamsCleared = 0;
+  let playersRemoved = 0;
+  
+  // For each program, get teams and clear rosters
+  for (const programDoc of programsSnap.docs) {
+    const teamsSnap = await getDocs(
+      query(collection(db, 'teams'), where('programId', '==', programDoc.id))
+    );
+    
+    for (const teamDoc of teamsSnap.docs) {
+      const teamData = teamDoc.data();
+      const currentRoster = teamData.roster || [];
+      
+      if (currentRoster.length > 0) {
+        // Archive roster to season history
+        await addDoc(collection(db, 'seasonRosterHistory'), {
+          teamId: teamDoc.id,
+          teamName: teamData.name,
+          programId: programDoc.id,
+          leagueId,
+          seasonId,
+          roster: currentRoster,
+          archivedAt: serverTimestamp(),
+        });
+        
+        playersRemoved += currentRoster.length;
+        
+        // Clear the roster
+        await updateDoc(doc(db, 'teams', teamDoc.id), {
+          roster: [],
+          rosterCount: 0,
+          updatedAt: serverTimestamp(),
+        });
+        
+        teamsCleared++;
+      }
+    }
+  }
+  
+  // Archive season stats (team standings)
+  const schedulesSnap = await getDocs(
+    query(collection(db, 'leagues', leagueId, 'schedules'), where('seasonId', '==', seasonId))
+  );
+  
+  // Calculate final standings
+  const teamStats: Record<string, { wins: number; losses: number; ties: number; pf: number; pa: number }> = {};
+  
+  schedulesSnap.docs.forEach(schedDoc => {
+    const schedule = schedDoc.data();
+    (schedule.games || []).forEach((game: any) => {
+      if (game.status !== 'completed') return;
+      
+      if (!teamStats[game.homeTeamId]) teamStats[game.homeTeamId] = { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0 };
+      if (!teamStats[game.awayTeamId]) teamStats[game.awayTeamId] = { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0 };
+      
+      teamStats[game.homeTeamId].pf += game.homeScore || 0;
+      teamStats[game.homeTeamId].pa += game.awayScore || 0;
+      teamStats[game.awayTeamId].pf += game.awayScore || 0;
+      teamStats[game.awayTeamId].pa += game.homeScore || 0;
+      
+      if ((game.homeScore || 0) > (game.awayScore || 0)) {
+        teamStats[game.homeTeamId].wins++;
+        teamStats[game.awayTeamId].losses++;
+      } else if ((game.awayScore || 0) > (game.homeScore || 0)) {
+        teamStats[game.awayTeamId].wins++;
+        teamStats[game.homeTeamId].losses++;
+      } else {
+        teamStats[game.homeTeamId].ties++;
+        teamStats[game.awayTeamId].ties++;
+      }
+    });
+  });
+  
+  // Save final standings to history
+  await addDoc(collection(db, 'seasonStandingsHistory'), {
+    leagueId,
+    seasonId,
+    standings: teamStats,
+    archivedAt: serverTimestamp(),
+  });
+  
+  // Update season status to completed
+  await updateDoc(doc(db, 'leagues', leagueId, 'seasons', seasonId), {
+    status: 'completed',
+    registrationOpen: false,
+    endedAt: serverTimestamp(),
+    teamsCleared,
+    playersRemoved,
+    updatedAt: serverTimestamp(),
+  });
+  
+  return { teamsCleared, playersRemoved };
+};
+
+/**
+ * Move season to playoffs
+ */
+export const moveSeasonToPlayoffs = async (leagueId: string, seasonId: string): Promise<void> => {
+  await updateDoc(doc(db, 'leagues', leagueId, 'seasons', seasonId), {
+    status: 'playoffs',
+    registrationOpen: false,
+    playoffsStartedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+};
+

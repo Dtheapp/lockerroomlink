@@ -3,13 +3,15 @@ import { useAuth } from '../../contexts/AuthContext';
 import { collection, query, where, getDocs, orderBy, doc, addDoc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { LeagueSeason, LeagueSchedule, LeagueGame, Program, Team } from '../../types';
-import { ChevronLeft, Calendar, Plus, Play, Pause, CheckCircle, Clock, MapPin, Trophy, Filter, Users, Loader2, AlertCircle, MoreVertical, Edit, Trash2, X } from 'lucide-react';
+import { ChevronLeft, Calendar, Plus, Play, Pause, CheckCircle, Clock, MapPin, Trophy, Filter, Users, Loader2, AlertCircle, MoreVertical, Edit, Trash2, X, Square, PlayCircle, StopCircle, UserMinus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { startLeagueSeason, endLeagueSeason, closeSeasonRegistration, moveSeasonToPlayoffs } from '../../services/leagueService';
 
 interface SeasonWithStats extends LeagueSeason {
   gamesCount: number;
   completedGames: number;
   pendingGames: number;
+  registrationOpen?: boolean;
 }
 
 export default function LeagueSeasons() {
@@ -19,6 +21,8 @@ export default function LeagueSeasons() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [showEndSeasonModal, setShowEndSeasonModal] = useState<SeasonWithStats | null>(null);
 
   useEffect(() => {
     loadSeasons();
@@ -79,20 +83,35 @@ export default function LeagueSeasons() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, registrationOpen?: boolean) => {
     switch (status) {
       case 'active':
         return (
-          <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
-            <Play className="w-3 h-3" />
-            Active
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+              <Play className="w-3 h-3" />
+              Active
+            </span>
+            {registrationOpen && (
+              <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                <Users className="w-3 h-3" />
+                Registration Open
+              </span>
+            )}
+          </div>
         );
       case 'upcoming':
         return (
           <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
             <Clock className="w-3 h-3" />
             Upcoming
+          </span>
+        );
+      case 'playoffs':
+        return (
+          <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+            <Trophy className="w-3 h-3" />
+            Playoffs
           </span>
         );
       case 'completed':
@@ -107,7 +126,66 @@ export default function LeagueSeasons() {
     }
   };
 
+  const handleStartSeason = async (season: SeasonWithStats) => {
+    if (!leagueData) return;
+    setActionLoading(season.id);
+    try {
+      await startLeagueSeason(leagueData.id, season.id);
+      await loadSeasons();
+    } catch (error) {
+      console.error('Error starting season:', error);
+    } finally {
+      setActionLoading(null);
+      setSelectedSeason(null);
+    }
+  };
+
+  const handleCloseRegistration = async (season: SeasonWithStats) => {
+    if (!leagueData) return;
+    setActionLoading(season.id);
+    try {
+      await closeSeasonRegistration(leagueData.id, season.id);
+      await loadSeasons();
+    } catch (error) {
+      console.error('Error closing registration:', error);
+    } finally {
+      setActionLoading(null);
+      setSelectedSeason(null);
+    }
+  };
+
+  const handleMoveToPlayoffs = async (season: SeasonWithStats) => {
+    if (!leagueData) return;
+    setActionLoading(season.id);
+    try {
+      await moveSeasonToPlayoffs(leagueData.id, season.id);
+      await loadSeasons();
+    } catch (error) {
+      console.error('Error moving to playoffs:', error);
+    } finally {
+      setActionLoading(null);
+      setSelectedSeason(null);
+    }
+  };
+
+  const handleEndSeason = async (season: SeasonWithStats) => {
+    if (!leagueData) return;
+    setActionLoading(season.id);
+    try {
+      const result = await endLeagueSeason(leagueData.id, season.id);
+      console.log('Season ended:', result);
+      setShowEndSeasonModal(null);
+      await loadSeasons();
+    } catch (error) {
+      console.error('Error ending season:', error);
+    } finally {
+      setActionLoading(null);
+      setSelectedSeason(null);
+    }
+  };
+
   const formatDateRange = (startDate: any, endDate: any) => {
+
     const start = startDate instanceof Timestamp ? startDate.toDate() : new Date(startDate);
     const end = endDate instanceof Timestamp ? endDate.toDate() : new Date(endDate);
     
@@ -186,7 +264,7 @@ export default function LeagueSeasons() {
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
                       <h3 className="font-semibold text-lg">{season.name}</h3>
-                      {getStatusBadge(season.status)}
+                      {getStatusBadge(season.status, (season as any).registrationOpen)}
                     </div>
                     <p className="text-sm text-gray-400 mt-1 flex items-center gap-1">
                       <Calendar className="w-4 h-4" />
@@ -222,7 +300,7 @@ export default function LeagueSeasons() {
                     </button>
                     
                     {selectedSeason === season.id && (
-                      <div className="absolute right-0 top-full mt-1 w-48 bg-gray-700 rounded-lg shadow-lg border border-gray-600 py-1 z-10">
+                      <div className="absolute right-0 top-full mt-1 w-56 bg-gray-700 rounded-lg shadow-lg border border-gray-600 py-1 z-10">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -233,6 +311,78 @@ export default function LeagueSeasons() {
                           <Calendar className="w-4 h-4" />
                           View Schedule
                         </button>
+                        
+                        {/* Status-based actions */}
+                        {season.status === 'upcoming' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStartSeason(season);
+                            }}
+                            disabled={actionLoading === season.id}
+                            className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-600 text-sm text-left text-green-400"
+                          >
+                            {actionLoading === season.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <PlayCircle className="w-4 h-4" />
+                            )}
+                            Start Season
+                          </button>
+                        )}
+                        
+                        {season.status === 'active' && (season as any).registrationOpen && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCloseRegistration(season);
+                            }}
+                            disabled={actionLoading === season.id}
+                            className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-600 text-sm text-left text-yellow-400"
+                          >
+                            {actionLoading === season.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <UserMinus className="w-4 h-4" />
+                            )}
+                            Close Registration
+                          </button>
+                        )}
+                        
+                        {season.status === 'active' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMoveToPlayoffs(season);
+                            }}
+                            disabled={actionLoading === season.id}
+                            className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-600 text-sm text-left text-yellow-400"
+                          >
+                            {actionLoading === season.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trophy className="w-4 h-4" />
+                            )}
+                            Move to Playoffs
+                          </button>
+                        )}
+                        
+                        {(season.status === 'active' || season.status === 'playoffs') && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedSeason(null);
+                              setShowEndSeasonModal(season);
+                            }}
+                            className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-600 text-sm text-left text-red-400"
+                          >
+                            <StopCircle className="w-4 h-4" />
+                            End Season
+                          </button>
+                        )}
+                        
+                        <div className="border-t border-gray-600 my-1" />
+                        
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -263,6 +413,63 @@ export default function LeagueSeasons() {
             loadSeasons();
           }}
         />
+      )}
+
+      {/* End Season Confirmation Modal */}
+      {showEndSeasonModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-xl w-full max-w-md border border-gray-700">
+            <div className="flex items-center justify-between p-4 border-b border-gray-700">
+              <h2 className="text-lg font-semibold text-red-400 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5" />
+                End Season
+              </h2>
+              <button onClick={() => setShowEndSeasonModal(null)} className="p-2 hover:bg-gray-700 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-4">
+              <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-4 mb-4">
+                <h3 className="font-medium text-red-300 mb-2">Warning: This action is permanent!</h3>
+                <p className="text-sm text-gray-300">
+                  Ending "{showEndSeasonModal.name}" will:
+                </p>
+                <ul className="text-sm text-gray-400 mt-2 space-y-1 list-disc list-inside">
+                  <li>Remove ALL players from ALL team rosters</li>
+                  <li>Archive player stats and standings for history</li>
+                  <li>Mark the season as completed</li>
+                  <li>Close registration permanently</li>
+                </ul>
+              </div>
+              
+              <p className="text-gray-400 text-sm mb-4">
+                Player data will be preserved in the season history. Teams will need to rebuild rosters for the next season.
+              </p>
+              
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowEndSeasonModal(null)}
+                  className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleEndSeason(showEndSeasonModal)}
+                  disabled={actionLoading === showEndSeasonModal.id}
+                  className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-red-600/50 px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                  {actionLoading === showEndSeasonModal.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <StopCircle className="w-4 h-4" />
+                  )}
+                  End Season & Clear Rosters
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
