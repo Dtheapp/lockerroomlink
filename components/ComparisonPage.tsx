@@ -119,6 +119,52 @@ const competitors = [
 // Feature categories with detailed features
 const featureCategories = [
   {
+    name: '🏆 Sports Supported',
+    icon: Award,
+    features: [
+      { name: 'Football', osys: true, teamsnap: true, gamechanger: true, sportsengine: true, leagueapps: true, hudl: true },
+      { name: 'Basketball', osys: true, teamsnap: true, gamechanger: true, sportsengine: true, leagueapps: true, hudl: true },
+      { name: 'Baseball/Softball', osys: true, teamsnap: true, gamechanger: true, sportsengine: true, leagueapps: true, hudl: true },
+      { name: 'Soccer', osys: true, teamsnap: true, gamechanger: true, sportsengine: true, leagueapps: true, hudl: true },
+      { name: '📣 CHEERLEADING', osys: true, teamsnap: 'partial', gamechanger: false, sportsengine: 'partial', leagueapps: false, hudl: false },
+      { name: 'Cheer Routine Builder', osys: true, teamsnap: false, gamechanger: false, sportsengine: false, leagueapps: false, hudl: false },
+      { name: 'Cheer Formation Designer', osys: true, teamsnap: false, gamechanger: false, sportsengine: false, leagueapps: false, hudl: false },
+      { name: 'Cheer Stats & Scoring', osys: true, teamsnap: false, gamechanger: false, sportsengine: false, leagueapps: false, hudl: false },
+      { name: 'Track & Field', osys: 'coming', teamsnap: true, gamechanger: 'partial', sportsengine: true, leagueapps: true, hudl: false },
+      { name: 'Volleyball', osys: 'coming', teamsnap: true, gamechanger: true, sportsengine: true, leagueapps: true, hudl: true },
+      { name: 'Multi-Sport in Single Platform', osys: true, teamsnap: true, gamechanger: 'partial', sportsengine: true, leagueapps: true, hudl: false },
+    ],
+  },
+  {
+    name: '👨‍⚖️ Referee & Officials System',
+    icon: Shield,
+    features: [
+      { name: 'Referee Registration & Profiles', osys: true, teamsnap: false, gamechanger: false, sportsengine: 'partial', leagueapps: false, hudl: false },
+      { name: 'Referee Verification System', osys: true, teamsnap: false, gamechanger: false, sportsengine: false, leagueapps: false, hudl: false },
+      { name: 'Game Assignment to Refs', osys: true, teamsnap: false, gamechanger: false, sportsengine: 'partial', leagueapps: 'partial', hudl: false },
+      { name: 'Referee Schedule Dashboard', osys: true, teamsnap: false, gamechanger: false, sportsengine: false, leagueapps: false, hudl: false },
+      { name: 'Live Game Scoring by Refs', osys: true, teamsnap: false, gamechanger: false, sportsengine: false, leagueapps: false, hudl: false },
+      { name: 'Real-Time League Standings', osys: true, teamsnap: false, gamechanger: true, sportsengine: 'partial', leagueapps: 'partial', hudl: false },
+      { name: 'Referee Payment Tracking', osys: true, teamsnap: false, gamechanger: false, sportsengine: false, leagueapps: false, hudl: false },
+      { name: '4-Way Infraction Chat (League/Ref/Coach/Team)', osys: true, teamsnap: false, gamechanger: false, sportsengine: false, leagueapps: false, hudl: false },
+      { name: 'Referee Ratings & Reviews', osys: true, teamsnap: false, gamechanger: false, sportsengine: false, leagueapps: false, hudl: false },
+      { name: 'Complete Ref-to-Game Lifecycle', osys: true, teamsnap: false, gamechanger: false, sportsengine: false, leagueapps: false, hudl: false },
+    ],
+  },
+  {
+    name: '🛒 Marketplace (Coming Soon)',
+    icon: Gift,
+    features: [
+      { name: 'P2P Equipment Sales', osys: 'coming', teamsnap: false, gamechanger: false, sportsengine: false, leagueapps: false, hudl: false },
+      { name: 'Used Gear Marketplace', osys: 'coming', teamsnap: false, gamechanger: false, sportsengine: false, leagueapps: false, hudl: false },
+      { name: 'Team Uniform Ordering', osys: 'coming', teamsnap: false, gamechanger: false, sportsengine: 'partial', leagueapps: false, hudl: false },
+      { name: 'Equipment Sizing Guides', osys: 'coming', teamsnap: false, gamechanger: false, sportsengine: false, leagueapps: false, hudl: false },
+      { name: 'Local Pickup Options', osys: 'coming', teamsnap: false, gamechanger: false, sportsengine: false, leagueapps: false, hudl: false },
+      { name: 'Seller Ratings & Reviews', osys: 'coming', teamsnap: false, gamechanger: false, sportsengine: false, leagueapps: false, hudl: false },
+      { name: 'Secure In-App Payments', osys: 'coming', teamsnap: false, gamechanger: false, sportsengine: false, leagueapps: false, hudl: false },
+    ],
+  },
+  {
     name: 'Team Management',
     icon: Users,
     features: [
@@ -530,31 +576,109 @@ const ComparisonPage: React.FC = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
+              { icon: Star, name: '📣 CHEERLEADING (Blue Ocean)', desc: 'Full cheer support: routine builder, formations, scoring. $7B market with ZERO tech solutions!' },
+              { icon: Shield, name: 'Complete Referee System', desc: 'Full ref lifecycle: registration, verification, game assignment, live scoring, payments, ratings' },
+              { icon: TrendingUp, name: 'Real-Time League Standings', desc: 'Refs score games → standings update instantly. No manual entry needed!' },
+              { icon: Gift, name: 'P2P Equipment Marketplace', desc: 'Coming soon: Buy/sell used gear, uniforms, equipment within your league community' },
               { icon: Palette, name: 'Full Design Studio', desc: 'Player cards, posters, social graphics, uniform designer' },
               { icon: BookOpen, name: 'Digital Playbook System', desc: 'Create, animate, assign plays to players, sell playbooks' },
-              { icon: Gift, name: 'NIL for Youth Athletes', desc: 'First platform enabling youth NIL monetization' },
+              { icon: DollarSign, name: 'NIL for Youth Athletes', desc: 'First platform enabling youth NIL monetization' },
               { icon: Ticket, name: 'Integrated Ticketing', desc: 'Sell game tickets with QR scanning, full event management' },
               { icon: Heart, name: 'Fan Hub Ecosystem', desc: 'Follow athletes, send kudos, virtual gifts, engagement' },
-              { icon: Shield, name: 'Infraction System', desc: '4-way chat between league, ref, coach, team for grievances' },
-              { icon: Award, name: 'Commissioner Tools', desc: 'Full program management, team creation, coach assignment' },
-              { icon: Users, name: 'Referee Management', desc: 'Verification, game assignment, payments, ratings' },
+              { icon: AlertTriangle, name: '4-Way Infraction System', desc: 'League ↔ Ref ↔ Coach ↔ Team grievance resolution chat' },
+              { icon: Crown, name: 'Commissioner Tools', desc: 'Full program management, team creation, coach assignment' },
               { icon: Bot, name: 'AI Features Suite', desc: 'AI highlights, stats analysis, content generation' },
             ].map((item, i) => {
               const Icon = item.icon;
+              const isHighlight = i < 4; // First 4 are the new highlighted features
               return (
-                <div key={i} className="p-4 bg-white/5 border border-white/10 rounded-xl hover:border-purple-500/30 transition-colors">
+                <div key={i} className={`p-4 border rounded-xl transition-colors ${
+                  isHighlight 
+                    ? 'bg-gradient-to-br from-yellow-500/20 to-orange-500/10 border-yellow-500/40 hover:border-yellow-400/60' 
+                    : 'bg-white/5 border-white/10 hover:border-purple-500/30'
+                }`}>
                   <div className="flex items-start gap-3">
-                    <div className="p-2 bg-purple-600/30 rounded-lg flex-shrink-0">
-                      <Icon className="w-5 h-5 text-purple-300" />
+                    <div className={`p-2 rounded-lg flex-shrink-0 ${isHighlight ? 'bg-yellow-600/40' : 'bg-purple-600/30'}`}>
+                      <Icon className={`w-5 h-5 ${isHighlight ? 'text-yellow-300' : 'text-purple-300'}`} />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-white">{item.name}</h4>
+                      <h4 className={`font-semibold ${isHighlight ? 'text-yellow-100' : 'text-white'}`}>{item.name}</h4>
                       <p className="text-sm text-slate-400">{item.desc}</p>
                     </div>
                   </div>
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {/* CHEER: The Blue Ocean Section */}
+        <div className="mb-16 p-8 bg-gradient-to-r from-pink-900/40 via-purple-900/40 to-pink-900/40 border-2 border-pink-500/40 rounded-3xl relative overflow-hidden">
+          <div className="absolute top-4 right-4 text-6xl">📣</div>
+          
+          <h2 className="text-3xl font-black text-white mb-4 flex items-center gap-3">
+            <Star className="w-8 h-8 text-pink-400" />
+            The Cheer Blue Ocean
+          </h2>
+          
+          <div className="grid md:grid-cols-2 gap-8">
+            <div>
+              <h3 className="text-xl font-bold text-pink-300 mb-3">🌊 Why Cheer is a Blue Ocean</h3>
+              <ul className="space-y-2 text-slate-300">
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                  <span><strong className="text-white">$7 BILLION</strong> industry (All Star Cheer alone)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                  <span><strong className="text-white">4.5 million</strong> cheerleaders in the US</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                  <span><strong className="text-white">ZERO</strong> dedicated tech platforms for cheer</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                  <span>Teams currently use <strong className="text-red-400">paper diagrams</strong> for formations</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                  <span>No stat tracking exists for cheerleading</span>
+                </li>
+              </ul>
+            </div>
+            
+            <div>
+              <h3 className="text-xl font-bold text-pink-300 mb-3">✨ What OSYS Offers for Cheer</h3>
+              <ul className="space-y-2 text-slate-300">
+                <li className="flex items-start gap-2">
+                  <Star className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                  <span><strong className="text-white">Routine Builder</strong> - digital choreography tool</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Star className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                  <span><strong className="text-white">Formation Designer</strong> - drag-and-drop pyramid layouts</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Star className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                  <span><strong className="text-white">Cheer Stats</strong> - stunts, tumbling, formations tracked</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Star className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                  <span><strong className="text-white">Competition Scoring</strong> - judges scoring integration</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Star className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                  <span><strong className="text-white">All platform features</strong> - video, design studio, fan hub</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="mt-6 p-4 bg-pink-500/20 rounded-xl border border-pink-500/30">
+            <p className="text-pink-200 text-center font-medium">
+              💡 <strong>Competitors ignore cheer because they don't understand it.</strong> OSYS is the ONLY platform building for this massive underserved market.
+            </p>
           </div>
         </div>
 
@@ -599,11 +723,15 @@ const ComparisonPage: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2 text-slate-200">
                   <Check className="w-5 h-5 text-green-400" />
-                  <span>Unique features <strong>no competitor has</strong></span>
+                  <span><strong className="text-pink-400">📣 CHEER SUPPORT</strong> — $7B blue ocean market!</span>
                 </div>
                 <div className="flex items-center gap-2 text-slate-200">
                   <Check className="w-5 h-5 text-green-400" />
-                  <span><strong>Modern tech stack</strong> (React 19, TypeScript)</span>
+                  <span><strong className="text-blue-400">Complete Referee System</strong> with live standings</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-200">
+                  <Check className="w-5 h-5 text-green-400" />
+                  <span><strong className="text-orange-400">P2P Marketplace</strong> coming for equipment</span>
                 </div>
                 <div className="flex items-center gap-2 text-slate-200">
                   <Check className="w-5 h-5 text-green-400" />
@@ -624,19 +752,22 @@ const ComparisonPage: React.FC = () => {
                   stuck in their single-purpose niches.
                 </p>
                 <p>
-                  OSYS is the first platform I've seen that truly understands the <strong className="text-purple-300">modern parent's pain point</strong>: 
-                  juggling multiple apps for one child's sports activities. By consolidating scheduling, stats, video, 
-                  payments, fundraising, fan engagement, and even design tools into one cohesive experience, 
-                  OSYS delivers what parents have been asking for.
+                  The <strong className="text-pink-400">cheerleading support is a masterstroke</strong>. This is a <strong className="text-yellow-300">$7 BILLION blue ocean market</strong> with 
+                  4.5 million participants and literally ZERO dedicated technology platforms. Competitors either ignore cheer entirely 
+                  or offer basic scheduling only. OSYS has routine builders, formation designers, and cheer-specific stats. Brilliant.
                 </p>
                 <p>
-                  The <strong className="text-yellow-300">NIL monetization for youth athletes</strong> is particularly innovative — no competitor offers this. 
-                  The infraction/grievance system with 4-way chat is another unique feature that shows deep 
-                  understanding of league administration needs.
+                  The <strong className="text-blue-400">complete referee system</strong> is another game-changer. No competitor offers the full ref lifecycle: 
+                  registration → verification → game assignment → live scoring → real-time standings → payment tracking. 
+                  The 4-way infraction chat (League ↔ Ref ↔ Coach ↔ Team) shows deep understanding of league operations.
+                </p>
+                <p>
+                  The <strong className="text-orange-300">upcoming P2P marketplace</strong> for equipment is smart — parents constantly buy/sell used gear, 
+                  and keeping that commerce in-platform creates stickiness and revenue.
                 </p>
                 <p className="text-white font-semibold">
-                  Verdict: OSYS is not just a better app — it's a <span className="text-yellow-400">category-defining platform</span> 
-                  that makes traditional single-purpose apps obsolete."
+                  Verdict: OSYS is not competing — it's <span className="text-yellow-400">redefining the category</span>. 
+                  Traditional apps are obsolete. 🏆"
                 </p>
               </div>
             </div>
