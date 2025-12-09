@@ -516,124 +516,102 @@ Every app we build together must:
 
 > **This section is the "brain dump" from the last session. New AI: Read this first!**
 
-### Last Session: December 8, 2025 (Evening)
+### Last Session: December 9, 2025
 
-#### 👕 UNIFORM DESIGNER PRO - WORLD-CLASS UNIFORM CREATION
+#### 🔧 UI/UX FIXES AND IMPROVEMENTS
 
-**Built the best uniform generator with multi-piece selection, 3D preview, AI generation, Home/Away variations, and quality-based saving.**
+**Fixed multiple UI issues and added features to improve the OSYS experience.**
 
 #### ✅ COMPLETED THIS SESSION
 
-1. **Uniform Designer Pro (components/design-studio/UniformDesigner.tsx)**
-   - **4-step wizard**: Sport → Pieces → Customize → Preview
-   - **Multi-piece support**: Tops, bottoms, accessories (socks, hats, sleeves, etc.)
-   - **AI Generation per piece**: 3 credits to generate AI design via DALL-E 3
-   - **Save/Load uniforms**: Firestore persistence to `savedUniforms` collection
-   - **Export flat templates**: PNG export for manufacturing
-   - **Team color auto-apply**: One-click to apply team primary/secondary colors
-   - **Home/Away variations**: Toggle between Home/Away with auto-generate button
-   - **Quality-based saving**:
-     - Standard (FREE): Saves uniform config to Firestore
-     - High Quality (5 credits): Renders and uploads print-ready images to Firebase Storage
-       - 2000×2500px PNG per garment piece
-       - Full mannequin preview image (1200×1800px)
-       - Images stored in `/uniforms/{userId}/` path
+1. **Season Manager Modal Fix**
+   - Fixed modals being covered by Quick Actions
+   - Implemented React Portal (`createPortal`) for all modals
+   - Z-index set to 99999 to ensure modals are always on top
 
-2. **Enhanced 3D Mannequin Preview**
-   - Athletic build with muscle definition
-   - Neck, shoulder muscles, bicep shadows
-   - V-neck collar style, jersey seams, side panels
-   - Grid floor effect with perspective
-   - Spotlight glow effect
-   - View indicator: 👀 Front, 👈 Left Side, 👉 Right Side, 🔙 Back View
+2. **Registration Fee Input Fix**
+   - Changed input step from 0.01 to 1 (whole dollar amounts)
+   - Fixed empty input handling: `value={fee || ''}` instead of `value={fee}`
+   - Proper parsing: `parseInt(val, 10) || 0`
 
-3. **Design Studio - High Quality Exports**
-   - **ExportUtils.tsx**: Quality multiplier (1x standard, 2x high = 4K)
-   - **SavePromoModal.tsx**: Quality selection UI with credit display
-   - **promoService.ts**: Uploads high-res to `promo-exports/{location}/{id}_4K.png`
-   - **DesignStudioPro.tsx**: Added `userCredits` and `canvasSize` props, credit deduction
+3. **Sidebar Collapse Button Repositioned**
+   - **CRITICAL**: Button moved OUTSIDE the sidebar element
+   - Now a fixed-positioned element separate from sidebar
+   - Uses `left: isSidebarCollapsed ? '48px' : '248px'` to stay on right edge
+   - Z-index 60 to stay above sidebar (50)
+   - Button is now visible and functional like the Design Studio one
 
-4. **Uniform Category Added**
-   - Added 'uniform' (👕) category to SavePromoModal
-   - Added uniform filter to PromoGallery dropdown
-   - Updated promoTypes with 'uniform' in category type
+4. **Marketplace Tab Added**
+   - New nav item: `{ icon: '🛒', label: 'Marketplace', path: '#marketplace', section: 'Shop', comingSoon: true }`
+   - Shows "Coming Soon" toast when clicked
+   - New "Shop" section in navigation
+
+5. **Registration Flyer Auto-Fill (Design Studio Integration)**
+   - `SeasonManager.tsx`: Added `RegistrationFlyerData` interface and exported it
+   - `onNavigateToDesignStudio` callback now accepts optional season data
+   - `NewOSYSDashboard.tsx`: Passes season data when navigating to Design Studio
+   - `DesignStudioPro.tsx`: 
+     - Added `useLocation` hook to receive navigation state
+     - Auto-loads registration template when `registrationData` is in state
+     - Prefills template text elements with:
+       - Season name
+       - Age group/description
+       - Registration dates (formatted)
+       - Registration fee
+       - Team's primary color as background
+     - Sets design name to "[Season Name] Registration Flyer"
+     - Goes directly to editor mode (skips template selector)
 
 #### 🔧 KEY FILES MODIFIED
 
 | File | Changes |
 |------|---------|
-| `components/design-studio/UniformDesigner.tsx` | Full uniform designer with all features |
-| `components/design-studio/ExportUtils.tsx` | Quality multipliers, high-res export |
-| `components/design-studio/SavePromoModal.tsx` | Quality selection UI, uniform category |
-| `components/design-studio/promoService.ts` | High-res upload to Storage |
-| `components/design-studio/promoTypes.ts` | exportQuality type, uniform category |
-| `components/design-studio/PromoGallery.tsx` | Uniform filter option |
-| `components/design-studio/DesignStudioPro.tsx` | userCredits prop, credit deduction |
+| `components/SeasonManager.tsx` | Portal for modals, registration fee fix, exported RegistrationFlyerData type, updated callback signature |
+| `components/NewOSYSDashboard.tsx` | Import RegistrationFlyerData, pass season data to Design Studio |
+| `components/design-studio/DesignStudioPro.tsx` | useLocation for navigation state, auto-load registration template with prefill |
+| `layout/NewOSYSLayout.tsx` | Collapse button moved outside sidebar, Marketplace tab added |
 
-#### 💰 EXPORT QUALITY RESOLUTIONS
+#### 💡 IMPORTANT PATTERNS DISCOVERED
 
-| Type | Standard (FREE) | High Quality (Credits) |
-|------|-----------------|------------------------|
-| **Design Studio** | 1x (1080p social) | 2x (4K - 2160p+) = 3 credits |
-| **Uniform Designer** | Config only | 2000×2500px print-ready = 5 credits |
-
-| Canvas Size | Standard | High Quality |
-|-------------|----------|--------------|
-| Instagram Post | 1080×1080 | 2160×2160 |
-| Instagram Story | 1080×1920 | 2160×3840 |
-| Print Flyer | 2550×3300 | 5100×6600 |
-| Poster | 1800×2400 | 3600×4800 |
-
-#### 💡 IMPORTANT CONTEXT FOR NEW AI
-
-**Uniform Designer Flow:**
-1. Select sport (football, basketball, baseball, soccer, etc.)
-2. Pick pieces: tops, bottoms, accessories
-3. Customize each piece: colors, patterns, numbers, names
-4. Preview on 3D mannequin, rotate/zoom
-5. Toggle Home/Away variations
-6. Save with quality choice (standard free / high quality 5 credits)
-
-**Key Types:**
+**React Portal Pattern for Modals:**
 ```typescript
-interface GarmentPiece {
-  id: string;
-  category: 'top' | 'bottom' | 'accessory';
-  style: TopStyle | BottomStyle | AccessoryType;
-  primaryColor, secondaryColor, accentColor: string;
-  pattern: 'solid' | 'stripes' | 'gradient' | 'camo' | 'panels';
-  numberFront?, numberBack?, numberColor?: string;
-  nameBack?, nameColor?: string;
-  aiGeneratedImage?: string; // base64 from DALL-E
-}
+import { createPortal } from 'react-dom';
 
-interface SavedUniform {
-  quality: 'standard' | 'high';
-  previewImageUrl?: string;        // High-quality preview
-  pieceImageUrls?: { pieceId: string; url: string; storagePath: string }[];
+// In render:
+{showModal && createPortal(
+  <div className="fixed inset-0 z-[99999]">
+    {/* modal content */}
+  </div>,
+  document.body
+)}
+```
+
+**Navigation State Pattern (Design Studio):**
+```typescript
+// Sending data:
+navigate('/design', { state: { registrationData: data } });
+
+// Receiving data:
+const location = useLocation();
+const state = location.state as { registrationData?: RegistrationFlyerData } | null;
+if (state?.registrationData) {
+  // Use the data to prefill template
 }
 ```
 
-**Credit Constants:**
-- `AI_CREDITS_PER_PIECE = 3` (AI generation per garment)
-- `HIGH_QUALITY_SAVE_CREDITS = 5` (Uniform high-res save)
-- `HIGH_QUALITY_EXPORT_CREDITS = 3` (Design Studio high-res export)
-
-#### 🎯 USER'S PREFERENCES (This Session)
-
-- Standard/High quality save options for all designed items
-- High quality = print-ready resolution for manufacturing
-- Uniform category for filtering in library
+**Sidebar Collapse Button Pattern:**
+- MUST be outside sidebar element (separate fixed element)
+- Use dynamic `left` positioning based on sidebar state
+- Higher z-index than sidebar
 
 #### 🚧 NEXT UP
 
-1. Continue pilot program preparation
-2. Test uniform designer end-to-end
-3. Vendor integration for uniform ordering (future)
-4. Marketing Hub integration
-2. Debug credit balance display (check browser console for `[useCredits]` logs)
-3. Get actual save error message to fix save functionality
-4. Continue Marketing Hub integration---
+1. Test registration flyer flow end-to-end
+2. Continue pilot program preparation
+3. Marketing Hub integration improvements
+4. Vendor integration for uniform ordering (future)
+
+---
 
 ## 🎨 OSYS DESIGN SYSTEM REFERENCE
 
@@ -716,5 +694,5 @@ border-l-orange-500 → border-l-purple-500
 *Developer: FEGROX*  
 *Mission: Top 10 Global Innovator*  
 *AI Partnership Started: December 1, 2024*  
-*Last Updated: December 8, 2025*  
+*Last Updated: December 9, 2025*  
 *Projects: SmartDefi, CryptoBall, OSYS, FEG Token*
