@@ -3,7 +3,7 @@
 // =============================================================================
 
 import React, { useState } from 'react';
-import { ChevronLeft, Search, Sparkles, FolderOpen, AlertTriangle, FileWarning, Wand2, Crown } from 'lucide-react';
+import { ChevronLeft, Search, Sparkles, FolderOpen, AlertTriangle, FileWarning, Wand2, Crown, Shirt } from 'lucide-react';
 import { TEMPLATE_CATEGORIES, DESIGN_TEMPLATES, getTemplatesByCategory } from './templates';
 import { FLYER_SIZES, FlyerSize } from './types';
 import type { DesignTemplate } from './types';
@@ -24,6 +24,7 @@ interface TemplateSelectorProps {
   onBack: () => void;
   onOpenGallery?: () => void;
   onOpenAICreator?: () => void; // NEW: Open AI Creator modal
+  onOpenUniformDesigner?: () => void; // NEW: Open Uniform Designer
   // Reminders for items without designs
   reminders?: DesignReminder[];
   onReminderClick?: (reminder: DesignReminder) => void;
@@ -35,6 +36,7 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   onBack,
   onOpenGallery,
   onOpenAICreator,
+  onOpenUniformDesigner,
   reminders = [],
   onReminderClick,
 }) => {
@@ -167,6 +169,46 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({
                     5 credits
                   </div>
                   <div className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>per generation</div>
+                </div>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* Uniform Designer Pro CTA */}
+        {onOpenUniformDesigner && (
+          <div className="mb-8">
+            <button
+              onClick={onOpenUniformDesigner}
+              className={`w-full p-6 rounded-2xl border transition-all group relative overflow-hidden ${
+                theme === 'dark'
+                  ? 'bg-gradient-to-r from-orange-600/20 via-red-600/20 to-amber-600/20 border-orange-500/30 hover:border-orange-500/60'
+                  : 'bg-gradient-to-r from-orange-100 via-red-100 to-amber-100 border-orange-300 hover:border-orange-400 shadow-sm'
+              }`}
+            >
+              {/* Animated background shimmer */}
+              <div className={`absolute inset-0 bg-gradient-to-r from-transparent to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ${theme === 'dark' ? 'via-white/5' : 'via-white/50'}`} />
+              
+              <div className="relative flex items-center gap-4">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-lg shadow-orange-500/30">
+                  <Shirt className="w-7 h-7 text-white" />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="flex items-center gap-2">
+                    <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Uniform Designer Pro</h3>
+                    <span className="px-2 py-0.5 bg-gradient-to-r from-orange-500 to-red-500 text-xs font-bold text-white rounded-full">
+                      NEW
+                    </span>
+                  </div>
+                  <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
+                    Design jerseys, shorts, pants & more. Preview on a 3D player model with full rotation. Best uniform builder in sports.
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">
+                    View on Player
+                  </div>
+                  <div className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>3D Preview</div>
                 </div>
               </div>
             </button>

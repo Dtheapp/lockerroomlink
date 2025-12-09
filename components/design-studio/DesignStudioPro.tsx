@@ -21,6 +21,7 @@ import QuickAddPanel from './QuickAddPanel';
 import SavePromoModal from './SavePromoModal';
 import PromoGallery from './PromoGallery';
 import AICreatorModal from './AICreatorModal';
+import UniformDesigner from './UniformDesigner';
 
 // Utilities
 import { useKeyboardShortcuts, copyToClipboard, getClipboard } from './useKeyboardShortcuts';
@@ -102,6 +103,7 @@ const DesignStudioPro: React.FC = () => {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
   const [showAICreator, setShowAICreator] = useState(false);
+  const [showUniformDesigner, setShowUniformDesigner] = useState(false);
   const [availableTeams, setAvailableTeams] = useState<TeamOption[]>([]);
   const [availablePlayers, setAvailablePlayers] = useState<PlayerOption[]>([]);
   const [availableSeasons, setAvailableSeasons] = useState<{ id: string; name: string }[]>([]);
@@ -1002,6 +1004,7 @@ const DesignStudioPro: React.FC = () => {
           onBack={() => window.history.back()}
           onOpenGallery={() => setShowGallery(true)}
           onOpenAICreator={() => setShowAICreator(true)}
+          onOpenUniformDesigner={() => setShowUniformDesigner(true)}
           reminders={designReminders}
           onReminderClick={(reminder) => {
             // Load the suggested template for this reminder
@@ -1046,6 +1049,19 @@ const DesignStudioPro: React.FC = () => {
             } : undefined}
             availableSeasons={availableSeasons}
             availableEvents={availableEvents}
+          />
+        )}
+        
+        {/* Uniform Designer Modal */}
+        {showUniformDesigner && (
+          <UniformDesigner
+            onClose={() => setShowUniformDesigner(false)}
+            teamData={teamData ? {
+              name: teamData.name,
+              primaryColor: (teamData as any)?.primaryColor,
+              secondaryColor: (teamData as any)?.secondaryColor,
+              logoUrl: (teamData as any)?.logoUrl,
+            } : undefined}
           />
         )}
       </>
