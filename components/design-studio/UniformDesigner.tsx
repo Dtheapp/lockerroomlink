@@ -3,7 +3,7 @@
 // Multi-piece uniform design with 3D player preview
 // =============================================================================
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { 
   X, 
   ChevronRight, 
@@ -21,9 +21,18 @@ import {
   RotateCw,
   Check,
   Plus,
-  Trash2
+  Trash2,
+  Wand2,
+  Crown,
+  Loader2,
+  Upload,
+  FolderOpen,
+  Image as ImageIcon
 } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { doc, getDoc, updateDoc, collection, addDoc, getDocs, query, where, deleteDoc } from 'firebase/firestore';
+import { db } from '../../services/firebase';
 
 // =============================================================================
 // TYPES
@@ -76,6 +85,9 @@ interface GarmentPiece {
   nameColor?: string;
   logoUrl?: string;
   logoPosition?: 'chest-left' | 'chest-center' | 'chest-right' | 'back';
+  // AI-generated design
+  aiGeneratedImage?: string; // base64 or URL
+  aiPromptUsed?: string;
 }
 
 interface UniformSet {
@@ -84,6 +96,17 @@ interface UniformSet {
   sport: Sport;
   pieces: GarmentPiece[];
   createdAt: Date;
+  teamId?: string;
+}
+
+interface SavedUniform {
+  id: string;
+  name: string;
+  sport: Sport;
+  pieces: GarmentPiece[];
+  createdAt: any;
+  teamId: string;
+  userId: string;
 }
 
 interface UniformDesignerProps {
@@ -94,8 +117,12 @@ interface UniformDesignerProps {
     primaryColor?: string;
     secondaryColor?: string;
     logoUrl?: string;
+    id?: string;
   };
 }
+
+// AI Generation cost per piece
+const AI_CREDITS_PER_PIECE = 3;
 
 // =============================================================================
 // CONSTANTS
@@ -169,6 +196,7 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
   teamData
 }) => {
   const { theme } = useTheme();
+  const { userData } = useAuth();
   
   // Wizard step
   const [currentStep, setCurrentStep] = useState<'sport' | 'pieces' | 'customize' | 'preview'>('sport');
@@ -187,8 +215,177 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
   // Uniform name
   const [uniformName, setUniformName] = useState(teamData?.name ? `${teamData.name} Uniform` : 'New Uniform');
   
+  // AI Generation state
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiGeneratingPieceId, setAiGeneratingPieceId] = useState<string | null>(null);
+  const [userCredits, setUserCredits] = useState(0);
+  const [showBuyCredits, setShowBuyCredits] = useState(false);
+  
+  // Save/Load state
+  const [savedUniforms, setSavedUniforms] = useState<SavedUniform[]>([]);
+  const [showSavedUniforms, setShowSavedUniforms] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Auto-apply team colors option
+  const [autoApplyTeamColors, setAutoApplyTeamColors] = useState(true);
+  
   // Get the active piece for editing
   const activePiece = pieces.find(p => p.id === activePieceId);
+  
+  // Fetch user credits on mount
+  useEffect(() => {
+    const fetchCredits = async () => {
+      if (!userData?.id) return;
+      try {
+        const userDoc = await getDoc(doc(db, 'users', userData.id));
+        if (userDoc.exists()) {
+          setUserCredits(userDoc.data()?.credits || 0);
+        }
+      } catch (err) {
+        console.error('Error fetching credits:', err);
+      }
+    };
+    fetchCredits();
+  }, [userData?.id]);
+  
+  // Fetch saved uniforms
+  useEffect(() => {
+    const fetchSavedUniforms = async () => {
+      if (!userData?.id) return;
+      try {
+        const q = query(
+          collection(db, 'savedUniforms'),
+          where('userId', '==', userData.id)
+        );
+        const snapshot = await getDocs(q);
+        const uniforms: SavedUniform[] = [];
+        snapshot.forEach(doc => {
+          uniforms.push({ id: doc.id, ...doc.data() } as SavedUniform);
+        });
+        setSavedUniforms(uniforms);
+      } catch (err) {
+        console.error('Error fetching saved uniforms:', err);
+      }
+    };
+    fetchSavedUniforms();
+  }, [userData?.id]);
+  
+  // AI Generate design for a piece
+  const generateAIDesign = async (pieceId: string) => {
+    if (userCredits < AI_CREDITS_PER_PIECE) {
+      setShowBuyCredits(true);
+      return;
+    }
+    
+    const piece = pieces.find(p => p.id === pieceId);
+    if (!piece) return;
+    
+    setIsGeneratingAI(true);
+    setAiGeneratingPieceId(pieceId);
+    
+    try {
+      // Build prompt for this specific garment
+      const prompt = `Professional ${piece.label} uniform design for ${selectedSport} team. 
+        Primary color: ${piece.primaryColor}, Secondary color: ${piece.secondaryColor}, Accent: ${piece.accentColor}.
+        Pattern style: ${piece.pattern}. ${piece.numberBack ? `Number ${piece.numberBack} on back.` : ''}
+        ${teamData?.name ? `Team: ${teamData.name}.` : ''}
+        Flat lay product photography, white background, high quality, detailed fabric texture.`;
+      
+      const response = await fetch('/.netlify/functions/generate-ai-design', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          size: '1024x1024',
+          quality: 'standard',
+        }),
+      });
+      
+      if (!response.ok) throw new Error('AI generation failed');
+      
+      const data = await response.json();
+      
+      // Update piece with AI image
+      updatePiece(pieceId, { 
+        aiGeneratedImage: `data:image/png;base64,${data.image}`,
+        aiPromptUsed: prompt 
+      });
+      
+      // Deduct credits
+      if (userData?.id) {
+        const userRef = doc(db, 'users', userData.id);
+        await updateDoc(userRef, { credits: userCredits - AI_CREDITS_PER_PIECE });
+        setUserCredits(prev => prev - AI_CREDITS_PER_PIECE);
+      }
+    } catch (err) {
+      console.error('AI generation error:', err);
+      alert('Failed to generate AI design. Please try again.');
+    } finally {
+      setIsGeneratingAI(false);
+      setAiGeneratingPieceId(null);
+    }
+  };
+  
+  // Save uniform to Firestore
+  const saveUniform = async () => {
+    if (!userData?.id || !selectedSport) return;
+    
+    setIsSaving(true);
+    try {
+      const uniformData = {
+        name: uniformName,
+        sport: selectedSport,
+        pieces: pieces.map(p => ({
+          ...p,
+          // Don't save huge base64 images to Firestore - would need to upload to Storage
+          aiGeneratedImage: p.aiGeneratedImage ? 'has_image' : undefined,
+        })),
+        teamId: teamData?.id || null,
+        userId: userData.id,
+        createdAt: new Date(),
+      };
+      
+      const docRef = await addDoc(collection(db, 'savedUniforms'), uniformData);
+      setSavedUniforms(prev => [...prev, { id: docRef.id, ...uniformData } as SavedUniform]);
+      alert('Uniform saved successfully!');
+    } catch (err) {
+      console.error('Error saving uniform:', err);
+      alert('Failed to save uniform.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  
+  // Load a saved uniform
+  const loadUniform = (uniform: SavedUniform) => {
+    setSelectedSport(uniform.sport);
+    setPieces(uniform.pieces);
+    setUniformName(uniform.name);
+    setShowSavedUniforms(false);
+    setCurrentStep('customize');
+  };
+  
+  // Delete a saved uniform
+  const deleteUniform = async (uniformId: string) => {
+    if (!confirm('Delete this saved uniform?')) return;
+    try {
+      await deleteDoc(doc(db, 'savedUniforms', uniformId));
+      setSavedUniforms(prev => prev.filter(u => u.id !== uniformId));
+    } catch (err) {
+      console.error('Error deleting uniform:', err);
+    }
+  };
+  
+  // Apply team colors to all pieces
+  const applyTeamColorsToAll = () => {
+    if (!teamData?.primaryColor) return;
+    setPieces(prev => prev.map(p => ({
+      ...p,
+      primaryColor: teamData.primaryColor || p.primaryColor,
+      secondaryColor: teamData.secondaryColor || p.secondaryColor,
+    })));
+  };
   
   // Add a new piece
   const addPiece = useCallback((category: GarmentCategory, style: TopStyle | BottomStyle | AccessoryType, label: string) => {
@@ -601,32 +798,96 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
         </div>
         
         {/* Mini preview - right sidebar */}
-        <div className="w-64 border-l border-zinc-700 p-4">
+        <div className="w-64 border-l border-zinc-700 p-4 space-y-4">
           <h3 className="text-xs font-semibold text-slate-400 uppercase mb-3">Preview</h3>
           {activePiece && (
-            <div 
-              className="aspect-square rounded-xl border border-zinc-700 flex items-center justify-center"
-              style={{ 
-                background: activePiece.pattern === 'gradient' 
-                  ? `linear-gradient(135deg, ${activePiece.primaryColor}, ${activePiece.secondaryColor})`
-                  : activePiece.primaryColor 
-              }}
-            >
-              <div className="text-center">
-                <div 
-                  className="text-4xl font-bold"
-                  style={{ color: activePiece.numberColor }}
-                >
-                  {activePiece.numberFront || activePiece.numberBack || '00'}
-                </div>
-                {activePiece.nameBack && (
-                  <div 
-                    className="text-sm font-semibold mt-1"
-                    style={{ color: activePiece.nameColor }}
+            <>
+              {/* Show AI image if exists, otherwise color preview */}
+              {activePiece.aiGeneratedImage ? (
+                <div className="relative">
+                  <img 
+                    src={activePiece.aiGeneratedImage} 
+                    alt="AI Generated" 
+                    className="w-full rounded-xl border border-zinc-700"
+                  />
+                  <button
+                    onClick={() => updatePiece(activePiece.id, { aiGeneratedImage: undefined })}
+                    className="absolute top-2 right-2 p-1 bg-red-500 rounded-full text-white hover:bg-red-600"
                   >
-                    {activePiece.nameBack}
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div 
+                  className="aspect-square rounded-xl border border-zinc-700 flex items-center justify-center"
+                  style={{ 
+                    background: activePiece.pattern === 'gradient' 
+                      ? `linear-gradient(135deg, ${activePiece.primaryColor}, ${activePiece.secondaryColor})`
+                      : activePiece.primaryColor 
+                  }}
+                >
+                  <div className="text-center">
+                    <div 
+                      className="text-4xl font-bold"
+                      style={{ color: activePiece.numberColor }}
+                    >
+                      {activePiece.numberFront || activePiece.numberBack || '00'}
+                    </div>
+                    {activePiece.nameBack && (
+                      <div 
+                        className="text-sm font-semibold mt-1"
+                        style={{ color: activePiece.nameColor }}
+                      >
+                        {activePiece.nameBack}
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
+              )}
+              
+              {/* AI Generation Button */}
+              <button
+                onClick={() => generateAIDesign(activePiece.id)}
+                disabled={isGeneratingAI}
+                className="w-full p-3 rounded-xl border border-purple-500/50 bg-gradient-to-r from-purple-600/20 to-pink-600/20 hover:from-purple-600/30 hover:to-pink-600/30 transition-all disabled:opacity-50"
+              >
+                <div className="flex items-center justify-center gap-2">
+                  {aiGeneratingPieceId === activePiece.id ? (
+                    <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
+                  ) : (
+                    <Wand2 className="w-5 h-5 text-purple-400" />
+                  )}
+                  <span className="text-white font-medium text-sm">
+                    {aiGeneratingPieceId === activePiece.id ? 'Generating...' : 'Generate with AI'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-center gap-1 mt-1">
+                  <Crown className="w-3 h-3 text-yellow-500" />
+                  <span className="text-xs text-slate-400">{AI_CREDITS_PER_PIECE} credits</span>
+                </div>
+              </button>
+              
+              {/* Credits display */}
+              <div className="text-center text-xs text-slate-500">
+                Your credits: <span className="text-orange-400 font-bold">{userCredits}</span>
+              </div>
+            </>
+          )}
+          
+          {/* Team Colors Quick Apply */}
+          {teamData?.primaryColor && (
+            <div className="pt-4 border-t border-zinc-700">
+              <button
+                onClick={applyTeamColorsToAll}
+                className="w-full px-3 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 rounded-lg text-sm text-slate-300 flex items-center justify-center gap-2"
+              >
+                <Palette className="w-4 h-4" />
+                Apply Team Colors to All
+              </button>
+              <div className="flex items-center gap-2 mt-2 justify-center">
+                <div className="w-5 h-5 rounded" style={{ backgroundColor: teamData.primaryColor }} />
+                <div className="w-5 h-5 rounded" style={{ backgroundColor: teamData.secondaryColor }} />
+                <span className="text-xs text-slate-500">Team colors</span>
               </div>
             </div>
           )}
@@ -896,18 +1157,35 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
   // Navigation for preview step
   const renderPreviewNav = () => (
     <div className="flex justify-between p-4 border-t border-zinc-700">
-      <button
-        onClick={() => setCurrentStep('customize')}
-        className="px-6 py-3 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg flex items-center gap-2"
-      >
-        <ChevronLeft className="w-5 h-5" /> Edit Pieces
-      </button>
       <div className="flex gap-3">
         <button
-          onClick={() => {/* TODO: Export */}}
+          onClick={() => setCurrentStep('customize')}
           className="px-6 py-3 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg flex items-center gap-2"
         >
-          <Download className="w-5 h-5" /> Export
+          <ChevronLeft className="w-5 h-5" /> Edit Pieces
+        </button>
+        <button
+          onClick={() => setShowSavedUniforms(true)}
+          className="px-4 py-3 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg flex items-center gap-2"
+        >
+          <FolderOpen className="w-5 h-5" /> My Uniforms
+        </button>
+      </div>
+      <div className="flex gap-3">
+        <button
+          onClick={exportFlatTemplates}
+          className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2"
+          title="Export flat templates for manufacturing"
+        >
+          <ImageIcon className="w-5 h-5" /> Export Flat
+        </button>
+        <button
+          onClick={saveUniform}
+          disabled={isSaving}
+          className="px-6 py-3 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 text-white rounded-lg flex items-center gap-2"
+        >
+          {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+          Save to Cloud
         </button>
         <button
           onClick={() => {
@@ -924,11 +1202,141 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
           }}
           className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg flex items-center gap-2"
         >
-          <Save className="w-5 h-5" /> Save Uniform
+          <Download className="w-5 h-5" /> Done & Export
         </button>
       </div>
     </div>
   );
+  
+  // Export flat templates for manufacturing
+  const exportFlatTemplates = () => {
+    // Create a canvas for each piece and download
+    pieces.forEach((piece, index) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 800;
+      canvas.height = 1000;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      
+      // Fill with piece color
+      ctx.fillStyle = piece.primaryColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Add pattern if not solid
+      if (piece.pattern === 'stripes') {
+        ctx.fillStyle = piece.secondaryColor;
+        for (let i = 0; i < canvas.width; i += 80) {
+          ctx.fillRect(i, 0, 40, canvas.height);
+        }
+      } else if (piece.pattern === 'gradient') {
+        const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        gradient.addColorStop(0, piece.primaryColor);
+        gradient.addColorStop(1, piece.secondaryColor);
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      
+      // Add number if top
+      if (piece.category === 'top' && piece.numberBack) {
+        ctx.fillStyle = piece.numberColor || '#ffffff';
+        ctx.font = 'bold 200px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(piece.numberBack, canvas.width / 2, canvas.height / 2 + 60);
+      }
+      
+      // Add name
+      if (piece.nameBack) {
+        ctx.fillStyle = piece.nameColor || '#ffffff';
+        ctx.font = 'bold 48px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(piece.nameBack, canvas.width / 2, canvas.height / 2 - 80);
+      }
+      
+      // Download
+      const link = document.createElement('a');
+      link.download = `${uniformName.replace(/\s+/g, '_')}_${piece.label.replace(/\s+/g, '_')}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+    
+    alert(`Exported ${pieces.length} flat templates for manufacturing!`);
+  };
+  
+  // ==========================================================================
+  // RENDER: Saved Uniforms Modal
+  // ==========================================================================
+  const renderSavedUniformsModal = () => {
+    if (!showSavedUniforms) return null;
+    
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/60" onClick={() => setShowSavedUniforms(false)} />
+        <div className="relative w-full max-w-2xl bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-700">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <FolderOpen className="w-5 h-5 text-orange-400" />
+              My Saved Uniforms
+            </h2>
+            <button onClick={() => setShowSavedUniforms(false)} className="text-slate-400 hover:text-white">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+          
+          <div className="p-6 max-h-[60vh] overflow-y-auto">
+            {savedUniforms.length === 0 ? (
+              <div className="text-center py-12 text-slate-400">
+                <FolderOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No saved uniforms yet</p>
+                <p className="text-sm mt-1">Design and save a uniform to see it here</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                {savedUniforms.map(uniform => (
+                  <div 
+                    key={uniform.id}
+                    className="p-4 bg-zinc-800 border border-zinc-700 rounded-xl hover:border-orange-500/50 transition-all"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <h3 className="font-semibold text-white">{uniform.name}</h3>
+                        <p className="text-xs text-slate-400">{uniform.sport} • {uniform.pieces.length} pieces</p>
+                      </div>
+                      <button
+                        onClick={() => deleteUniform(uniform.id)}
+                        className="text-red-400 hover:text-red-300"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="flex gap-1 mb-3">
+                      {uniform.pieces.slice(0, 3).map((p, i) => (
+                        <div 
+                          key={i} 
+                          className="w-6 h-6 rounded" 
+                          style={{ backgroundColor: p.primaryColor }}
+                        />
+                      ))}
+                      {uniform.pieces.length > 3 && (
+                        <div className="w-6 h-6 rounded bg-zinc-600 flex items-center justify-center text-xs text-slate-300">
+                          +{uniform.pieces.length - 3}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => loadUniform(uniform)}
+                      className="w-full py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg"
+                    >
+                      Load Uniform
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // ==========================================================================
   // RENDER: Main Modal
@@ -987,6 +1395,9 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
         {currentStep === 'customize' && renderCustomizeNav()}
         {currentStep === 'preview' && renderPreviewNav()}
       </div>
+      
+      {/* Saved Uniforms Modal */}
+      {renderSavedUniformsModal()}
     </div>
   );
 };
