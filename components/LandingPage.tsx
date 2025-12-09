@@ -265,15 +265,22 @@ const LandingPage: React.FC = () => {
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4">
                   <div className="hidden md:flex flex-col items-end text-right">
                     <span className="text-4xl font-black text-white">6x</span>
                     <span className="text-sm text-slate-400">more features</span>
                   </div>
-                  <div className="w-14 h-14 rounded-full bg-white/10 border border-white/20 flex items-center justify-center group-hover:bg-white/20 transition-colors">
-                    <svg className="w-6 h-6 text-white group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
+                  {/* Prominent CTA Box */}
+                  <div className="relative">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-green-400 via-emerald-500 to-green-400 rounded-2xl blur-md opacity-75 group-hover:opacity-100 animate-pulse transition-opacity" />
+                    <div className="relative px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl border-2 border-white/30 shadow-lg shadow-green-500/50 group-hover:shadow-green-500/70 transition-all group-hover:scale-105">
+                      <div className="flex items-center gap-2">
+                        <span className="text-white font-bold text-sm md:text-base">See the AI Review</span>
+                        <svg className="w-5 h-5 text-white group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

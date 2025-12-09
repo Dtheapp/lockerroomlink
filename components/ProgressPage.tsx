@@ -827,18 +827,26 @@ export const ProgressPage: React.FC = () => {
           <div className="space-y-6">
             {/* Revenue Summary */}
             <div className="bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 rounded-2xl border border-white/10 p-6">
-              <div className="grid md:grid-cols-3 gap-6">
+              <div className="grid md:grid-cols-4 gap-6">
                 <div className="text-center">
                   <div className="text-4xl font-bold text-white">$0</div>
-                  <div className="text-slate-400">Current MRR</div>
+                  <div className="text-slate-400">Actual MRR</div>
+                  <div className="text-xs text-slate-500 mt-1">Pre-launch</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-4xl font-bold text-orange-400">${revenueBuilt}</div>
-                  <div className="text-slate-400">Revenue Streams Built (Target)</div>
+                  <div className="text-4xl font-bold text-green-400">{revenueStreams.filter(r => r.status === 'built').length}</div>
+                  <div className="text-slate-400">Streams Built</div>
+                  <div className="text-xs text-slate-500 mt-1">of {revenueStreams.length} total</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-4xl font-bold text-green-400">${revenueTotal}</div>
+                  <div className="text-4xl font-bold text-orange-400">${revenueBuilt.toLocaleString()}</div>
+                  <div className="text-slate-400">Built Streams Target</div>
+                  <div className="text-xs text-slate-500 mt-1">Monthly potential</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-purple-400">${revenueTotal.toLocaleString()}</div>
                   <div className="text-slate-400">Total Target MRR</div>
+                  <div className="text-xs text-slate-500 mt-1">All streams</div>
                 </div>
               </div>
             </div>
