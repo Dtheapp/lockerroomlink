@@ -4,7 +4,7 @@
  * Shows project status, milestones, and production readiness
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   CheckCircle, 
   Circle, 
@@ -27,8 +27,15 @@ import {
   Flag,
   Star,
   Code,
-  Layers
+  Layers,
+  FileText,
+  Search,
+  Download,
+  Copy,
+  Check
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 // ============================================================================
 // DATA TYPES
@@ -556,10 +563,64 @@ const MilestoneTimeline: React.FC<{ milestones: Milestone[] }> = ({ milestones }
 // ============================================================================
 
 export const ProgressPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'production' | 'revenue'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'production' | 'revenue' | 'fulllog'>('overview');
   const [expandedPhases, setExpandedPhases] = useState<string[]>(['1']);
   const [expandedProdPhases, setExpandedProdPhases] = useState<string[]>(['prod-critical']);
   const [filter, setFilter] = useState<'all' | 'done' | 'in-progress' | 'not-started'>('all');
+  const [markdownContent, setMarkdownContent] = useState<string>('');
+  const [markdownLoading, setMarkdownLoading] = useState(false);
+  const [markdownSearch, setMarkdownSearch] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  // Fetch PROGRESS.md when Full Log tab is active
+  useEffect(() => {
+    if (activeTab === 'fulllog' && !markdownContent) {
+      setMarkdownLoading(true);
+      fetch('/PROGRESS.md')
+        .then(res => res.text())
+        .then(text => {
+          setMarkdownContent(text);
+          setMarkdownLoading(false);
+        })
+        .catch(() => {
+          setMarkdownContent('# Error loading PROGRESS.md\n\nCould not load the progress file.');
+          setMarkdownLoading(false);
+        });
+    }
+  }, [activeTab, markdownContent]);
+
+  // Filter markdown content by search
+  const filteredMarkdown = useMemo(() => {
+    if (!markdownSearch.trim()) return markdownContent;
+    const lines = markdownContent.split('\n');
+    const searchLower = markdownSearch.toLowerCase();
+    const matchingLines: string[] = [];
+    let inMatchingSection = false;
+    let currentHeader = '';
+    
+    for (const line of lines) {
+      if (line.startsWith('#')) {
+        currentHeader = line;
+        inMatchingSection = line.toLowerCase().includes(searchLower);
+        if (inMatchingSection) matchingLines.push(line);
+      } else if (line.toLowerCase().includes(searchLower)) {
+        if (!matchingLines.includes(currentHeader) && currentHeader) {
+          matchingLines.push(currentHeader);
+        }
+        matchingLines.push(line);
+        inMatchingSection = true;
+      } else if (inMatchingSection && line.trim() !== '') {
+        matchingLines.push(line);
+      }
+    }
+    return matchingLines.join('\n');
+  }, [markdownContent, markdownSearch]);
+
+  const handleCopyMarkdown = () => {
+    navigator.clipboard.writeText(markdownContent);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const togglePhase = (id: string) => {
     setExpandedPhases(prev => 
@@ -600,12 +661,13 @@ export const ProgressPage: React.FC = () => {
 
         {/* Navigation Tabs */}
         <div className="flex justify-center">
-          <div className="inline-flex bg-zinc-900 rounded-xl p-1 border border-zinc-800">
+          <div className="inline-flex bg-zinc-900 rounded-xl p-1 border border-zinc-800 flex-wrap justify-center gap-1">
             {[
               { id: 'overview', label: 'Overview', icon: BarChart3 },
               { id: 'roadmap', label: 'Roadmap', icon: Rocket },
               { id: 'production', label: 'Production', icon: Shield },
               { id: 'revenue', label: 'Revenue', icon: DollarSign },
+              { id: 'fulllog', label: 'Full Log', icon: FileText },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -973,6 +1035,133 @@ export const ProgressPage: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Full Log Tab - Renders PROGRESS.md */}
+        {activeTab === 'fulllog' && (
+          <div className="space-y-6">
+            {/* Search and Actions Bar */}
+            <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input
+                  type="text"
+                  placeholder="Search bugs, fixes, features, timeline..."
+                  value={markdownSearch}
+                  onChange={(e) => setMarkdownSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white placeholder:text-slate-500 focus:outline-none focus:border-orange-500"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCopyMarkdown}
+                  className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-sm text-white transition-colors"
+                >
+                  {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+                  {copied ? 'Copied!' : 'Copy All'}
+                </button>
+                <a
+                  href="/PROGRESS.md"
+                  download="PROGRESS.md"
+                  className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-sm text-white transition-colors"
+                >
+                  <Download size={16} />
+                  Download
+                </a>
+              </div>
+            </div>
+
+            {/* Quick Jump Links */}
+            <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
+              <h3 className="text-sm font-semibold text-slate-400 mb-3">Quick Jump</h3>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  'Bug Fix History',
+                  'Development Timeline',
+                  'Draft Day System',
+                  'Certification Center',
+                  'Multi-Language',
+                  'Wellness Center',
+                  'Command Center',
+                  'AI Support Center',
+                  'Production Checklist',
+                  'Revenue Streams',
+                ].map(section => (
+                  <button
+                    key={section}
+                    onClick={() => setMarkdownSearch(section)}
+                    className="px-3 py-1 bg-zinc-800 hover:bg-orange-600/20 border border-zinc-700 hover:border-orange-500/50 rounded-full text-xs text-slate-300 hover:text-orange-400 transition-all"
+                  >
+                    {section}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Markdown Content */}
+            <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-6 overflow-hidden">
+              {markdownLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+                  <span className="ml-3 text-slate-400">Loading PROGRESS.md...</span>
+                </div>
+              ) : (
+                <div className="prose prose-invert prose-orange max-w-none 
+                  prose-headings:text-white prose-headings:font-bold
+                  prose-h1:text-3xl prose-h1:border-b prose-h1:border-zinc-700 prose-h1:pb-4 prose-h1:mb-6
+                  prose-h2:text-2xl prose-h2:text-orange-400 prose-h2:mt-8 prose-h2:mb-4
+                  prose-h3:text-xl prose-h3:text-slate-200 prose-h3:mt-6
+                  prose-h4:text-lg prose-h4:text-slate-300
+                  prose-p:text-slate-300 prose-p:leading-relaxed
+                  prose-a:text-orange-400 prose-a:no-underline hover:prose-a:underline
+                  prose-strong:text-white
+                  prose-code:text-orange-300 prose-code:bg-zinc-800 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
+                  prose-pre:bg-zinc-800 prose-pre:border prose-pre:border-zinc-700
+                  prose-blockquote:border-orange-500 prose-blockquote:bg-orange-500/10 prose-blockquote:rounded-r-lg
+                  prose-ul:text-slate-300 prose-ol:text-slate-300
+                  prose-li:marker:text-orange-500
+                  prose-table:border-collapse
+                  prose-th:bg-zinc-800 prose-th:text-white prose-th:border prose-th:border-zinc-700 prose-th:px-3 prose-th:py-2
+                  prose-td:border prose-td:border-zinc-700 prose-td:px-3 prose-td:py-2 prose-td:text-slate-300
+                  prose-hr:border-zinc-700"
+                >
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {filteredMarkdown || '# No matches found\n\nTry a different search term.'}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </div>
+
+            {/* Stats about the document */}
+            {markdownContent && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4 text-center">
+                  <div className="text-2xl font-bold text-orange-400">
+                    {markdownContent.split('\n').length.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-slate-400">Lines</div>
+                </div>
+                <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4 text-center">
+                  <div className="text-2xl font-bold text-green-400">
+                    {(markdownContent.match(/✅/g) || []).length}
+                  </div>
+                  <div className="text-xs text-slate-400">Completed Items</div>
+                </div>
+                <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4 text-center">
+                  <div className="text-2xl font-bold text-yellow-400">
+                    {(markdownContent.match(/⬜/g) || []).length}
+                  </div>
+                  <div className="text-xs text-slate-400">Pending Items</div>
+                </div>
+                <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4 text-center">
+                  <div className="text-2xl font-bold text-purple-400">
+                    {(markdownContent.match(/^#{1,3} /gm) || []).length}
+                  </div>
+                  <div className="text-xs text-slate-400">Sections</div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
