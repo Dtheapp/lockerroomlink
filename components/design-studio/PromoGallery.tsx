@@ -276,6 +276,7 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
               <option value="social">Social Media</option>
               <option value="banner">Banners</option>
               <option value="story">Stories</option>
+              <option value="uniform">Uniforms</option>
             </select>
             <ChevronDown size={14} className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-400'}`} />
           </div>

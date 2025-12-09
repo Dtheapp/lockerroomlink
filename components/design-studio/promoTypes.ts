@@ -48,7 +48,7 @@ export interface PromoItem {
   
   // Metadata
   tags?: string[];
-  category?: 'flyer' | 'poster' | 'social' | 'banner' | 'story';
+  category?: 'flyer' | 'poster' | 'social' | 'banner' | 'story' | 'uniform';
 }
 
 // For the save dialog options
@@ -61,7 +61,7 @@ export interface SavePromoOptions {
   linkedEventId?: string;
   linkedEventType?: 'registration' | 'game' | 'event' | 'fundraiser';
   isPublic: boolean;
-  category?: 'flyer' | 'poster' | 'social' | 'banner' | 'story';
+  category?: 'flyer' | 'poster' | 'social' | 'banner' | 'story' | 'uniform';
   tags?: string[];
   // Export quality option
   exportQuality?: ExportQuality; // 'standard' (free) or 'high' (costs credits)

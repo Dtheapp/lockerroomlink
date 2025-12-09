@@ -58,6 +58,7 @@ const CATEGORIES = [
   { value: 'social', label: 'Social Media', icon: '📱' },
   { value: 'banner', label: 'Banner', icon: '🏷️' },
   { value: 'story', label: 'Story', icon: '📲' },
+  { value: 'uniform', label: 'Uniform', icon: '👕' },
 ];
 
 const SavePromoModal: React.FC<SavePromoModalProps> = ({
