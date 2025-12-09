@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { 
     Shield, UserCheck, Users, Clock, User, AtSign, AlertTriangle, 
     TrendingUp, Activity, AlertCircle, ChevronRight, UserX, UsersRound,
-    BarChart3, RefreshCw
+    BarChart3, RefreshCw, Link, Copy, Check, ExternalLink
 } from 'lucide-react';
 import type { UserProfile, Team } from '../../types';
 
@@ -21,6 +21,24 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
+
+  // PUBLIC LINKS for sharing
+  const publicLinks = [
+    { path: '/progress', label: 'Progress Tracker', description: 'Development roadmap & feature progress' },
+    { path: '/compare', label: 'Competitor Comparison', description: 'OSYS vs competitors breakdown' },
+  ];
+
+  const copyToClipboard = async (path: string) => {
+    const fullUrl = `${window.location.origin}${path}`;
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+      setCopiedLink(path);
+      setTimeout(() => setCopiedLink(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
 
   // SECURITY CHECK
   useEffect(() => {
@@ -387,6 +405,66 @@ const AdminDashboard: React.FC = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* PUBLIC LINKS SECTION */}
+            <div className="bg-slate-50 dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-zinc-800 overflow-hidden">
+              <div className="p-5 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between bg-white dark:bg-zinc-900/50">
+                <div className="flex items-center gap-2">
+                  <Link className="w-5 h-5 text-blue-600" />
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">Public Pages</h2>
+                </div>
+                <span className="text-xs text-slate-500 dark:text-zinc-400">Share with investors & stakeholders</span>
+              </div>
+              <div className="p-5 space-y-3">
+                {publicLinks.map((link) => (
+                  <div 
+                    key={link.path}
+                    className="flex items-center justify-between p-4 bg-white dark:bg-zinc-900 rounded-lg border border-slate-200 dark:border-zinc-800 hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-900 dark:text-white">{link.label}</span>
+                        <code className="px-2 py-0.5 bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 text-xs rounded">
+                          {link.path}
+                        </code>
+                      </div>
+                      <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">{link.description}</p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-4">
+                      <button
+                        onClick={() => copyToClipboard(link.path)}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                          copiedLink === link.path
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                            : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700'
+                        }`}
+                      >
+                        {copiedLink === link.path ? (
+                          <>
+                            <Check className="w-4 h-4" />
+                            Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4" />
+                            Copy URL
+                          </>
+                        )}
+                      </button>
+                      <a
+                        href={link.path}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        View
+                      </a>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
