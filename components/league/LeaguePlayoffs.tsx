@@ -223,7 +223,7 @@ interface BracketVisualizationProps {
 }
 
 function BracketVisualization({ bracket, teams, onUpdate }: BracketVisualizationProps) {
-  const matches = (bracket.matches || []) as BracketMatch[];
+  const matches = (bracket.matches || []) as unknown as BracketMatch[];
   const rounds = Math.max(...matches.map(m => m.round), 0);
   
   const getTeamName = (teamId?: string) => {

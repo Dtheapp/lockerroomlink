@@ -458,6 +458,8 @@ function AddGameModal({ seasonId, leagueId, teams, onClose, onAdded }: AddGameMo
 
     try {
       const dateTime = new Date(`${formData.date}T${formData.time}`);
+      const homeTeam = teams.find(t => t.id === formData.homeTeamId);
+      const awayTeam = teams.find(t => t.id === formData.awayTeamId);
       
       // Find or create schedule for this league/season
       const scheduleQuery = query(
@@ -467,11 +469,15 @@ function AddGameModal({ seasonId, leagueId, teams, onClose, onAdded }: AddGameMo
       );
       const scheduleSnap = await getDocs(scheduleQuery);
       
-      const newGame: LeagueGame = {
+      const newGame: Omit<LeagueGame, 'id'> & { id?: string } = {
         homeTeamId: formData.homeTeamId,
         awayTeamId: formData.awayTeamId,
+        homeTeamName: homeTeam?.name || 'TBD',
+        awayTeamName: awayTeam?.name || 'TBD',
+        scheduledDate: Timestamp.fromDate(dateTime),
+        scheduledTime: formData.time,
         dateTime: Timestamp.fromDate(dateTime),
-        location: formData.location || undefined,
+        location: formData.location || '',
         status: 'scheduled',
         homeScore: 0,
         awayScore: 0

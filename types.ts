@@ -78,6 +78,7 @@ export interface LeagueGame {
   week?: number;
   scheduledDate: Timestamp;
   scheduledTime: string;
+  dateTime?: Timestamp;  // Alternative date field used in some components
   location: string;
   fieldNumber?: string;
   homeScore?: number;
@@ -107,6 +108,7 @@ export interface PlayoffBracket {
   name: string;
   type: 'single-elimination' | 'double-elimination' | 'round-robin';
   rounds: PlayoffRound[];
+  matches?: PlayoffGame[]; // Flat list of all matches (alternative to rounds structure)
   status: 'draft' | 'published' | 'in-progress' | 'completed';
   createdAt: Timestamp;
   publishedAt?: Timestamp;
@@ -313,6 +315,7 @@ export interface TeamGame {
   isHome: boolean;
   scheduledDate: Timestamp;
   scheduledTime: string;
+  dateTime?: Timestamp;  // Alternative date field used in some components
   location: string;
   homeScore?: number;
   awayScore?: number;
@@ -555,6 +558,9 @@ export interface Team {
   id: string;
   name: string;
   sport?: SportType; // Sport type for multi-sport support (default: 'football')
+  ageGroup?: string; // Age group for the team (e.g., "8U", "10U", "12U")
+  color?: string; // Team color for display
+  isCheerTeam?: boolean; // Whether this is a cheer team
   coachId: string | null;
   headCoachId?: string | null; // Designated head coach who can manage other coaches
   coachIds?: string[]; // All coaches assigned to this team (head + assistants)
@@ -631,6 +637,7 @@ export interface Player {
   teamId: string; // REQUIRED: Team the player belongs to
   // REMOVED NUMBER/POSITION FROM CORE PARENT INPUT FLOW:
   number?: number; 
+  jerseyNumber?: number; // Alias for number
   position?: string;
   
   // Bio - parent can add a description about their athlete

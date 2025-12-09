@@ -192,7 +192,6 @@ export const InfractionModal: React.FC<InfractionModalProps> = ({
         involvedCoaches: involvedCoaches.length > 0 ? involvedCoaches : undefined,
         involvedParents: involvedParents.length > 0 ? involvedParents : undefined,
         status: 'submitted',
-        createdAt: new Date(),
       });
 
       onSuccess?.();
