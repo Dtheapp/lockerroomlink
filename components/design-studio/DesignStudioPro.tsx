@@ -3,6 +3,7 @@
 // Full drag-drop-resize-delete element system
 // =============================================================================
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -22,6 +23,7 @@ import SavePromoModal from './SavePromoModal';
 import PromoGallery from './PromoGallery';
 import AICreatorModal from './AICreatorModal';
 import UniformDesigner from './UniformDesigner';
+import ImageEditor from './ImageEditor';
 
 // Utilities
 import { useKeyboardShortcuts, copyToClipboard, getClipboard } from './useKeyboardShortcuts';
@@ -38,18 +40,32 @@ import type {
   FlyerSize,
   Position,
   DesignTemplate,
+  ActiveTool,
 } from './types';
-import { FLYER_SIZES, generateId, createDefaultElement } from './types';
+import { FLYER_SIZES, generateId, createDefaultElement, DEFAULT_TOOL_STATE } from './types';
 import { getTemplateById, DESIGN_TEMPLATES } from './templates';
 import type { Season } from '../../types';
 
 type ViewMode = 'selector' | 'editor' | 'preview' | 'fullscreen';
 
+// Registration data passed from Season Manager
+interface RegistrationFlyerData {
+  seasonId: string;
+  seasonName: string;
+  teamName: string;
+  sport: string;
+  registrationFee?: number;
+  registrationOpenDate?: string;
+  registrationCloseDate?: string;
+  ageGroup?: string;
+  description?: string;
+}
 
 const DesignStudioPro: React.FC = () => {
   const { theme } = useTheme();
   const { teamData, userData } = useAuth();
   const { setHasUnsavedChanges } = useUnsavedChanges();
+  const location = useLocation();
   const exportCanvasRef = useRef<HTMLCanvasElement>(null);
   
   // Track if design has been modified
@@ -77,11 +93,12 @@ const DesignStudioPro: React.FC = () => {
     future: [],
   });
   
-  // Tool state
-  const [toolState, setToolState] = useState<ToolState>({
-    activeTool: 'select',
-    shapeType: 'rectangle',
-  });
+  // Tool state - use professional default with all settings
+  const [toolState, setToolState] = useState<ToolState>(DEFAULT_TOOL_STATE);
+  
+  // Image editor state
+  const [showImageEditor, setShowImageEditor] = useState(false);
+  const [editingImageElement, setEditingImageElement] = useState<DesignElement | null>(null);
 
   // Current size
   const [currentSize, setCurrentSize] = useState<FlyerSize>('instagram');
@@ -173,6 +190,88 @@ const DesignStudioPro: React.FC = () => {
     
     fetchPendingRegistrations();
   }, [teamData?.id]);
+
+  // Handle navigation state for auto-loading registration template with prefilled data
+  useEffect(() => {
+    const state = location.state as { registrationData?: RegistrationFlyerData } | null;
+    if (state?.registrationData) {
+      const data = state.registrationData;
+      
+      // Get the registration template and customize it with season data
+      const registrationTemplate = getTemplateById('registration-modern');
+      if (registrationTemplate) {
+        // Clone the template elements and customize text content
+        const customizedElements = registrationTemplate.elements.map(el => {
+          const newEl = { ...el, id: generateId() };
+          
+          // Customize text elements based on their content
+          if (el.type === 'text' && el.content) {
+            const content = el.content.toLowerCase();
+            
+            // Season name / title
+            if (content.includes('season 2025') || content.includes('join our team')) {
+              newEl.content = data.seasonName || el.content;
+            }
+            // Team name in subtitle
+            else if (content.includes('ages') || content.includes('skill levels')) {
+              const parts = [];
+              if (data.ageGroup) parts.push(data.ageGroup);
+              if (data.description) parts.push(data.description);
+              if (parts.length > 0) {
+                newEl.content = parts.join(' • ');
+              }
+            }
+            // Date range
+            else if (content.includes('jan 15') || content.includes('feb 28') || el.content.includes('📅')) {
+              if (data.registrationOpenDate || data.registrationCloseDate) {
+                const formatDate = (dateStr: string) => {
+                  try {
+                    const date = new Date(dateStr);
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  } catch {
+                    return dateStr;
+                  }
+                };
+                const open = data.registrationOpenDate ? formatDate(data.registrationOpenDate) : '';
+                const close = data.registrationCloseDate ? formatDate(data.registrationCloseDate) : '';
+                if (open && close) {
+                  newEl.content = `📅 ${open} - ${close}`;
+                } else if (close) {
+                  newEl.content = `📅 Closes ${close}`;
+                } else if (open) {
+                  newEl.content = `📅 Opens ${open}`;
+                }
+              }
+            }
+            // Registration fee
+            else if (content.includes('$150') || content.includes('registration fee')) {
+              if (data.registrationFee !== undefined && data.registrationFee > 0) {
+                newEl.content = `$${data.registrationFee} Registration Fee`;
+              } else if (data.registrationFee === 0) {
+                newEl.content = 'FREE Registration';
+              }
+            }
+          }
+          
+          return newEl;
+        });
+        
+        // Apply the customized template
+        setCanvas({
+          ...registrationTemplate.canvas,
+          backgroundColor: (teamData as any)?.primaryColor || registrationTemplate.canvas.backgroundColor,
+        });
+        setElements(customizedElements);
+        setDesignName(`${data.seasonName} Registration Flyer`);
+        setSelectedIds([]);
+        setCurrentSize('instagram');
+        setViewMode('editor');
+        
+        // Clear the navigation state to prevent re-loading on refresh
+        window.history.replaceState({}, document.title);
+      }
+    }
+  }, [location.state, teamData]);
 
   // Fetch user credits for high quality exports
   useEffect(() => {
@@ -691,20 +790,25 @@ const DesignStudioPro: React.FC = () => {
     
     const newElement = createDefaultElement(type, position);
     
-    // Apply team colors if available
-    if (type === 'shape' && (teamData as any)?.secondaryColor) {
-      newElement.backgroundColor = (teamData as any).secondaryColor;
+    // Apply sampled color first (from eyedropper), then fall back to team colors
+    if (type === 'shape') {
+      if (toolState.sampledColor) {
+        newElement.backgroundColor = toolState.sampledColor;
+      } else if ((teamData as any)?.secondaryColor) {
+        newElement.backgroundColor = (teamData as any).secondaryColor;
+      }
+      newElement.shapeType = toolState.shapeType;
     }
     
-    // Set shape type if adding a shape
-    if (type === 'shape') {
-      newElement.shapeType = toolState.shapeType;
+    // Also apply sampled color to text if available
+    if (type === 'text' && toolState.sampledColor) {
+      newElement.color = toolState.sampledColor;
     }
     
     setElements(prev => [...prev, newElement]);
     setSelectedIds([newElement.id]);
     setToolState(prev => ({ ...prev, activeTool: 'select' }));
-  }, [canvas, saveToHistory, teamData, toolState.shapeType]);
+  }, [canvas, saveToHistory, teamData, toolState.shapeType, toolState.sampledColor]);
 
   const addElementAt = useCallback((type: 'text' | 'image' | 'shape', position: Position) => {
     saveToHistory();
@@ -1332,6 +1436,31 @@ const DesignStudioPro: React.FC = () => {
             onDuplicateElement={duplicateElement}
             onZoomChange={setZoom}
             onAddElementAt={addElementAt}
+            onColorSampled={(color) => {
+              setToolState(prev => ({ 
+                ...prev, 
+                sampledColor: color, 
+                brushColor: color,
+                // Auto-switch back to select tool after sampling
+                activeTool: 'select' 
+              }));
+              // Show feedback toast
+              const toast = document.createElement('div');
+              toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50 flex items-center gap-3 animate-fade-in';
+              toast.innerHTML = `
+                <div class="w-6 h-6 rounded border-2 border-white" style="background-color: ${color}"></div>
+                <span class="text-white text-sm">Color copied: <span class="font-mono">${color}</span></span>
+              `;
+              document.body.appendChild(toast);
+              setTimeout(() => toast.remove(), 2000);
+            }}
+            onOpenImageEditor={(elementId) => {
+              const element = elements.find(el => el.id === elementId);
+              if (element && (element.type === 'image' || element.type === 'logo')) {
+                setEditingImageElement(element);
+                setShowImageEditor(true);
+              }
+            }}
           />
         </div>
         
@@ -1402,9 +1531,21 @@ const DesignStudioPro: React.FC = () => {
         {/* Left Toolbar */}
         <Toolbar
           toolState={toolState}
-          onToolChange={(tool) => setToolState(prev => ({ ...prev, activeTool: tool }))}
+          onToolChange={(tool) => {
+            setToolState(prev => ({ ...prev, activeTool: tool }));
+            // If selecting an editing tool and we have an image selected, open the image editor
+            if (['eraser', 'backgroundEraser', 'brush', 'crop'].includes(tool) && selectedIds.length === 1) {
+              const selectedElement = elements.find(el => el.id === selectedIds[0]);
+              if (selectedElement && (selectedElement.type === 'image' || selectedElement.type === 'logo')) {
+                setEditingImageElement(selectedElement);
+                setShowImageEditor(true);
+              }
+            }
+          }}
           onShapeChange={(shape) => setToolState(prev => ({ ...prev, shapeType: shape }))}
           onAddElement={addElement}
+          onToolSettingChange={(key, value) => setToolState(prev => ({ ...prev, [key]: value }))}
+          selectedElementType={selectedIds.length === 1 ? elements.find(el => el.id === selectedIds[0])?.type : null}
         />
 
         {/* Quick Add Panel - Collapsible */}
@@ -1419,14 +1560,14 @@ const DesignStudioPro: React.FC = () => {
               }}
             />
           )}
-          {/* Collapse/Expand button for left panel */}
+          {/* Collapse/Expand button for left panel - positioned on the right edge */}
           <button
             onClick={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
-            className={`absolute top-1/2 -translate-y-1/2 z-20 w-5 h-12 flex items-center justify-center rounded-r-md transition-colors ${
+            className={`absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 flex items-center justify-center rounded-r-md transition-colors ${
               theme === 'dark' 
                 ? 'bg-zinc-800 hover:bg-zinc-700 text-slate-400 hover:text-white border border-l-0 border-zinc-700' 
                 : 'bg-slate-200 hover:bg-slate-300 text-slate-600 hover:text-slate-900 border border-l-0 border-slate-300'
-            } ${leftPanelCollapsed ? 'left-0' : '-right-5'}`}
+            } right-0 translate-x-full`}
             title={leftPanelCollapsed ? 'Show Quick Add' : 'Hide Quick Add'}
           >
             {leftPanelCollapsed ? '›' : '‹'}
@@ -1448,6 +1589,30 @@ const DesignStudioPro: React.FC = () => {
           onDuplicateElement={duplicateElement}
           onZoomChange={setZoom}
           onAddElementAt={addElementAt}
+          onColorSampled={(color) => {
+            setToolState(prev => ({ 
+              ...prev, 
+              sampledColor: color, 
+              brushColor: color,
+              activeTool: 'select' 
+            }));
+            // Show feedback toast
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50 flex items-center gap-3 animate-fade-in';
+            toast.innerHTML = `
+              <div class="w-6 h-6 rounded border-2 border-white" style="background-color: ${color}"></div>
+              <span class="text-white text-sm">Color copied: <span class="font-mono">${color}</span></span>
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+          }}
+          onOpenImageEditor={(elementId) => {
+            const element = elements.find(el => el.id === elementId);
+            if (element && (element.type === 'image' || element.type === 'logo')) {
+              setEditingImageElement(element);
+              setShowImageEditor(true);
+            }
+          }}
         />
 
         {/* Right Panel - Combined Element/Canvas/Layers - Collapsible */}
@@ -1564,6 +1729,34 @@ const DesignStudioPro: React.FC = () => {
             />
           </div>
         </div>
+      )}
+      
+      {/* Image Editor Modal - Professional Photoshop-style editing */}
+      {showImageEditor && editingImageElement && (
+        <ImageEditor
+          element={editingImageElement}
+          toolState={toolState}
+          onSave={(editedImageData) => {
+            // Update the element with the edited image
+            saveToHistory();
+            updateElement(editingImageElement.id, { src: editedImageData });
+            setShowImageEditor(false);
+            setEditingImageElement(null);
+            setToolState(prev => ({ ...prev, activeTool: 'select' }));
+          }}
+          onCancel={() => {
+            setShowImageEditor(false);
+            setEditingImageElement(null);
+            setToolState(prev => ({ ...prev, activeTool: 'select' }));
+          }}
+          onColorSampled={(color) => {
+            setToolState(prev => ({ 
+              ...prev, 
+              sampledColor: color, 
+              brushColor: color 
+            }));
+          }}
+        />
       )}
     </div>
   );

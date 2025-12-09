@@ -140,9 +140,17 @@ export interface Season {
   waiverText?: string; // Custom waiver text
   requireWaiver?: boolean;
   
+  // Payment method options - which payment methods are enabled
+  allowPayInFull?: boolean; // Pay full amount upfront (default true)
+  allowPaymentPlan?: boolean; // Pay over time / installments
+  allowInPersonPayment?: boolean; // Pay in person (cash/check at practice)
+  
   // Flyer - created later in Design Studio
   flyerId?: string; // Reference to designed flyer
   flyerUrl?: string; // URL to flyer image
+  
+  // Registration event link
+  registrationEventId?: string; // Link to events collection for the registration event
   
   // Stats
   playerCount: number; // Current registered players

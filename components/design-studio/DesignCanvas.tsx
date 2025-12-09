@@ -21,6 +21,8 @@ interface DesignCanvasProps {
   onDuplicateElement: (id: string) => void;
   onZoomChange: (zoom: number) => void;
   onAddElementAt: (type: 'text' | 'image' | 'shape', position: Position) => void;
+  onColorSampled?: (color: string) => void;
+  onOpenImageEditor?: (elementId: string) => void;
 }
 
 const DesignCanvas: React.FC<DesignCanvasProps> = ({
@@ -37,6 +39,8 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
   onDuplicateElement,
   onZoomChange,
   onAddElementAt,
+  onColorSampled,
+  onOpenImageEditor,
 }) => {
   const { theme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -59,6 +63,18 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
 
   // Handle mouse down on canvas (deselect all)
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
+    // Eyedropper tool - sample color from anywhere
+    if (toolState.activeTool === 'eyedropper') {
+      e.preventDefault();
+      e.stopPropagation();
+      // Get color from where user clicked
+      const color = getColorFromEvent(e);
+      if (color && onColorSampled) {
+        onColorSampled(color);
+      }
+      return;
+    }
+    
     if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('canvas-bg')) {
       onDeselectAll();
       
@@ -68,6 +84,86 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
         setPanStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
       }
     }
+  };
+  
+  // Handle click on any element when eyedropper is active
+  const handleEyedropperClick = useCallback((e: MouseEvent) => {
+    if (toolState.activeTool !== 'eyedropper') return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const target = e.target as HTMLElement;
+    const color = getColorFromElement(target);
+    
+    if (color && onColorSampled) {
+      onColorSampled(color);
+    }
+  }, [toolState.activeTool, onColorSampled]);
+  
+  // Add/remove eyedropper click listener
+  useEffect(() => {
+    if (toolState.activeTool === 'eyedropper') {
+      // Use capture phase to intercept clicks before elements handle them
+      document.addEventListener('click', handleEyedropperClick, true);
+      return () => document.removeEventListener('click', handleEyedropperClick, true);
+    }
+  }, [toolState.activeTool, handleEyedropperClick]);
+  
+  // Helper to get color from an element
+  const getColorFromElement = (target: HTMLElement): string | null => {
+    const computedStyle = window.getComputedStyle(target);
+    
+    // Check various color properties in order of priority
+    const colorSources = [
+      computedStyle.backgroundColor,
+      computedStyle.background,
+      computedStyle.fill,
+      computedStyle.color,
+      target.style.backgroundColor,
+      target.style.background,
+    ];
+    
+    for (const colorSource of colorSources) {
+      if (!colorSource) continue;
+      
+      // Skip transparent colors
+      if (colorSource === 'transparent' || 
+          colorSource === 'rgba(0, 0, 0, 0)' ||
+          colorSource === 'none') continue;
+      
+      // Convert to hex if it's rgb/rgba
+      if (colorSource.startsWith('rgb')) {
+        const match = colorSource.match(/\d+/g);
+        if (match && match.length >= 3) {
+          const r = parseInt(match[0]).toString(16).padStart(2, '0');
+          const g = parseInt(match[1]).toString(16).padStart(2, '0');
+          const b = parseInt(match[2]).toString(16).padStart(2, '0');
+          return `#${r}${g}${b}`;
+        }
+      }
+      
+      // If it's already a hex color
+      if (colorSource.startsWith('#')) {
+        return colorSource.substring(0, 7); // Remove alpha if present
+      }
+    }
+    
+    // Try to get color from data attribute (we can set this on elements)
+    const dataColor = target.getAttribute('data-element-color');
+    if (dataColor) return dataColor;
+    
+    // Walk up the DOM to find a colored parent
+    if (target.parentElement && target.parentElement !== document.body) {
+      return getColorFromElement(target.parentElement);
+    }
+    
+    return null;
+  };
+  
+  // Helper to get color from click event (for eyedropper)
+  const getColorFromEvent = (e: React.MouseEvent): string | null => {
+    return getColorFromElement(e.target as HTMLElement);
   };
 
   // Handle element drag start
@@ -285,13 +381,33 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
     // Element-specific double click handling is done in DesignElementComponent
   };
 
+  // Get cursor based on active tool
+  const getCursor = () => {
+    switch (toolState.activeTool) {
+      case 'pan':
+        return isPanning ? 'grabbing' : 'grab';
+      case 'eyedropper':
+        // Custom eyedropper cursor - SVG encoded
+        return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2 22 1-1h3l9-9'/%3E%3Cpath d='M3 21v-3l9-9'/%3E%3Cpath d='m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z'/%3E%3C/svg%3E") 2 22, crosshair`;
+      case 'eraser':
+      case 'brush':
+        return 'crosshair';
+      case 'backgroundEraser':
+        return 'cell';
+      case 'crop':
+        return 'crosshair';
+      default:
+        return 'default';
+    }
+  };
+
   return (
     <div className={`flex-1 flex flex-col overflow-hidden ${theme === 'dark' ? 'bg-zinc-950' : 'bg-slate-200'}`}>
       {/* Canvas Container */}
       <div
         ref={containerRef}
         className="flex-1 overflow-auto flex items-center justify-center p-8"
-        style={{ cursor: toolState.activeTool === 'pan' ? (isPanning ? 'grabbing' : 'grab') : 'default' }}
+        style={{ cursor: getCursor() }}
         onMouseDown={handleCanvasMouseDown}
         onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
@@ -373,6 +489,7 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
                 onStartDrag={handleStartDrag}
                 onStartResize={handleStartResize}
                 onDoubleClick={handleElementDoubleClick}
+                onEditImage={onOpenImageEditor}
               />
             ))}
           </div>

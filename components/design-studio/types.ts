@@ -100,10 +100,44 @@ export type ResizeHandle =
   | 'left' | 'right'
   | 'bottom-left' | 'bottom' | 'bottom-right';
 
+// Professional tool types - Photoshop-style
+export type ActiveTool = 
+  | 'select' 
+  | 'text' 
+  | 'shape' 
+  | 'image' 
+  | 'pan'
+  | 'eyedropper'      // Color picker - sample any color from canvas
+  | 'eraser'          // Standard eraser - erase parts of images
+  | 'backgroundEraser' // Magic eraser - remove similar colors (like white backgrounds)
+  | 'brush'           // Paint brush for drawing
+  | 'crop';           // Crop images
+
 export interface ToolState {
-  activeTool: 'select' | 'text' | 'shape' | 'image' | 'pan';
+  activeTool: ActiveTool;
   shapeType: 'rectangle' | 'circle' | 'triangle' | 'line' | 'star' | 'badge';
+  // Brush/Eraser settings
+  brushSize: number;
+  brushHardness: number; // 0-100, affects edge softness
+  brushColor: string;
+  // Background eraser settings
+  tolerance: number; // 0-255, how similar colors need to be to be erased
+  contiguous: boolean; // Only erase connected pixels vs all matching
+  // Sampled color from eyedropper
+  sampledColor: string | null;
 }
+
+// Default tool state
+export const DEFAULT_TOOL_STATE: ToolState = {
+  activeTool: 'select',
+  shapeType: 'rectangle',
+  brushSize: 20,
+  brushHardness: 100,
+  brushColor: '#ffffff',
+  tolerance: 32,
+  contiguous: true,
+  sampledColor: null,
+};
 
 // Flyer sizes for export
 export const FLYER_SIZES = {

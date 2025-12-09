@@ -15,7 +15,7 @@ import { GoLiveModal, LiveStreamBanner, LiveStreamViewer, SaveStreamToLibraryMod
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { sanitizeText } from '../services/sanitize';
 import GettingStartedChecklist from './GettingStartedChecklist';
-import SeasonManager from './SeasonManager';
+import SeasonManager, { type RegistrationFlyerData } from './SeasonManager';
 import type { LiveStream, BulletinPost, UserProfile } from '../types';
 import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image } from 'lucide-react';
 
@@ -866,7 +866,14 @@ const NewOSYSDashboard: React.FC = () => {
             sport={teamData.sport || 'football'}
             currentSeasonId={teamData.currentSeasonId}
             rosterCount={roster.length}
-            onNavigateToDesignStudio={() => navigate('/design')}
+            onNavigateToDesignStudio={(data?: RegistrationFlyerData) => {
+              if (data) {
+                // Navigate with season data to prefill registration template
+                navigate('/design', { state: { registrationData: data } });
+              } else {
+                navigate('/design');
+              }
+            }}
           />
         </GlassCard>
       )}

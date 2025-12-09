@@ -12,7 +12,9 @@ import {
   MoveUp,
   MoveDown,
   Eye,
-  EyeOff
+  EyeOff,
+  Wand2,
+  Paintbrush,
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import type { DesignElement, Position, Size, ResizeHandle } from './types';
@@ -28,6 +30,7 @@ interface DesignElementProps {
   onStartDrag: (id: string, e: React.MouseEvent) => void;
   onStartResize: (id: string, handle: ResizeHandle, e: React.MouseEvent) => void;
   onDoubleClick: (id: string) => void;
+  onEditImage?: (id: string) => void;
 }
 
 const RESIZE_HANDLES: ResizeHandle[] = [
@@ -61,6 +64,7 @@ export const DesignElementComponent: React.FC<DesignElementProps> = ({
   onStartDrag,
   onStartResize,
   onDoubleClick,
+  onEditImage,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -339,9 +343,21 @@ export const DesignElementComponent: React.FC<DesignElementProps> = ({
           {showMenu && (
             <div 
               ref={menuRef}
-              className="absolute -top-10 left-1/2 translate-x-12 bg-zinc-900 rounded-lg py-1 shadow-xl border border-zinc-700 min-w-[140px]"
+              className="absolute -top-10 left-1/2 translate-x-12 bg-zinc-900 rounded-lg py-1 shadow-xl border border-zinc-700 min-w-[160px]"
               style={{ zIndex: 10000 }}
             >
+              {/* Edit Image option - only for image/logo elements */}
+              {(element.type === 'image' || element.type === 'logo') && element.src && onEditImage && (
+                <>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onEditImage(element.id); setShowMenu(false); }}
+                    className="w-full px-3 py-1.5 text-left text-sm text-purple-300 hover:bg-purple-600/30 flex items-center gap-2"
+                  >
+                    <Wand2 className="w-4 h-4" /> Edit Image
+                  </button>
+                  <div className="h-px bg-zinc-700 my-1" />
+                </>
+              )}
               <button
                 onClick={(e) => { e.stopPropagation(); onUpdate(element.id, { zIndex: element.zIndex + 1 }); setShowMenu(false); }}
                 className="w-full px-3 py-1.5 text-left text-sm text-slate-300 hover:bg-zinc-700 flex items-center gap-2"

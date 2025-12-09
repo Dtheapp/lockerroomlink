@@ -12,7 +12,7 @@ import { useCredits } from '../hooks/useCredits';
 import TeamSelector from '../components/TeamSelector';
 import PlayerSelector from '../components/PlayerSelector';
 import { AnimatedBackground, Avatar } from '../components/ui/OSYSComponents';
-import { Menu, X, LogOut, Sun, Moon, ChevronDown, ChevronLeft, ChevronRight, Coins } from 'lucide-react';
+import { Menu, X, LogOut, Sun, Moon, ChevronDown, ChevronLeft, ChevronRight, Coins, ShoppingBag } from 'lucide-react';
 import WelcomeModal from '../components/WelcomeModal';
 import FeedbackButton from '../components/ui/FeedbackButton';
 
@@ -38,6 +38,7 @@ const NewOSYSLayout: React.FC = () => {
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [pendingNavPath, setPendingNavPath] = useState<string | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [showComingSoonToast, setShowComingSoonToast] = useState(false);
   
   // Ref for scrolling main content
   const mainContentRef = useRef<HTMLDivElement>(null);
@@ -148,6 +149,7 @@ const NewOSYSLayout: React.FC = () => {
       { icon: '📺', label: 'Film Room', path: '/videos', section: 'Engage', configKey: 'videoLibraryEnabled' },
       { icon: '📈', label: 'Stats', path: '/stats', section: 'Analyze', configKey: 'statsEnabled' },
       { icon: '📓', label: 'My Plays', path: '/coaching', section: 'Analyze', configKey: 'playbookEnabled', coachOnly: true },
+      { icon: '🛒', label: 'Marketplace', path: '#marketplace', section: 'Shop', comingSoon: true },
     ];
 
     // Filter by config and role
@@ -162,7 +164,7 @@ const NewOSYSLayout: React.FC = () => {
   };
 
   const navItems = getNavItems();
-  const sections = ['Main', 'Create', 'Engage', 'Analyze'];
+  const sections = ['Main', 'Create', 'Engage', 'Analyze', 'Shop'];
 
   const hasUnread = (key?: string): boolean => {
     if (!key) return false;
@@ -207,6 +209,20 @@ const NewOSYSLayout: React.FC = () => {
         />
       )}
 
+      {/* Sidebar Collapse Toggle Button - Desktop only - positioned OUTSIDE sidebar on right edge */}
+      <button
+        onClick={toggleSidebarCollapse}
+        className={`hidden lg:flex fixed top-20 w-8 h-8 rounded-full border-2 items-center justify-center transition-all z-[60] shadow-lg ${
+          theme === 'dark' 
+            ? 'bg-slate-800 border-orange-500/50 hover:bg-slate-700 hover:border-orange-400 text-orange-400' 
+            : 'bg-white border-purple-400 hover:bg-purple-50 hover:border-purple-500 text-purple-600 shadow-purple-200'
+        }`}
+        style={{ left: isSidebarCollapsed ? '48px' : '248px' }}
+        title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      >
+        {isSidebarCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+      </button>
+
       {/* Sidebar */}
       <aside className={`
         fixed inset-y-0 left-0 z-50 backdrop-blur-xl border-r
@@ -239,19 +255,6 @@ const NewOSYSLayout: React.FC = () => {
             <X className="w-5 h-5" />
           </button>
         </div>
-
-        {/* Collapse Toggle Button - Desktop only */}
-        <button
-          onClick={toggleSidebarCollapse}
-          className={`hidden lg:flex absolute -right-3 top-20 w-6 h-6 rounded-full border items-center justify-center transition-all z-50 ${
-            theme === 'dark' 
-              ? 'bg-slate-800 border-white/20 hover:bg-slate-700 text-white' 
-              : 'bg-white border-slate-300 hover:bg-slate-100 text-slate-700 shadow-sm'
-          }`}
-          title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-        </button>
 
         {/* Team Selector (for Coaches) or Player Selector (for Parents) */}
         <div className={`p-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'} ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
@@ -351,6 +354,39 @@ const NewOSYSLayout: React.FC = () => {
                 {sectionItems.map(item => {
                   const isActive = location.pathname === item.path;
                   const showUnread = hasUnread(item.unreadKey);
+                  
+                  // Handle "Coming Soon" items differently
+                  if (item.comingSoon) {
+                    return (
+                      <button
+                        key={item.path + item.label}
+                        onClick={() => {
+                          setShowComingSoonToast(true);
+                          setTimeout(() => setShowComingSoonToast(false), 3000);
+                        }}
+                        title={isSidebarCollapsed ? item.label : undefined}
+                        className={`
+                          w-full flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1 transition-all
+                          ${isSidebarCollapsed ? 'lg:justify-center lg:px-2' : ''}
+                          ${theme === 'dark'
+                            ? 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+                            : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                          }
+                        `}
+                      >
+                        <span className="text-lg opacity-60">{item.icon}</span>
+                        {!isSidebarCollapsed && (
+                          <span className="flex-1 lg:block flex items-center gap-2">
+                            {item.label}
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                              theme === 'dark' ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'
+                            }`}>Soon</span>
+                          </span>
+                        )}
+                        {isSidebarCollapsed && <span className="flex-1 lg:hidden">{item.label}</span>}
+                      </button>
+                    );
+                  }
                   
                   return (
                     <NavLink
@@ -485,6 +521,23 @@ const NewOSYSLayout: React.FC = () => {
       {/* Welcome Modal for new users */}
       {showWelcomeModal && (
         <WelcomeModal onClose={() => setShowWelcomeModal(false)} />
+      )}
+
+      {/* Coming Soon Toast */}
+      {showComingSoonToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] animate-bounce-in">
+          <div className={`px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 ${
+            theme === 'dark' 
+              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' 
+              : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+          }`}>
+            <span className="text-2xl">🚀</span>
+            <div>
+              <p className="font-semibold">Marketplace Coming Soon!</p>
+              <p className="text-sm opacity-90">We're building something awesome for you.</p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Floating Feedback Button */}

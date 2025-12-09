@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,6 +9,19 @@ import { Calendar, Users, DollarSign, Play, Square, CheckCircle, Clock, AlertCir
 import { GlassCard } from './ui/OSYSComponents';
 import { GameScheduleManager } from './season/GameScheduleManager';
 
+// Data to prefill registration flyer template
+export interface RegistrationFlyerData {
+  seasonId: string;
+  seasonName: string;
+  teamName: string;
+  sport: SportType;
+  registrationFee?: number;
+  registrationOpenDate?: string;
+  registrationCloseDate?: string;
+  ageGroup?: string;
+  description?: string;
+}
+
 interface SeasonManagerProps {
   teamId: string;
   teamName: string;
@@ -15,7 +29,7 @@ interface SeasonManagerProps {
   currentSeasonId?: string | null;
   rosterCount?: number; // Number of players currently on the roster
   onSeasonChange?: (seasonId: string | null) => void;
-  onNavigateToDesignStudio?: () => void; // Callback to navigate to Design Studio
+  onNavigateToDesignStudio?: (data?: RegistrationFlyerData) => void; // Callback to navigate to Design Studio with optional season data
 }
 
 const SeasonManager: React.FC<SeasonManagerProps> = ({ 
@@ -59,7 +73,14 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
     requireUniformSizes: true,
     requireWaiver: true,
     waiverText: '',
+    // Payment method options
+    allowPayInFull: true,
+    allowPaymentPlan: false,
+    allowInPersonPayment: false,
   });
+  
+  // Track if we need to create flyer after season creation
+  const [pendingFlyerSeasonId, setPendingFlyerSeasonId] = useState<string | null>(null);
   
   const [creating, setCreating] = useState(false);
   const [ending, setEnding] = useState(false);
@@ -124,7 +145,15 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
       if (!newSeason.registrationOpenDate) throw new Error('Registration open date is required');
       if (!newSeason.registrationCloseDate) throw new Error('Registration close date is required');
       
-      // Create season document
+      // Validate at least one payment method is enabled (if fee > 0)
+      if (newSeason.registrationFee > 0 && 
+          !newSeason.allowPayInFull && 
+          !newSeason.allowPaymentPlan && 
+          !newSeason.allowInPersonPayment) {
+        throw new Error('Please enable at least one payment method');
+      }
+      
+      // Create season document - use null for empty optional fields to avoid Firebase undefined error
       const seasonData: Omit<Season, 'id'> = {
         teamId,
         name: newSeason.name.trim(),
@@ -135,14 +164,19 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
         registrationOpenDate: newSeason.registrationOpenDate,
         registrationCloseDate: newSeason.registrationCloseDate,
         registrationFee: Math.round(newSeason.registrationFee * 100), // Convert to cents
-        maxRosterSize: newSeason.maxRosterSize || undefined,
+        maxRosterSize: newSeason.maxRosterSize || 0, // 0 = unlimited
         description: newSeason.description.trim(),
         includedItems: newSeason.includedItems.filter(i => i.trim()),
         requireMedicalInfo: newSeason.requireMedicalInfo,
         requireEmergencyContact: newSeason.requireEmergencyContact,
         requireUniformSizes: newSeason.requireUniformSizes,
         requireWaiver: newSeason.requireWaiver,
-        waiverText: newSeason.waiverText.trim() || undefined,
+        // Use empty string instead of undefined to avoid Firebase error
+        waiverText: newSeason.waiverText.trim() || '',
+        // Payment method options
+        allowPayInFull: newSeason.allowPayInFull,
+        allowPaymentPlan: newSeason.allowPaymentPlan,
+        allowInPersonPayment: newSeason.allowInPersonPayment,
         playerCount: 0,
         gamesPlayed: 0,
         createdAt: serverTimestamp(),
@@ -151,12 +185,42 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
       
       const docRef = await addDoc(collection(db, 'teams', teamId, 'seasons'), seasonData);
       
+      // Create a registration event linked to this season
+      const eventData = {
+        teamId,
+        title: `${newSeason.name.trim()} Registration`,
+        description: newSeason.description.trim() || `Registration for ${teamName} ${newSeason.name.trim()}`,
+        type: 'registration',
+        startDate: newSeason.registrationOpenDate,
+        endDate: newSeason.registrationCloseDate,
+        location: 'Online Registration',
+        isPublic: true,
+        requiresRegistration: true,
+        registrationFee: Math.round(newSeason.registrationFee * 100),
+        maxAttendees: newSeason.maxRosterSize || 0,
+        seasonId: docRef.id, // Link to the season
+        status: 'upcoming',
+        flyerNeeded: true, // Flag that flyer needs to be created
+        createdAt: serverTimestamp(),
+        createdBy: userData.uid,
+      };
+      
+      const eventRef = await addDoc(collection(db, 'teams', teamId, 'events'), eventData);
+      
+      // Update season with the registration event ID
+      await updateDoc(doc(db, 'teams', teamId, 'seasons', docRef.id), {
+        registrationEventId: eventRef.id,
+      });
+      
       // Update team's current season
       await updateDoc(doc(db, 'teams', teamId), {
         currentSeasonId: docRef.id,
       });
       
       onSeasonChange?.(docRef.id);
+      
+      // Set pending flyer season ID to show the notification
+      setPendingFlyerSeasonId(docRef.id);
       
       // Reset form
       setNewSeason({
@@ -173,6 +237,9 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
         requireUniformSizes: true,
         requireWaiver: true,
         waiverText: '',
+        allowPayInFull: true,
+        allowPaymentPlan: false,
+        allowInPersonPayment: false,
       });
       setShowCreateModal(false);
       
@@ -181,6 +248,36 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
       setActionError(error.message || 'Failed to create season');
     } finally {
       setCreating(false);
+    }
+  };
+  
+  // Handle creating flyer for season
+  const handleCreateFlyer = (seasonId: string) => {
+    // Find the season data
+    const season = seasons.find(s => s.id === seasonId);
+    if (!season) return;
+    
+    // Store season data in sessionStorage for Design Studio to pick up
+    sessionStorage.setItem('pendingRegistrationFlyer', JSON.stringify({
+      seasonId,
+      teamId,
+      teamName,
+      seasonName: season.name,
+      registrationFee: season.registrationFee,
+      registrationOpenDate: season.registrationOpenDate,
+      registrationCloseDate: season.registrationCloseDate,
+      description: season.description,
+      includedItems: season.includedItems,
+      sport,
+      registrationEventId: season.registrationEventId,
+    }));
+    
+    // Clear the pending notification
+    setPendingFlyerSeasonId(null);
+    
+    // Navigate to Design Studio
+    if (onNavigateToDesignStudio) {
+      onNavigateToDesignStudio();
     }
   };
   
@@ -357,6 +454,52 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
   
   return (
     <div className="space-y-6">
+      {/* Flyer Creation Notification Banner */}
+      {pendingFlyerSeasonId && (
+        <div className={`p-4 rounded-xl border-2 border-dashed animate-pulse ${
+          theme === 'dark' 
+            ? 'bg-gradient-to-r from-orange-500/20 to-purple-500/20 border-orange-500/50' 
+            : 'bg-gradient-to-r from-orange-100 to-purple-100 border-orange-400'
+        }`}>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                theme === 'dark' ? 'bg-orange-500/30' : 'bg-orange-200'
+              }`}>
+                <Palette className="w-6 h-6 text-orange-500" />
+              </div>
+              <div>
+                <h4 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                  🎨 Create Your Registration Flyer!
+                </h4>
+                <p className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                  Season created! Now design a flyer to share with parents. Your registration info will be pre-loaded.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPendingFlyerSeasonId(null)}
+                className={`px-3 py-2 rounded-lg text-sm transition-colors ${
+                  theme === 'dark' 
+                    ? 'bg-white/10 text-zinc-300 hover:bg-white/20' 
+                    : 'bg-zinc-200 text-zinc-700 hover:bg-zinc-300'
+                }`}
+              >
+                Later
+              </button>
+              <button
+                onClick={() => handleCreateFlyer(pendingFlyerSeasonId)}
+                className="px-4 py-2 bg-gradient-to-r from-orange-500 to-purple-500 hover:from-orange-600 hover:to-purple-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-all shadow-lg shadow-orange-500/25"
+              >
+                <Palette className="w-4 h-4" />
+                Design Flyer Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Current Season Status */}
       {currentSeason ? (
         <GlassCard className="p-6">
@@ -476,7 +619,17 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
           {/* Flyer Status */}
           {!currentSeason.flyerId && (
             <button
-              onClick={onNavigateToDesignStudio}
+              onClick={() => onNavigateToDesignStudio?.({
+                seasonId: currentSeason.id,
+                seasonName: currentSeason.name,
+                teamName,
+                sport,
+                registrationFee: currentSeason.registrationFee,
+                registrationOpenDate: currentSeason.registrationOpenDate,
+                registrationCloseDate: currentSeason.registrationCloseDate,
+                ageGroup: currentSeason.ageGroup,
+                description: currentSeason.description,
+              })}
               className={`mt-4 p-3 rounded-lg border-2 border-dashed w-full text-left transition-all hover:scale-[1.01] ${
                 theme === 'dark' 
                   ? 'border-orange-500/30 bg-orange-500/5 hover:border-orange-500/50 hover:bg-orange-500/10' 
@@ -598,16 +751,19 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
         </button>
       )}
       
-      {/* Create Season Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className={`w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border shadow-2xl ${
-            theme === 'dark' ? 'bg-zinc-900/95 border-white/10' : 'bg-white border-zinc-200'
+      {/* Create Season Modal - Use React Portal to render above everything */}
+      {showCreateModal && createPortal(
+        <div 
+          className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+          style={{ zIndex: 99999 }}
+        >
+          <div className={`w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border shadow-2xl relative ${
+            theme === 'dark' ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'
           }`}>
-            <div className={`sticky top-0 p-6 border-b ${theme === 'dark' ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'}`}>
+            <div className={`sticky top-0 p-6 border-b z-10 ${theme === 'dark' ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'}`}>
               <div className="flex items-center justify-between">
                 <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
-                  Start New Season
+                  🏆 Start New Season
                 </h2>
                 <button
                   onClick={() => setShowCreateModal(false)}
@@ -708,10 +864,10 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                     <input
                       type="number"
                       min="0"
-                      step="0.01"
-                      value={newSeason.registrationFee}
-                      onChange={(e) => setNewSeason(prev => ({ ...prev, registrationFee: parseFloat(e.target.value) || 0 }))}
-                      placeholder="0.00"
+                      step="1"
+                      value={newSeason.registrationFee || ''}
+                      onChange={(e) => setNewSeason(prev => ({ ...prev, registrationFee: e.target.value === '' ? 0 : parseFloat(e.target.value) }))}
+                      placeholder="0"
                       className={`w-full pl-10 pr-4 py-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none ${
                         theme === 'dark'
                           ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500'
@@ -853,6 +1009,89 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                   />
                 </div>
               )}
+              
+              {/* Payment Methods - only show if fee > 0 */}
+              {newSeason.registrationFee > 0 && (
+                <div>
+                  <label className={`block text-sm font-medium mb-3 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                    💳 Accepted Payment Methods
+                  </label>
+                  <p className={`text-xs mb-3 ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                    Choose which payment options parents can use during registration
+                  </p>
+                  <div className="space-y-3">
+                    <label className={`flex items-start gap-3 cursor-pointer p-3 rounded-lg border transition-all ${
+                      newSeason.allowPayInFull 
+                        ? theme === 'dark' ? 'bg-green-500/10 border-green-500/30' : 'bg-green-50 border-green-200'
+                        : theme === 'dark' ? 'bg-black/20 border-white/10 hover:border-white/20' : 'bg-zinc-50 border-zinc-200 hover:border-zinc-300'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={newSeason.allowPayInFull}
+                        onChange={(e) => setNewSeason(prev => ({ ...prev, allowPayInFull: e.target.checked }))}
+                        className="w-5 h-5 mt-0.5 rounded border-zinc-300 text-green-600 focus:ring-green-500"
+                      />
+                      <div className="flex-1">
+                        <span className={`font-medium ${theme === 'dark' ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                          💵 Pay in Full
+                        </span>
+                        <p className={`text-xs mt-0.5 ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}`}>
+                          Parent pays entire registration fee upfront via card/PayPal
+                        </p>
+                      </div>
+                    </label>
+                    
+                    <label className={`flex items-start gap-3 cursor-pointer p-3 rounded-lg border transition-all ${
+                      newSeason.allowPaymentPlan 
+                        ? theme === 'dark' ? 'bg-blue-500/10 border-blue-500/30' : 'bg-blue-50 border-blue-200'
+                        : theme === 'dark' ? 'bg-black/20 border-white/10 hover:border-white/20' : 'bg-zinc-50 border-zinc-200 hover:border-zinc-300'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={newSeason.allowPaymentPlan}
+                        onChange={(e) => setNewSeason(prev => ({ ...prev, allowPaymentPlan: e.target.checked }))}
+                        className="w-5 h-5 mt-0.5 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div className="flex-1">
+                        <span className={`font-medium ${theme === 'dark' ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                          📅 Payment Plan
+                        </span>
+                        <p className={`text-xs mt-0.5 ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}`}>
+                          Split into installments (e.g., 3 monthly payments)
+                        </p>
+                      </div>
+                    </label>
+                    
+                    <label className={`flex items-start gap-3 cursor-pointer p-3 rounded-lg border transition-all ${
+                      newSeason.allowInPersonPayment 
+                        ? theme === 'dark' ? 'bg-purple-500/10 border-purple-500/30' : 'bg-purple-50 border-purple-200'
+                        : theme === 'dark' ? 'bg-black/20 border-white/10 hover:border-white/20' : 'bg-zinc-50 border-zinc-200 hover:border-zinc-300'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={newSeason.allowInPersonPayment}
+                        onChange={(e) => setNewSeason(prev => ({ ...prev, allowInPersonPayment: e.target.checked }))}
+                        className="w-5 h-5 mt-0.5 rounded border-zinc-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <div className="flex-1">
+                        <span className={`font-medium ${theme === 'dark' ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                          🤝 In-Person Payment
+                        </span>
+                        <p className={`text-xs mt-0.5 ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}`}>
+                          Cash, check, or card at practice/games (you'll mark as paid manually)
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                  
+                  {!newSeason.allowPayInFull && !newSeason.allowPaymentPlan && !newSeason.allowInPersonPayment && (
+                    <p className="text-xs text-red-400 mt-2 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      Please enable at least one payment method
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
             
             <div className={`sticky bottom-0 p-6 border-t flex gap-3 ${
@@ -887,12 +1126,16 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       
       {/* End Season Confirmation Modal */}
-      {showEndSeasonModal && selectedSeason && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+      {showEndSeasonModal && selectedSeason && createPortal(
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+          style={{ zIndex: 99999 }}
+        >
           <div className={`w-full max-w-md rounded-2xl border shadow-2xl ${
             theme === 'dark' ? 'bg-zinc-900/95 border-white/10' : 'bg-white border-zinc-200'
           }`}>
@@ -964,12 +1207,16 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       
       {/* Registrations Modal */}
-      {showRegistrationsModal && selectedSeason && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+      {showRegistrationsModal && selectedSeason && createPortal(
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+          style={{ zIndex: 99999 }}
+        >
           <div className={`w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-2xl border shadow-2xl ${
             theme === 'dark' ? 'bg-zinc-900/95 border-white/10' : 'bg-white border-zinc-200'
           }`}>
@@ -1101,12 +1348,16 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       
       {/* Schedule Modal */}
-      {showScheduleModal && selectedSeason && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+      {showScheduleModal && selectedSeason && createPortal(
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+          style={{ zIndex: 99999 }}
+        >
           <div className={`w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl border shadow-2xl ${
             theme === 'dark' ? 'bg-zinc-900/95 border-white/10' : 'bg-white border-zinc-200'
           }`}>
@@ -1138,12 +1389,16 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
               />
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       
       {/* Payment Details Popup */}
-      {selectedRegistrationForPayment && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+      {selectedRegistrationForPayment && createPortal(
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          style={{ zIndex: 99999 }}
+        >
           <div className={`w-full max-w-md rounded-2xl border shadow-2xl ${
             theme === 'dark' ? 'bg-zinc-900/95 border-white/10' : 'bg-white border-zinc-200'
           }`}>
@@ -1276,7 +1531,8 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
