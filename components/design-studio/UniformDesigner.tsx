@@ -32,7 +32,8 @@ import {
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { doc, getDoc, updateDoc, collection, addDoc, getDocs, query, where, deleteDoc } from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../../services/firebase';
 
 // =============================================================================
 // TYPES
@@ -107,6 +108,10 @@ interface SavedUniform {
   createdAt: any;
   teamId: string;
   userId: string;
+  quality: 'standard' | 'high';
+  // High quality saves include rendered images in Storage
+  previewImageUrl?: string;
+  pieceImageUrls?: { pieceId: string; url: string; storagePath: string }[];
 }
 
 interface UniformDesignerProps {
@@ -123,6 +128,9 @@ interface UniformDesignerProps {
 
 // AI Generation cost per piece
 const AI_CREDITS_PER_PIECE = 3;
+
+// High quality save cost (for print-ready images)
+const HIGH_QUALITY_SAVE_CREDITS = 5;
 
 // =============================================================================
 // CONSTANTS
@@ -226,6 +234,10 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
   const [showSavedUniforms, setShowSavedUniforms] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Save quality modal
+  const [showSaveQualityModal, setShowSaveQualityModal] = useState(false);
+  const [saveProgress, setSaveProgress] = useState(0);
   
   // Auto-apply team colors option
   const [autoApplyTeamColors, setAutoApplyTeamColors] = useState(true);
@@ -331,33 +343,270 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
     }
   };
   
-  // Save uniform to Firestore
-  const saveUniform = async () => {
+  // Render a piece to high-quality canvas image
+  const renderPieceToCanvas = async (piece: GarmentPiece, width: number = 2000, height: number = 2500): Promise<Blob> => {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas not supported');
+    
+    // High quality settings
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    
+    // Fill background with primary color
+    ctx.fillStyle = piece.primaryColor;
+    ctx.fillRect(0, 0, width, height);
+    
+    // Add pattern if not solid
+    if (piece.pattern === 'stripes') {
+      ctx.fillStyle = piece.secondaryColor;
+      for (let i = 0; i < width; i += 100) {
+        ctx.fillRect(i, 0, 50, height);
+      }
+    } else if (piece.pattern === 'gradient') {
+      const gradient = ctx.createLinearGradient(0, 0, width, height);
+      gradient.addColorStop(0, piece.primaryColor);
+      gradient.addColorStop(1, piece.secondaryColor);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+    } else if (piece.pattern === 'panels') {
+      // Side panels
+      ctx.fillStyle = piece.secondaryColor;
+      ctx.fillRect(0, 0, width * 0.15, height);
+      ctx.fillRect(width * 0.85, 0, width * 0.15, height);
+    }
+    
+    // Add accent stripe
+    ctx.fillStyle = piece.accentColor;
+    ctx.fillRect(0, height * 0.02, width, height * 0.04);
+    
+    // Add number if present
+    if (piece.numberBack || piece.numberFront) {
+      ctx.fillStyle = piece.numberColor || '#ffffff';
+      ctx.font = 'bold 400px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      // Add shadow for depth
+      ctx.shadowColor = 'rgba(0,0,0,0.3)';
+      ctx.shadowBlur = 20;
+      ctx.shadowOffsetX = 10;
+      ctx.shadowOffsetY = 10;
+      
+      ctx.fillText(piece.numberBack || piece.numberFront || '', width / 2, height * 0.5);
+      ctx.shadowColor = 'transparent';
+    }
+    
+    // Add name if present
+    if (piece.nameBack) {
+      ctx.fillStyle = piece.nameColor || '#ffffff';
+      ctx.font = 'bold 100px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(piece.nameBack.toUpperCase(), width / 2, height * 0.25);
+    }
+    
+    // Add label
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.font = '40px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${piece.label} - ${uniformName}`, width / 2, height - 50);
+    
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else reject(new Error('Failed to create blob'));
+      }, 'image/png', 1.0);
+    });
+  };
+  
+  // Render full mannequin preview to canvas
+  const renderPreviewToCanvas = async (): Promise<Blob> => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1200;
+    canvas.height = 1800;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas not supported');
+    
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    
+    // Dark background
+    const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    bgGradient.addColorStop(0, '#27272a');
+    bgGradient.addColorStop(1, '#18181b');
+    ctx.fillStyle = bgGradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Grid floor effect
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < canvas.width; i += 40) {
+      ctx.beginPath();
+      ctx.moveTo(i, canvas.height - 200);
+      ctx.lineTo(i, canvas.height);
+      ctx.stroke();
+    }
+    for (let j = canvas.height - 200; j < canvas.height; j += 40) {
+      ctx.beginPath();
+      ctx.moveTo(0, j);
+      ctx.lineTo(canvas.width, j);
+      ctx.stroke();
+    }
+    
+    const displayPieces = uniformVariation === 'away' && awayPieces.length > 0 ? awayPieces : pieces;
+    const topPiece = displayPieces.find(p => p.category === 'top');
+    const bottomPiece = displayPieces.find(p => p.category === 'bottom');
+    
+    const centerX = canvas.width / 2;
+    let y = 100;
+    
+    // Head
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath();
+    ctx.ellipse(centerX, y + 60, 60, 75, 0, 0, Math.PI * 2);
+    ctx.fill();
+    y += 150;
+    
+    // Jersey/Top
+    if (topPiece) {
+      ctx.fillStyle = topPiece.primaryColor;
+      ctx.fillRect(centerX - 170, y, 340, 400);
+      
+      // Sleeves
+      ctx.fillRect(centerX - 230, y + 20, 80, 200);
+      ctx.fillRect(centerX + 150, y + 20, 80, 200);
+      
+      // Add number
+      if (topPiece.numberBack) {
+        ctx.fillStyle = topPiece.numberColor || '#ffffff';
+        ctx.font = 'bold 180px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(topPiece.numberBack, centerX, y + 280);
+      }
+      y += 400;
+    } else {
+      y += 400;
+    }
+    
+    // Shorts/Pants
+    if (bottomPiece) {
+      ctx.fillStyle = bottomPiece.primaryColor;
+      const bottomHeight = bottomPiece.style.includes('shorts') ? 200 : 400;
+      ctx.fillRect(centerX - 150, y, 130, bottomHeight);
+      ctx.fillRect(centerX + 20, y, 130, bottomHeight);
+      
+      // Side stripes
+      ctx.fillStyle = bottomPiece.accentColor;
+      ctx.fillRect(centerX - 150, y, 20, bottomHeight);
+      ctx.fillRect(centerX + 130, y, 20, bottomHeight);
+      y += bottomHeight;
+    }
+    
+    // Title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 48px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(uniformName, centerX, canvas.height - 100);
+    ctx.font = '24px Arial';
+    ctx.fillStyle = '#a1a1aa';
+    ctx.fillText(`${uniformVariation.toUpperCase()} UNIFORM`, centerX, canvas.height - 60);
+    
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else reject(new Error('Failed to create blob'));
+      }, 'image/png', 1.0);
+    });
+  };
+  
+  // Save uniform with quality option
+  const saveUniform = async (quality: 'standard' | 'high') => {
     if (!userData?.uid || !selectedSport) return;
     
+    // Check credits for high quality
+    if (quality === 'high' && userCredits < HIGH_QUALITY_SAVE_CREDITS) {
+      alert(`High quality save requires ${HIGH_QUALITY_SAVE_CREDITS} credits. You have ${userCredits}.`);
+      setShowBuyCredits(true);
+      return;
+    }
+    
     setIsSaving(true);
+    setSaveProgress(0);
+    
     try {
+      let previewImageUrl: string | undefined;
+      let pieceImageUrls: { pieceId: string; url: string; storagePath: string }[] = [];
+      
+      if (quality === 'high') {
+        const displayPieces = uniformVariation === 'away' && awayPieces.length > 0 ? awayPieces : pieces;
+        const totalSteps = displayPieces.length + 2; // pieces + preview + save
+        let currentStep = 0;
+        
+        // Upload preview image
+        setSaveProgress(Math.round((currentStep / totalSteps) * 100));
+        const previewBlob = await renderPreviewToCanvas();
+        const previewPath = `uniforms/${userData.uid}/${Date.now()}_preview.png`;
+        const previewRef = ref(storage, previewPath);
+        await uploadBytes(previewRef, previewBlob);
+        previewImageUrl = await getDownloadURL(previewRef);
+        currentStep++;
+        
+        // Upload each piece as high-quality image
+        for (const piece of displayPieces) {
+          setSaveProgress(Math.round((currentStep / totalSteps) * 100));
+          const pieceBlob = await renderPieceToCanvas(piece);
+          const piecePath = `uniforms/${userData.uid}/${Date.now()}_${piece.id}.png`;
+          const pieceRef = ref(storage, piecePath);
+          await uploadBytes(pieceRef, pieceBlob);
+          const pieceUrl = await getDownloadURL(pieceRef);
+          pieceImageUrls.push({ pieceId: piece.id, url: pieceUrl, storagePath: piecePath });
+          currentStep++;
+        }
+        
+        // Deduct credits
+        const userRef = doc(db, 'users', userData.uid);
+        await updateDoc(userRef, { credits: userCredits - HIGH_QUALITY_SAVE_CREDITS });
+        setUserCredits(prev => prev - HIGH_QUALITY_SAVE_CREDITS);
+      }
+      
+      setSaveProgress(90);
+      
       const uniformData = {
         name: uniformName,
         sport: selectedSport,
         pieces: pieces.map(p => ({
           ...p,
-          // Don't save huge base64 images to Firestore - would need to upload to Storage
+          // Don't save huge base64 AI images to Firestore document
           aiGeneratedImage: p.aiGeneratedImage ? 'has_image' : undefined,
         })),
+        awayPieces: awayPieces.length > 0 ? awayPieces.map(p => ({
+          ...p,
+          aiGeneratedImage: p.aiGeneratedImage ? 'has_image' : undefined,
+        })) : undefined,
         teamId: teamData?.id || null,
         userId: userData.uid,
         createdAt: new Date(),
+        quality,
+        previewImageUrl,
+        pieceImageUrls: pieceImageUrls.length > 0 ? pieceImageUrls : undefined,
       };
       
       const docRef = await addDoc(collection(db, 'savedUniforms'), uniformData);
       setSavedUniforms(prev => [...prev, { id: docRef.id, ...uniformData } as SavedUniform]);
-      alert('Uniform saved successfully!');
+      setSaveProgress(100);
+      
+      setShowSaveQualityModal(false);
+      alert(quality === 'high' 
+        ? `✨ High-quality uniform saved! ${HIGH_QUALITY_SAVE_CREDITS} credits used. Print-ready images are stored.` 
+        : 'Uniform saved successfully!');
     } catch (err) {
       console.error('Error saving uniform:', err);
       alert('Failed to save uniform.');
     } finally {
       setIsSaving(false);
+      setSaveProgress(0);
     }
   };
   
@@ -1375,7 +1624,7 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
           <ImageIcon className="w-5 h-5" /> Export Flat
         </button>
         <button
-          onClick={saveUniform}
+          onClick={() => setShowSaveQualityModal(true)}
           disabled={isSaving}
           className="px-6 py-3 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 text-white rounded-lg flex items-center gap-2"
         >
@@ -1489,12 +1738,34 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
                 {savedUniforms.map(uniform => (
                   <div 
                     key={uniform.id}
-                    className="p-4 bg-zinc-800 border border-zinc-700 rounded-xl hover:border-orange-500/50 transition-all"
+                    className={`p-4 bg-zinc-800 border rounded-xl hover:border-orange-500/50 transition-all ${
+                      uniform.quality === 'high' ? 'border-orange-500/30' : 'border-zinc-700'
+                    }`}
                   >
+                    {/* Preview image for high quality saves */}
+                    {uniform.previewImageUrl && (
+                      <div className="mb-3 -mx-4 -mt-4">
+                        <img 
+                          src={uniform.previewImageUrl} 
+                          alt={uniform.name}
+                          className="w-full h-32 object-cover rounded-t-xl"
+                        />
+                      </div>
+                    )}
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <h3 className="font-semibold text-white">{uniform.name}</h3>
-                        <p className="text-xs text-slate-400">{uniform.sport} • {uniform.pieces.length} pieces</p>
+                        <h3 className="font-semibold text-white flex items-center gap-2">
+                          {uniform.name}
+                          {uniform.quality === 'high' && (
+                            <span title="High Quality">
+                              <Crown className="w-3.5 h-3.5 text-orange-400" />
+                            </span>
+                          )}
+                        </h3>
+                        <p className="text-xs text-slate-400">
+                          {uniform.sport} • {uniform.pieces.length} pieces
+                          {uniform.quality === 'high' && ' • Print-ready'}
+                        </p>
                       </div>
                       <button
                         onClick={() => deleteUniform(uniform.id)}
@@ -1526,6 +1797,125 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ==========================================================================
+  // RENDER: Save Quality Modal
+  // ==========================================================================
+  const renderSaveQualityModal = () => {
+    if (!showSaveQualityModal) return null;
+    
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/60" onClick={() => !isSaving && setShowSaveQualityModal(false)} />
+        <div className="relative w-full max-w-md bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-700">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <Save className="w-5 h-5 text-orange-400" />
+              Save Uniform
+            </h2>
+            {!isSaving && (
+              <button onClick={() => setShowSaveQualityModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-6 h-6" />
+              </button>
+            )}
+          </div>
+          
+          <div className="p-6 space-y-4">
+            {isSaving ? (
+              <div className="text-center py-8">
+                <Loader2 className="w-12 h-12 mx-auto text-orange-400 animate-spin mb-4" />
+                <p className="text-white font-medium">Saving uniform...</p>
+                <p className="text-sm text-slate-400 mt-1">
+                  {saveProgress < 90 ? 'Rendering high-quality images...' : 'Finalizing...'}
+                </p>
+                <div className="w-full bg-zinc-700 rounded-full h-2 mt-4">
+                  <div 
+                    className="bg-gradient-to-r from-orange-500 to-red-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${saveProgress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-slate-500 mt-2">{saveProgress}%</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-slate-300 text-sm">
+                  Choose save quality for your uniform:
+                </p>
+                
+                {/* Standard Option */}
+                <button
+                  onClick={() => saveUniform('standard')}
+                  className="w-full p-4 bg-zinc-800 border border-zinc-700 rounded-xl hover:border-zinc-600 transition-all text-left group"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-semibold text-white flex items-center gap-2">
+                        <Save className="w-4 h-4 text-slate-400" />
+                        Standard Save
+                        <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">FREE</span>
+                      </h3>
+                      <p className="text-sm text-slate-400 mt-1">
+                        Save uniform configuration to your account
+                      </p>
+                      <ul className="text-xs text-slate-500 mt-2 space-y-1">
+                        <li>✓ Colors & patterns saved</li>
+                        <li>✓ Names & numbers saved</li>
+                        <li>✓ Load & edit anytime</li>
+                        <li className="text-slate-600">✗ No print-ready images</li>
+                      </ul>
+                    </div>
+                  </div>
+                </button>
+                
+                {/* High Quality Option */}
+                <button
+                  onClick={() => saveUniform('high')}
+                  disabled={userCredits < HIGH_QUALITY_SAVE_CREDITS}
+                  className={`w-full p-4 border rounded-xl transition-all text-left group ${
+                    userCredits >= HIGH_QUALITY_SAVE_CREDITS
+                      ? 'bg-gradient-to-br from-orange-500/10 to-red-500/10 border-orange-500/50 hover:border-orange-400'
+                      : 'bg-zinc-800/50 border-zinc-700 opacity-60'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-semibold text-white flex items-center gap-2">
+                        <Crown className="w-4 h-4 text-orange-400" />
+                        High Quality Save
+                        <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 text-xs rounded-full">
+                          {HIGH_QUALITY_SAVE_CREDITS} Credits
+                        </span>
+                      </h3>
+                      <p className="text-sm text-slate-400 mt-1">
+                        Save with print-ready images for manufacturing
+                      </p>
+                      <ul className="text-xs text-slate-500 mt-2 space-y-1">
+                        <li>✓ Everything in Standard</li>
+                        <li className="text-orange-400">✓ 2000x2500px per piece</li>
+                        <li className="text-orange-400">✓ Full mannequin preview</li>
+                        <li className="text-orange-400">✓ Print-ready PNG files</li>
+                      </ul>
+                      {userCredits < HIGH_QUALITY_SAVE_CREDITS && (
+                        <p className="text-xs text-red-400 mt-2">
+                          Need {HIGH_QUALITY_SAVE_CREDITS - userCredits} more credits
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </button>
+                
+                {/* Credits display */}
+                <div className="flex items-center justify-between pt-2 border-t border-zinc-700">
+                  <span className="text-sm text-slate-400">Your credits:</span>
+                  <span className="font-bold text-orange-400">{userCredits}</span>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -1593,6 +1983,9 @@ const UniformDesigner: React.FC<UniformDesignerProps> = ({
       
       {/* Saved Uniforms Modal */}
       {renderSavedUniformsModal()}
+      
+      {/* Save Quality Modal */}
+      {renderSaveQualityModal()}
     </div>
   );
 };
