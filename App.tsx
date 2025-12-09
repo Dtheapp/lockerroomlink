@@ -125,6 +125,10 @@ const LeagueDashboard = lazyWithRetry(() => import('./components/league/LeagueDa
 const LeagueSettings = lazyWithRetry(() => import('./components/league/LeagueSettings'));
 const LeaguePrograms = lazyWithRetry(() => import('./components/league/LeaguePrograms'));
 const LeagueRequests = lazyWithRetry(() => import('./components/league/LeagueRequests'));
+const LeagueSeasons = lazyWithRetry(() => import('./components/league/LeagueSeasons'));
+const SeasonSchedule = lazyWithRetry(() => import('./components/league/SeasonSchedule'));
+const LeaguePlayoffs = lazyWithRetry(() => import('./components/league/LeaguePlayoffs'));
+const LeagueStandings = lazyWithRetry(() => import('./components/league/LeagueStandings'));
 
 // Loading fallback for lazy-loaded components
 const PageLoader = () => (
@@ -273,6 +277,10 @@ const AppContent: React.FC = () => {
                 <Route path="league/settings" element={<LeagueSettings />} />
                 <Route path="league/programs" element={<LeaguePrograms />} />
                 <Route path="league/requests" element={<LeagueRequests />} />
+                <Route path="league/seasons" element={<LeagueSeasons />} />
+                <Route path="league/seasons/:seasonId" element={<SeasonSchedule />} />
+                <Route path="league/playoffs" element={<LeaguePlayoffs />} />
+                <Route path="league/standings" element={<LeagueStandings />} />
                 <Route path="profile" element={<Profile />} />
                 {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}
               </Route>
