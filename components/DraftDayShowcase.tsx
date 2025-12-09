@@ -673,10 +673,130 @@ export const DraftDayShowcase: React.FC = () => {
           </div>
         </section>
 
+        {/* 🎰 DRAFT LOTTERY SECTION - NFL STYLE (Happens BEFORE the draft!) */}
+        <section className="py-20 px-4 bg-gradient-to-b from-transparent via-purple-900/10 to-transparent overflow-hidden">
+          <div className="max-w-7xl mx-auto">
+            {/* Section Header */}
+            <div className="text-center mb-16">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 border border-purple-500/30 rounded-full mb-6">
+                <Shuffle size={16} className="text-purple-400" />
+                <span className="text-purple-400 font-medium">Step 1: Determine Pick Order</span>
+              </div>
+              <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
+                🎰 Draft Lottery
+              </h2>
+              <p className="text-xl text-slate-400 max-w-3xl mx-auto">
+                NFL-style lottery system for ultimate fairness. Enable lottery mode and let fate 
+                decide the draft order with a <span className="text-purple-400 font-semibold">live animated reveal</span>.
+              </p>
+            </div>
+            
+            {/* Main Lottery Display */}
+            <div className="grid lg:grid-cols-2 gap-12 items-center mb-16">
+              {/* Left - Lottery Wheel */}
+              <div className="relative">
+                <div className="text-center">
+                  <h3 className="text-2xl font-bold text-white mb-8 flex items-center justify-center gap-3">
+                    <Dices size={28} className="text-purple-400" />
+                    Live Lottery Wheel
+                  </h3>
+                  <LotteryWheel isSpinning={false} winner={mockLotteryResults[0]} />
+                  <p className="text-slate-400 mt-8 max-w-sm mx-auto">
+                    All coaches watch the wheel spin live. Real-time sync ensures everyone sees the same results simultaneously.
+                  </p>
+                </div>
+              </div>
+              
+              {/* Right - Results Board */}
+              <div>
+                <LotteryResultsBoard />
+              </div>
+            </div>
+            
+            {/* Winner Ticket Showcase */}
+            <div className="mb-16">
+              <div className="text-center mb-8">
+                <h3 className="text-2xl font-bold text-white mb-2">🎫 Winning Lottery Ticket</h3>
+                <p className="text-slate-400">What the #1 pick winner sees after the lottery</p>
+              </div>
+              <div className="max-w-lg mx-auto">
+                <LotteryTicketWinner result={mockLotteryResults[0]} />
+              </div>
+            </div>
+            
+            {/* Lottery Benefits Grid */}
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                {
+                  icon: Shield,
+                  title: 'Ultimate Fairness',
+                  description: 'No coach can be accused of rigging the order. Pure random chance.',
+                  gradient: 'from-green-500 to-emerald-500'
+                },
+                {
+                  icon: Sparkles,
+                  title: 'NFL-Style Drama',
+                  description: 'Create "Remember when we won the lottery?" moments for your league.',
+                  gradient: 'from-purple-500 to-pink-500'
+                },
+                {
+                  icon: Users,
+                  title: 'Watch Together',
+                  description: 'Parents & players gather for the live lottery reveal event.',
+                  gradient: 'from-blue-500 to-cyan-500'
+                },
+                {
+                  icon: Trophy,
+                  title: 'Saved History',
+                  description: 'All lottery results stored forever. Relive the excitement each season.',
+                  gradient: 'from-orange-500 to-amber-500'
+                }
+              ].map((benefit, idx) => (
+                <div key={idx} className="group relative overflow-hidden bg-gradient-to-br from-zinc-800/50 to-zinc-900/50 backdrop-blur-md rounded-2xl border border-white/10 p-6 hover:border-purple-500/30 transition-all hover:scale-[1.02]">
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${benefit.gradient} flex items-center justify-center mb-4 shadow-lg`}>
+                    <benefit.icon size={24} className="text-white" />
+                  </div>
+                  <h4 className="text-lg font-bold text-white mb-2">{benefit.title}</h4>
+                  <p className="text-slate-400 text-sm">{benefit.description}</p>
+                </div>
+              ))}
+            </div>
+            
+            {/* How It Works */}
+            <div className="mt-16 bg-gradient-to-br from-zinc-800/30 to-zinc-900/30 rounded-3xl border border-white/10 p-8">
+              <h3 className="text-2xl font-bold text-white text-center mb-8">How Lottery Mode Works</h3>
+              <div className="grid md:grid-cols-4 gap-8">
+                {[
+                  { step: 1, title: 'Enable Lottery', desc: 'Commissioner toggles lottery mode when creating the draft', icon: '⚙️' },
+                  { step: 2, title: 'Coaches Join', desc: 'All team coaches join the draft lobby before lottery starts', icon: '👥' },
+                  { step: 3, title: 'Live Draw', desc: 'Animated wheel/ball draw reveals pick order in real-time', icon: '🎰' },
+                  { step: 4, title: 'Draft Begins', desc: 'With order set, the draft starts immediately', icon: '🏈' },
+                ].map((item) => (
+                  <div key={item.step} className="text-center">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 flex items-center justify-center mx-auto mb-4">
+                      <span className="text-3xl">{item.icon}</span>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-purple-500 text-white font-bold flex items-center justify-center mx-auto mb-2">
+                      {item.step}
+                    </div>
+                    <h4 className="font-bold text-white mb-1">{item.title}</h4>
+                    <p className="text-sm text-slate-400">{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Live Draft Mockup */}
         <section id="mockup" className="py-20 px-4">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-12">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500/20 border border-orange-500/30 rounded-full mb-6">
+                <Radio size={16} className="text-orange-400" />
+                <span className="text-orange-400 font-medium">Step 2: Make Your Picks</span>
+              </div>
               <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
                 Live Draft Experience
               </h2>
@@ -934,122 +1054,6 @@ export const DraftDayShowcase: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* 🎰 DRAFT LOTTERY SECTION - NFL STYLE */}
-        <section className="py-20 px-4 bg-gradient-to-b from-transparent via-purple-900/10 to-transparent overflow-hidden">
-          <div className="max-w-7xl mx-auto">
-            {/* Section Header */}
-            <div className="text-center mb-16">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 border border-purple-500/30 rounded-full mb-6">
-                <Shuffle size={16} className="text-purple-400" />
-                <span className="text-purple-400 font-medium">New Feature</span>
-              </div>
-              <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
-                🎰 Draft Lottery
-              </h2>
-              <p className="text-xl text-slate-400 max-w-3xl mx-auto">
-                NFL-style lottery system for ultimate fairness. Enable lottery mode and let fate 
-                decide the draft order with a <span className="text-purple-400 font-semibold">live animated reveal</span>.
-              </p>
-            </div>
-            
-            {/* Main Lottery Display */}
-            <div className="grid lg:grid-cols-2 gap-12 items-center mb-16">
-              {/* Left - Lottery Wheel */}
-              <div className="relative">
-                <div className="text-center">
-                  <h3 className="text-2xl font-bold text-white mb-8 flex items-center justify-center gap-3">
-                    <Dices size={28} className="text-purple-400" />
-                    Live Lottery Wheel
-                  </h3>
-                  <LotteryWheel isSpinning={false} winner={mockLotteryResults[0]} />
-                  <p className="text-slate-400 mt-8 max-w-sm mx-auto">
-                    All coaches watch the wheel spin live. Real-time sync ensures everyone sees the same results simultaneously.
-                  </p>
-                </div>
-              </div>
-              
-              {/* Right - Results Board */}
-              <div>
-                <LotteryResultsBoard />
-              </div>
-            </div>
-            
-            {/* Winner Ticket Showcase */}
-            <div className="mb-16">
-              <div className="text-center mb-8">
-                <h3 className="text-2xl font-bold text-white mb-2">🎫 Winning Lottery Ticket</h3>
-                <p className="text-slate-400">What the #1 pick winner sees after the lottery</p>
-              </div>
-              <div className="max-w-lg mx-auto">
-                <LotteryTicketWinner result={mockLotteryResults[0]} />
-              </div>
-            </div>
-            
-            {/* Lottery Benefits Grid */}
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[
-                {
-                  icon: Shield,
-                  title: 'Ultimate Fairness',
-                  description: 'No coach can be accused of rigging the order. Pure random chance.',
-                  gradient: 'from-green-500 to-emerald-500'
-                },
-                {
-                  icon: Sparkles,
-                  title: 'NFL-Style Drama',
-                  description: 'Create "Remember when we won the lottery?" moments for your league.',
-                  gradient: 'from-purple-500 to-pink-500'
-                },
-                {
-                  icon: Users,
-                  title: 'Watch Together',
-                  description: 'Parents & players gather for the live lottery reveal event.',
-                  gradient: 'from-blue-500 to-cyan-500'
-                },
-                {
-                  icon: Trophy,
-                  title: 'Saved History',
-                  description: 'All lottery results stored forever. Relive the excitement each season.',
-                  gradient: 'from-orange-500 to-amber-500'
-                }
-              ].map((benefit, idx) => (
-                <div key={idx} className="group relative overflow-hidden bg-gradient-to-br from-zinc-800/50 to-zinc-900/50 backdrop-blur-md rounded-2xl border border-white/10 p-6 hover:border-purple-500/30 transition-all hover:scale-[1.02]">
-                  <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${benefit.gradient} flex items-center justify-center mb-4 shadow-lg`}>
-                    <benefit.icon size={24} className="text-white" />
-                  </div>
-                  <h4 className="text-lg font-bold text-white mb-2">{benefit.title}</h4>
-                  <p className="text-slate-400 text-sm">{benefit.description}</p>
-                </div>
-              ))}
-            </div>
-            
-            {/* How It Works */}
-            <div className="mt-16 bg-gradient-to-br from-zinc-800/30 to-zinc-900/30 rounded-3xl border border-white/10 p-8">
-              <h3 className="text-2xl font-bold text-white text-center mb-8">How Lottery Mode Works</h3>
-              <div className="grid md:grid-cols-4 gap-8">
-                {[
-                  { step: 1, title: 'Enable Lottery', desc: 'Commissioner toggles lottery mode when creating the draft', icon: '⚙️' },
-                  { step: 2, title: 'Coaches Join', desc: 'All team coaches join the draft lobby before lottery starts', icon: '👥' },
-                  { step: 3, title: 'Live Draw', desc: 'Animated wheel/ball draw reveals pick order in real-time', icon: '🎰' },
-                  { step: 4, title: 'Draft Begins', desc: 'With order set, the draft starts immediately', icon: '🏈' },
-                ].map((item) => (
-                  <div key={item.step} className="text-center">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 flex items-center justify-center mx-auto mb-4">
-                      <span className="text-3xl">{item.icon}</span>
-                    </div>
-                    <div className="w-8 h-8 rounded-full bg-purple-500 text-white font-bold flex items-center justify-center mx-auto mb-2">
-                      {item.step}
-                    </div>
-                    <h4 className="font-bold text-white mb-1">{item.title}</h4>
-                    <p className="text-sm text-slate-400">{item.desc}</p>
-                  </div>
-                ))}
               </div>
             </div>
           </div>
