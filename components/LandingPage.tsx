@@ -234,6 +234,78 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
+      {/* AI Comparison CTA - Shiny Banner */}
+      <section className="py-12 px-6">
+        <div className="max-w-5xl mx-auto">
+          <Link to="/compare" className="block group">
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-900 via-pink-900 to-purple-900 border border-purple-500/50 p-8 md:p-12 hover:border-purple-400 transition-all duration-500 hover:shadow-2xl hover:shadow-purple-500/30">
+              {/* Animated Shine Effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+              
+              {/* Glowing Orbs */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-pink-500/20 rounded-full blur-3xl" />
+              <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/20 rounded-full blur-3xl" />
+              
+              <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-3xl shadow-lg shadow-purple-500/50 animate-pulse">
+                    🤖
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="px-3 py-1 bg-purple-500/30 border border-purple-400/50 rounded-full text-xs font-semibold text-purple-200">
+                        AI-Generated Analysis
+                      </span>
+                      <span className="text-yellow-400 animate-pulse">✨</span>
+                    </div>
+                    <h3 className="text-2xl md:text-3xl font-black text-white">
+                      OSYS vs <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">Everyone</span>
+                    </h3>
+                    <p className="text-slate-300 mt-1">See how we compare to TeamSnap, GameChanger, Hudl & more — <span className="text-purple-300 font-semibold">100+ features</span> analyzed by AI</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <div className="hidden md:flex flex-col items-end text-right">
+                    <span className="text-4xl font-black text-white">6x</span>
+                    <span className="text-sm text-slate-400">more features</span>
+                  </div>
+                  <div className="w-14 h-14 rounded-full bg-white/10 border border-white/20 flex items-center justify-center group-hover:bg-white/20 transition-colors">
+                    <svg className="w-6 h-6 text-white group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Bottom Stats Row */}
+              <div className="relative z-10 mt-6 pt-6 border-t border-white/10 flex flex-wrap justify-center gap-6 md:gap-12 text-center">
+                <div>
+                  <div className="text-2xl font-bold text-green-400">✓</div>
+                  <div className="text-xs text-slate-400">Private Coaching</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-green-400">✓</div>
+                  <div className="text-xs text-slate-400">Zero-Fee Fundraising</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-green-400">✓</div>
+                  <div className="text-xs text-slate-400">Cheer Support</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-green-400">✓</div>
+                  <div className="text-xs text-slate-400">Referee System</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-green-400">✓</div>
+                  <div className="text-xs text-slate-400">Grievance Reporting</div>
+                </div>
+              </div>
+            </div>
+          </Link>
+        </div>
+      </section>
+
       {/* How It Works - Parent-Athlete Connection */}
       <section className="py-24 px-6 border-t border-white/5">
         <div className="max-w-6xl mx-auto">
