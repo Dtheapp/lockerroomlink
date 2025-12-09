@@ -20,6 +20,12 @@ import {
   limit
 } from 'firebase/firestore';
 import { db } from './firebase';
+import {
+  notifyRefereeAssignmentRequest,
+  notifyLeagueOwnerAssignmentResponse,
+  notifyRefereeCancelledAssignment,
+  notifyVerificationResult,
+} from './notificationService';
 import type {
   RefereeProfile,
   RefereeAssignment,
@@ -188,6 +194,22 @@ export const assignRefereeToGame = async (
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+  
+  // Send notification to referee
+  try {
+    const gameDate = assignmentData.gameDate instanceof Timestamp 
+      ? assignmentData.gameDate.toDate().toLocaleDateString()
+      : new Date(assignmentData.gameDate as any).toLocaleDateString();
+    await notifyRefereeAssignmentRequest(
+      assignmentData.refereeId,
+      gameDate,
+      assignmentData.leagueName || 'League',
+      docRef.id
+    );
+  } catch (err) {
+    console.error('Error sending assignment notification:', err);
+  }
+  
   return docRef.id;
 };
 
@@ -252,14 +274,37 @@ export const getPendingAssignments = async (refereeId: string): Promise<RefereeA
 export const respondToAssignment = async (
   assignmentId: string,
   accept: boolean,
-  declineReason?: string
+  declineReason?: string,
+  refereeName?: string
 ): Promise<void> => {
+  // Get assignment details first for notification
+  const assignmentDoc = await getDoc(doc(db, 'refereeAssignments', assignmentId));
+  const assignment = assignmentDoc.exists() ? assignmentDoc.data() as RefereeAssignment : null;
+  
   await updateDoc(doc(db, 'refereeAssignments', assignmentId), {
     status: accept ? 'accepted' : 'declined',
     respondedAt: serverTimestamp(),
     ...(declineReason && { declineReason }),
     updatedAt: serverTimestamp(),
   });
+  
+  // Notify league owner
+  if (assignment?.assignedBy) {
+    try {
+      const gameDate = assignment.gameDate instanceof Timestamp 
+        ? assignment.gameDate.toDate().toLocaleDateString()
+        : new Date(assignment.gameDate as any).toLocaleDateString();
+      await notifyLeagueOwnerAssignmentResponse(
+        assignment.assignedBy,
+        refereeName || 'Referee',
+        accept,
+        gameDate,
+        assignmentId
+      );
+    } catch (err) {
+      console.error('Error sending response notification:', err);
+    }
+  }
 };
 
 /**
@@ -287,6 +332,10 @@ export const cancelAssignment = async (
   cancelledBy: string,
   reason?: string
 ): Promise<void> => {
+  // Get assignment details for notification
+  const assignmentDoc = await getDoc(doc(db, 'refereeAssignments', assignmentId));
+  const assignment = assignmentDoc.exists() ? assignmentDoc.data() as RefereeAssignment : null;
+  
   await updateDoc(doc(db, 'refereeAssignments', assignmentId), {
     status: 'cancelled',
     cancelledBy,
@@ -294,6 +343,22 @@ export const cancelAssignment = async (
     cancelReason: reason || 'Cancelled by assigner',
     updatedAt: serverTimestamp(),
   });
+  
+  // Notify referee
+  if (assignment?.refereeId) {
+    try {
+      const gameDate = assignment.gameDate instanceof Timestamp 
+        ? assignment.gameDate.toDate().toLocaleDateString()
+        : new Date(assignment.gameDate as any).toLocaleDateString();
+      await notifyRefereeCancelledAssignment(
+        assignment.refereeId,
+        gameDate,
+        reason
+      );
+    } catch (err) {
+      console.error('Error sending cancellation notification:', err);
+    }
+  }
 };
 
 // =============================================================================
@@ -510,6 +575,13 @@ export const reviewVerificationRequest = async (
   });
   
   await batch.commit();
+  
+  // Notify referee of result
+  try {
+    await notifyVerificationResult(refereeId, approved, rejectionReason);
+  } catch (err) {
+    console.error('Error sending verification notification:', err);
+  }
 };
 
 // =============================================================================

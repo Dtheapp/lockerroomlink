@@ -141,6 +141,14 @@ const RefereeSignup = lazyWithRetry(() => import('./components/referee/RefereeSi
 const RefereeDashboard = lazyWithRetry(() => import('./components/referee/RefereeDashboard'));
 const RefereeSchedule = lazyWithRetry(() => import('./components/referee/RefereeSchedule'));
 const RefereeGameView = lazyWithRetry(() => import('./components/referee/RefereeGameViewWrapper'));
+const RefereeVerificationSubmit = lazyWithRetry(() => import('./components/referee/RefereeVerificationSubmit'));
+const RefereePayments = lazyWithRetry(() => import('./components/referee/RefereePayments'));
+
+// Admin Referee Pages
+const AdminRefereeVerification = lazyWithRetry(() => import('./components/admin/AdminRefereeVerification'));
+
+// Shared UI Pages
+const NotificationsPage = lazyWithRetry(() => import('./components/ui/NotificationsPage'));
 
 // Loading fallback for lazy-loaded components
 const PageLoader = () => (
@@ -251,6 +259,7 @@ const AppContent: React.FC = () => {
                 <Route path="stats" element={<Stats />} />
                 <Route path="playbook" element={<AdminPlaybook />} />
                 <Route path="monetization" element={<MonetizationSettings />} />
+                <Route path="referee-verification" element={<AdminRefereeVerification />} />
                 <Route path="settings" element={<AppSettings />} />
               </Route>
               <Route path="*" element={<Navigate to="/admin" replace />} />
@@ -309,6 +318,9 @@ const AppContent: React.FC = () => {
                 <Route path="referee" element={<RefereeDashboard />} />
                 <Route path="referee/schedule" element={<RefereeSchedule />} />
                 <Route path="referee/game/:assignmentId" element={<RefereeGameView />} />
+                <Route path="referee/verification" element={<RefereeVerificationSubmit />} />
+                <Route path="referee/payments" element={<RefereePayments />} />
+                <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="profile" element={<Profile />} />
                 {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}
               </Route>
