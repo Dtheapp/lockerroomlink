@@ -609,7 +609,8 @@ service cloud.firestore {
     
     // Users collection
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      // Allow public read for public coach/referee profiles
+      allow read: if true;
       
       // User creation - must be the authenticated user creating their own document
       // This is the FIRST operation for a new user, so we can't check getUserData()
@@ -715,12 +716,14 @@ service cloud.firestore {
     
     // Teams collection
     match /teams/{teamId} {
-      allow read: if isAuthenticated();
+      // Allow public read for public profiles (unauthenticated users can view teams/players)
+      allow read: if true;
       allow write: if isTeamCoach(teamId) || isAdmin();
       
       // Players subcollection
       match /players/{playerId} {
-        allow read: if isAuthenticated();
+        // Allow public read for public athlete profiles
+        allow read: if true;
         allow write: if isTeamCoach(teamId) || isAdmin();
         
         // Player's film room
@@ -798,7 +801,8 @@ service cloud.firestore {
       
       // Player stats subcollection
       match /playerStats/{statId} {
-        allow read: if isAuthenticated();
+        // Allow public read for public athlete profiles
+        allow read: if true;
         allow write: if isTeamCoach(teamId) || isAdmin();
       }
       
@@ -816,13 +820,15 @@ service cloud.firestore {
       
       // Season stats subcollection
       match /seasonStats/{statId} {
-        allow read: if isAuthenticated();
+        // Allow public read for public athlete profiles
+        allow read: if true;
         allow write: if isTeamCoach(teamId) || isAdmin();
       }
       
       // Games subcollection
       match /games/{gameId} {
-        allow read: if isAuthenticated();
+        // Allow public read for public profiles
+        allow read: if true;
         allow write: if isTeamCoach(teamId) || isAdmin();
       }
       
