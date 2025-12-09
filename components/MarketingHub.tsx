@@ -678,22 +678,24 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({ promo, className }) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Scale down for thumbnail
-    const maxSize = 200;
-    const scale = Math.min(maxSize / promo.canvas.width, maxSize / promo.canvas.height, 1);
+    // Scale to fit container while maintaining aspect ratio
+    const containerSize = 300;
+    const scale = containerSize / Math.max(promo.canvas.width, promo.canvas.height);
     const width = promo.canvas.width * scale;
     const height = promo.canvas.height * scale;
     
     canvas.width = width;
     canvas.height = height;
     
+    // Clear and apply scale
+    ctx.clearRect(0, 0, width, height);
     ctx.scale(scale, scale);
     
     // Fill background
     ctx.fillStyle = promo.canvas.backgroundColor || '#1a1a2e';
     ctx.fillRect(0, 0, promo.canvas.width, promo.canvas.height);
     
-    // Render simplified elements
+    // Sort and render elements
     const sortedElements = [...promo.elements].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
     
     sortedElements.forEach(element => {
@@ -705,25 +707,68 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({ promo, className }) => {
       const { x, y } = element.position;
       const { width: w, height: h } = element.size;
       
+      // Handle rotation
+      if (element.rotation) {
+        ctx.translate(x + w / 2, y + h / 2);
+        ctx.rotate((element.rotation * Math.PI) / 180);
+        ctx.translate(-(x + w / 2), -(y + h / 2));
+      }
+      
       if (element.type === 'shape') {
         ctx.fillStyle = element.backgroundColor || element.color || '#6366f1';
-        ctx.fillRect(x, y, w, h);
+        const radius = element.borderRadius || 0;
+        if (radius > 0 && ctx.roundRect) {
+          ctx.beginPath();
+          ctx.roundRect(x, y, w, h, Math.min(radius, Math.min(w, h) / 2));
+          ctx.fill();
+        } else {
+          ctx.fillRect(x, y, w, h);
+        }
       } else if (element.type === 'text') {
+        // Draw text background
         if (element.backgroundColor && element.backgroundColor !== 'transparent') {
           ctx.fillStyle = element.backgroundColor;
           ctx.fillRect(x, y, w, h);
         }
+        
+        // Draw text
+        const fontSize = element.fontSize || 24;
+        const fontFamily = element.fontFamily || 'Arial';
+        const fontWeight = element.fontWeight || 'normal';
+        ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
         ctx.fillStyle = element.color || '#ffffff';
-        ctx.font = `${element.fontWeight || 'normal'} ${Math.max(8, (element.fontSize || 24) * 0.5)}px ${element.fontFamily || 'Arial'}`;
         ctx.textAlign = (element.textAlign as CanvasTextAlign) || 'left';
-        ctx.fillText(element.content || '', x + (element.textAlign === 'center' ? w/2 : 0), y + h/2);
+        ctx.textBaseline = 'top';
+        
+        let textX = x;
+        if (element.textAlign === 'center') textX = x + w / 2;
+        else if (element.textAlign === 'right') textX = x + w;
+        
+        // Word wrap
+        const words = (element.content || '').split(' ');
+        let line = '';
+        let lineY = y + fontSize * 0.2;
+        const lineHeight = fontSize * (element.lineHeight || 1.2);
+        
+        words.forEach((word: string) => {
+          const testLine = line + word + ' ';
+          const metrics = ctx.measureText(testLine);
+          if (metrics.width > w && line !== '') {
+            ctx.fillText(line.trim(), textX, lineY);
+            line = word + ' ';
+            lineY += lineHeight;
+          } else {
+            line = testLine;
+          }
+        });
+        ctx.fillText(line.trim(), textX, lineY);
       }
       
       ctx.restore();
     });
   }, [promo]);
   
-  return <canvas ref={canvasRef} className={className} />;
+  return <canvas ref={canvasRef} className={className} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />;
 };
 
 export default MarketingHub;

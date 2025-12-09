@@ -3,7 +3,7 @@
 // Create logos, flyers, posters, and more with AI assistance
 // =============================================================================
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { 
   X, 
   Sparkles, 
@@ -992,15 +992,18 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
                   : 'border-slate-300 hover:border-slate-400'
             }`}
           >
-            {/* Preview placeholder - will show actual generated image */}
-            <div 
-              className="absolute inset-0 flex items-center justify-center"
-              style={{ backgroundColor: primaryColor + '30' }}
-            >
-              <div className="text-center">
-                <div className="text-4xl mb-2">{DESIGN_TYPES.find(t => t.id === designType)?.icon}</div>
-                <div className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{teamName}</div>
-                <div className={`text-xs ${theme === 'dark' ? 'text-slate-300' : 'text-slate-500'}`}>Variation {idx + 1}</div>
+            {/* Render actual design preview */}
+            <DesignPreviewCanvas 
+              elements={design.elements} 
+              width={outputSize === 'custom' ? customWidth : FLYER_SIZES[outputSize].width}
+              height={outputSize === 'custom' ? customHeight : FLYER_SIZES[outputSize].height}
+              backgroundColor={secondaryColor}
+            />
+            
+            {/* Variation label */}
+            <div className="absolute bottom-2 left-2 right-2 text-center">
+              <div className={`text-xs px-2 py-1 rounded bg-black/60 ${theme === 'dark' ? 'text-white' : 'text-white'}`}>
+                Variation {idx + 1}
               </div>
             </div>
             
@@ -1468,5 +1471,133 @@ function createMockElements(
   
   return elements;
 }
+
+// =============================================================================
+// DESIGN PREVIEW CANVAS - Renders design elements to a canvas for preview
+// =============================================================================
+
+interface DesignPreviewCanvasProps {
+  elements: DesignElement[];
+  width: number;
+  height: number;
+  backgroundColor: string;
+  className?: string;
+}
+
+const DesignPreviewCanvas: React.FC<DesignPreviewCanvasProps> = ({ 
+  elements, 
+  width, 
+  height, 
+  backgroundColor,
+  className 
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Set canvas size to match container aspect ratio
+    const containerSize = 300; // Preview size
+    const scale = containerSize / Math.max(width, height);
+    const scaledWidth = width * scale;
+    const scaledHeight = height * scale;
+    
+    canvas.width = scaledWidth;
+    canvas.height = scaledHeight;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, scaledWidth, scaledHeight);
+    
+    // Apply scale
+    ctx.scale(scale, scale);
+    
+    // Sort elements by zIndex
+    const sortedElements = [...elements].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+    
+    // Render each element
+    sortedElements.forEach(element => {
+      if (!element.visible) return;
+      
+      ctx.save();
+      ctx.globalAlpha = (element.opacity ?? 100) / 100;
+      
+      const { x, y } = element.position;
+      const { width: w, height: h } = element.size;
+      
+      // Handle rotation
+      if (element.rotation) {
+        ctx.translate(x + w / 2, y + h / 2);
+        ctx.rotate((element.rotation * Math.PI) / 180);
+        ctx.translate(-(x + w / 2), -(y + h / 2));
+      }
+      
+      if (element.type === 'shape') {
+        ctx.fillStyle = element.backgroundColor || element.color || '#6366f1';
+        
+        const radius = element.borderRadius || 0;
+        if (radius > 0 && ctx.roundRect) {
+          ctx.beginPath();
+          ctx.roundRect(x, y, w, h, Math.min(radius, Math.min(w, h) / 2));
+          ctx.fill();
+        } else {
+          ctx.fillRect(x, y, w, h);
+        }
+      } else if (element.type === 'text') {
+        // Draw text background if set
+        if (element.backgroundColor && element.backgroundColor !== 'transparent') {
+          ctx.fillStyle = element.backgroundColor;
+          ctx.fillRect(x, y, w, h);
+        }
+        
+        // Draw text
+        const fontSize = element.fontSize || 24;
+        const fontFamily = element.fontFamily || 'Arial';
+        const fontWeight = element.fontWeight || 'normal';
+        ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+        ctx.fillStyle = element.color || '#ffffff';
+        ctx.textAlign = (element.textAlign as CanvasTextAlign) || 'left';
+        ctx.textBaseline = 'top';
+        
+        // Calculate text position based on alignment
+        let textX = x;
+        if (element.textAlign === 'center') textX = x + w / 2;
+        else if (element.textAlign === 'right') textX = x + w;
+        
+        // Simple text rendering with word wrap
+        const words = (element.content || '').split(' ');
+        let line = '';
+        let lineY = y + fontSize * 0.2;
+        const lineHeight = fontSize * (element.lineHeight || 1.2);
+        
+        words.forEach((word: string) => {
+          const testLine = line + word + ' ';
+          const metrics = ctx.measureText(testLine);
+          if (metrics.width > w && line !== '') {
+            ctx.fillText(line.trim(), textX, lineY);
+            line = word + ' ';
+            lineY += lineHeight;
+          } else {
+            line = testLine;
+          }
+        });
+        ctx.fillText(line.trim(), textX, lineY);
+      }
+      
+      ctx.restore();
+    });
+  }, [elements, width, height, backgroundColor]);
+  
+  return (
+    <canvas 
+      ref={canvasRef} 
+      className={`w-full h-full object-contain ${className || ''}`}
+      style={{ display: 'block' }}
+    />
+  );
+};
 
 export default AICreatorModal;
