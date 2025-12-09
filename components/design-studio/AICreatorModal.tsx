@@ -303,7 +303,60 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
         throw new Error(canUse.reason || `Not enough credits. You need ${creditsPerGenerate} credits to generate designs.`);
       }
       
-      // Consume the feature (deduct credits)
+      // Build the prompt
+      const prompt = buildPrompt();
+      console.log('AI Prompt:', prompt);
+      
+      // Get the actual dimensions for the selected size
+      const actualWidth = outputSize === 'custom' ? customWidth : FLYER_SIZES[outputSize].width;
+      const actualHeight = outputSize === 'custom' ? customHeight : FLYER_SIZES[outputSize].height;
+      
+      // Call the real AI generation API
+      setGenerationStep('Generating AI designs...');
+      
+      let aiImages: { url: string; revisedPrompt?: string }[] = [];
+      let usedRealAI = false;
+      
+      try {
+        const response = await fetch('/.netlify/functions/generate-ai-design', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${userData.uid}`,
+          },
+          body: JSON.stringify({
+            prompt,
+            width: actualWidth,
+            height: actualHeight,
+            designType: designType!,
+            style,
+            mood,
+            numVariations: 3,
+          }),
+        });
+        
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          
+          if (response.ok && data.success && data.images?.length > 0) {
+            aiImages = data.images;
+            usedRealAI = true;
+            console.log('AI Generation successful:', data.images.length, 'images');
+          } else if (data.error) {
+            console.warn('AI Generation returned error:', data.error, data.details);
+            // Fall back to mock if AI fails
+          }
+        } else {
+          console.warn('AI endpoint returned non-JSON response');
+        }
+      } catch (aiError) {
+        console.warn('AI generation failed, using fallback:', aiError);
+        // Continue to fallback mock generation
+      }
+      
+      // Consume credits AFTER successful generation (or fallback)
+      setGenerationStep('Processing...');
       const consumed = await consumeFeature('ai_design_generate', {
         itemName: `AI Design Generation: ${DESIGN_TYPES.find(t => t.id === designType)?.label}`,
       });
@@ -315,53 +368,45 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
       // Refresh balance after consuming
       await refreshBalance();
       
-      // Simulate generation steps
-      const steps = [
-        'Analyzing your brief...',
-        'Generating design concepts...',
-        'Applying your brand colors...',
-        'Adding text elements...',
-        'Finalizing layout...',
-      ];
+      // Create designs - either from AI or fallback to mock
+      let designs: GeneratedDesign[];
       
-      for (const step of steps) {
-        setGenerationStep(step);
-        await new Promise(resolve => setTimeout(resolve, 800));
+      if (usedRealAI && aiImages.length > 0) {
+        // Use real AI-generated images
+        designs = aiImages.map((img, idx) => ({
+          id: generateId(),
+          imageUrl: img.url,
+          prompt: img.revisedPrompt || prompt,
+          elements: [], // AI images don't need mock elements
+        }));
+      } else {
+        // Fallback to mock generation with improved messaging
+        console.log('Using mock generation (AI not available)');
+        setGenerationStep('Creating design previews...');
+        
+        designs = [1, 2, 3].map(variation => ({
+          id: generateId(),
+          imageUrl: '', // No AI image
+          prompt,
+          elements: createMockElements({
+            designType: designType!,
+            teamName,
+            primaryColor,
+            secondaryColor,
+            width: actualWidth,
+            height: actualHeight,
+            variation,
+            style,
+            mood,
+            briefText,
+            additionalText,
+            selectedEvent,
+            sport,
+          }),
+        }));
       }
       
-      // Build the prompt
-      const prompt = buildPrompt();
-      console.log('AI Prompt:', prompt);
-      
-      // TODO: Call actual AI API here
-      // For now, create mock generated designs
-      // Get the actual dimensions for the selected size
-      const actualWidth = outputSize === 'custom' ? customWidth : FLYER_SIZES[outputSize].width;
-      const actualHeight = outputSize === 'custom' ? customHeight : FLYER_SIZES[outputSize].height;
-      
-      // Create 3 distinct variations
-      const mockDesigns: GeneratedDesign[] = [1, 2, 3].map(variation => ({
-        id: generateId(),
-        imageUrl: '', // Will be actual generated image from AI
-        prompt,
-        elements: createMockElements({
-          designType: designType!,
-          teamName,
-          primaryColor,
-          secondaryColor,
-          width: actualWidth,
-          height: actualHeight,
-          variation,
-          style,
-          mood,
-          briefText,
-          additionalText,
-          selectedEvent,
-          sport,
-        }),
-      }));
-      
-      setGeneratedDesigns(mockDesigns);
+      setGeneratedDesigns(designs);
       setCurrentStep(5); // Go to results step
       
     } catch (err) {
@@ -389,6 +434,54 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
         throw new Error(canUse.reason || `Not enough credits to refine. You need ${creditsPerGenerate} credits.`);
       }
       
+      // Build refined prompt
+      const basePrompt = buildPrompt();
+      const refinedPrompt = `${basePrompt} Additional feedback: ${refinementFeedback}`;
+      console.log('Refined AI Prompt:', refinedPrompt);
+      
+      // Get dimensions
+      const actualWidth = outputSize === 'custom' ? customWidth : FLYER_SIZES[outputSize].width;
+      const actualHeight = outputSize === 'custom' ? customHeight : FLYER_SIZES[outputSize].height;
+      
+      // Try real AI generation
+      setGenerationStep('Refining designs with AI...');
+      
+      let aiImages: { url: string; revisedPrompt?: string }[] = [];
+      let usedRealAI = false;
+      
+      try {
+        const response = await fetch('/.netlify/functions/generate-ai-design', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${userData.uid}`,
+          },
+          body: JSON.stringify({
+            prompt: refinedPrompt,
+            width: actualWidth,
+            height: actualHeight,
+            designType: designType!,
+            style,
+            mood,
+            numVariations: 3,
+          }),
+        });
+        
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          
+          if (response.ok && data.success && data.images?.length > 0) {
+            aiImages = data.images;
+            usedRealAI = true;
+          } else if (data.error) {
+            console.warn('AI Refinement returned error:', data.error);
+          }
+        }
+      } catch (aiError) {
+        console.warn('AI refinement failed, using fallback:', aiError);
+      }
+      
       // Consume credits for refinement
       const consumed = await consumeFeature('ai_design_generate', {
         itemName: `AI Design Refinement: ${refinementFeedback.substring(0, 30)}...`,
@@ -401,51 +494,41 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
       // Refresh balance after consuming
       await refreshBalance();
       
-      // Simulate refinement steps
-      const steps = [
-        'Analyzing feedback...',
-        'Adjusting design...',
-        'Applying changes...',
-        'Finalizing...',
-      ];
+      // Create refined designs
+      let designs: GeneratedDesign[];
       
-      for (const step of steps) {
-        setGenerationStep(step);
-        await new Promise(resolve => setTimeout(resolve, 600));
+      if (usedRealAI && aiImages.length > 0) {
+        designs = aiImages.map((img) => ({
+          id: generateId(),
+          imageUrl: img.url,
+          prompt: img.revisedPrompt || refinedPrompt,
+          elements: [],
+        }));
+      } else {
+        // Fallback to mock
+        designs = [1, 2, 3].map(variation => ({
+          id: generateId(),
+          imageUrl: '',
+          prompt: refinedPrompt,
+          elements: createMockElements({
+            designType: designType!,
+            teamName,
+            primaryColor,
+            secondaryColor,
+            width: actualWidth,
+            height: actualHeight,
+            variation,
+            style,
+            mood,
+            briefText: `${briefText} ${refinementFeedback}`,
+            additionalText,
+            selectedEvent,
+            sport,
+          }),
+        }));
       }
       
-      // Build refined prompt
-      const basePrompt = buildPrompt();
-      const refinedPrompt = `${basePrompt} Additional feedback: ${refinementFeedback}`;
-      console.log('Refined AI Prompt:', refinedPrompt);
-      
-      // Get dimensions
-      const actualWidth = outputSize === 'custom' ? customWidth : FLYER_SIZES[outputSize].width;
-      const actualHeight = outputSize === 'custom' ? customHeight : FLYER_SIZES[outputSize].height;
-      
-      // Create refined mock designs with variations
-      const mockDesigns: GeneratedDesign[] = [1, 2, 3].map(variation => ({
-        id: generateId(),
-        imageUrl: '',
-        prompt: refinedPrompt,
-        elements: createMockElements({
-          designType: designType!,
-          teamName,
-          primaryColor,
-          secondaryColor,
-          width: actualWidth,
-          height: actualHeight,
-          variation,
-          style,
-          mood,
-          briefText: `${briefText} ${refinementFeedback}`,
-          additionalText,
-          selectedEvent,
-          sport,
-        }),
-      }));
-      
-      setGeneratedDesigns(mockDesigns);
+      setGeneratedDesigns(designs);
       setSelectedDesign(null);
       setRefinementFeedback('');
       
@@ -891,7 +974,18 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
               <input
                 type="number"
                 value={customWidth}
-                onChange={(e) => setCustomWidth(Math.max(100, Math.min(5000, parseInt(e.target.value) || 100)))}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') {
+                    setCustomWidth('' as any); // Allow empty while typing
+                  } else {
+                    setCustomWidth(parseInt(val) || 100);
+                  }
+                }}
+                onBlur={(e) => {
+                  const val = parseInt(e.target.value);
+                  setCustomWidth(Math.max(100, Math.min(5000, val || 1080)));
+                }}
                 min={100}
                 max={5000}
                 className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none ${theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : 'bg-white border-slate-300 text-slate-900'}`}
@@ -902,7 +996,18 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
               <input
                 type="number"
                 value={customHeight}
-                onChange={(e) => setCustomHeight(Math.max(100, Math.min(5000, parseInt(e.target.value) || 100)))}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') {
+                    setCustomHeight('' as any); // Allow empty while typing
+                  } else {
+                    setCustomHeight(parseInt(val) || 100);
+                  }
+                }}
+                onBlur={(e) => {
+                  const val = parseInt(e.target.value);
+                  setCustomHeight(Math.max(100, Math.min(5000, val || 1080)));
+                }}
                 min={100}
                 max={5000}
                 className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none ${theme === 'dark' ? 'bg-zinc-700 border-zinc-600 text-white' : 'bg-white border-slate-300 text-slate-900'}`}

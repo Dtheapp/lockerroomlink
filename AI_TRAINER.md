@@ -516,91 +516,91 @@ Every app we build together must:
 
 > **This section is the "brain dump" from the last session. New AI: Read this first!**
 
-### Last Session: January 21, 2025 (Session 6)
+### Last Session: December 8, 2025
 
-#### 🎉 NIL MARKETPLACE COMPLETE + BUG FIXES
+#### 🎨 AI CREATOR & DESIGN STUDIO FIXES
 
-**Full NIL (Name, Image, Likeness) marketplace system built and deployed.**
+**Fixed AI Creator to actually use prompt data and added unsaved changes warning to Design Studio.**
 
 #### ✅ COMPLETED THIS SESSION
 
-1. **NIL Marketplace Feature (100% Complete)**
-   - `NILMarketplace.tsx` - Browse/filter listings, fan purchase flow
-   - `NILWalletDashboard.tsx` - Athlete earnings tracking with charts
-   - `AthleteNILManager.tsx` - Create/manage NIL listings
-   - `services/nil.ts` - Full CRUD operations, Stripe integration ready
+1. **AI Creator Modal - Prompt Integration (components/design-studio/AICreatorModal.tsx)**
+   - `createMockElements` now accepts params object with: `briefText`, `additionalText`, `selectedEvent`, `sport`
+   - Subtitle generation priority: additionalText > selectedEvent > extracted brief text > default
+   - Added sport-specific icons: ⚾🏀🏈⚽🏐🎾🏒🥍🏊🏃🤼🤸📣
+   - Brief text displays as tagline if ≤60 chars
+   - Credit balance shows loading state ("...") while fetching
+   - Added `refreshBalance()` call on modal mount
 
-2. **TypeScript Error Fixes (commit b170f33)**
-   | File | Fix |
-   |------|-----|
-   | `MyTickets.tsx` | Button variant 'outline' → 'ghost' |
-   | `NILWalletDashboard.tsx` | Added `source: 'legacy'` to demo deals, added missing icons |
-   | `NILMarketplace.tsx` | Removed invalid query options, fixed 'fan' → 'Fan' role checks |
-   | `AthleteNILManager.tsx` | Removed Badge size props, fixed variants, added isActive |
-   | `services/fundraising.ts` | Removed duplicate type imports |
+2. **Design Studio - Unsaved Changes (components/design-studio/DesignStudioPro.tsx)**
+   - Integrated `useUnsavedChanges` context
+   - Added `beforeunload` browser warning for unsaved changes
+   - `hasChanges` flag tracks element modifications
+   - Clears flag on successful save or when loading existing design
 
-#### 🔧 KEY FILES CREATED/MODIFIED
+3. **Credits Hook - Debug Logging (hooks/useCredits.ts)**
+   - Added console logging: `[useCredits] Loading balance for user:`, `[useCredits] Loaded balance:`
+   - Helps debug why credit balance might show 0
 
-| File | Purpose |
+#### 🔧 KEY FILES MODIFIED
+
+| File | Changes |
 |------|---------|
-| `components/NILMarketplace.tsx` | Fan-facing marketplace for NIL deals |
-| `components/NILWalletDashboard.tsx` | Athlete earnings dashboard |
-| `components/AthleteNILManager.tsx` | Athlete listing management |
-| `services/nil.ts` | NIL service with Firestore operations |
+| `components/design-studio/AICreatorModal.tsx` | createMockElements params, sport icons, brief text integration |
+| `components/design-studio/DesignStudioPro.tsx` | Unsaved changes warning, beforeunload event |
+| `hooks/useCredits.ts` | Debug logging for balance loading |
 
-#### 📍 CURRENT STATE
+#### 📍 KNOWN ISSUES (User Reported)
 
-```
-✅ Phase 1: Pilot Ready - COMPLETE
-✅ NIL Marketplace - COMPLETE
-   ├── Athlete Listing Creation ✅
-   ├── Marketplace Browse/Filter ✅
-   ├── Wallet Dashboard ✅
-   ├── Purchase Flow (Stripe ready) ✅
-   └── Earnings Tracking ✅
-
-⏳ Phase 2: Revenue Foundation - IN PROGRESS
-   ├── Stripe Integration (NIL ready, needs keys)
-   ├── Premium Subscriptions ($24.99/mo per team)
-   ├── Parent Photo Purchases
-   └── Event Ticket Sales
-```
+1. **Credit balance showing 0** - Added logging to debug. Actual balance is 92.
+2. **Credits not deducting** - Code looks correct, may need to check Firestore data
+3. **Save error** - User reported error on save (need actual error message)
+4. **Generic designs** - Fixed by passing briefText to createMockElements
 
 #### 💡 IMPORTANT CONTEXT FOR NEW AI
 
-**Component Props (VERIFIED):**
-- **Badge:** Variants: `'default' | 'primary' | 'gold' | 'success' | 'live' | 'coming' | 'warning' | 'error'` - NO size prop!
-- **Button:** Variants: `'primary' | 'gold' | 'ghost'` - NO 'outline'!
-- **UserRole:** `'Coach' | 'Parent' | 'Fan' | 'SuperAdmin'` - Capital letters!
+**AI Creator Flow:**
+1. User selects design type (Step 1)
+2. User uploads reference images (Step 2) 
+3. User fills brief: team name, colors, sport, style, mood, briefText (Step 3)
+4. Advanced options: size, additionalText, avoidElements (Step 4)
+5. Generate creates 3 variations using `createMockElements()`
+6. Results show `DesignPreviewCanvas` components
 
-**NIL Types:**
+**createMockElements Parameters:**
 ```typescript
-// NILDeal requires source field
-source: 'listing' | 'offer' | 'recorded' | 'legacy'
-
-// NILDealType icons needed for all types
-const dealTypeIcons = {
-  'merchandise': '👕', 'social_post': '📱', 'appearance': '🎤',
-  'camp_clinic': '🏀', 'autograph': '✍️', 'shoutout': '📣', 'custom': '🎯'
+interface CreateMockElementsParams {
+  designType: DesignType;
+  teamName: string;
+  primaryColor: string;
+  secondaryColor: string;
+  width: number;
+  height: number;
+  variation?: number;      // 1, 2, or 3
+  style?: StylePreset;     // 'modern', 'vintage', 'playful', etc.
+  mood?: MoodPreset;       // 'energetic', 'celebratory', 'fun', etc.
+  briefText?: string;      // User's description
+  additionalText?: string; // Specific text to include
+  selectedEvent?: string;  // Event name
+  sport?: string;          // Sport type for icons
 }
 ```
 
-**Tests Status:** Build passes ✅
+**Credit System:**
+- `ai_design_generate` = 5 credits per use, 1 free use per month
+- `useCredits` hook returns: `{ balance, loading, checkFeature, consumeFeature, refreshBalance, getFeaturePricing }`
 
-**Dev Server:** http://localhost:3001/
+#### 🎯 USER'S PREFERENCES (This Session)
 
-**Domain:** osys.team (live)
-
-#### 🎯 USER'S LAST REQUEST
-
-"update training" - Updated AI_TRAINER.md with session context
+- **Only push to git when explicitly told**
+- **Only start dev server after successful builds**
 
 #### 🚧 NEXT UP
 
-1. Connect Stripe keys to enable real NIL payments
-2. Premium team subscriptions
-3. Parent photo purchases
-4. Event ticket sales---
+1. Test AI Creator with actual prompts - verify designs vary
+2. Debug credit balance display (check browser console for `[useCredits]` logs)
+3. Get actual save error message to fix save functionality
+4. Continue Marketing Hub integration---
 
 ## 🎨 OSYS DESIGN SYSTEM REFERENCE
 
@@ -683,5 +683,5 @@ border-l-orange-500 → border-l-purple-500
 *Developer: FEGROX*  
 *Mission: Top 10 Global Innovator*  
 *AI Partnership Started: December 1, 2024*  
-*Last Updated: January 20, 2025*  
+*Last Updated: December 8, 2025*  
 *Projects: SmartDefi, CryptoBall, OSYS, FEG Token*

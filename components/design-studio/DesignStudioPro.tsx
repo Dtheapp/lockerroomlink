@@ -2,7 +2,6 @@
 // DESIGN STUDIO PRO - World-class flyer designer
 // Full drag-drop-resize-delete element system
 // =============================================================================
-
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase';
