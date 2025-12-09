@@ -661,7 +661,6 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
         visible: true,
         locked: false,
         zIndex: 0,
-        name: 'AI Generated Design',
       };
       elements = [aiImageElement];
     }
@@ -1698,6 +1697,7 @@ function createMockElements(params: CreateMockElementsParams): DesignElement[] {
     'player-spotlight': ['PLAYER OF THE WEEK', 'MVP SPOTLIGHT', 'STAR PLAYER'],
     'announcement': ['ANNOUNCEMENT', 'NEWS UPDATE', 'IMPORTANT'],
     'celebration': ['CHAMPIONS!', 'VICTORY!', 'WE WON!'],
+    'uniform': ['TEAM UNIFORM', 'OFFICIAL GEAR', 'GAME READY'],
   };
   
   // Use additionalText, selectedEvent, or extract key phrases from briefText

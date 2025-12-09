@@ -17,19 +17,7 @@ interface GeneratedImage {
 }
 
 const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
-  // Only allow POST
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-      body: JSON.stringify({ error: 'Method not allowed' }),
-    };
-  }
-
-  // Handle CORS preflight
+  // Handle CORS preflight first
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
@@ -39,6 +27,18 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
       },
       body: '',
+    };
+  }
+
+  // Only allow POST
+  if (event.httpMethod !== 'POST') {
+    return {
+      statusCode: 405,
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+      body: JSON.stringify({ error: 'Method not allowed' }),
     };
   }
 
