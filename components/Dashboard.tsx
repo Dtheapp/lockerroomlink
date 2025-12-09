@@ -8,11 +8,12 @@ import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { getSportConfig } from '../config/sportConfig';
 import type { SportType } from '../types';
-import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle, Minus, ExternalLink, Copy, Link as LinkIcon, Users, Crown, User, Image, FileText, Paperclip, Zap, Radio } from 'lucide-react';
+import { Clipboard, Check, Plus, TrendingUp, Edit2, Trash2, MapPin, Calendar, Trophy, Medal, Sword, Shield, Clock, X, MessageSquare, Info, AlertCircle, Minus, ExternalLink, Copy, Link as LinkIcon, Users, Crown, User, Image, FileText, Paperclip, Zap, Radio, AlertTriangle } from 'lucide-react';
 import type { BulletinPost, PlayerSeasonStats, TeamEvent, UserProfile, LiveStream } from '../types';
 import { GoLiveModal, LiveStreamBanner, LiveStreamViewer, SaveStreamToLibraryModal } from './livestream';
 import SeasonManager from './SeasonManager';
 import { TeamRulesInfo } from './TeamRulesInfo';
+import { HeadCoachInfractionDashboard } from './headcoach/HeadCoachInfractionDashboard';
 
 // Helper: Format date string (YYYY-MM-DD) to readable format without timezone issues
 const formatEventDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
@@ -114,6 +115,12 @@ const Dashboard: React.FC = () => {
         scorer: getTopPlayer(s => s.tds || 0)
     };
   }, [playerStats]);
+
+  // Check if current user is the head coach (for infraction dashboard access)
+  const isCurrentUserHeadCoach = useMemo(() => {
+    if (!user?.uid || !teamData) return false;
+    return teamData.headCoachId === user.uid || teamData.coachId === user.uid;
+  }, [user?.uid, teamData?.headCoachId, teamData?.coachId]);
 
   useEffect(() => {
     if (!teamData?.id) return;
@@ -1587,6 +1594,16 @@ const Dashboard: React.FC = () => {
             teamId={teamData.id}
             canEditTeamRules={userData?.role === 'Coach' || userData?.role === 'SuperAdmin'}
             canEditLeagueRules={userData?.role === 'LeagueOwner' || userData?.role === 'SuperAdmin'}
+          />
+        </div>
+      )}
+
+      {/* HEAD COACH INFRACTION DASHBOARD */}
+      {teamData?.id && isCurrentUserHeadCoach && (
+        <div className="order-4">
+          <HeadCoachInfractionDashboard 
+            teamId={teamData.id}
+            teamName={teamData.name || 'Team'}
           />
         </div>
       )}

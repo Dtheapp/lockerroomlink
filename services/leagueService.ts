@@ -752,12 +752,14 @@ export const createInfraction = async (
   const infractionRef = doc(collection(db, 'infractions'));
   const threadRef = doc(collection(db, 'infractionThreads'));
   
-  // Get team director (head coach) info
+  // Get team director and head coach info
   const teamDoc = await getDoc(doc(db, 'teams', infractionData.teamId));
   const teamData = teamDoc.data();
-  const teamDirectorId = teamData?.headCoachId || teamData?.coachId;
+  const teamDirectorId = teamData?.coachId; // Team director is the owner/manager
+  const headCoachId = teamData?.headCoachId; // Head coach is separate from director
+  const headCoachName = teamData?.headCoachName;
   
-  // Create thread for 3-way communication
+  // Create thread for 4-way communication: League, Referee, Team Director, Head Coach
   const threadData: Omit<InfractionThread, 'id'> = {
     infractionId: infractionRef.id,
     participants: {
@@ -766,12 +768,15 @@ export const createInfraction = async (
       refereeName: infractionData.reportedByName,
       teamDirectorId: teamDirectorId || undefined,
       teamId: infractionData.teamId,
+      headCoachId: headCoachId || undefined,
+      headCoachName: headCoachName || undefined,
     },
     status: 'active',
     createdAt: serverTimestamp() as any,
     unreadByLeague: 1,
     unreadByReferee: 0,
     unreadByTeam: 1,
+    unreadByHeadCoach: headCoachId ? 1 : 0, // Only count if head coach exists
   };
   
   batch.set(threadRef, threadData);
@@ -921,7 +926,7 @@ export const sendInfractionMessage = async (
   threadId: string,
   senderId: string,
   senderName: string,
-  senderRole: 'league' | 'referee' | 'team',
+  senderRole: 'league' | 'referee' | 'team' | 'headcoach',
   content: string,
   attachments?: InfractionMessage['attachments']
 ): Promise<string> => {
@@ -948,6 +953,7 @@ export const sendInfractionMessage = async (
   if (senderRole !== 'league') unreadUpdates['unreadByLeague'] = (await getDoc(doc(db, 'infractionThreads', threadId))).data()?.unreadByLeague + 1 || 1;
   if (senderRole !== 'referee') unreadUpdates['unreadByReferee'] = (await getDoc(doc(db, 'infractionThreads', threadId))).data()?.unreadByReferee + 1 || 1;
   if (senderRole !== 'team') unreadUpdates['unreadByTeam'] = (await getDoc(doc(db, 'infractionThreads', threadId))).data()?.unreadByTeam + 1 || 1;
+  if (senderRole !== 'headcoach') unreadUpdates['unreadByHeadCoach'] = (await getDoc(doc(db, 'infractionThreads', threadId))).data()?.unreadByHeadCoach + 1 || 1;
   
   batch.update(doc(db, 'infractionThreads', threadId), unreadUpdates);
   
@@ -972,8 +978,11 @@ export const getInfractionMessages = async (threadId: string): Promise<Infractio
 /**
  * Mark messages as read for a user
  */
-export const markInfractionMessagesRead = async (threadId: string, userId: string, role: 'league' | 'referee' | 'team'): Promise<void> => {
-  const resetField = role === 'league' ? 'unreadByLeague' : role === 'referee' ? 'unreadByReferee' : 'unreadByTeam';
+export const markInfractionMessagesRead = async (threadId: string, userId: string, role: 'league' | 'referee' | 'team' | 'headcoach'): Promise<void> => {
+  const resetField = role === 'league' ? 'unreadByLeague' 
+    : role === 'referee' ? 'unreadByReferee' 
+    : role === 'headcoach' ? 'unreadByHeadCoach'
+    : 'unreadByTeam';
   
   await updateDoc(doc(db, 'infractionThreads', threadId), {
     [resetField]: 0,
@@ -992,10 +1001,11 @@ export const getInfractionThread = async (threadId: string): Promise<InfractionT
 /**
  * Get infraction threads for a user
  */
-export const getInfractionThreadsForUser = async (userId: string, role: 'league' | 'referee' | 'team'): Promise<InfractionThread[]> => {
+export const getInfractionThreadsForUser = async (userId: string, role: 'league' | 'referee' | 'team' | 'headcoach'): Promise<InfractionThread[]> => {
   let fieldPath: string;
   if (role === 'league') fieldPath = 'participants.leagueRepId';
   else if (role === 'referee') fieldPath = 'participants.refereeId';
+  else if (role === 'headcoach') fieldPath = 'participants.headCoachId';
   else fieldPath = 'participants.teamDirectorId';
   
   const snapshot = await getDocs(

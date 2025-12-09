@@ -78,6 +78,9 @@ const DesignStudio = lazyWithRetry(() => import('./components/DesignStudio'));
 // Marketing Hub
 const MarketingHub = lazyWithRetry(() => import('./components/MarketingHub'));
 
+// Progress Tracking Page
+const ProgressPage = lazyWithRetry(() => import('./components/ProgressPage'));
+
 // Lazy-loaded pages for code splitting (reduces initial bundle size)
 const Dashboard = lazyWithRetry(() => import('./components/Dashboard'));
 const Roster = lazyWithRetry(() => import('./components/Roster'));
@@ -234,6 +237,7 @@ const AppContent: React.FC = () => {
           <Route path="/fundraising/:campaignId" element={<CampaignDetail />} />
           <Route path="/nil-wallet" element={<NILWalletDashboard />} />
           <Route path="/nil-marketplace" element={<NILMarketplace />} />
+          <Route path="/progress" element={<ProgressPage />} />
           
           {!user ? (
             <>

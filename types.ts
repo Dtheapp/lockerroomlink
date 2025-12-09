@@ -262,15 +262,17 @@ export interface InfractionThread {
   id: string;
   infractionId: string;
   
-  // Participants (3-way: League, Referee, Team Director)
+  // Participants (4-way: League, Referee, Team Director/Commissioner, Head Coach)
   participants: {
     leagueId: string;
     leagueRepId?: string;       // Commissioner handling it
     leagueRepName?: string;
     refereeId: string;
     refereeName?: string;
-    teamDirectorId?: string;    // Head coach or program commissioner
+    teamDirectorId?: string;    // Program commissioner (if team is in a program)
     teamDirectorName?: string;
+    headCoachId?: string;       // Team head coach
+    headCoachName?: string;
     teamId: string;
   };
   
@@ -281,6 +283,7 @@ export interface InfractionThread {
   unreadByLeague?: number;
   unreadByReferee?: number;
   unreadByTeam?: number;
+  unreadByHeadCoach?: number;
 }
 
 export interface InfractionMessage {
@@ -288,7 +291,7 @@ export interface InfractionMessage {
   threadId: string;
   senderId: string;
   senderName: string;
-  senderRole: 'league' | 'referee' | 'team';
+  senderRole: 'league' | 'referee' | 'team' | 'headcoach';
   content: string;
   attachments?: {
     url: string;

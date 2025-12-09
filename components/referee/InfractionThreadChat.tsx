@@ -1,6 +1,6 @@
 /**
  * Infraction Thread Chat
- * 3-way communication between League, Referee, and Team Director
+ * 4-way communication between League, Referee, Team Director, and Head Coach
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -34,7 +34,7 @@ interface InfractionThreadChatProps {
   onClose: () => void;
   infractionId: string;
   threadId: string;
-  userRole: 'league' | 'referee' | 'team';
+  userRole: 'league' | 'referee' | 'team' | 'headcoach';
 }
 
 export const InfractionThreadChat: React.FC<InfractionThreadChatProps> = ({
@@ -160,12 +160,14 @@ export const InfractionThreadChat: React.FC<InfractionThreadChatProps> = ({
     league: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
     referee: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
     team: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+    headcoach: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
   };
 
   const roleLabels = {
     league: 'League',
     referee: 'Referee',
-    team: 'Team',
+    team: 'Team Director',
+    headcoach: 'Head Coach',
   };
 
   return (
@@ -209,7 +211,7 @@ export const InfractionThreadChat: React.FC<InfractionThreadChatProps> = ({
 
           {/* Participants */}
           {thread && (
-            <div className="px-4 pb-3 flex items-center gap-2 text-xs">
+            <div className="px-4 pb-3 flex flex-wrap items-center gap-2 text-xs">
               <Users size={14} className="text-slate-400" />
               <span className="text-slate-400">Participants:</span>
               <span className={`px-2 py-0.5 rounded border ${roleColors.league}`}>
@@ -221,6 +223,11 @@ export const InfractionThreadChat: React.FC<InfractionThreadChatProps> = ({
               <span className={`px-2 py-0.5 rounded border ${roleColors.team}`}>
                 {thread.participants.teamDirectorName || 'Team Director'}
               </span>
+              {thread.participants.headCoachId && (
+                <span className={`px-2 py-0.5 rounded border ${roleColors.headcoach}`}>
+                  {thread.participants.headCoachName || 'Head Coach'}
+                </span>
+              )}
             </div>
           )}
         </div>
