@@ -12,3 +12,5 @@ export { default as SeasonSchedule } from './SeasonSchedule';
 export { default as LeaguePlayoffs } from './LeaguePlayoffs';
 export { default as LeagueStandings } from './LeagueStandings';
 export { default as LeagueSignup } from './LeagueSignup';
+export { default as LeagueInfractions } from './LeagueInfractions';
+export { default as InfractionsList } from './InfractionsList';

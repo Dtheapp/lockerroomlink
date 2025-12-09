@@ -131,6 +131,7 @@ const SeasonSchedule = lazyWithRetry(() => import('./components/league/SeasonSch
 const LeaguePlayoffs = lazyWithRetry(() => import('./components/league/LeaguePlayoffs'));
 const LeagueStandings = lazyWithRetry(() => import('./components/league/LeagueStandings'));
 const LeagueSignup = lazyWithRetry(() => import('./components/league/LeagueSignup'));
+const LeagueInfractions = lazyWithRetry(() => import('./components/league/LeagueInfractions'));
 
 // Public Pages
 const PublicLeaguePage = lazyWithRetry(() => import('./components/public/PublicLeaguePage'));
@@ -304,6 +305,7 @@ const AppContent: React.FC = () => {
                 <Route path="league/seasons" element={<LeagueSeasons />} />
                 <Route path="league/seasons/:seasonId" element={<SeasonSchedule />} />
                 <Route path="league/playoffs" element={<LeaguePlayoffs />} />
+                <Route path="league/infractions" element={<LeagueInfractions />} />
                 <Route path="league/standings" element={<LeagueStandings />} />
                 <Route path="profile" element={<Profile />} />
                 {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}

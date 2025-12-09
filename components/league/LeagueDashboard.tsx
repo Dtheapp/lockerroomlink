@@ -29,7 +29,8 @@ import {
   Loader2,
   Clock,
   CheckCircle2,
-  FileText
+  FileText,
+  AlertTriangle
 } from 'lucide-react';
 
 export const LeagueDashboard: React.FC = () => {
@@ -230,7 +231,7 @@ export const LeagueDashboard: React.FC = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
           <Link
             to="/league/programs"
             className="bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-purple-500/50 rounded-xl p-4 flex flex-col items-center gap-2 transition-all group"
@@ -272,11 +273,21 @@ export const LeagueDashboard: React.FC = () => {
           </Link>
           
           <Link
-            to="/league/requests"
-            className="bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-red-500/50 rounded-xl p-4 flex flex-col items-center gap-2 transition-all group relative"
+            to="/league/infractions"
+            className="bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-red-500/50 rounded-xl p-4 flex flex-col items-center gap-2 transition-all group"
           >
             <div className="w-12 h-12 bg-red-500/20 rounded-xl flex items-center justify-center group-hover:bg-red-500/30 transition-colors">
-              <FileText className="w-6 h-6 text-red-400" />
+              <AlertTriangle className="w-6 h-6 text-red-400" />
+            </div>
+            <span className="text-white font-medium text-sm">Infractions</span>
+          </Link>
+          
+          <Link
+            to="/league/requests"
+            className="bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-orange-500/50 rounded-xl p-4 flex flex-col items-center gap-2 transition-all group relative"
+          >
+            <div className="w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center group-hover:bg-orange-500/30 transition-colors">
+              <FileText className="w-6 h-6 text-orange-400" />
             </div>
             <span className="text-white font-medium text-sm">Requests</span>
             {pendingRequests.length > 0 && (
