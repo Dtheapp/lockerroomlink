@@ -91,7 +91,7 @@ const LotteryWheel: React.FC<{ isSpinning: boolean; winner?: typeof mockLotteryR
   const segmentAngle = 360 / teams.length;
   
   return (
-    <div className="relative w-80 h-80 mx-auto">
+    <div className="relative w-56 h-56 sm:w-64 sm:h-64 md:w-80 md:h-80 mx-auto">
       {/* Outer glow ring */}
       <div className={`absolute -inset-4 rounded-full ${isSpinning ? 'animate-pulse' : ''}`}
            style={{ 
@@ -118,8 +118,9 @@ const LotteryWheel: React.FC<{ isSpinning: boolean; winner?: typeof mockLotteryR
         ))}
         
         {/* Center hub */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-gradient-to-br from-zinc-800 to-zinc-900 border-4 border-white/30 flex items-center justify-center shadow-xl">
-          <Dices size={32} className="text-orange-400" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-zinc-800 to-zinc-900 border-4 border-white/30 flex items-center justify-center shadow-xl">
+          <Dices size={24} className="text-orange-400 md:hidden" />
+          <Dices size={32} className="text-orange-400 hidden md:block" />
         </div>
       </div>
       
@@ -136,52 +137,53 @@ const LotteryTicketWinner: React.FC<{ result: typeof mockLotteryResults[0]; isRe
   return (
     <div className="relative group perspective-1000">
       {/* Ticket glow effect */}
-      <div className={`absolute -inset-2 bg-gradient-to-r from-yellow-400 via-orange-500 to-pink-500 rounded-3xl blur-xl transition-opacity ${isRevealing ? 'opacity-100 animate-pulse' : 'opacity-60 group-hover:opacity-100'}`} />
+      <div className={`absolute -inset-2 bg-gradient-to-r from-yellow-400 via-orange-500 to-pink-500 rounded-2xl sm:rounded-3xl blur-xl transition-opacity ${isRevealing ? 'opacity-100 animate-pulse' : 'opacity-60 group-hover:opacity-100'}`} />
       
       {/* Main ticket */}
-      <div className="relative bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 rounded-3xl border-2 border-yellow-500/50 overflow-hidden shadow-2xl transform transition-transform group-hover:scale-[1.02]">
+      <div className="relative bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 rounded-2xl sm:rounded-3xl border-2 border-yellow-500/50 overflow-hidden shadow-2xl transform transition-transform group-hover:scale-[1.02]">
         {/* Golden header */}
-        <div className="relative bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-500 px-6 py-4">
+        <div className="relative bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-500 px-4 py-3 sm:px-6 sm:py-4">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjMpIi8+PC9zdmc+')] opacity-50" />
           <div className="relative flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                <Trophy size={28} className="text-yellow-900" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                <Trophy size={20} className="text-yellow-900 sm:hidden" />
+                <Trophy size={28} className="text-yellow-900 hidden sm:block" />
               </div>
               <div>
-                <p className="text-yellow-900/80 text-xs font-bold tracking-wider">OSYS DRAFT LOTTERY</p>
-                <p className="text-yellow-900 text-xl font-black">2026 SEASON</p>
+                <p className="text-yellow-900/80 text-[10px] sm:text-xs font-bold tracking-wider">OSYS DRAFT LOTTERY</p>
+                <p className="text-yellow-900 text-base sm:text-xl font-black">2026 SEASON</p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-yellow-900/80 text-xs">WINNING PICK</p>
-              <p className="text-6xl font-black text-yellow-900 leading-none">#{result.position}</p>
+              <p className="text-yellow-900/80 text-[10px] sm:text-xs">WINNING PICK</p>
+              <p className="text-4xl sm:text-6xl font-black text-yellow-900 leading-none">#{result.position}</p>
             </div>
           </div>
         </div>
         
         {/* Perforated edge effect */}
         <div className="flex justify-between px-2 -my-2 relative z-10">
-          {[...Array(20)].map((_, i) => (
-            <div key={i} className="w-4 h-4 rounded-full bg-black" />
+          {[...Array(15)].map((_, i) => (
+            <div key={i} className="w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-black" />
           ))}
         </div>
         
         {/* Winner info section */}
-        <div className="px-8 py-8 bg-gradient-to-b from-zinc-800/50 to-zinc-900">
+        <div className="px-4 py-6 sm:px-8 sm:py-8 bg-gradient-to-b from-zinc-800/50 to-zinc-900">
           {/* Team display */}
-          <div className="flex items-center gap-6 mb-6">
+          <div className="flex items-center gap-4 sm:gap-6 mb-6">
             <div className="relative">
               <div className="absolute -inset-2 rounded-full animate-pulse" style={{ backgroundColor: result.color, opacity: 0.3 }} />
-              <div className="relative w-24 h-24 rounded-full flex items-center justify-center text-6xl shadow-xl"
+              <div className="relative w-16 h-16 sm:w-24 sm:h-24 rounded-full flex items-center justify-center text-4xl sm:text-6xl shadow-xl"
                    style={{ backgroundColor: result.color + '30', border: `3px solid ${result.color}` }}>
                 {result.emoji}
               </div>
             </div>
-            <div className="flex-1">
-              <p className="text-slate-400 text-sm font-medium mb-1">LOTTERY WINNER</p>
-              <h3 className="text-3xl font-black text-white mb-1">{result.team}</h3>
-              <p className="text-slate-500">{result.coach}</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-slate-400 text-xs sm:text-sm font-medium mb-1">LOTTERY WINNER</p>
+              <h3 className="text-xl sm:text-3xl font-black text-white mb-1 truncate">{result.team}</h3>
+              <p className="text-slate-500 text-sm sm:text-base">{result.coach}</p>
             </div>
           </div>
           
@@ -197,30 +199,30 @@ const LotteryTicketWinner: React.FC<{ result: typeof mockLotteryResults[0]; isRe
           </div>
           
           {/* Ticket details */}
-          <div className="mt-6 grid grid-cols-3 gap-4 text-center">
-            <div className="bg-zinc-800/50 rounded-xl p-3">
-              <p className="text-xs text-slate-500">DRAFT DATE</p>
-              <p className="text-white font-bold">March 15</p>
+          <div className="mt-4 sm:mt-6 grid grid-cols-3 gap-2 sm:gap-4 text-center">
+            <div className="bg-zinc-800/50 rounded-lg sm:rounded-xl p-2 sm:p-3">
+              <p className="text-[10px] sm:text-xs text-slate-500">DRAFT DATE</p>
+              <p className="text-white font-bold text-xs sm:text-base">March 15</p>
             </div>
-            <div className="bg-zinc-800/50 rounded-xl p-3">
-              <p className="text-xs text-slate-500">LOTTERY #</p>
-              <p className="text-orange-400 font-mono font-bold">L-2026-001</p>
+            <div className="bg-zinc-800/50 rounded-lg sm:rounded-xl p-2 sm:p-3">
+              <p className="text-[10px] sm:text-xs text-slate-500">LOTTERY #</p>
+              <p className="text-orange-400 font-mono font-bold text-xs sm:text-base">L-2026-001</p>
             </div>
-            <div className="bg-zinc-800/50 rounded-xl p-3">
-              <p className="text-xs text-slate-500">LEAGUE</p>
-              <p className="text-white font-bold truncate">Thunder Youth</p>
+            <div className="bg-zinc-800/50 rounded-lg sm:rounded-xl p-2 sm:p-3">
+              <p className="text-[10px] sm:text-xs text-slate-500">LEAGUE</p>
+              <p className="text-white font-bold truncate text-xs sm:text-base">Thunder Youth</p>
             </div>
           </div>
         </div>
         
         {/* Bottom barcode section */}
-        <div className="bg-zinc-950 px-8 py-4 flex items-center justify-between border-t border-white/5">
-          <div className="flex gap-1">
-            {[...Array(30)].map((_, i) => (
-              <div key={i} className="w-1 bg-white/80" style={{ height: Math.random() * 20 + 20 }} />
+        <div className="bg-zinc-950 px-4 py-3 sm:px-8 sm:py-4 flex items-center justify-between border-t border-white/5">
+          <div className="flex gap-0.5 sm:gap-1">
+            {[...Array(20)].map((_, i) => (
+              <div key={i} className="w-0.5 sm:w-1 bg-white/80" style={{ height: Math.random() * 15 + 15 }} />
             ))}
           </div>
-          <p className="text-slate-600 text-xs font-mono">OSYS-2026-DRAFT-LOTTERY-VERIFIED</p>
+          <p className="text-slate-600 text-[10px] sm:text-xs font-mono">OSYS-2026-LOTTERY</p>
         </div>
       </div>
     </div>
@@ -232,16 +234,17 @@ const LotteryResultsBoard: React.FC = () => {
   const [revealedPositions, setRevealedPositions] = useState<number[]>([4, 3, 2, 1]);
   
   return (
-    <div className="bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 rounded-3xl border border-white/10 overflow-hidden">
+    <div className="bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 rounded-2xl sm:rounded-3xl border border-white/10 overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-orange-600 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-            <Shuffle size={24} className="text-white" />
+      <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-orange-600 px-4 py-3 sm:px-6 sm:py-4">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-white/20 flex items-center justify-center">
+            <Shuffle size={18} className="text-white sm:hidden" />
+            <Shuffle size={24} className="text-white hidden sm:block" />
           </div>
           <div>
-            <h3 className="text-white font-bold text-lg">DRAFT LOTTERY RESULTS</h3>
-            <p className="text-white/70 text-sm">2026 Thunder Youth Football League</p>
+            <h3 className="text-white font-bold text-sm sm:text-lg">DRAFT LOTTERY RESULTS</h3>
+            <p className="text-white/70 text-xs sm:text-sm">2026 Thunder Youth League</p>
           </div>
         </div>
       </div>
@@ -524,13 +527,30 @@ const FeatureCard: React.FC<{ icon: React.ElementType; title: string; descriptio
 
 // Stat Ring
 const StatRing: React.FC<{ value: number; label: string; color: string }> = ({ value, label, color }) => {
-  const circumference = 2 * Math.PI * 45;
+  const circumference = 2 * Math.PI * 36;
   const offset = circumference - (value / 100) * circumference;
   
   return (
     <div className="flex flex-col items-center">
       <div className="relative">
-        <svg width="120" height="120" className="-rotate-90">
+        {/* Mobile size */}
+        <svg width="90" height="90" className="-rotate-90 sm:hidden">
+          <circle cx="45" cy="45" r="36" fill="none" stroke="currentColor" strokeWidth="6" className="text-zinc-700" />
+          <circle 
+            cx="45" 
+            cy="45" 
+            r="36" 
+            fill="none" 
+            stroke={color} 
+            strokeWidth="6" 
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            className="transition-all duration-1000"
+          />
+        </svg>
+        {/* Desktop size */}
+        <svg width="120" height="120" className="-rotate-90 hidden sm:block">
           <circle cx="60" cy="60" r="45" fill="none" stroke="currentColor" strokeWidth="8" className="text-zinc-700" />
           <circle 
             cx="60" 
@@ -539,17 +559,17 @@ const StatRing: React.FC<{ value: number; label: string; color: string }> = ({ v
             fill="none" 
             stroke={color} 
             strokeWidth="8" 
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
+            strokeDasharray={2 * Math.PI * 45}
+            strokeDashoffset={(2 * Math.PI * 45) - (value / 100) * (2 * Math.PI * 45)}
             strokeLinecap="round"
             className="transition-all duration-1000"
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-2xl font-bold text-white">{value}%</span>
+          <span className="text-lg sm:text-2xl font-bold text-white">{value}%</span>
         </div>
       </div>
-      <span className="text-sm text-slate-400 mt-2">{label}</span>
+      <span className="text-xs sm:text-sm text-slate-400 mt-2 text-center max-w-[80px] sm:max-w-none">{label}</span>
     </div>
   );
 };
@@ -610,7 +630,7 @@ export const DraftDayShowcase: React.FC = () => {
             </div>
             
             {/* Stats Rings */}
-            <div className="flex justify-center gap-12 mb-16">
+            <div className="flex justify-center gap-4 sm:gap-8 md:gap-12 mb-12 sm:mb-16 flex-wrap">
               <StatRing value={animatedStats.engagement} label="Parent Engagement" color="#f97316" />
               <StatRing value={animatedStats.fairness} label="Team Fairness" color="#22c55e" />
               <StatRing value={animatedStats.excitement} label="Player Excitement" color="#a855f7" />
@@ -619,11 +639,11 @@ export const DraftDayShowcase: React.FC = () => {
         </section>
 
         {/* Problem/Solution Section */}
-        <section className="py-20 px-4 bg-gradient-to-b from-transparent via-zinc-900/50 to-transparent">
+        <section className="py-12 sm:py-20 px-4 bg-gradient-to-b from-transparent via-zinc-900/50 to-transparent">
           <div className="max-w-7xl mx-auto">
-            <div className="grid md:grid-cols-2 gap-12">
+            <div className="grid md:grid-cols-2 gap-6 sm:gap-12">
               {/* Problem */}
-              <div className="bg-red-500/10 border border-red-500/30 rounded-3xl p-8">
+              <div className="bg-red-500/10 border border-red-500/30 rounded-2xl sm:rounded-3xl p-5 sm:p-8">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="p-3 bg-red-500/20 rounded-xl">
                     <span className="text-3xl">😤</span>
@@ -677,22 +697,23 @@ export const DraftDayShowcase: React.FC = () => {
         <section className="py-20 px-4 bg-gradient-to-b from-transparent via-purple-900/10 to-transparent overflow-hidden">
           <div className="max-w-7xl mx-auto">
             {/* Section Header */}
-            <div className="text-center mb-16">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 border border-purple-500/30 rounded-full mb-6">
-                <Shuffle size={16} className="text-purple-400" />
-                <span className="text-purple-400 font-medium">Step 1: Determine Pick Order</span>
+            <div className="text-center mb-8 sm:mb-16">
+              <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-purple-500/20 border border-purple-500/30 rounded-full mb-4 sm:mb-6">
+                <Shuffle size={14} className="text-purple-400 sm:hidden" />
+                <Shuffle size={16} className="text-purple-400 hidden sm:block" />
+                <span className="text-purple-400 font-medium text-sm sm:text-base">Step 1: Determine Pick Order</span>
               </div>
-              <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
+              <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold text-white mb-3 sm:mb-4">
                 🎰 Draft Lottery
               </h2>
-              <p className="text-xl text-slate-400 max-w-3xl mx-auto">
+              <p className="text-base sm:text-xl text-slate-400 max-w-3xl mx-auto px-4 sm:px-0">
                 NFL-style lottery system for ultimate fairness. Enable lottery mode and let fate 
                 decide the draft order with a <span className="text-purple-400 font-semibold">live animated reveal</span>.
               </p>
             </div>
             
             {/* Main Lottery Display */}
-            <div className="grid lg:grid-cols-2 gap-12 items-center mb-16">
+            <div className="grid lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-12 items-center mb-8 sm:mb-16">
               {/* Left - Lottery Wheel */}
               <div className="relative">
                 <div className="text-center">
@@ -714,9 +735,9 @@ export const DraftDayShowcase: React.FC = () => {
             </div>
             
             {/* Winner Ticket Showcase */}
-            <div className="mb-16">
-              <div className="text-center mb-8">
-                <h3 className="text-2xl font-bold text-white mb-2">🎫 Winning Lottery Ticket</h3>
+            <div className="mb-8 sm:mb-16">
+              <div className="text-center mb-6 sm:mb-8">
+                <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">🎫 Winning Lottery Ticket</h3>
                 <p className="text-slate-400">What the #1 pick winner sees after the lottery</p>
               </div>
               <div className="max-w-lg mx-auto">
@@ -725,7 +746,7 @@ export const DraftDayShowcase: React.FC = () => {
             </div>
             
             {/* Lottery Benefits Grid */}
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
               {[
                 {
                   icon: Shield,
@@ -764,9 +785,9 @@ export const DraftDayShowcase: React.FC = () => {
             </div>
             
             {/* How It Works */}
-            <div className="mt-16 bg-gradient-to-br from-zinc-800/30 to-zinc-900/30 rounded-3xl border border-white/10 p-8">
-              <h3 className="text-2xl font-bold text-white text-center mb-8">How Lottery Mode Works</h3>
-              <div className="grid md:grid-cols-4 gap-8">
+            <div className="mt-8 sm:mt-16 bg-gradient-to-br from-zinc-800/30 to-zinc-900/30 rounded-2xl sm:rounded-3xl border border-white/10 p-4 sm:p-8">
+              <h3 className="text-xl sm:text-2xl font-bold text-white text-center mb-6 sm:mb-8">How Lottery Mode Works</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8">
                 {[
                   { step: 1, title: 'Enable Lottery', desc: 'Commissioner toggles lottery mode when creating the draft', icon: '⚙️' },
                   { step: 2, title: 'Coaches Join', desc: 'All team coaches join the draft lobby before lottery starts', icon: '👥' },
@@ -774,14 +795,14 @@ export const DraftDayShowcase: React.FC = () => {
                   { step: 4, title: 'Draft Begins', desc: 'With order set, the draft starts immediately', icon: '🏈' },
                 ].map((item) => (
                   <div key={item.step} className="text-center">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 flex items-center justify-center mx-auto mb-4">
-                      <span className="text-3xl">{item.icon}</span>
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 flex items-center justify-center mx-auto mb-2 sm:mb-4">
+                      <span className="text-xl sm:text-3xl">{item.icon}</span>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-purple-500 text-white font-bold flex items-center justify-center mx-auto mb-2">
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-purple-500 text-white font-bold text-xs sm:text-base flex items-center justify-center mx-auto mb-1 sm:mb-2">
                       {item.step}
                     </div>
-                    <h4 className="font-bold text-white mb-1">{item.title}</h4>
-                    <p className="text-sm text-slate-400">{item.desc}</p>
+                    <h4 className="font-bold text-white mb-1 text-sm sm:text-base">{item.title}</h4>
+                    <p className="text-xs sm:text-sm text-slate-400">{item.desc}</p>
                   </div>
                 ))}
               </div>
@@ -790,17 +811,18 @@ export const DraftDayShowcase: React.FC = () => {
         </section>
 
         {/* Live Draft Mockup */}
-        <section id="mockup" className="py-20 px-4">
+        <section id="mockup" className="py-12 sm:py-20 px-4">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500/20 border border-orange-500/30 rounded-full mb-6">
-                <Radio size={16} className="text-orange-400" />
-                <span className="text-orange-400 font-medium">Step 2: Make Your Picks</span>
+            <div className="text-center mb-8 sm:mb-12">
+              <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-orange-500/20 border border-orange-500/30 rounded-full mb-4 sm:mb-6">
+                <Radio size={14} className="text-orange-400 sm:hidden" />
+                <Radio size={16} className="text-orange-400 hidden sm:block" />
+                <span className="text-orange-400 font-medium text-sm sm:text-base">Step 2: Make Your Picks</span>
               </div>
-              <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
+              <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold text-white mb-3 sm:mb-4">
                 Live Draft Experience
               </h2>
-              <p className="text-xl text-slate-400">See how Draft Day will look in action</p>
+              <p className="text-base sm:text-xl text-slate-400">See how Draft Day will look in action</p>
             </div>
             
             {/* Draft Dashboard Mockup */}
