@@ -544,7 +544,27 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
       backgroundImage: undefined,
     };
     
-    onImportDesign(design.elements, canvas, sizeKey);
+    // If we have an AI-generated image URL, create an image element for it
+    let elements = design.elements;
+    if (design.imageUrl && (!elements || elements.length === 0)) {
+      const aiImageElement: DesignElement = {
+        id: generateId(),
+        type: 'image',
+        content: design.imageUrl,
+        imageUrl: design.imageUrl,
+        position: { x: 0, y: 0 },
+        size: { width, height },
+        rotation: 0,
+        opacity: 100,
+        visible: true,
+        locked: false,
+        zIndex: 0,
+        name: 'AI Generated Design',
+      };
+      elements = [aiImageElement];
+    }
+    
+    onImportDesign(elements, canvas, sizeKey);
     onClose();
   }, [selectedDesign, generatedDesigns, outputSize, customWidth, customHeight, onImportDesign, onClose]);
   
@@ -1111,6 +1131,7 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
               width={outputSize === 'custom' ? customWidth : FLYER_SIZES[outputSize].width}
               height={outputSize === 'custom' ? customHeight : FLYER_SIZES[outputSize].height}
               backgroundColor={secondaryColor}
+              imageUrl={design.imageUrl}
             />
             
             {/* Variation label */}
@@ -1708,6 +1729,7 @@ interface DesignPreviewCanvasProps {
   height: number;
   backgroundColor: string;
   className?: string;
+  imageUrl?: string; // For AI-generated images
 }
 
 const DesignPreviewCanvas: React.FC<DesignPreviewCanvasProps> = ({ 
@@ -1715,7 +1737,8 @@ const DesignPreviewCanvas: React.FC<DesignPreviewCanvasProps> = ({
   width, 
   height, 
   backgroundColor,
-  className 
+  className,
+  imageUrl 
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
@@ -1817,6 +1840,19 @@ const DesignPreviewCanvas: React.FC<DesignPreviewCanvasProps> = ({
     });
   }, [elements, width, height, backgroundColor]);
   
+  // If we have an AI-generated image URL, just show the image
+  if (imageUrl) {
+    return (
+      <img 
+        src={imageUrl} 
+        alt="AI Generated Design"
+        className={`w-full h-full object-cover ${className || ''}`}
+        style={{ display: 'block' }}
+        crossOrigin="anonymous"
+      />
+    );
+  }
+
   return (
     <canvas 
       ref={canvasRef} 
