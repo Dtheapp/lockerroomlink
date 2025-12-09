@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppConfig } from '../contexts/AppConfigContext';
+import { useCredits } from '../hooks/useCredits';
 import { collection, addDoc, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp, query, orderBy, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import type { CoachPlay, PlayElement, PlayRoute, OffensePlayType, DefensePlayType, Formation, SystemPlaybook, SystemPlay, SystemFormation, ImportedPlaybook, DrawingLine, PlayShape, LineType, ShapeType } from '../types';
@@ -32,6 +33,7 @@ interface CoachPlaybookProps {
 const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
   const { userData, user } = useAuth();
   const { config } = useAppConfig();
+  const { checkFeature, consumeFeature, getFeaturePricing, balance } = useCredits();
 
   // UI STATE
   const [activeTab, setActiveTab] = useState<'formations' | 'editor' | 'library' | 'import'>('formations');
@@ -858,6 +860,18 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
       showToast('Please select a formation first from the Formations tab', 'error');
       return;
     }
+    
+    // Check credits for NEW plays only (not edits)
+    if (!selectedPlayId) {
+      const creditCheck = await checkFeature('playbook_create_play');
+      if (!creditCheck.canUse) {
+        const pricing = getFeaturePricing('playbook_create_play');
+        const creditsNeeded = pricing?.creditsPerUse ?? 1;
+        showToast(`You need ${creditsNeeded} credit${creditsNeeded > 1 ? 's' : ''} to create a new play. Current balance: ${balance}`, 'error');
+        return;
+      }
+    }
+    
     const playData: Partial<CoachPlay> = { 
       name: playName, 
       notes: playNotes || '',
@@ -885,8 +899,11 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
     
     try {
       if (selectedPlayId) {
+        // EDIT existing play - FREE (no credit charge)
         await setDoc(doc(db, 'users', user.uid, 'plays', selectedPlayId), playData, { merge: true });
       } else {
+        // CREATE new play - consume credits (after free tier)
+        await consumeFeature('playbook_create_play', { itemName: playName });
         playData.createdAt = serverTimestamp();
         const newDoc = await addDoc(collection(db, 'users', user.uid, 'plays'), playData);
         setSelectedPlayId(newDoc.id);

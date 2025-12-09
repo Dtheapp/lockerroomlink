@@ -10,7 +10,7 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-type SignUpRole = 'Parent' | 'Coach' | 'Fan';
+type SignUpRole = 'Parent' | 'Coach' | 'Fan' | 'Commissioner' | 'Ref';
 
 // Floating sport icons for background animation
 const FloatingIcon: React.FC<{ icon: string; delay: number; duration: number; left: string; size: string }> = ({ icon, delay, duration, left, size }) => (
@@ -279,8 +279,30 @@ const AuthScreen: React.FC = () => {
             </button>
           ))}
         </div>
+        <div className="grid grid-cols-2 gap-2 p-1 bg-white/5 rounded-xl border border-white/10">
+          {(['Commissioner', 'Ref'] as SignUpRole[]).map(role => (
+            <button 
+              key={role} 
+              type="button" 
+              onClick={() => setSignUpRole(role)} 
+              className={`py-2.5 px-3 rounded-lg text-sm font-bold transition-all duration-200 ${
+                signUpRole === role 
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg' 
+                  : 'text-white/50 hover:text-white/80 hover:bg-white/5'
+              }`}
+            >
+              {role === 'Commissioner' && '🏆 '}{role === 'Ref' && '🦓 '}{role}
+            </button>
+          ))}
+        </div>
         {signUpRole === 'Fan' && (
           <p className="text-xs text-purple-400 mt-2">🎉 Follow athletes, give kudos, and engage with the community!</p>
+        )}
+        {signUpRole === 'Commissioner' && (
+          <p className="text-xs text-purple-400 mt-2">🏆 Manage leagues, teams, and oversee your youth sports organization!</p>
+        )}
+        {signUpRole === 'Ref' && (
+          <p className="text-xs text-purple-400 mt-2">🦓 Get assigned to games, manage schedules, and officiate matches!</p>
         )}
       </div>
       
@@ -290,17 +312,17 @@ const AuthScreen: React.FC = () => {
           type="text" 
           value={name} 
           onChange={(e) => setName(e.target.value)} 
-          placeholder={signUpRole === 'Coach' ? "Coach Taylor" : signUpRole === 'Fan' ? "SportsFan2024" : "John Smith"} 
+          placeholder={signUpRole === 'Coach' ? "Coach Taylor" : signUpRole === 'Fan' ? "SportsFan2024" : signUpRole === 'Commissioner' ? "Commissioner Jones" : signUpRole === 'Ref' ? "Ref Williams" : "John Smith"} 
           className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 px-4 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
         />
       </div>
       <div className="space-y-1">
-        <label className="block text-sm font-medium text-white/70">{signUpRole === 'Coach' ? 'Coach ID' : signUpRole === 'Fan' ? 'Fan Handle' : 'Username'}</label>
+        <label className="block text-sm font-medium text-white/70">{signUpRole === 'Coach' ? 'Coach ID' : signUpRole === 'Fan' ? 'Fan Handle' : signUpRole === 'Commissioner' ? 'Commissioner ID' : signUpRole === 'Ref' ? 'Ref ID' : 'Username'}</label>
         <input 
           type="text" 
           value={username} 
           onChange={(e) => setUsername(e.target.value)} 
-          placeholder={signUpRole === 'Coach' ? "CoachPrime" : signUpRole === 'Fan' ? "SuperFan23" : "PapaJohn23"} 
+          placeholder={signUpRole === 'Coach' ? "CoachPrime" : signUpRole === 'Fan' ? "SuperFan23" : signUpRole === 'Commissioner' ? "CommishJones" : signUpRole === 'Ref' ? "RefWilliams" : "PapaJohn23"} 
           className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 px-4 text-white placeholder-white/30 font-mono focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
         />
       </div>
@@ -403,7 +425,7 @@ const AuthScreen: React.FC = () => {
                 </h1>
               </div>
             </div>
-            <p className="text-white/70 text-sm tracking-wide font-medium">OSYS — everything your team needs in one powerful platform</p>
+            <p className="text-white/70 text-sm tracking-wide font-medium">OSYS — The Operating System For Youth Sports!</p>
           </div>
 
           {/* Hero content */}
@@ -458,7 +480,7 @@ const AuthScreen: React.FC = () => {
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">OSYS</span>
                 </h1>
               </div>
-              <p className="text-white/70 text-xs tracking-wide">OSYS — everything your team needs in one powerful platform</p>
+              <p className="text-white/70 text-xs tracking-wide">OSYS — The Operating System For Youth Sports!</p>
             </div>
 
             {/* Install banner */}

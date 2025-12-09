@@ -27,6 +27,7 @@ export type CreditFeatureType =
   | 'design_flyer'         // Create flyer/poster
   | 'design_export_hd'     // HD/print export
   | 'playbook_import'      // Import playbook
+  | 'playbook_create_play' // Create new play (after free tier)
   | 'ai_assistant'         // AI coaching assistant
   | 'video_upload'         // Upload video to library
   | 'video_analyze'        // AI video analysis
@@ -337,6 +338,15 @@ export const DEFAULT_FEATURE_PRICING: FeaturePricing[] = [
     creditsPerUse: 5,
     freeUsesPerMonth: 1,
     enabled: false,
+    category: 'playbook',
+  },
+  {
+    featureType: 'playbook_create_play',
+    name: 'Create New Play',
+    description: 'Create a new play in your playbook (formations are free)',
+    creditsPerUse: 1,
+    freeUsesPerMonth: 5,
+    enabled: true,
     category: 'playbook',
   },
   {
