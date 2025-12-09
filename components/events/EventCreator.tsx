@@ -74,6 +74,8 @@ const getDefaultEvent = (teamId: string, duplicateFrom?: Event): Partial<NewEven
     status: 'draft',
     isPublic: true,
     allowInPersonPayment: true,
+    allowPaymentPlan: true,
+    paymentPlanMinDownPayment: 100, // $1.00 minimum
   };
 };
 
@@ -818,6 +820,43 @@ const StepOptions: React.FC<{
               Allow "Pay in Person" option
             </span>
           </label>
+          
+          <label className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={event.allowPaymentPlan || false}
+              onChange={(e) => updateEvent({ allowPaymentPlan: e.target.checked })}
+              className="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
+            />
+            <span className="text-gray-700 dark:text-gray-300">
+              Allow "Pay As You Go" payment plans
+            </span>
+          </label>
+          
+          {event.allowPaymentPlan && (
+            <div className="ml-8 mt-2 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+              <label className="block text-sm font-medium text-purple-800 dark:text-purple-300 mb-2">
+                Minimum Initial Payment
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-purple-600 dark:text-purple-400">$</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  value={((event.paymentPlanMinDownPayment || 100) / 100).toFixed(2)}
+                  onChange={(e) => updateEvent({ 
+                    paymentPlanMinDownPayment: Math.max(100, Math.round(parseFloat(e.target.value || '1') * 100))
+                  })}
+                  className="w-24 px-3 py-1.5 border border-purple-300 dark:border-purple-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500"
+                />
+                <span className="text-sm text-purple-600 dark:text-purple-400">minimum</span>
+              </div>
+              <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
+                Parents can pay any amount ≥ this when starting a payment plan. Balance due before season ends.
+              </p>
+            </div>
+          )}
         </div>
       )}
       

@@ -22,7 +22,9 @@ import {
   MapPin,
   CreditCard,
   Banknote,
-  Mail
+  Mail,
+  Clock,
+  DollarSign
 } from 'lucide-react';
 
 // Registration flow steps
@@ -62,6 +64,11 @@ const RegistrationFlow: React.FC<RegistrationFlowPageProps> = ({ eventProp, onCo
   const [appliedPromoCode, setAppliedPromoCode] = useState<PromoCode | null>(null);
   const [payInPerson, setPayInPerson] = useState(false);
   const [waiverSignatures, setWaiverSignatures] = useState<WaiverSignature[]>([]);
+  
+  // Payment Plan state
+  const [usePaymentPlan, setUsePaymentPlan] = useState(false);
+  const [initialPaymentAmount, setInitialPaymentAmount] = useState<string>('');
+  const [paymentPlanError, setPaymentPlanError] = useState<string | null>(null);
   
   // Order result
   const [completedOrder, setCompletedOrder] = useState<RegistrationOrder | null>(null);
@@ -198,11 +205,32 @@ const RegistrationFlow: React.FC<RegistrationFlowPageProps> = ({ eventProp, onCo
     await completeRegistration('in_person');
   };
 
+  // Handle Payment Plan submission
+  const handlePaymentPlan = async () => {
+    // Validate initial payment amount
+    const initialAmountCents = Math.round(parseFloat(initialPaymentAmount || '0') * 100);
+    const minPayment = event?.paymentPlanMinDownPayment || 100; // Default $1 minimum
+    
+    if (initialAmountCents < minPayment) {
+      setPaymentPlanError(`Minimum initial payment is ${formatPrice(minPayment)}`);
+      return;
+    }
+    
+    if (initialAmountCents > grandTotal) {
+      setPaymentPlanError(`Initial payment cannot exceed total of ${formatPrice(grandTotal)}`);
+      return;
+    }
+    
+    setPaymentPlanError(null);
+    await completeRegistration('payment_plan', undefined, undefined, initialAmountCents);
+  };
+
   // Complete the registration
   const completeRegistration = async (
     method: PaymentMethod,
     paypalOrderId?: string,
-    transactionId?: string
+    transactionId?: string,
+    initialPaymentCents?: number
   ) => {
     if (!event || !user) return;
 
@@ -210,6 +238,21 @@ const RegistrationFlow: React.FC<RegistrationFlowPageProps> = ({ eventProp, onCo
     setError(null);
 
     try {
+      // Determine payment status based on method
+      let paymentStatus: 'pending' | 'completed' | 'partial' = 'completed';
+      let totalPaid = grandTotal;
+      let remainingBalance = 0;
+      
+      if (method === 'in_person') {
+        paymentStatus = 'pending';
+        totalPaid = 0;
+        remainingBalance = grandTotal;
+      } else if (method === 'payment_plan' && initialPaymentCents !== undefined) {
+        paymentStatus = initialPaymentCents >= grandTotal ? 'completed' : 'partial';
+        totalPaid = initialPaymentCents;
+        remainingBalance = grandTotal - initialPaymentCents;
+      }
+      
       // Build order
       const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const order: Omit<RegistrationOrder, 'id'> = {
@@ -222,12 +265,25 @@ const RegistrationFlow: React.FC<RegistrationFlowPageProps> = ({ eventProp, onCo
         totalDiscount: discount,
         grandTotal,
         paymentMethod: method,
-        paymentStatus: method === 'in_person' ? 'pending' : 'completed',
+        paymentStatus,
         paypalOrderId,
         paypalTransactionId: transactionId,
-        paidAt: method !== 'in_person' ? Timestamp.now() : undefined,
+        paidAt: method !== 'in_person' && method !== 'payment_plan' ? Timestamp.now() : undefined,
         createdAt: Timestamp.now(),
-        completedAt: method !== 'in_person' ? Timestamp.now() : undefined,
+        completedAt: paymentStatus === 'completed' ? Timestamp.now() : undefined,
+        // Payment plan fields
+        isPaymentPlan: method === 'payment_plan',
+        totalPaid: method === 'payment_plan' ? totalPaid : (method === 'in_person' ? 0 : grandTotal),
+        remainingBalance: method === 'payment_plan' ? remainingBalance : (method === 'in_person' ? grandTotal : 0),
+        payments: method === 'payment_plan' && initialPaymentCents && initialPaymentCents > 0 ? [{
+          id: `pmt_${Date.now()}`,
+          amount: initialPaymentCents,
+          paidAt: Timestamp.now(),
+          paymentMethod: 'paypal', // Will update when we add actual payment processing
+          recordedBy: user.uid,
+          note: 'Initial payment at registration'
+        }] : undefined,
+        lastPaymentAt: method === 'payment_plan' && initialPaymentCents && initialPaymentCents > 0 ? Timestamp.now() : undefined,
       };
 
       // Build registrations
@@ -235,11 +291,20 @@ const RegistrationFlow: React.FC<RegistrationFlowPageProps> = ({ eventProp, onCo
         ? Math.floor(discount / selectedAthletes.length) 
         : 0;
 
+      // Calculate per-athlete amounts for payment plan
+      const paidPerAthlete = method === 'payment_plan' && totalPaid > 0 
+        ? Math.floor(totalPaid / selectedAthletes.length) 
+        : (method === 'in_person' ? 0 : undefined);
+
       const registrations: Omit<Registration, 'id'>[] = selectedAthletes.map((sa, index) => {
         const athleteFormData = formData.find(fd => fd.athleteId === sa.athlete.id);
         const signature = waiverSignatures.find(ws => 
           ws.athleteName === sa.athlete.name
         );
+        
+        const athleteFinalPrice = sa.price - discountPerAthlete;
+        const athletePaid = paidPerAthlete !== undefined ? paidPerAthlete : athleteFinalPrice;
+        const athleteRemaining = athleteFinalPrice - athletePaid;
 
         return {
           eventId: event.id,
@@ -257,13 +322,17 @@ const RegistrationFlow: React.FC<RegistrationFlowPageProps> = ({ eventProp, onCo
           pricingTierId: sa.pricingTierId,
           originalPrice: sa.price,
           discountAmount: discountPerAthlete,
-          finalPrice: sa.price - discountPerAthlete,
+          finalPrice: athleteFinalPrice,
           promoCodeId: appliedPromoCode?.id,
           promoCodeUsed: appliedPromoCode?.code,
           paymentMethod: method,
-          paymentStatus: method === 'in_person' ? 'pending' : 'completed',
+          paymentStatus,
           paypalOrderId,
           paypalTransactionId: transactionId,
+          // Payment plan fields
+          isPaymentPlan: method === 'payment_plan',
+          totalPaid: method === 'payment_plan' || method === 'in_person' ? athletePaid : undefined,
+          remainingBalance: method === 'payment_plan' || method === 'in_person' ? athleteRemaining : undefined,
           customFieldResponses: athleteFormData?.customFieldResponses || {},
           emergencyContact: athleteFormData?.emergencyContact || {
             name: '',
@@ -274,7 +343,7 @@ const RegistrationFlow: React.FC<RegistrationFlowPageProps> = ({ eventProp, onCo
           waiverAccepted: true,
           waiverAcceptedAt: Timestamp.now(),
           waiverSignature: signature?.signedBy,
-          status: method === 'in_person' ? 'pending_payment' : 'paid',
+          status: paymentStatus === 'completed' ? 'paid' : 'pending_payment',
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
         };
@@ -586,6 +655,107 @@ const RegistrationFlow: React.FC<RegistrationFlowPageProps> = ({ eventProp, onCo
                     </button>
                   </div>
                 )}
+
+                {/* Payment Plan Option */}
+                {event.allowPaymentPlan && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <Clock className="w-5 h-5 text-purple-500" />
+                      <h4 className="font-medium text-gray-900 dark:text-white">
+                        Pay As You Go
+                      </h4>
+                      <span className="ml-auto text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-1 rounded-full">
+                        Payment Plan
+                      </span>
+                    </div>
+                    
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                      Start with a down payment and pay the rest before the season ends. 
+                      Minimum initial payment: {formatPrice(event.paymentPlanMinDownPayment || 100)}
+                    </p>
+                    
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Initial Payment Amount
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                        <input
+                          type="number"
+                          min={(event.paymentPlanMinDownPayment || 100) / 100}
+                          max={grandTotal / 100}
+                          step="0.01"
+                          value={initialPaymentAmount}
+                          onChange={(e) => {
+                            setInitialPaymentAmount(e.target.value);
+                            setPaymentPlanError(null);
+                          }}
+                          placeholder={`${((event.paymentPlanMinDownPayment || 100) / 100).toFixed(2)} - ${(grandTotal / 100).toFixed(2)}`}
+                          className="w-full pl-8 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      
+                      {/* Quick amount buttons */}
+                      <div className="flex gap-2 mt-2">
+                        {[10, 25, 50].map(percent => {
+                          const amount = Math.max(
+                            (event.paymentPlanMinDownPayment || 100),
+                            Math.round(grandTotal * percent / 100)
+                          );
+                          return (
+                            <button
+                              key={percent}
+                              type="button"
+                              onClick={() => setInitialPaymentAmount((amount / 100).toFixed(2))}
+                              className="px-3 py-1 text-xs rounded-full border border-purple-300 dark:border-purple-600 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                            >
+                              {percent}% ({formatPrice(amount)})
+                            </button>
+                          );
+                        })}
+                      </div>
+                      
+                      {paymentPlanError && (
+                        <p className="mt-2 text-sm text-red-500">{paymentPlanError}</p>
+                      )}
+                      
+                      {initialPaymentAmount && parseFloat(initialPaymentAmount) > 0 && (
+                        <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600 dark:text-gray-400">Initial Payment:</span>
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              ${parseFloat(initialPaymentAmount).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-sm mt-1">
+                            <span className="text-gray-600 dark:text-gray-400">Remaining Balance:</span>
+                            <span className="font-medium text-purple-600 dark:text-purple-400">
+                              {formatPrice(Math.max(0, grandTotal - Math.round(parseFloat(initialPaymentAmount) * 100)))}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            Balance due before season ends. You'll receive reminders every 30 days.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <button
+                      onClick={handlePaymentPlan}
+                      disabled={isSubmitting || !initialPaymentAmount || parseFloat(initialPaymentAmount) < ((event.paymentPlanMinDownPayment || 100) / 100)}
+                      className="w-full py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <>
+                          <DollarSign className="w-4 h-4" />
+                          Start Payment Plan
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -614,8 +784,37 @@ const RegistrationFlow: React.FC<RegistrationFlowPageProps> = ({ eventProp, onCo
             <p className="text-gray-600 dark:text-gray-400 mb-8">
               {completedOrder?.paymentStatus === 'pending' 
                 ? 'Your spot has been reserved. Please pay the coach directly.'
-                : 'You\'re all set! A confirmation email has been sent.'}
+                : completedOrder?.paymentStatus === 'partial'
+                  ? 'Your payment plan has started. You\'ll receive reminders for the remaining balance.'
+                  : 'You\'re all set! A confirmation email has been sent.'}
             </p>
+
+            {/* Payment Plan Summary */}
+            {completedOrder?.isPaymentPlan && completedOrder?.remainingBalance && completedOrder.remainingBalance > 0 && (
+              <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4 max-w-md mx-auto mb-6 text-left">
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock className="w-5 h-5 text-purple-500" />
+                  <h4 className="font-medium text-purple-800 dark:text-purple-200">Payment Plan Active</h4>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-purple-700 dark:text-purple-300">Initial Payment:</span>
+                    <span className="font-medium text-purple-900 dark:text-purple-100">
+                      {formatPrice(completedOrder.totalPaid || 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-purple-700 dark:text-purple-300">Remaining Balance:</span>
+                    <span className="font-bold text-purple-900 dark:text-purple-100">
+                      {formatPrice(completedOrder.remainingBalance)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-2 pt-2 border-t border-purple-200 dark:border-purple-700">
+                    Pay the remaining balance before the season ends. Reminders will be sent every 30 days.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 max-w-md mx-auto text-left mb-6">
               <h3 className="font-semibold text-gray-900 dark:text-white mb-4">

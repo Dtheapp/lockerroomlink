@@ -184,6 +184,21 @@ export interface SeasonRegistration {
   paymentId?: string; // Reference to payment transaction
   paidAt?: any;
   
+  // Payment Plan fields
+  isPaymentPlan?: boolean;             // True if using payment plan
+  totalPaid?: number;                  // Amount paid so far (cents)
+  remainingBalance?: number;           // Amount still owed (cents)
+  paymentHistory?: {                   // History of all payments
+    id: string;
+    amount: number;
+    paidAt: any;
+    method: string;
+    note?: string;
+    recordedBy: string;
+  }[];
+  lastPaymentAt?: any;                 // When last payment was made
+  lastPaymentReminderAt?: any;         // When last reminder was sent
+  
   // Waiver
   waiverSigned: boolean;
   waiverSignedAt?: any;

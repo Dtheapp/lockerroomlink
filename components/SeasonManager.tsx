@@ -4,7 +4,7 @@ import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import type { Season, SeasonRegistration, SeasonStatus, SportType } from '../types';
-import { Calendar, Users, DollarSign, Play, Square, CheckCircle, Clock, AlertCircle, ChevronRight, Plus, X, FileText, Palette, Trophy, UserPlus, Settings, CalendarDays } from 'lucide-react';
+import { Calendar, Users, DollarSign, Play, Square, CheckCircle, Clock, AlertCircle, ChevronRight, Plus, X, FileText, Palette, Trophy, UserPlus, Settings, CalendarDays, Info } from 'lucide-react';
 import { GlassCard } from './ui/OSYSComponents';
 import { GameScheduleManager } from './season/GameScheduleManager';
 
@@ -40,6 +40,9 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
   const [showRegistrationsModal, setShowRegistrationsModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [creatingLegacy, setCreatingLegacy] = useState(false);
+  
+  // Payment details popup state
+  const [selectedRegistrationForPayment, setSelectedRegistrationForPayment] = useState<SeasonRegistration | null>(null);
   
   // Form state for new season
   const [newSeason, setNewSeason] = useState({
@@ -1007,51 +1010,93 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {(registrations[selectedSeason.id] || []).map(reg => (
-                    <div
-                      key={reg.id}
-                      className={`p-4 rounded-lg border ${
-                        theme === 'dark' ? 'bg-black/30 border-white/10' : 'bg-zinc-50 border-zinc-200'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
-                            {reg.playerName}
+                  {(registrations[selectedSeason.id] || []).map(reg => {
+                    // Calculate payment status
+                    const hasPaymentPlan = reg.isPaymentPlan;
+                    const isPaidInFull = reg.feePaid || (reg.totalPaid && reg.totalPaid >= reg.feeAmount);
+                    const hasPartialPayment = hasPaymentPlan && reg.totalPaid && reg.totalPaid > 0 && !isPaidInFull;
+                    const remainingAmount = reg.remainingBalance || (reg.feeAmount - (reg.totalPaid || 0));
+                    
+                    return (
+                      <div
+                        key={reg.id}
+                        className={`p-4 rounded-lg border ${
+                          theme === 'dark' ? 'bg-black/30 border-white/10' : 'bg-zinc-50 border-zinc-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                              {reg.playerName}
+                            </div>
+                            <div className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                              Parent: {reg.parentName}
+                            </div>
                           </div>
-                          <div className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                            Parent: {reg.parentName}
+                          <div className="flex items-center gap-2">
+                            {reg.status === 'pending' ? (
+                              <button
+                                onClick={() => handleApproveRegistration(selectedSeason.id, reg)}
+                                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center gap-1 transition-colors"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                                Approve
+                              </button>
+                            ) : (
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                reg.status === 'approved' 
+                                  ? 'bg-green-500/20 text-green-400'
+                                  : reg.status === 'waitlist'
+                                    ? 'bg-yellow-500/20 text-yellow-400'
+                                    : 'bg-red-500/20 text-red-400'
+                              }`}>
+                                {reg.status.charAt(0).toUpperCase() + reg.status.slice(1)}
+                              </span>
+                            )}
+                            
+                            {/* Payment Status Badge - Clickable for details */}
+                            {isPaidInFull ? (
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400">
+                                Paid
+                              </span>
+                            ) : hasPartialPayment ? (
+                              <button
+                                onClick={() => setSelectedRegistrationForPayment(reg)}
+                                className="px-2 py-1 rounded-full text-xs font-medium bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors flex items-center gap-1 cursor-pointer"
+                              >
+                                <Clock className="w-3 h-3" />
+                                Payment Plan
+                                <Info className="w-3 h-3" />
+                              </button>
+                            ) : hasPaymentPlan ? (
+                              <button
+                                onClick={() => setSelectedRegistrationForPayment(reg)}
+                                className="px-2 py-1 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition-colors flex items-center gap-1 cursor-pointer"
+                              >
+                                <AlertCircle className="w-3 h-3" />
+                                No Payments
+                                <Info className="w-3 h-3" />
+                              </button>
+                            ) : reg.feeAmount > 0 ? (
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400">
+                                Unpaid
+                              </span>
+                            ) : null}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {reg.status === 'pending' ? (
-                            <button
-                              onClick={() => handleApproveRegistration(selectedSeason.id, reg)}
-                              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center gap-1 transition-colors"
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                              Approve
-                            </button>
-                          ) : (
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              reg.status === 'approved' 
-                                ? 'bg-green-500/20 text-green-400'
-                                : reg.status === 'waitlist'
-                                  ? 'bg-yellow-500/20 text-yellow-400'
-                                  : 'bg-red-500/20 text-red-400'
-                            }`}>
-                              {reg.status.charAt(0).toUpperCase() + reg.status.slice(1)}
+                        
+                        {/* Show quick payment info if on payment plan */}
+                        {hasPaymentPlan && !isPaidInFull && (
+                          <div className={`mt-2 pt-2 border-t text-xs ${theme === 'dark' ? 'border-white/10 text-zinc-500' : 'border-zinc-200 text-zinc-500'}`}>
+                            Paid: ${((reg.totalPaid || 0) / 100).toFixed(2)} of ${(reg.feeAmount / 100).toFixed(2)} 
+                            <span className="ml-2 text-purple-400">
+                              (${(remainingAmount / 100).toFixed(2)} remaining)
                             </span>
-                          )}
-                          {reg.feePaid && (
-                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400">
-                              Paid
-                            </span>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1091,6 +1136,144 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                   onNavigateToDesignStudio();
                 } : undefined}
               />
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Payment Details Popup */}
+      {selectedRegistrationForPayment && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+          <div className={`w-full max-w-md rounded-2xl border shadow-2xl ${
+            theme === 'dark' ? 'bg-zinc-900/95 border-white/10' : 'bg-white border-zinc-200'
+          }`}>
+            <div className={`p-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
+              <div className="flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-purple-500" />
+                <h3 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                  Payment Details
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedRegistrationForPayment(null)}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  theme === 'dark' ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600'
+                }`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="p-4 space-y-4">
+              {/* Player Info */}
+              <div>
+                <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                  {selectedRegistrationForPayment.playerName}
+                </p>
+                <p className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                  Parent: {selectedRegistrationForPayment.parentName}
+                </p>
+                {selectedRegistrationForPayment.parentEmail && (
+                  <p className={`text-sm ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}`}>
+                    {selectedRegistrationForPayment.parentEmail}
+                  </p>
+                )}
+              </div>
+              
+              {/* Payment Summary */}
+              <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-black/30' : 'bg-zinc-100'}`}>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className={theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}>Total Fee:</span>
+                    <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                      ${(selectedRegistrationForPayment.feeAmount / 100).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className={theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}>Amount Paid:</span>
+                    <span className="font-medium text-green-400">
+                      ${((selectedRegistrationForPayment.totalPaid || 0) / 100).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className={`flex justify-between text-sm pt-2 border-t ${theme === 'dark' ? 'border-white/10' : 'border-zinc-300'}`}>
+                    <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Remaining Balance:</span>
+                    <span className="font-bold text-purple-400">
+                      ${((selectedRegistrationForPayment.remainingBalance || (selectedRegistrationForPayment.feeAmount - (selectedRegistrationForPayment.totalPaid || 0))) / 100).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Progress bar */}
+                <div className="mt-3">
+                  <div className={`h-2 rounded-full ${theme === 'dark' ? 'bg-zinc-700' : 'bg-zinc-300'}`}>
+                    <div 
+                      className="h-full bg-gradient-to-r from-purple-500 to-green-500 rounded-full transition-all"
+                      style={{ 
+                        width: `${Math.min(100, ((selectedRegistrationForPayment.totalPaid || 0) / selectedRegistrationForPayment.feeAmount) * 100)}%` 
+                      }}
+                    />
+                  </div>
+                  <p className={`text-xs mt-1 text-center ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}`}>
+                    {Math.round(((selectedRegistrationForPayment.totalPaid || 0) / selectedRegistrationForPayment.feeAmount) * 100)}% paid
+                  </p>
+                </div>
+              </div>
+              
+              {/* Payment History */}
+              {selectedRegistrationForPayment.paymentHistory && selectedRegistrationForPayment.paymentHistory.length > 0 && (
+                <div>
+                  <h4 className={`text-sm font-medium mb-2 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                    Payment History
+                  </h4>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {selectedRegistrationForPayment.paymentHistory.map((payment, idx) => (
+                      <div 
+                        key={payment.id || idx}
+                        className={`flex justify-between items-center text-sm p-2 rounded ${theme === 'dark' ? 'bg-black/20' : 'bg-zinc-50'}`}
+                      >
+                        <div>
+                          <span className={theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}>
+                            {payment.paidAt?.toDate ? new Date(payment.paidAt.toDate()).toLocaleDateString() : 'Unknown date'}
+                          </span>
+                          {payment.note && (
+                            <span className={`ml-2 text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}`}>
+                              - {payment.note}
+                            </span>
+                          )}
+                        </div>
+                        <span className="font-medium text-green-400">
+                          +${(payment.amount / 100).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Reminder info */}
+              <div className={`text-xs p-3 rounded-lg ${theme === 'dark' ? 'bg-purple-500/10 text-purple-300' : 'bg-purple-50 text-purple-700'}`}>
+                <div className="flex items-start gap-2">
+                  <Clock className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium">Payment Plan Active</p>
+                    <p className="mt-1 opacity-75">
+                      {selectedRegistrationForPayment.lastPaymentReminderAt 
+                        ? `Last reminder sent: ${new Date(selectedRegistrationForPayment.lastPaymentReminderAt.toDate?.() || selectedRegistrationForPayment.lastPaymentReminderAt).toLocaleDateString()}`
+                        : 'Reminders are sent every 30 days until paid in full.'
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className={`p-4 border-t ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
+              <button
+                onClick={() => setSelectedRegistrationForPayment(null)}
+                className="w-full py-2 px-4 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm font-medium"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

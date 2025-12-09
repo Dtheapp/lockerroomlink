@@ -117,6 +117,10 @@ export interface Event {
   
   // Payment options
   allowInPersonPayment: boolean;       // Allow "pay in person" option
+  
+  // Payment Plan settings
+  allowPaymentPlan: boolean;           // Allow "pay as you go" payment plans
+  paymentPlanMinDownPayment?: number;  // Minimum first payment in cents (default: 100 = $1.00)
 }
 
 // =============================================================================
@@ -184,8 +188,20 @@ export interface PromoCode {
 // REGISTRATION ORDERS (groups multiple athletes in one checkout)
 // =============================================================================
 
-export type PaymentMethod = 'paypal' | 'in_person' | 'free';
-export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
+export type PaymentMethod = 'paypal' | 'in_person' | 'free' | 'payment_plan';
+export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded' | 'partial';
+
+// Individual payment in a payment plan
+export interface PaymentRecord {
+  id: string;
+  amount: number;                      // Amount in cents
+  paidAt: Timestamp;
+  paymentMethod: 'paypal' | 'in_person' | 'cash' | 'check' | 'other';
+  paypalOrderId?: string;
+  paypalTransactionId?: string;
+  note?: string;                       // Optional note from coach
+  recordedBy: string;                  // User ID who recorded this payment
+}
 
 export interface RegistrationOrder {
   id: string;                          // Same as orderId in registrations
@@ -208,6 +224,15 @@ export interface RegistrationOrder {
   paypalOrderId?: string;
   paypalTransactionId?: string;
   paidAt?: Timestamp;
+  
+  // Payment Plan fields
+  isPaymentPlan?: boolean;             // True if paying in installments
+  totalPaid?: number;                  // Total amount paid so far (cents)
+  remainingBalance?: number;           // Amount still owed (cents)
+  payments?: PaymentRecord[];          // History of all payments
+  lastPaymentAt?: Timestamp;           // When last payment was made
+  lastPaymentReminderAt?: Timestamp;   // When last reminder was sent
+  paymentPlanNote?: string;            // Coach notes about this payment plan
   
   // Timestamps
   createdAt: Timestamp;
@@ -287,6 +312,11 @@ export interface Registration {
   paypalOrderId?: string;              // PayPal order reference
   paypalTransactionId?: string;        // PayPal capture ID
   paidAt?: Timestamp;
+  
+  // Payment Plan fields (per-athlete portion)
+  isPaymentPlan?: boolean;             // True if using payment plan
+  totalPaid?: number;                  // Amount paid toward this registration (cents)
+  remainingBalance?: number;           // Amount still owed for this athlete (cents)
   
   // Custom field responses
   customFieldResponses: Record<string, string | string[] | boolean>;
