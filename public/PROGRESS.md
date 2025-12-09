@@ -1041,6 +1041,114 @@ Text response generated + ElevenLabs voice → Both displayed to user
 
 ---
 
+## 📥 STAT IMPORT FROM COMPETITOR APPS (NEW FEATURE)
+
+> **Vision:** Zero-friction onboarding. Teams keep ALL their history when switching to OSYS.
+> **Competitive Advantage:** No other youth sports platform offers migration from GameChanger/TeamSnap.
+
+### Why This Matters
+
+| Problem | OSYS Solution |
+|---------|---------------|
+| Teams have years of stats in other apps | Import via CSV upload |
+| Switching means losing history | Keep everything! |
+| Career stats disappear | Preserve player legacies |
+| Coaches hesitate to switch | Instant migration, no data loss |
+
+### Competitor Export Verification ✅
+
+| Platform | CSV Export? | What Can Export | OSYS Support |
+|----------|------------|-----------------|--------------|
+| **GameChanger** | ✅ VERIFIED | Full season stats, game-by-game | ✅ **SUPPORTED** |
+| **TeamSnap** | ✅ VERIFIED | Roster data, registration | ✅ **SUPPORTED** |
+| **Hudl** | ⏳ PENDING | Video-focused, needs research | ⏳ **PENDING** |
+| **MaxPreps** | ⏳ PENDING | Via partner apps only | ⏳ **PARTNERSHIP LATER** |
+| **SportsEngine** | ⏳ PENDING | League-level exports | ⏳ **PENDING** |
+
+### Stats to Add for Full Compatibility
+
+> These stats need to be added to `types.ts` to match competitor exports:
+
+| Missing Stat | Type | Why Needed |
+|--------------|------|------------|
+| `rushTds` | number | Rushing touchdowns |
+| `passTds` | number | Passing touchdowns |
+| `recTds` | number | Receiving touchdowns |
+| `yardsPerCarry` | number | Calculated: rushYards / rushAttempts |
+| `yardsPerCatch` | number | Calculated: recYards / rec |
+| `completionPct` | number | Calculated: passCompletions / passAttempts |
+| `fumbles` | number | Total fumbles |
+| `fumblesLost` | number | Fumbles lost to opponent |
+| `tacklesForLoss` | number | TFLs on defense |
+| `qbHits` | number | Quarterback pressures |
+| `fgMade` | number | Field goals made |
+| `fgAttempts` | number | Field goals attempted |
+| `xpMade` | number | Extra points made |
+| `xpAttempts` | number | Extra points attempted |
+| `puntYards` | number | Total punting yards |
+| `puntAttempts` | number | Number of punts |
+| `points` | number | Total points scored |
+
+### Import User Flow
+
+```
+Team Creation → "Have existing stats?" → Yes →
+Select Source: GameChanger / TeamSnap / Other →
+Instructions: "Export from [app], upload here" →
+Upload CSV → Auto-detect format → Preview import →
+Match players to roster → Confirm → Done!
+```
+
+### Implementation Phases
+
+#### Phase 1: GameChanger Import (Priority: 🔴 CRITICAL)
+| Task | Status | Notes |
+|------|--------|-------|
+| CSV upload component | ⬜ | Drag-drop, validation |
+| GameChanger format detection | ⬜ | Auto-detect structure |
+| Column mapping algorithm | ⬜ | GC columns → OSYS fields |
+| Preview interface | ⬜ | Show what will import |
+| Player matching | ⬜ | Match to existing roster |
+| Create missing players | ⬜ | Option to auto-add |
+| Import execution | ⬜ | Write to Firestore |
+| Success summary | ⬜ | Confirmation screen |
+
+#### Phase 2: TeamSnap Import (Priority: 🟡 HIGH)
+| Task | Status | Notes |
+|------|--------|-------|
+| TeamSnap format detection | ⬜ | Different CSV structure |
+| Roster data import | ⬜ | Player info, contacts |
+| Schedule import | ⬜ | Games and events |
+
+#### Phase 3: Generic CSV Import (Priority: 🟡 HIGH)
+| Task | Status | Notes |
+|------|--------|-------|
+| Column header detection | ⬜ | Auto-guess mappings |
+| Manual column mapping UI | ⬜ | User assigns columns |
+| Save mapping templates | ⬜ | Reuse for future |
+
+#### Phase 4: Official Partnerships (Priority: 🟢 LONG-TERM)
+| Task | Status | Notes |
+|------|--------|-------|
+| Contact GameChanger BD | ⬜ | Propose API integration |
+| Contact TeamSnap BD | ⬜ | Data partnership |
+| Contact Hudl BD | ⬜ | Video + stats sync |
+
+### Stat Import Components
+
+| Component | Purpose |
+|-----------|---------|
+| `StatImportWizard.tsx` | Main import wizard flow |
+| `SourceSelector.tsx` | Choose source app |
+| `CSVUploader.tsx` | Drag-drop file upload |
+| `ImportPreview.tsx` | Preview data before import |
+| `ColumnMapper.tsx` | Manual column assignment |
+| `PlayerMatcher.tsx` | Match imported ↔ roster |
+| `ImportProgress.tsx` | Progress indicator |
+| `ImportSummary.tsx` | Success confirmation |
+
+---
+
 ## 📋 THE FULL ROADMAP
 
 ### Phase 1: Pilot Ready (December 2025)
@@ -1057,6 +1165,9 @@ Text response generated + ElevenLabs voice → Both displayed to user
 | Error monitoring (Sentry) | 🟡 High | ✅ | sentry.ts - ready for VITE_SENTRY_DSN |
 | Analytics (PostHog) | 🟡 High | ✅ | Firebase Analytics service created |
 | Feedback button | 🟡 High | ✅ | FeedbackButton.tsx - floating on all pages |
+| **Stat Import: GameChanger CSV** | 🟡 High | ⬜ | Zero-friction migration |
+| **Stat Import: TeamSnap CSV** | 🟡 High | ⬜ | Roster + schedule import |
+| Add missing stat fields (types.ts) | 🟡 High | ⬜ | rushTds, passTds, recTds, etc. |
 | Full testing pass | 🔴 Critical | ⬜ | Before go-live |
 | **Phase 1 Complete** | | ⬜ | → Launch Pilot |
 
@@ -1168,8 +1279,10 @@ Text response generated + ElevenLabs voice → Both displayed to user
 |-----------|-------------|--------|-------|
 | **PILOT CONFIRMED** | Dec 9, 2025 | ✅ DONE | 20-team organization on board! |
 | 5 Sports Ready | Dec 20, 2025 | ⬜ | Football, Basketball, Baseball, Soccer, Volleyball |
+| **Stat Import (GameChanger)** | Dec 25, 2025 | ⬜ | CSV upload + auto-mapping |
 | Draft System MVP | Dec 25, 2025 | ⬜ | Core draft functionality |
 | Coach Certification MVP | Dec 30, 2025 | ⬜ | Manual badges + 2 assessments |
+| **Stat Import (TeamSnap)** | Jan 10, 2026 | ⬜ | Roster + schedule import |
 | 20 teams onboarded | Jan 15, 2026 | ⬜ | Pilot launch |
 | Multi-language (Eng/Spa) | Jan 31, 2026 | ⬜ | UI translation |
 | First paying customer | Feb 1, 2026 | ⬜ | Coach subscription |
@@ -1181,6 +1294,7 @@ Text response generated + ElevenLabs voice → Both displayed to user
 | 100 teams | Apr 30, 2026 | ⬜ | Scale milestone |
 | Chat translation live | May 15, 2026 | ⬜ | Premium feature |
 | Private coaching live | May 31, 2026 | ⬜ | New revenue stream |
+| **Official Partnership (GameChanger)** | Jun 15, 2026 | ⬜ | API integration |
 | NIL marketplace beta | Jun 30, 2026 | ⬜ | New revenue stream |
 | League management live | Jun 30, 2026 | ⬜ | New revenue stream |
 | 500 teams | Sep 30, 2026 | ⬜ | Scale milestone |

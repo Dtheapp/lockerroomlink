@@ -81,6 +81,9 @@ const MarketingHub = lazyWithRetry(() => import('./components/MarketingHub'));
 // Progress Tracking Page
 const ProgressPage = lazyWithRetry(() => import('./components/ProgressPage'));
 
+// Draft Day Showcase
+const DraftDayShowcase = lazyWithRetry(() => import('./components/DraftDayShowcase'));
+
 // Competitor Comparison Page
 const ComparisonPage = lazyWithRetry(() => import('./components/ComparisonPage'));
 
@@ -241,6 +244,7 @@ const AppContent: React.FC = () => {
           <Route path="/nil-wallet" element={<NILWalletDashboard />} />
           <Route path="/nil-marketplace" element={<NILMarketplace />} />
           <Route path="/progress" element={<ProgressPage />} />
+          <Route path="/draft" element={<DraftDayShowcase />} />
           <Route path="/compare" element={<ComparisonPage />} />
           
           {!user ? (

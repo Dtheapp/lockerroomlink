@@ -12,6 +12,7 @@ This document outlines features that will make OSYS the **#1 youth sports platfo
 
 1. [Tier 0: Platform Revenue Streams](#tier-0-platform-revenue-streams)
 2. [Tier 0.5: Growth & Trust Infrastructure](#tier-05-growth--trust-infrastructure) 🆕
+   - [0.10 Stat Import from Competitor Apps](#010--stat-import-from-competitor-apps) 🆕
 3. [Tier 1: Revolutionary Features](#tier-1-revolutionary-features-industry-first)
 4. [Tier 2: Engagement & Gamification](#tier-2-engagement--gamification)
 5. [Tier 3: Monetization & Sustainability](#tier-3-monetization--sustainability)
@@ -436,6 +437,193 @@ Automated AI-powered system that scans ALL user-generated content to protect chi
 | Human only | $2,000-5,000 |
 | AI + Human | $200-500 |
 | AI primary | $50-100 |
+
+---
+
+## 0.10 📥 STAT IMPORT FROM COMPETITOR APPS
+
+### What Is It?
+A migration tool that allows teams switching from GameChanger, TeamSnap, or Hudl to import their historical stats and player records into OSYS - making onboarding frictionless.
+
+### The Problem It Solves
+- Teams have YEARS of stat history in other apps
+- Switching platforms means losing all that data
+- Parents and players lose their career stats
+- Coaches hesitate to switch because they'd start from scratch
+- Barrier to adoption is reduced to ZERO
+
+### Why This Is Critical for Growth
+- **#1 onboarding friction reducer** - No one wants to lose historical data
+- **Competitive moat** - Once history is in OSYS, they won't leave
+- **Trust builder** - Shows we respect their existing investment
+- **Viral potential** - "OSYS imported 3 seasons in 30 seconds!"
+
+### Competitor Research Summary
+
+| Platform | CSV Export? | Stat Export? | OSYS Import Priority |
+|----------|------------|--------------|---------------------|
+| **GameChanger** | ✅ Yes | ✅ Full Stats | ✅ **PRIMARY TARGET** |
+| **TeamSnap** | ✅ Yes | ⚠️ Limited (roster-focused) | ✅ **SUPPORTED** |
+| **Hudl** | ❓ Unknown | ❓ Video-focused | ⏳ **PENDING** |
+| **MaxPreps** | ⚠️ Via partners | ⚠️ Limited | ⏳ **PARTNERSHIP LATER** |
+| **SportsEngine** | ⚠️ Unknown | ⚠️ League-level | ⏳ **PENDING** |
+
+### Legal Approach (Verified Safe)
+> **We do NOT scrape.** We import user-downloaded CSV files that they export from their own accounts.
+
+- ✅ User owns their data
+- ✅ User exports from their account
+- ✅ User uploads to OSYS
+- ✅ No TOS violations
+- ✅ No CFAA concerns
+- ✅ GDPR/CCPA compliant (data portability)
+
+### How It Works
+
+**User Flow:**
+```
+1. OSYS Onboarding → "Import Team History?"
+2. Select source: GameChanger / TeamSnap / Other
+3. Instructions: "In GameChanger, go to Stats → Export Season Stats"
+4. User uploads CSV file
+5. OSYS auto-detects format and maps columns
+6. Preview: "We found 25 players, 12 games, 2 seasons"
+7. Confirm import
+8. Done! Full history now in OSYS
+```
+
+### Stat Mapping: GameChanger → OSYS
+
+#### Current OSYS Stats (types.ts)
+| Category | Current Fields |
+|----------|----------------|
+| **General** | gp (games played), tds (touchdowns) |
+| **Rushing** | rushYards, rushAttempts |
+| **Passing** | passYards, passCompletions, passAttempts |
+| **Receiving** | rec, recYards |
+| **Defense** | tackles, soloTackles, assistTackles, sacks, int, intYards, ff, fr, passDefended |
+| **Special Teams** | kickReturnYards, puntReturnYards, kickReturnTds, puntReturnTds, spts |
+
+#### Stats to ADD for Full Compatibility
+| Missing Stat | Why Needed | Competitor Has It |
+|--------------|------------|-------------------|
+| `rushTds` | Rushing touchdowns | ✅ GameChanger |
+| `passTds` | Passing touchdowns | ✅ GameChanger |
+| `recTds` | Receiving touchdowns | ✅ GameChanger |
+| `yardsPerCarry` | Rushing efficiency | ✅ GameChanger (calculated) |
+| `yardsPerCatch` | Receiving efficiency | ✅ GameChanger (calculated) |
+| `completionPct` | Passing efficiency | ✅ GameChanger (calculated) |
+| `fumbles` | Fumbles committed | ✅ GameChanger |
+| `fumblesLost` | Fumbles lost | ✅ GameChanger |
+| `tacklesForLoss` | TFLs | ✅ GameChanger |
+| `qbHits` | Quarterback hits | ✅ GameChanger |
+| `fgMade` | Field goals made | ✅ GameChanger |
+| `fgAttempts` | Field goals attempted | ✅ GameChanger |
+| `xpMade` | Extra points made | ✅ GameChanger |
+| `xpAttempts` | Extra points attempted | ✅ GameChanger |
+| `puntYards` | Punting yards | ✅ GameChanger |
+| `puntAttempts` | Punting attempts | ✅ GameChanger |
+| `points` | Total points scored | ✅ All competitors |
+
+### Implementation Plan
+
+#### Phase 1: GameChanger Import (Priority: 🔴 CRITICAL)
+| Task | Status | Notes |
+|------|--------|-------|
+| CSV upload component | ⬜ | Drag-drop, file validation |
+| GameChanger format detection | ⬜ | Auto-detect their CSV structure |
+| Column mapping algorithm | ⬜ | Map GC columns → OSYS fields |
+| Preview interface | ⬜ | Show what will be imported |
+| Player matching | ⬜ | Match imported players to roster |
+| Create missing players option | ⬜ | Auto-add players not in roster |
+| Season/game association | ⬜ | Link stats to seasons and games |
+| Import execution | ⬜ | Write to Firestore |
+| Success confirmation | ⬜ | Summary of what was imported |
+
+#### Phase 2: TeamSnap Import (Priority: 🟡 HIGH)
+| Task | Status | Notes |
+|------|--------|-------|
+| TeamSnap format detection | ⬜ | Different CSV structure |
+| Roster data import | ⬜ | Player info, contacts |
+| Schedule import | ⬜ | Games and events |
+| Availability import | ⬜ | RSVP history |
+
+#### Phase 3: Generic CSV Import (Priority: 🟡 HIGH)
+| Task | Status | Notes |
+|------|--------|-------|
+| Column header detection | ⬜ | Guess field mappings |
+| Manual column mapping UI | ⬜ | User assigns columns |
+| Save mapping templates | ⬜ | Reuse for future imports |
+| Support any source | ⬜ | Excel exports, etc. |
+
+#### Phase 4: Official Partnerships (Priority: 🟢 LONG-TERM)
+| Task | Status | Notes |
+|------|--------|-------|
+| Contact GameChanger BD | ⬜ | Propose API integration |
+| Contact TeamSnap BD | ⬜ | Propose data partnership |
+| Contact Hudl BD | ⬜ | Explore video + stats sync |
+| Build official integrations | ⬜ | Direct app-to-app transfer |
+
+### Import UI Components
+
+| Component | Purpose |
+|-----------|---------|
+| `StatImportWizard.tsx` | Main import flow wizard |
+| `SourceSelector.tsx` | Choose GameChanger/TeamSnap/Other |
+| `CSVUploader.tsx` | File upload with drag-drop |
+| `ImportPreview.tsx` | Show what will be imported |
+| `ColumnMapper.tsx` | Manual mapping for generic CSV |
+| `PlayerMatcher.tsx` | Match imported → existing players |
+| `ImportProgress.tsx` | Progress bar during import |
+| `ImportSummary.tsx` | Success confirmation |
+
+### Onboarding Integration
+
+**Where Import Appears:**
+1. Team creation flow → "Import existing team data?"
+2. Settings → Data → Import History
+3. Dashboard prompt → "We noticed you're new. Import from GameChanger?"
+4. Marketing → "Switch to OSYS - Keep All Your Stats!"
+
+### User Instructions (In-App Help)
+
+**GameChanger Export Instructions:**
+```
+1. Log into GameChanger on web (gc.com)
+2. Go to your team's Stats section
+3. Click "Export Stats" in the top right
+4. Select "Season Stats" or "All Games"
+5. Download the CSV file
+6. Upload it here!
+```
+
+**TeamSnap Export Instructions:**
+```
+1. Log into TeamSnap on web
+2. Go to your team → Roster
+3. Click "Export" → "Export Members"
+4. Check your email for the download link
+5. Upload the CSV file here!
+```
+
+### Success Metrics
+
+| Metric | Target |
+|--------|--------|
+| Import completion rate | 90%+ |
+| Time to import | < 60 seconds |
+| Data accuracy | 99%+ |
+| User satisfaction | 4.5+ stars |
+| Import → Active user conversion | 80%+ |
+
+### Competitive Advantage
+
+> **No other youth sports platform offers one-click migration from competitors.**
+
+- GameChanger has no import feature
+- TeamSnap has no import feature
+- Hudl has no import feature
+- **OSYS becomes THE platform for teams who want to keep their history**
 
 ---
 
