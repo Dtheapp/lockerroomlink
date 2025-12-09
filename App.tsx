@@ -111,6 +111,13 @@ const ActivityLog = lazyWithRetry(() => import('./components/admin/ActivityLog')
 const CoachFeedback = lazyWithRetry(() => import('./components/admin/CoachFeedback'));
 const AdminPlaybook = lazyWithRetry(() => import('./components/admin/AdminPlaybook'));
 
+// Commissioner Pages
+const CommissionerSignup = lazyWithRetry(() => import('./components/commissioner/CommissionerSignup'));
+const CommissionerDashboard = lazyWithRetry(() => import('./components/commissioner/CommissionerDashboard'));
+const CommissionerTeamList = lazyWithRetry(() => import('./components/commissioner/CommissionerTeamList'));
+const CommissionerCreateTeam = lazyWithRetry(() => import('./components/commissioner/CommissionerCreateTeam'));
+const CommissionerGrievances = lazyWithRetry(() => import('./components/commissioner/CommissionerGrievances'));
+
 // Loading fallback for lazy-loaded components
 const PageLoader = () => (
   <div className="flex items-center justify-center h-64">
@@ -233,6 +240,31 @@ const AppContent: React.FC = () => {
               </Route>
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </>
+          ) : userData?.role === 'ProgramCommissioner' ? (
+            // Program Commissioner routes
+            <>
+              <Route path="/" element={<NewOSYSLayout />}>
+                <Route index element={<Navigate to="/commissioner" replace />} />
+                <Route path="commissioner" element={<CommissionerDashboard />} />
+                <Route path="commissioner/teams" element={<CommissionerTeamList />} />
+                <Route path="commissioner/teams/create" element={<CommissionerCreateTeam />} />
+                <Route path="commissioner/grievances" element={<CommissionerGrievances />} />
+                <Route path="profile" element={<Profile />} />
+                {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}
+              </Route>
+              <Route path="*" element={<Navigate to="/commissioner" replace />} />
+            </>
+          ) : userData?.role === 'LeagueOwner' ? (
+            // League Owner routes (placeholder - will be built in Phase 4)
+            <>
+              <Route path="/" element={<NewOSYSLayout />}>
+                <Route index element={<Navigate to="/league" replace />} />
+                <Route path="league" element={<div className="p-8 text-center text-white">League Dashboard Coming Soon</div>} />
+                <Route path="profile" element={<Profile />} />
+                {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}
+              </Route>
+              <Route path="*" element={<Navigate to="/league" replace />} />
+            </>
           ) : (
             // Coach/Parent routes - NEW OSYS Layout
             <>
@@ -259,6 +291,8 @@ const AppContent: React.FC = () => {
                 <Route path="design" element={<DesignStudio />} />
                 {/* Marketing Hub */}
                 <Route path="marketing" element={<MarketingHub />} />
+                {/* Commissioner Signup for users who want to become commissioners */}
+                <Route path="commissioner/signup" element={<CommissionerSignup />} />
               </Route>
               {/* Keep old demo route for reference */}
               <Route path="/old-dashboard" element={<Layout />}>

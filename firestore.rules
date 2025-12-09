@@ -23,6 +23,39 @@ service cloud.firestore {
       return isAuthenticated() && getUserData().role == 'SuperAdmin';
     }
     
+    // --- NEW: League & Commissioner Role Checks ---
+    function isLeagueOwner() {
+      return isAuthenticated() && getUserData().role == 'LeagueOwner';
+    }
+    
+    function isProgramCommissioner() {
+      return isAuthenticated() && getUserData().role == 'ProgramCommissioner';
+    }
+    
+    function isCommissioner() {
+      return isProgramCommissioner() || isLeagueOwner();
+    }
+    
+    function isLeagueOwnerOf(leagueId) {
+      return isLeagueOwner() && getUserData().leagueId == leagueId;
+    }
+    
+    function isProgramCommissionerOf(programId) {
+      return isProgramCommissioner() && getUserData().programId == programId;
+    }
+    
+    function isAssistantCommissionerOf(programId) {
+      return isAuthenticated() && 
+             getUserData().isAssistantCommissioner == true && 
+             getUserData().assistantForProgramId == programId;
+    }
+    
+    function canManageProgram(programId) {
+      return isProgramCommissionerOf(programId) || 
+             isAssistantCommissionerOf(programId) || 
+             isAdmin();
+    }
+    
     function isTeamCoach(teamId) {
       return isCoach() && (
         getUserData().teamId == teamId ||
@@ -35,6 +68,127 @@ service cloud.firestore {
         getUserData().teamId == teamId || 
         (getUserData().teamIds != null && teamId in getUserData().teamIds)
       );
+    }
+
+    // =============================================================================
+    // LEAGUES COLLECTION
+    // =============================================================================
+    match /leagues/{leagueId} {
+      // Anyone authenticated can read leagues (for searching/joining)
+      allow read: if isAuthenticated();
+      
+      // Only SuperAdmin can create leagues
+      allow create: if isAdmin();
+      
+      // League owner or admin can update
+      allow update: if isLeagueOwnerOf(leagueId) || isAdmin();
+      
+      // Only admin can delete leagues
+      allow delete: if isAdmin();
+      
+      // League Seasons subcollection
+      match /seasons/{seasonId} {
+        allow read: if isAuthenticated();
+        allow create, update: if isLeagueOwnerOf(leagueId) || isAdmin();
+        allow delete: if isAdmin();
+      }
+      
+      // League Schedules subcollection
+      match /schedules/{scheduleId} {
+        allow read: if isAuthenticated();
+        allow create, update: if isLeagueOwnerOf(leagueId) || isAdmin();
+        allow delete: if isLeagueOwnerOf(leagueId) || isAdmin();
+      }
+      
+      // Playoff Brackets subcollection
+      match /brackets/{bracketId} {
+        allow read: if isAuthenticated();
+        allow create, update: if isLeagueOwnerOf(leagueId) || isAdmin();
+        allow delete: if isLeagueOwnerOf(leagueId) || isAdmin();
+      }
+      
+      // League Requests subcollection
+      match /requests/{requestId} {
+        allow read: if isLeagueOwnerOf(leagueId) || isAdmin() || 
+                      (isProgramCommissioner() && resource.data.requestedBy == request.auth.uid);
+        allow create: if isProgramCommissioner() || isAdmin();
+        allow update: if isLeagueOwnerOf(leagueId) || isAdmin();
+        allow delete: if isAdmin();
+      }
+      
+      // League Announcements subcollection
+      match /announcements/{announcementId} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isLeagueOwnerOf(leagueId) || isAdmin();
+      }
+    }
+    
+    // =============================================================================
+    // PROGRAMS COLLECTION
+    // =============================================================================
+    match /programs/{programId} {
+      // Authenticated users can read programs
+      allow read: if isAuthenticated();
+      
+      // Only SuperAdmin can create programs initially
+      allow create: if isAdmin();
+      
+      // Commissioner of the program or admin can update
+      allow update: if canManageProgram(programId);
+      
+      // Only admin can delete programs
+      allow delete: if isAdmin();
+      
+      // Grievances subcollection
+      match /grievances/{grievanceId} {
+        allow read: if canManageProgram(programId) || 
+                      resource.data.submittedBy == request.auth.uid || 
+                      isAdmin();
+        allow create: if isAuthenticated();
+        allow update: if canManageProgram(programId) || isAdmin();
+        allow delete: if isAdmin();
+      }
+    }
+    
+    // =============================================================================
+    // LEAGUE REQUESTS COLLECTION (top-level for querying)
+    // =============================================================================
+    match /leagueRequests/{requestId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isLeagueOwner() && resource.data.leagueId == getUserData().leagueId) ||
+        resource.data.requestedBy == request.auth.uid
+      );
+      allow create: if isProgramCommissioner() || isAdmin();
+      allow update: if isAdmin() || 
+                      (isLeagueOwner() && resource.data.leagueId == getUserData().leagueId);
+      allow delete: if isAdmin();
+    }
+    
+    // =============================================================================
+    // GRIEVANCES COLLECTION (top-level for querying)
+    // =============================================================================
+    match /grievances/{grievanceId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isProgramCommissioner() && resource.data.programId == getUserData().programId) ||
+        resource.data.submittedBy == request.auth.uid
+      );
+      allow create: if isAuthenticated();
+      allow update: if isAdmin() || 
+                      (isProgramCommissioner() && resource.data.programId == getUserData().programId);
+      allow delete: if isAdmin();
+    }
+    
+    // =============================================================================
+    // TEAM SCHEDULE ACCEPTANCE COLLECTION
+    // =============================================================================
+    match /teamScheduleAcceptance/{acceptanceId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() || 
+                              isProgramCommissioner() ||
+                              isTeamCoach(resource.data.teamId);
+      allow delete: if isAdmin();
     }
 
     // =============================================================================

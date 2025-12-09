@@ -32,6 +32,9 @@ export type CreditFeatureType =
   | 'video_analyze'        // AI video analysis
   | 'stats_advanced'       // Advanced stat reports
   | 'roster_export'        // Export roster data
+  | 'commissioner_signup'  // Become a program commissioner
+  | 'team_create'          // Create a new team
+  | 'league_create'        // Create a new league
   | string;                // Allow custom features
 
 export interface CreditTransaction {

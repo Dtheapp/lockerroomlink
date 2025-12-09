@@ -1,6 +1,194 @@
 import { Timestamp } from 'firebase/firestore';
 
-export type UserRole = 'Coach' | 'Parent' | 'Fan' | 'SuperAdmin';
+export type UserRole = 'Coach' | 'Parent' | 'Fan' | 'SuperAdmin' | 'LeagueOwner' | 'ProgramCommissioner';
+
+// --- LEAGUE & COMMISSIONER SYSTEM ---
+
+export interface League {
+  id: string;
+  name: string;
+  ownerId: string;           // League Owner user ID
+  ownerName: string;
+  sport: SportType;
+  region?: string;           // e.g., "North Texas"
+  teamIds: string[];         // Teams currently in league
+  pendingRequests: string[]; // Team IDs requesting to join
+  settings: {
+    allowStandingsPublic: boolean;
+    allowStatsPublic: boolean;
+    requireApproval: boolean; // If false, auto-accept
+  };
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface LeagueSeason {
+  id: string;
+  leagueId: string;
+  name: string;              // e.g., "Fall 2025"
+  startDate: Timestamp;
+  endDate: Timestamp;
+  status: 'upcoming' | 'active' | 'playoffs' | 'completed';
+  divisions?: LeagueDivision[];
+  createdAt: Timestamp;
+}
+
+export interface LeagueDivision {
+  id: string;
+  name: string;              // e.g., "Division A", "8U", "Varsity"
+  teamIds: string[];
+}
+
+export interface LeagueSchedule {
+  id: string;
+  leagueId: string;
+  leagueSeasonId: string;
+  name: string;              // e.g., "Fall 2025 Regular Season"
+  games: LeagueGame[];
+  status: 'draft' | 'published';
+  createdAt: Timestamp;
+  publishedAt?: Timestamp;
+}
+
+export interface LeagueGame {
+  id: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  week?: number;
+  scheduledDate: Timestamp;
+  scheduledTime: string;
+  location: string;
+  fieldNumber?: string;
+  homeScore?: number;
+  awayScore?: number;
+  status: 'scheduled' | 'in-progress' | 'completed' | 'postponed' | 'cancelled';
+  acceptedByHome?: boolean;
+  acceptedByAway?: boolean;
+  homeAcceptedAt?: Timestamp;
+  awayAcceptedAt?: Timestamp;
+}
+
+export interface TeamScheduleAcceptance {
+  id: string;
+  teamId: string;
+  leagueScheduleId: string;
+  leagueId: string;
+  accepted: boolean;
+  acceptedAt?: Timestamp;
+  acceptedBy?: string;
+  autoSyncEnabled: boolean;
+}
+
+export interface PlayoffBracket {
+  id: string;
+  leagueId: string;
+  leagueSeasonId: string;
+  name: string;
+  type: 'single-elimination' | 'double-elimination' | 'round-robin';
+  rounds: PlayoffRound[];
+  status: 'draft' | 'published' | 'in-progress' | 'completed';
+  createdAt: Timestamp;
+  publishedAt?: Timestamp;
+}
+
+export interface PlayoffRound {
+  roundNumber: number;
+  name: string;
+  games: PlayoffGame[];
+}
+
+export interface PlayoffGame {
+  id: string;
+  homeTeamId: string | null;
+  awayTeamId: string | null;
+  homeTeamSeed?: number;
+  awayTeamSeed?: number;
+  homeTeamName?: string;
+  awayTeamName?: string;
+  scheduledDate?: Timestamp;
+  scheduledTime?: string;
+  location?: string;
+  homeScore?: number;
+  awayScore?: number;
+  winnerId?: string;
+  status: 'scheduled' | 'in-progress' | 'completed' | 'postponed' | 'forfeit';
+  feedsIntoGameId?: string;
+  previousGameIds?: string[];
+  bracketPosition?: 'winners' | 'losers' | 'finals';
+}
+
+export interface Program {
+  id?: string;
+  name: string;              // e.g., "City of Arlington Youth Sports"
+  sport?: SportType;         // Primary sport of the program
+  commissionerId: string;
+  commissionerName?: string;
+  assistantCommissionerIds?: string[];
+  city?: string;
+  state?: string;
+  region?: string;
+  teamIds?: string[];
+  teamCount?: number;
+  status?: 'active' | 'inactive';
+  leagueId?: string | null;
+  createdAt?: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
+}
+
+export interface LeagueRequest {
+  id: string;
+  teamId: string;
+  teamName: string;
+  leagueId: string;
+  programId: string;
+  requestedBy: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: Timestamp;
+  reviewedAt?: Timestamp;
+  reviewedBy?: string;
+  rejectionReason?: string;
+}
+
+export interface Grievance {
+  id?: string;
+  teamId?: string;
+  programId: string;
+  submittedBy: string;
+  submittedByName?: string;
+  title: string;
+  subject?: string;
+  description: string;
+  type: 'player_eligibility' | 'coach_conduct' | 'parent_conduct' | 'rule_violation' | 'safety_concern' | 'schedule_dispute' | 'other';
+  status: 'submitted' | 'under_review' | 'resolved' | 'dismissed' | 'pending' | 'reviewed' | 'escalated';
+  assignedTo?: string;
+  escalatedToAdmin?: boolean;
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
+  resolvedAt?: Timestamp | Date;
+  resolvedBy?: string;
+  resolution?: string;
+}
+
+export interface TeamGame {
+  id: string;
+  teamId: string;
+  source: 'league' | 'commissioner' | 'coach';
+  leagueGameId?: string;
+  leagueScheduleId?: string;
+  opponent: string;
+  opponentTeamId?: string;
+  isHome: boolean;
+  scheduledDate: Timestamp;
+  scheduledTime: string;
+  location: string;
+  homeScore?: number;
+  awayScore?: number;
+  status: 'scheduled' | 'completed' | 'cancelled' | 'postponed';
+  createdAt: Timestamp;
+  createdBy: string;
+}
 
 // --- HELPER INTERFACES ---
 export interface EmergencyContact {
@@ -104,6 +292,13 @@ export interface UserProfile {
   bannedAt?: Timestamp;
   favoriteTeams?: string[]; // Team IDs the fan follows
   followerCount?: number; // Number of followers (for coaches/athletes)
+  
+  // --- COMMISSIONER & LEAGUE OWNER FIELDS ---
+  programId?: string;                  // If ProgramCommissioner - which program they manage
+  leagueId?: string;                   // If LeagueOwner - which league they own
+  commissionerSince?: Timestamp;       // When they became commissioner/league owner
+  isAssistantCommissioner?: boolean;   // For assistant commissioner role
+  assistantForProgramId?: string;      // Which program they assist
 }
 
 // --- SEASON MANAGEMENT ---
@@ -253,6 +448,19 @@ export interface Team {
     zip?: string;
     country?: string;           // Default: "USA"
   };
+  
+  // --- LEAGUE & PROGRAM FIELDS ---
+  programId?: string;                   // Which program owns this team
+  leagueId?: string;                    // Which league (if any)
+  linkedCheerTeamId?: string;           // For sports teams - linked cheer team
+  linkedToTeamId?: string;              // For cheer teams - which team they cheer for
+  linkedToTeamName?: string;            // Display name "Cheerleader for Tigers34"
+  leagueStatus?: 'none' | 'pending' | 'active' | 'left' | 'kicked';
+  leagueJoinedAt?: Timestamp;
+  leagueLeftAt?: Timestamp;
+  leagueLeftReason?: string;
+  divisionId?: string;                  // Which division in the league
+  maxRosterSize?: number;               // Commissioner can set max players
 }
 
 // In types.ts

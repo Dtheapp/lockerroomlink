@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, getDocs, updateDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { setSentryUser, clearSentryUser } from '../services/sentry';
 import { migrateUserToNewCreditSystem } from '../services/creditService';
-import type { UserProfile, Team, Player } from '../types';
+import type { UserProfile, Team, Player, League, Program } from '../types';
 
 interface AuthContextType {
   user: User | null;
@@ -18,6 +18,14 @@ interface AuthContextType {
   // Team management for coaches with multiple teams
   coachTeams: Team[];
   setSelectedTeam: (team: Team) => void;
+  // League management for league owners
+  leagueData: League | null;
+  // Program management for commissioners
+  programData: Program | null;
+  // Helper functions for role checks
+  isLeagueOwner: boolean;
+  isProgramCommissioner: boolean;
+  isCommissioner: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -30,6 +38,11 @@ const AuthContext = createContext<AuthContextType>({
   setSelectedPlayer: () => {},
   coachTeams: [],
   setSelectedTeam: () => {},
+  leagueData: null,
+  programData: null,
+  isLeagueOwner: false,
+  isProgramCommissioner: false,
+  isCommissioner: false,
 });
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -45,8 +58,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Team management for coaches with multiple teams
   const [coachTeams, setCoachTeams] = useState<Team[]>([]);
   
+  // League management for league owners
+  const [leagueData, setLeagueData] = useState<League | null>(null);
+  
+  // Program management for commissioners
+  const [programData, setProgramData] = useState<Program | null>(null);
+  
   // Track if coach teams have been loaded to prevent re-fetching on every profile update
   const coachTeamsLoadedRef = useRef<string | null>(null);
+  
+  // Computed role checks
+  const isLeagueOwner = userData?.role === 'LeagueOwner';
+  const isProgramCommissioner = userData?.role === 'ProgramCommissioner';
+  const isCommissioner = isLeagueOwner || isProgramCommissioner;
 
   // Function to set selected player and persist to Firestore
   const setSelectedPlayer = async (player: Player) => {
@@ -265,6 +289,78 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     }
                 }
                 // SUPERADMIN FLOW: Use teamId directly (or no team)
+                else if (profile.role === 'SuperAdmin') {
+                    if (profile.teamId) {
+                        if (unsubscribeTeamDoc) unsubscribeTeamDoc();
+                        
+                        const teamDocRef = doc(db, 'teams', profile.teamId);
+                        unsubscribeTeamDoc = onSnapshot(teamDocRef, (teamSnap) => {
+                            if (teamSnap.exists()) {
+                                 setTeamData({ id: teamSnap.id, ...teamSnap.data() } as Team);
+                            } else {
+                                 setTeamData(null);
+                            }
+                            setLoading(false);
+                        });
+                    } else {
+                        setTeamData(null);
+                        setLoading(false);
+                    }
+                }
+                // LEAGUE OWNER FLOW: Load their league
+                else if (profile.role === 'LeagueOwner') {
+                    if (profile.leagueId) {
+                        try {
+                            const leagueDocRef = doc(db, 'leagues', profile.leagueId);
+                            const leagueSnap = await getDoc(leagueDocRef);
+                            if (leagueSnap.exists()) {
+                                setLeagueData({ id: leagueSnap.id, ...leagueSnap.data() } as League);
+                            } else {
+                                setLeagueData(null);
+                            }
+                        } catch (error) {
+                            console.error('Error loading league data:', error);
+                            setLeagueData(null);
+                        }
+                    }
+                    setTeamData(null);
+                    setLoading(false);
+                }
+                // PROGRAM COMMISSIONER FLOW: Load their program
+                else if (profile.role === 'ProgramCommissioner') {
+                    if (profile.programId) {
+                        try {
+                            const programDocRef = doc(db, 'programs', profile.programId);
+                            const programSnap = await getDoc(programDocRef);
+                            if (programSnap.exists()) {
+                                setProgramData({ id: programSnap.id, ...programSnap.data() } as Program);
+                                
+                                // If program has a leagueId, also load league info
+                                const programData = programSnap.data() as Program;
+                                if (programData.leagueId) {
+                                    const leagueDocRef = doc(db, 'leagues', programData.leagueId);
+                                    const leagueSnap = await getDoc(leagueDocRef);
+                                    if (leagueSnap.exists()) {
+                                        setLeagueData({ id: leagueSnap.id, ...leagueSnap.data() } as League);
+                                    }
+                                }
+                            } else {
+                                setProgramData(null);
+                            }
+                        } catch (error) {
+                            console.error('Error loading program data:', error);
+                            setProgramData(null);
+                        }
+                    }
+                    setTeamData(null);
+                    setLoading(false);
+                }
+                // FAN FLOW: No team data needed
+                else if (profile.role === 'Fan') {
+                    setTeamData(null);
+                    setLoading(false);
+                }
+                // Default/fallback: Use teamId if present
                 else if (profile.teamId) {
                     if (unsubscribeTeamDoc) unsubscribeTeamDoc();
                     
@@ -300,6 +396,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setPlayers([]);
         setSelectedPlayerState(null);
         setCoachTeams([]);
+        setLeagueData(null);
+        setProgramData(null);
         coachTeamsLoadedRef.current = null; // Reset coach teams loaded tracker
         
         // Clear Sentry user context
@@ -339,7 +437,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, [selectedPlayer, userData?.role]);
 
-  const value = { user, userData, teamData, loading, players, selectedPlayer, setSelectedPlayer, coachTeams, setSelectedTeam };
+  const value = { 
+    user, 
+    userData, 
+    teamData, 
+    loading, 
+    players, 
+    selectedPlayer, 
+    setSelectedPlayer, 
+    coachTeams, 
+    setSelectedTeam,
+    leagueData,
+    programData,
+    isLeagueOwner,
+    isProgramCommissioner,
+    isCommissioner,
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
