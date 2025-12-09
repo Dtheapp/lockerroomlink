@@ -1840,7 +1840,7 @@ const DesignPreviewCanvas: React.FC<DesignPreviewCanvasProps> = ({
     });
   }, [elements, width, height, backgroundColor]);
   
-  // If we have an AI-generated image URL, just show the image
+  // If we have an AI-generated image URL (data URL or regular URL), show the image
   if (imageUrl) {
     return (
       <img 
@@ -1848,7 +1848,9 @@ const DesignPreviewCanvas: React.FC<DesignPreviewCanvasProps> = ({
         alt="AI Generated Design"
         className={`w-full h-full object-cover ${className || ''}`}
         style={{ display: 'block' }}
-        crossOrigin="anonymous"
+        onError={(e) => {
+          console.error('Image failed to load:', imageUrl.substring(0, 100));
+        }}
       />
     );
   }

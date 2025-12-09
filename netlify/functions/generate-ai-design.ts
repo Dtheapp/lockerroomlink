@@ -12,6 +12,7 @@ interface GenerateDesignRequest {
 
 interface GeneratedImage {
   url: string;
+  base64?: string;
   revisedPrompt?: string;
 }
 
@@ -20,8 +21,24 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
       body: JSON.stringify({ error: 'Method not allowed' }),
+    };
+  }
+
+  // Handle CORS preflight
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      },
+      body: '',
     };
   }
 
@@ -30,7 +47,10 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return {
       statusCode: 401,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
       body: JSON.stringify({ error: 'Unauthorized' }),
     };
   }
@@ -42,7 +62,10 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
     if (!prompt) {
       return {
         statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
         body: JSON.stringify({ error: 'Prompt is required' }),
       };
     }
@@ -54,7 +77,10 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
       console.error('OPENAI_API_KEY not configured');
       return {
         statusCode: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
         body: JSON.stringify({
           error: 'AI service not configured',
           details: 'OpenAI API key not configured.',
@@ -73,7 +99,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
       dalleSize,
     });
 
-    // Generate ONLY 1 image to stay within timeout
+    // Generate image with base64 response format to avoid CORS issues
     const response = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: {
@@ -86,7 +112,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         n: 1,
         size: dalleSize,
         quality: 'standard',
-        response_format: 'url',
+        response_format: 'b64_json', // Return base64 instead of URL to avoid CORS
       }),
     });
 
@@ -95,7 +121,10 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
       console.error('DALL-E API error:', errorData);
       return {
         statusCode: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
         body: JSON.stringify({
           error: 'AI generation failed',
           details: errorData.substring(0, 200),
@@ -106,10 +135,13 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
     const data = await response.json();
     const imageData = data.data?.[0];
 
-    if (!imageData?.url) {
+    if (!imageData?.b64_json) {
       return {
         statusCode: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
         body: JSON.stringify({
           error: 'No image generated',
           details: 'DALL-E returned empty response',
@@ -117,13 +149,19 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
       };
     }
 
+    // Return base64 data URL that can be used directly in <img> src
+    const dataUrl = `data:image/png;base64,${imageData.b64_json}`;
+
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
       body: JSON.stringify({
         success: true,
         images: [{
-          url: imageData.url,
+          url: dataUrl, // This is now a data URL that works without CORS
           revisedPrompt: imageData.revised_prompt,
         }],
         dalleSize,
@@ -134,7 +172,10 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
     console.error('Generate AI design error:', error);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
       body: JSON.stringify({
         error: 'Internal server error',
         details: error instanceof Error ? error.message : 'Unknown error',
