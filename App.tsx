@@ -81,6 +81,9 @@ const MarketingHub = lazyWithRetry(() => import('./components/MarketingHub'));
 // Progress Tracking Page
 const ProgressPage = lazyWithRetry(() => import('./components/ProgressPage'));
 
+// Competitor Comparison Page
+const ComparisonPage = lazyWithRetry(() => import('./components/ComparisonPage'));
+
 // Lazy-loaded pages for code splitting (reduces initial bundle size)
 const Dashboard = lazyWithRetry(() => import('./components/Dashboard'));
 const Roster = lazyWithRetry(() => import('./components/Roster'));
@@ -238,6 +241,7 @@ const AppContent: React.FC = () => {
           <Route path="/nil-wallet" element={<NILWalletDashboard />} />
           <Route path="/nil-marketplace" element={<NILMarketplace />} />
           <Route path="/progress" element={<ProgressPage />} />
+          <Route path="/compare" element={<ComparisonPage />} />
           
           {!user ? (
             <>
@@ -276,6 +280,7 @@ const AppContent: React.FC = () => {
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard" element={<FanDashboard />} />
                 <Route path="profile" element={<FanProfile />} />
+                <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="events/:eventId/register" element={<RegistrationFlow />} />
               </Route>
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -293,6 +298,7 @@ const AppContent: React.FC = () => {
                 <Route path="commissioner/grievances" element={<CommissionerGrievances />} />
                 <Route path="commissioner/schedule" element={<TeamScheduleView />} />
                 <Route path="profile" element={<Profile />} />
+                <Route path="notifications" element={<NotificationsPage />} />
                 {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}
               </Route>
               <Route path="*" element={<Navigate to="/commissioner" replace />} />
@@ -312,6 +318,7 @@ const AppContent: React.FC = () => {
                 <Route path="league/infractions" element={<LeagueInfractions />} />
                 <Route path="league/standings" element={<LeagueStandings />} />
                 <Route path="profile" element={<Profile />} />
+                <Route path="notifications" element={<NotificationsPage />} />
                 {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}
               </Route>
               <Route path="*" element={<Navigate to="/league" replace />} />
@@ -345,6 +352,7 @@ const AppContent: React.FC = () => {
                 {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}
                 {config.videoLibraryEnabled && <Route path="videos" element={<VideoLibrary />} />}
                 <Route path="profile" element={<Profile />} />
+                <Route path="notifications" element={<NotificationsPage />} />
                 {config.statsEnabled && <Route path="stats" element={<Stats />} />}
                 {config.playbookEnabled && hasPlaybook && <Route path="coaching" element={<Coaching />} />}
                 {/* Events System Routes */}

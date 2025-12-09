@@ -9,8 +9,9 @@ import type { Team } from '../../types';
 import { 
     Megaphone, Send, Trash2, AlertTriangle, Clock, Users, 
     CheckSquare, Square, X, ChevronDown, ChevronUp, Globe,
-    Target, History, Plus
+    Target, History, Plus, Bell
 } from 'lucide-react';
+import { sendSystemAnnouncement, sendTeamAnnouncement } from '../../services/notificationService';
 
 interface Announcement {
     id: string;
@@ -133,6 +134,42 @@ const Announcements: React.FC = () => {
             }
             
             await batch.commit();
+
+            // Send in-app notifications to all users of the target teams
+            if (targetType === 'all') {
+                // System-wide announcement - send to all users
+                try {
+                    await sendSystemAnnouncement(
+                        title.trim(),
+                        message.trim(),
+                        {
+                            priority: priority === 'urgent' ? 'urgent' : priority === 'important' ? 'high' : 'normal',
+                            link: '/dashboard'
+                        }
+                    );
+                } catch (notifErr) {
+                    console.error('Error sending system notification:', notifErr);
+                    // Don't fail the whole operation if notifications fail
+                }
+            } else {
+                // Send team announcements to specific teams
+                for (const team of teamsToNotify) {
+                    try {
+                        await sendTeamAnnouncement(
+                            team.id,
+                            team.name,
+                            title.trim(),
+                            message.trim(),
+                            { 
+                                priority: priority === 'urgent' ? 'urgent' : priority === 'important' ? 'high' : 'normal' 
+                            }
+                        );
+                    } catch (notifErr) {
+                        console.error(`Error sending notification to team ${team.id}:`, notifErr);
+                        // Continue with other teams even if one fails
+                    }
+                }
+            }
 
             // Log activity
             await addDoc(collection(db, 'adminActivityLog'), {

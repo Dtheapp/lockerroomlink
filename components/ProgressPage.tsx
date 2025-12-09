@@ -108,6 +108,7 @@ const completedFeatures = [
   { category: 'Live Streaming', items: ['YouTube Live', 'Multi-camera', 'Save to library', 'Live chat'] },
   { category: 'Fan Engagement', items: ['Fan following', 'Kudos/reactions', 'Fan clips', 'Public chat', 'Fan dashboard'] },
   { category: 'Admin System', items: ['Admin dashboard', 'User management', 'Team management', 'Content moderation', 'Activity logging', 'System announcements', 'Email communication'] },
+  { category: 'Notification System', items: ['In-app notification center', 'Push notifications', 'Notification preferences', 'Real-time updates', 'Notification bell UI', 'Mark read/unread', 'Clear notifications'] },
   { category: 'Technical Foundation', items: ['TypeScript', 'React 19', 'Vite', 'Firebase Firestore', 'Firebase Auth', 'Firebase Storage', 'Security rules', 'Rate limiting', 'Input sanitization', 'PWA', 'Mobile responsive'] },
   { category: 'Documentation', items: ['25 Working Traits', 'Monetization plan', 'Pilot plan', 'Feature roadmap', 'Design upgrades', 'Project review', 'AI context', 'Progress tracker'] },
 ];
@@ -884,24 +885,84 @@ export const ProgressPage: React.FC = () => {
             <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-6">
               <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <Target className="text-blue-400" />
-                Revenue Milestones
+                10-Year Revenue Projections (from REVENUE_PROJECTIONS.md)
               </h2>
-              <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4">
-                {[
-                  { target: '$100 MRR', date: 'Jan 2026', status: 'upcoming' },
-                  { target: '$1,000 MRR', date: 'Feb 2026', status: 'upcoming' },
-                  { target: '$5,000 MRR', date: 'Jun 2026', status: 'upcoming' },
-                  { target: '$10,000 MRR', date: 'Dec 2026', status: 'upcoming' },
-                  { target: '$50,000 MRR', date: '2027', status: 'upcoming' },
-                ].map((milestone, idx) => (
-                  <div key={idx} className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-700 text-center">
-                    <div className="text-lg font-bold text-white">{milestone.target}</div>
-                    <div className="text-xs text-slate-500">{milestone.date}</div>
-                    <div className="mt-2">
-                      <Circle size={14} className="text-slate-500 mx-auto" />
-                    </div>
+              <div className="space-y-6">
+                {/* Key Metrics Row */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-gradient-to-br from-purple-500/20 to-purple-500/5 rounded-xl border border-purple-500/30 p-4 text-center">
+                    <div className="text-2xl font-bold text-purple-400">500K</div>
+                    <div className="text-xs text-slate-400">Teams by Y10</div>
                   </div>
-                ))}
+                  <div className="bg-gradient-to-br from-green-500/20 to-green-500/5 rounded-xl border border-green-500/30 p-4 text-center">
+                    <div className="text-2xl font-bold text-green-400">$285M</div>
+                    <div className="text-xs text-slate-400">ARR by Y10</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-orange-500/20 to-orange-500/5 rounded-xl border border-orange-500/30 p-4 text-center">
+                    <div className="text-2xl font-bold text-orange-400">29M</div>
+                    <div className="text-xs text-slate-400">Users by Y10</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-pink-500/20 to-pink-500/5 rounded-xl border border-pink-500/30 p-4 text-center">
+                    <div className="text-2xl font-bold text-pink-400">$1.4B</div>
+                    <div className="text-xs text-slate-400">Valuation (5x ARR)</div>
+                  </div>
+                </div>
+                
+                {/* Year by Year Projections */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-700">
+                        <th className="text-left py-2 text-slate-400 font-medium">Year</th>
+                        <th className="text-right py-2 text-slate-400 font-medium">Teams</th>
+                        <th className="text-right py-2 text-slate-400 font-medium">Users</th>
+                        <th className="text-right py-2 text-slate-400 font-medium">Revenue</th>
+                        <th className="text-right py-2 text-slate-400 font-medium">Growth</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { year: 'Y1', teams: '500', users: '29K', revenue: '$89K', growth: '-' },
+                        { year: 'Y2', teams: '2,500', users: '145K', revenue: '$770K', growth: '765%' },
+                        { year: 'Y3', teams: '10,000', users: '580K', revenue: '$4.2M', growth: '445%' },
+                        { year: 'Y4', teams: '30,000', users: '1.7M', revenue: '$15.6M', growth: '271%' },
+                        { year: 'Y5', teams: '75,000', users: '4.4M', revenue: '$37M', growth: '137%' },
+                        { year: 'Y6', teams: '140,000', users: '8.1M', revenue: '$84M', growth: '127%' },
+                        { year: 'Y7', teams: '225,000', users: '13M', revenue: '$134M', growth: '60%' },
+                        { year: 'Y8', teams: '325,000', users: '19M', revenue: '$194M', growth: '45%' },
+                        { year: 'Y9', teams: '425,000', users: '25M', revenue: '$254M', growth: '31%' },
+                        { year: 'Y10', teams: '500,000', users: '29M', revenue: '$285M', growth: '12%' },
+                      ].map((row, idx) => (
+                        <tr key={row.year} className={`border-b border-zinc-800 ${idx < 1 ? 'bg-green-500/10' : ''}`}>
+                          <td className="py-2 text-white font-medium">{row.year}</td>
+                          <td className="py-2 text-right text-slate-300">{row.teams}</td>
+                          <td className="py-2 text-right text-slate-300">{row.users}</td>
+                          <td className="py-2 text-right text-green-400 font-medium">{row.revenue}</td>
+                          <td className="py-2 text-right text-orange-400">{row.growth}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {/* Revenue Stream Breakdown */}
+                <div className="mt-4 p-4 bg-zinc-800/50 rounded-xl border border-zinc-700">
+                  <h4 className="font-semibold text-white mb-3">Revenue Stream Breakdown (Y5)</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {[
+                      { stream: 'Subscriptions', pct: '43%', amt: '$15.8M' },
+                      { stream: 'Transactions', pct: '29%', amt: '$10.7M' },
+                      { stream: 'Marketplace', pct: '12%', amt: '$4.4M' },
+                      { stream: 'Enterprise', pct: '16%', amt: '$5.9M' },
+                    ].map(s => (
+                      <div key={s.stream} className="text-center">
+                        <div className="text-lg font-bold text-white">{s.pct}</div>
+                        <div className="text-xs text-green-400">{s.amt}</div>
+                        <div className="text-xs text-slate-500">{s.stream}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -910,7 +971,15 @@ export const ProgressPage: React.FC = () => {
         {/* Footer */}
         <div className="text-center text-sm text-slate-500 pt-8 border-t border-zinc-800">
           <p>Last Updated: {new Date().toLocaleDateString()}</p>
-          <p className="mt-1">Data sourced from PROGRESS.md, FEATURE_ROADMAP.md, PRODUCTION_CHECKLIST.md, FIXES_APPLIED.md</p>
+          <p className="mt-1">Data sourced from PROGRESS.md, FEATURE_ROADMAP.md, PRODUCTION_CHECKLIST.md, REVENUE_PROJECTIONS.md</p>
+          <a 
+            href="/#/compare" 
+            className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-500 hover:to-pink-500 transition-all"
+          >
+            <BarChart3 size={16} />
+            See How OSYS Compares to Competitors
+            <ExternalLink size={14} />
+          </a>
         </div>
       </div>
     </div>

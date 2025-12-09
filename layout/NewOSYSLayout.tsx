@@ -15,6 +15,7 @@ import { AnimatedBackground, Avatar } from '../components/ui/OSYSComponents';
 import { Menu, X, LogOut, Sun, Moon, ChevronDown, ChevronLeft, ChevronRight, Coins, ShoppingBag } from 'lucide-react';
 import WelcomeModal from '../components/WelcomeModal';
 import FeedbackButton from '../components/ui/FeedbackButton';
+import { NotificationBell } from '../components/ui/NotificationBell';
 
 const NewOSYSLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -191,14 +192,19 @@ const NewOSYSLayout: React.FC = () => {
           </div>
           <span className="font-bold text-lg">OSYS</span>
         </button>
-        <button 
-          onClick={() => setIsSidebarOpen(true)} 
-          className={`p-2 rounded-lg transition ${
-            theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-200'
-          }`}
-        >
-          <Menu className="w-6 h-6" />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Notification Bell */}
+          <NotificationBell />
+          
+          <button 
+            onClick={() => setIsSidebarOpen(true)} 
+            className={`p-2 rounded-lg transition ${
+              theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-200'
+            }`}
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+        </div>
       </div>
 
       {/* Mobile Sidebar Overlay */}
@@ -476,6 +482,11 @@ const NewOSYSLayout: React.FC = () => {
 
       {/* Main Content Area */}
       <main ref={mainContentRef} className={`${isSidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'} min-h-screen pt-16 lg:pt-0 overflow-y-auto transition-all`}>
+        {/* Desktop Notification Bell - Fixed in top right */}
+        <div className="hidden lg:flex fixed top-4 right-6 z-40 items-center gap-3">
+          <NotificationBell />
+        </div>
+        
         <div className="p-4 lg:p-8">
           <Outlet />
         </div>

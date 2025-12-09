@@ -12,6 +12,7 @@ import { useSportConfig } from '../hooks/useSportConfig';
 import PlayerSelector from '../components/PlayerSelector';
 import TeamSelector from '../components/TeamSelector';
 import CreditBalance from '../components/credits/CreditBalance';
+import { NotificationBell } from '../components/ui/NotificationBell';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
@@ -154,6 +155,7 @@ const Layout: React.FC = () => {
           </button>
           <div className="flex items-center gap-2">
             <CreditBalance variant="header" />
+            <NotificationBell />
             <button onClick={() => setIsSidebarOpen(true)} className="text-zinc-600 dark:text-zinc-300">
                 <Menu className="w-8 h-8" />
             </button>
@@ -289,6 +291,11 @@ const Layout: React.FC = () => {
       )}
 
       <main className="flex-1 flex flex-col overflow-hidden bg-zinc-50 dark:bg-black pt-16 md:pt-0 relative">
+        {/* Desktop Notification Bell - Fixed in top right */}
+        <div className="hidden md:flex fixed top-4 right-6 z-40 items-center gap-3">
+          <NotificationBell />
+        </div>
+        
         <div ref={mainContentRef} className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
           <Outlet />
         </div>

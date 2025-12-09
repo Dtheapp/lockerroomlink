@@ -19,6 +19,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { notifyInfractionFiled } from './notificationService';
 import type { 
   League, 
   Program, 
@@ -802,6 +803,42 @@ export const createInfraction = async (
   });
   
   await batch.commit();
+  
+  // Send notifications to all relevant parties
+  const usersToNotify: string[] = [];
+  
+  // Get league owner
+  const leagueDoc = await getDoc(doc(db, 'leagues', infractionData.leagueId));
+  const leagueData = leagueDoc.data();
+  if (leagueData?.ownerId) {
+    usersToNotify.push(leagueData.ownerId);
+  }
+  
+  // Add team director
+  if (teamDirectorId) {
+    usersToNotify.push(teamDirectorId);
+  }
+  
+  // Add head coach
+  if (headCoachId) {
+    usersToNotify.push(headCoachId);
+  }
+  
+  // Send infraction filed notifications
+  if (usersToNotify.length > 0) {
+    try {
+      await notifyInfractionFiled(
+        usersToNotify,
+        teamData?.name || 'Unknown Team',
+        infractionData.title,
+        infractionData.severity,
+        infractionRef.id
+      );
+    } catch (notifErr) {
+      console.error('Error sending infraction notifications:', notifErr);
+      // Don't fail the operation if notifications fail
+    }
+  }
   
   return { 
     infractionId: infractionRef.id, 

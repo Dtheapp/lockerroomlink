@@ -610,13 +610,17 @@ service cloud.firestore {
     // Users collection
     match /users/{userId} {
       allow read: if isAuthenticated();
+      
+      // User creation - must be the authenticated user creating their own document
+      // This is the FIRST operation for a new user, so we can't check getUserData()
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      
       // Users can update their own profile, but NOT credit-related fields
       // Credit fields can only be updated by SuperAdmin
-      allow update: if isUser(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['credits', 'lifetimeCreditsEarned', 'lifetimeCreditsSpent', 'lifetimeCreditsGifted', 'lifetimeCreditsReceived', 'pilotProgramId', 'pilotExpiresAt']);
-      allow create: if isUser(userId);
+      allow update: if (isUser(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['credits', 'lifetimeCreditsEarned', 'lifetimeCreditsSpent', 'lifetimeCreditsGifted', 'lifetimeCreditsReceived', 'pilotProgramId', 'pilotExpiresAt'])) || isAdmin();
+      
+      // Only SuperAdmin can delete users
       allow delete: if isAdmin();
-      // SuperAdmin can update any field including credits
-      allow write: if isAdmin();
       
       // User's plays subcollection (Coach Playbook)
       match /plays/{playId} {
