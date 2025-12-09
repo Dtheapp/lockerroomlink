@@ -692,14 +692,33 @@ Real-time Chat    → Google Translate API (optimized)
 | Streak tracking | ⬜ | Motivation through consistency |
 | Team challenges | ⬜ | Group wellness competitions |
 
-### Wellness Center Monetization
+### Wellness Center Monetization (UPDATED - Credits + Bundles)
 
-| Tier | Features | Price |
-|------|----------|-------|
-| Free | View sample plans, basic tracking | $0 |
-| Athlete Premium | Unlimited AI plans, full tracking | $5/month |
-| Coach Premium | Practice planning, team plans | $15/month |
-| Team Bundle | All athletes + coaches | $30/month |
+> **Philosophy:** Pay-per-use credits + Team bundles. No subscription friction.
+
+#### Individual Credits (Pay-Per-Use)
+| Plan Type | Credits | Notes |
+|-----------|---------|-------|
+| Meal Plan | 3 credits | ~$1.50 |
+| Fitness Plan | 4 credits | ~$2.00 |
+| Practice Plan (Coach) | 5 credits | ~$2.50 |
+| Full Wellness Package | 8 credits | Meal + Fitness bundled |
+
+#### Team Bundles (Admin Configurable!)
+| Tier | Plans/Month/Athlete | Price | Best For |
+|------|---------------------|-------|----------|
+| Starter | 5 plans | $20/month | Small teams |
+| Growth | 15 plans | $40/month | Medium teams |
+| Unlimited | 50 plans | $75/month | Large programs |
+| Custom | Configurable | Custom | Leagues |
+
+**After bundle exhausted:** Athletes use personal credits
+
+#### Team Admin Controls
+- Configure plans-per-athlete limit
+- Allow/disallow rollover of unused plans
+- View usage analytics per athlete
+- Send reminders to inactive athletes
 
 ### Wellness Components Needed
 
@@ -712,6 +731,153 @@ Real-time Chat    → Google Translate API (optimized)
 | `WellnessCalendar.tsx` | Schedule view |
 | `WellnessProgress.tsx` | Tracking dashboard |
 | `DrillLibrary.tsx` | Searchable drill database |
+| `TeamWellnessSettings.tsx` | Admin bundle configuration |
+| `WellnessUsageTracker.tsx` | Per-athlete usage display |
+
+---
+
+## 📊 OSYS COMMAND CENTER - Analytics Dashboard (NEW FEATURE)
+
+> **Vision:** The heartbeat of OSYS in one glance. Know what's hot, what's cold, and exactly what to do about it.
+> **Competitive Advantage:** Nobody combines real-time tracking + AI recommendations + automated actions.
+
+### Dashboard Sections
+
+#### 1. Pulse Meter (Real-Time)
+| Metric | Description |
+|--------|-------------|
+| Users Right Now | Live concurrent users |
+| Actions/Minute | Current activity rate |
+| Revenue Today | Running daily total |
+| Live Activity Stream | Real-time action feed |
+
+#### 2. Growth Radar (Trends)
+| Feature | Description |
+|---------|-------------|
+| User Growth Chart | New users over time |
+| Cohort Retention Matrix | Week 1/2/4/8/12 retention by signup month |
+| Role Distribution | Coaches vs Parents vs Fans |
+| Geographic Distribution | Users by region |
+
+#### 3. Feature Heat Map 🔥❄️ (THE INNOVATION)
+| Temperature | Meaning | Trigger |
+|-------------|---------|---------|
+| 🔥🔥🔥 HOT | Surging usage | +30% or more |
+| 🔥🔥 WARM | Growing | +20% to +30% |
+| 🔥 TRENDING | Rising | +10% to +20% |
+| ─ STABLE | Normal | -10% to +10% |
+| ❄️ COOL | Declining | -10% to -20% |
+| ❄️❄️ COLD | Dropping | -20% to -30% |
+| ❄️❄️❄️ FREEZING | Crisis | -30% or worse |
+
+**Features Include:**
+- Visual grid of all features with temperature indicators
+- Click to drill-down into detailed usage
+- Trend arrows showing direction
+- Auto-alerts when temperature changes
+
+#### 4. AI Recommendations Engine 🤖
+| Recommendation Type | Trigger | Example Action |
+|---------------------|---------|----------------|
+| **Capitalize** | Feature +20%+ | "Send upsell email to power users" |
+| **Re-engage** | Feature -20%+ | "Push notification to lapsed users" |
+| **Convert** | High free usage | "Offer 20% discount to frequent free users" |
+| **Retain** | Churn risk detected | "Personal outreach to at-risk accounts" |
+| **Viral** | High share potential | "Add social share prompt after action" |
+| **Optimize** | Bottleneck detected | "Improve onboarding for X feature" |
+
+**AI provides:**
+- Specific action suggestions
+- Expected impact (users, revenue)
+- One-click execution
+- Scheduling options
+
+#### 5. Alert Center 🚨
+| Alert Level | Example | Auto-Actions |
+|-------------|---------|--------------|
+| 🔴 CRITICAL | Payment failures +300% | Notify dev team, create ticket |
+| 🟡 WARNING | Feature usage -25% | Generate AI recommendation |
+| 🟢 INFO | New record: 127 concurrent users | Celebrate notification |
+
+**Alert Rules Builder:**
+- Custom conditions (any metric + threshold)
+- Multi-channel notifications (email, SMS, Slack, in-app)
+- Auto-actions (campaigns, tickets, notifications)
+
+#### 6. Revenue Analytics 💰
+| Metric | Description |
+|--------|-------------|
+| MRR / ARR | Monthly/Annual recurring revenue |
+| Revenue by Stream | Subscriptions, Credits, Events, Bundles |
+| Feature-Revenue Correlation | Which features drive most revenue |
+| LTV by Segment | Lifetime value by user type |
+| Conversion Funnel | Free → Active → Trial → Paid → Retained |
+
+#### 7. Custom Report Builder
+- Drag-and-drop metrics
+- Filter by role, plan, date, feature
+- Schedule auto-generation
+- Export to PDF/CSV
+
+### Command Center Components
+
+| Component | Purpose |
+|-----------|---------|
+| `CommandCenter.tsx` | Main dashboard shell |
+| `PulseMeter.tsx` | Real-time metrics |
+| `GrowthRadar.tsx` | User growth charts |
+| `FeatureHeatMap.tsx` | Hot/cold temperature grid |
+| `FeatureDrillDown.tsx` | Detailed feature analytics |
+| `AIRecommendations.tsx` | AI suggestion cards with actions |
+| `AlertCenter.tsx` | Alert management |
+| `AlertRuleBuilder.tsx` | Create custom alert rules |
+| `RevenueAnalytics.tsx` | Revenue charts & correlations |
+| `CohortAnalysis.tsx` | Retention matrix |
+| `ReportBuilder.tsx` | Custom report creator |
+| `ActionQueue.tsx` | Execute/schedule campaigns |
+| `LiveActivityStream.tsx` | Real-time action feed |
+
+### Command Center Implementation Phases
+
+#### Phase 1: Foundation (Week 1-2)
+| Task | Priority | Status |
+|------|----------|--------|
+| Event tracking service | 🔴 Critical | ⬜ |
+| Analytics schema (Firestore) | 🔴 Critical | ⬜ |
+| Pulse Meter component | 🔴 Critical | ⬜ |
+| Basic feature usage tracking | 🔴 Critical | ⬜ |
+
+#### Phase 2: Temperature System (Week 3-4)
+| Task | Priority | Status |
+|------|----------|--------|
+| Feature Heat Map | 🔴 Critical | ⬜ |
+| Temperature algorithm | 🔴 Critical | ⬜ |
+| Trend detection | 🟡 High | ⬜ |
+| Feature drill-down | 🟡 High | ⬜ |
+
+#### Phase 3: Alerts & Automation (Week 5-6)
+| Task | Priority | Status |
+|------|----------|--------|
+| Alert Center | 🟡 High | ⬜ |
+| Alert rule builder | 🟡 High | ⬜ |
+| Email/push integration | 🟡 High | ⬜ |
+| Auto-action system | 🟢 Medium | ⬜ |
+
+#### Phase 4: AI Recommendations (Week 7-8)
+| Task | Priority | Status |
+|------|----------|--------|
+| AI analysis engine | 🟡 High | ⬜ |
+| Recommendation cards | 🟡 High | ⬜ |
+| Action queue | 🟢 Medium | ⬜ |
+| Campaign execution | 🟢 Medium | ⬜ |
+
+#### Phase 5: Revenue & Reports (Week 9-10)
+| Task | Priority | Status |
+|------|----------|--------|
+| Revenue analytics | 🟢 Medium | ⬜ |
+| LTV calculations | 🟢 Medium | ⬜ |
+| Custom report builder | 🟢 Medium | ⬜ |
+| Scheduled reports | 🟢 Medium | ⬜ |
 
 ---
 
@@ -1010,8 +1176,18 @@ Real-time Chat    → Google Translate API (optimized)
   - Fitness plans AI (sport-specific, age-appropriate)
   - Practice planning AI for coaches
   - Schedule and tracking system
-  - Monetization tiers defined
-  - 7 new components identified
+  - Credits + Team Bundle monetization model
+  - 9 new components identified
+- ✅ Designed OSYS COMMAND CENTER - Analytics Dashboard
+  - Pulse Meter: Real-time metrics (users now, actions/min, revenue)
+  - Growth Radar: User growth charts, cohort retention matrix
+  - Feature Heat Map: 🔥❄️ Hot/Cold temperature system for all features
+  - AI Recommendations Engine: Capitalize, Re-engage, Convert, Retain, Viral
+  - Alert Center: Custom rules, multi-channel notifications, auto-actions
+  - Revenue Analytics: MRR/ARR, feature-revenue correlation, LTV
+  - Custom Report Builder: Drag-and-drop metrics, scheduled reports
+  - 13 new components identified
+- ✅ Updated Wellness monetization: Credits + Team Bundles (admin configurable)
 - ✅ Updated PROGRESS.md with comprehensive pilot roadmap
 - ✅ Created Sports Readiness Matrix
 - ✅ Updated journey milestones (Pilot Ready now in progress!)
