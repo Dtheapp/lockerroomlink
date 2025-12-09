@@ -123,17 +123,27 @@ const AuthScreen: React.FC = () => {
     }
   }, [searchParams]);
 
-  const validateUsername = async (u: string) => {
+  // Validate username format only (no DB check - that happens after auth)
+  const validateUsernameFormat = (u: string) => {
     if (!/^[a-zA-Z0-9]+$/.test(u)) {
       throw new Error('Username can only contain letters and numbers.');
     }
-    const clean = u.trim().toLowerCase();
-    const usernameQuery = query(collection(db, 'users'), where('username', '==', clean));
+    if (u.length < 3) {
+      throw new Error('Username must be at least 3 characters.');
+    }
+    if (u.length > 20) {
+      throw new Error('Username must be 20 characters or less.');
+    }
+    return u.trim().toLowerCase();
+  };
+
+  // Check if username is taken (only call AFTER user is authenticated)
+  const checkUsernameAvailable = async (u: string) => {
+    const usernameQuery = query(collection(db, 'users'), where('username', '==', u));
     const querySnapshot = await getDocs(usernameQuery);
     if (!querySnapshot.empty) {
-      throw new Error(`The Username "${clean}" is already taken.`);
+      throw new Error(`The Username "${u}" is already taken.`);
     }
-    return clean;
   };
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -148,34 +158,47 @@ const AuthScreen: React.FC = () => {
         if (!name) throw new Error('Full Name is required.');
         if (!username) throw new Error('Username is required.');
         
-        const cleanUsername = await validateUsername(username);
+        // Validate format first (no DB call - user not authenticated yet)
+        const cleanUsername = validateUsernameFormat(username);
 
-        let verifiedTeamId = null;
-        if (signUpRole === 'Coach' && teamId) {
-          const teamDoc = await getDoc(doc(db, 'teams', teamId));
-          if (teamDoc.exists()) verifiedTeamId = teamId;
-        }
-
+        // Create the Firebase Auth user FIRST
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        const userProfile: any = {
-          uid: user.uid,
-          name,
-          email,
-          role: signUpRole,
-          teamId: verifiedTeamId,
-          username: cleanUsername
-        };
-        
-        if (signUpRole === 'Fan') {
-          userProfile.followedAthletes = [];
-          userProfile.kudosGiven = {};
-          userProfile.favoriteTeams = [];
-          userProfile.isBanned = false;
+        // NOW we're authenticated, so we can query the database
+        try {
+          // Check if username is available
+          await checkUsernameAvailable(cleanUsername);
+          
+          let verifiedTeamId = null;
+          if (signUpRole === 'Coach' && teamId) {
+            const teamDoc = await getDoc(doc(db, 'teams', teamId));
+            if (teamDoc.exists()) verifiedTeamId = teamId;
+          }
+
+          const userProfile: any = {
+            uid: user.uid,
+            name,
+            email,
+            role: signUpRole,
+            teamId: verifiedTeamId,
+            username: cleanUsername
+          };
+          
+          if (signUpRole === 'Fan') {
+            userProfile.followedAthletes = [];
+            userProfile.kudosGiven = {};
+            userProfile.favoriteTeams = [];
+            userProfile.isBanned = false;
+          }
+          
+          await setDoc(doc(db, 'users', user.uid), userProfile);
+        } catch (dbErr: any) {
+          // If database operations fail, delete the auth user we just created
+          console.error('Database error during signup:', dbErr);
+          await user.delete();
+          throw dbErr;
         }
-        
-        await setDoc(doc(db, 'users', user.uid), userProfile);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
