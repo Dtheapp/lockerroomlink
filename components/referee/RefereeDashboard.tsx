@@ -28,9 +28,11 @@ import {
   ChevronRight,
   AlertCircle,
   CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import type { RefereeProfile, RefereeAssignment, RefereeStats } from '../../types/referee';
+import { InfractionModal } from './InfractionModal';
 
 interface Props {
   onNavigate?: (view: string) => void;
@@ -44,6 +46,7 @@ export const RefereeDashboard: React.FC<Props> = ({ onNavigate }) => {
   const [pendingRequests, setPendingRequests] = useState<RefereeAssignment[]>([]);
   const [stats, setStats] = useState<RefereeStats | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [showInfractionModal, setShowInfractionModal] = useState(false);
 
   useEffect(() => {
     if (user?.uid) {
@@ -331,7 +334,22 @@ export const RefereeDashboard: React.FC<Props> = ({ onNavigate }) => {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <button
+          onClick={() => setShowInfractionModal(true)}
+          className="bg-gradient-to-br from-red-500/10 to-orange-500/10 hover:from-red-500/20 hover:to-orange-500/20 rounded-xl p-4 border border-red-500/30 text-left transition-colors group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center group-hover:bg-red-500/30 transition-colors">
+              <AlertTriangle className="w-5 h-5 text-red-400" />
+            </div>
+            <div>
+              <p className="font-medium text-white">Report Infraction</p>
+              <p className="text-sm text-slate-400">Document violations</p>
+            </div>
+          </div>
+        </button>
+
         <button
           onClick={() => onNavigate?.('schedule')}
           className="bg-slate-800/50 hover:bg-slate-800 rounded-xl p-4 border border-slate-700 text-left transition-colors group"
@@ -394,6 +412,16 @@ export const RefereeDashboard: React.FC<Props> = ({ onNavigate }) => {
           </div>
         </div>
       )}
+
+      {/* Infraction Modal */}
+      <InfractionModal
+        isOpen={showInfractionModal}
+        onClose={() => setShowInfractionModal(false)}
+        onSuccess={() => {
+          // Optionally show a success toast or notification
+          console.log('Infraction reported successfully');
+        }}
+      />
     </div>
   );
 };

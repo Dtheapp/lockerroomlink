@@ -190,6 +190,115 @@ export interface Grievance {
   resolution?: string;
 }
 
+// --- REFEREE INFRACTION SYSTEM ---
+
+export type InfractionSeverity = 'minor' | 'moderate' | 'major' | 'severe';
+export type InfractionCategory = 'unsportsmanlike' | 'rule_violation' | 'safety' | 'eligibility' | 'equipment' | 'administrative' | 'other';
+export type InfractionStatus = 'submitted' | 'under_review' | 'resolved' | 'dismissed' | 'appealed';
+
+export interface Infraction {
+  id: string;
+  teamId: string;
+  teamName?: string;
+  leagueId: string;
+  leagueName?: string;
+  
+  // Reporter (Referee)
+  reportedBy: string;           // Referee user ID
+  reportedByName?: string;
+  
+  // Game context
+  gameId?: string;              // If associated with a specific game
+  gameDate?: Timestamp | Date;
+  opponent?: string;            // Opponent team name if applicable
+  
+  // Infraction details
+  severity: InfractionSeverity;
+  category: InfractionCategory;
+  title: string;
+  description: string;
+  
+  // People involved
+  involvedPlayers?: {
+    playerId: string;
+    playerName: string;
+    number?: number;
+  }[];
+  involvedCoaches?: {
+    coachId: string;
+    coachName: string;
+  }[];
+  involvedParents?: string[];   // Parent names (may not have IDs)
+  
+  // Status & resolution
+  status: InfractionStatus;
+  assignedTo?: string;          // Commissioner handling the case
+  
+  // Consequences (set by league commissioner)
+  consequence?: {
+    type: 'warning' | 'suspension' | 'fine' | 'probation' | 'expulsion';
+    details: string;
+    duration?: string;          // e.g., "2 games", "remainder of season"
+    fineAmount?: number;
+  };
+  
+  // Appeal info
+  appealedAt?: Timestamp | Date;
+  appealReason?: string;
+  appealDecision?: 'upheld' | 'overturned' | 'modified';
+  appealDecisionDetails?: string;
+  
+  // Chat thread for 3-way communication
+  chatThreadId?: string;
+  
+  // Timestamps
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
+  resolvedAt?: Timestamp | Date;
+  resolvedBy?: string;
+}
+
+export interface InfractionThread {
+  id: string;
+  infractionId: string;
+  
+  // Participants (3-way: League, Referee, Team Director)
+  participants: {
+    leagueId: string;
+    leagueRepId?: string;       // Commissioner handling it
+    leagueRepName?: string;
+    refereeId: string;
+    refereeName?: string;
+    teamDirectorId?: string;    // Head coach or program commissioner
+    teamDirectorName?: string;
+    teamId: string;
+  };
+  
+  // Thread metadata
+  status: 'active' | 'closed';
+  createdAt: Timestamp | Date;
+  lastMessageAt?: Timestamp | Date;
+  unreadByLeague?: number;
+  unreadByReferee?: number;
+  unreadByTeam?: number;
+}
+
+export interface InfractionMessage {
+  id: string;
+  threadId: string;
+  senderId: string;
+  senderName: string;
+  senderRole: 'league' | 'referee' | 'team';
+  content: string;
+  attachments?: {
+    url: string;
+    name: string;
+    type: string;
+  }[];
+  createdAt: Timestamp | Date;
+  readBy?: string[];            // User IDs who have read this
+}
+
 export interface TeamGame {
   id: string;
   teamId: string;
@@ -484,6 +593,8 @@ export interface Team {
   // --- RULES & CODE OF CONDUCT ---
   rules?: RulesDocument;                // Team rules (or league rules if in league)
   codeOfConduct?: RulesDocument;        // Team code of conduct (or league's if in league)
+  teamOnlyRules?: RulesDocument;        // Supplemental team-only rules (never overridden by league)
+  teamOnlyCodeOfConduct?: RulesDocument; // Supplemental team-only code of conduct (never overridden)
 }
 
 // In types.ts

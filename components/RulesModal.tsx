@@ -12,6 +12,7 @@ interface RulesModalProps {
   leagueId?: string;
   canEdit?: boolean; // Whether current user can edit
   type: 'rules' | 'codeOfConduct';
+  teamOnly?: boolean; // If true, uses teamOnlyRules/teamOnlyCodeOfConduct (never overridden by league)
 }
 
 export const RulesModal: React.FC<RulesModalProps> = ({
@@ -21,6 +22,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({
   leagueId,
   canEdit = false,
   type,
+  teamOnly = false,
 }) => {
   const { user, userData } = useAuth();
   const [document, setDocument] = useState<RulesDocument | null>(null);
@@ -36,15 +38,25 @@ export const RulesModal: React.FC<RulesModalProps> = ({
     if (isOpen) {
       loadDocument();
     }
-  }, [isOpen, teamId, leagueId, type]);
+  }, [isOpen, teamId, leagueId, type, teamOnly]);
 
   const loadDocument = async () => {
     setLoading(true);
     setError('');
     
     try {
+      // Team-only rules are always from the team and never overridden
+      if (teamOnly && teamId) {
+        const teamDoc = await getDoc(doc(db, 'teams', teamId));
+        if (teamDoc.exists()) {
+          const teamData = teamDoc.data() as Team;
+          const rulesDoc = type === 'rules' ? teamData.teamOnlyRules : teamData.teamOnlyCodeOfConduct;
+          setDocument(rulesDoc || null);
+          setSource('team');
+        }
+      }
       // First check if we're loading from a league directly
-      if (leagueId && !teamId) {
+      else if (leagueId && !teamId) {
         const leagueDoc = await getDoc(doc(db, 'leagues', leagueId));
         if (leagueDoc.exists()) {
           const leagueData = leagueDoc.data() as League;
@@ -123,6 +135,15 @@ export const RulesModal: React.FC<RulesModalProps> = ({
         // Updating league rules
         await updateDoc(doc(db, 'leagues', leagueId), {
           [type === 'rules' ? 'rules' : 'codeOfConduct']: updatedDoc,
+          updatedAt: serverTimestamp(),
+        });
+      } else if (teamId && teamOnly) {
+        // Updating team-only rules (never overridden by league)
+        await updateDoc(doc(db, 'teams', teamId), {
+          [type === 'rules' ? 'teamOnlyRules' : 'teamOnlyCodeOfConduct']: {
+            ...updatedDoc,
+            source: 'team',
+          },
           updatedAt: serverTimestamp(),
         });
       } else if (teamId) {

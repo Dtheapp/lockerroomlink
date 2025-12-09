@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Shield, ChevronRight, BookOpen, Info } from 'lucide-react';
+import { FileText, Shield, ChevronRight, BookOpen, Info, Users } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { RulesModal } from './RulesModal';
@@ -20,10 +20,14 @@ export const TeamRulesInfo: React.FC<TeamRulesInfoProps> = ({
 }) => {
   const [hasRules, setHasRules] = useState(false);
   const [hasConduct, setHasConduct] = useState(false);
+  const [hasTeamOnlyRules, setHasTeamOnlyRules] = useState(false);
+  const [hasTeamOnlyConduct, setHasTeamOnlyConduct] = useState(false);
   const [isFromLeague, setIsFromLeague] = useState(false);
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showConductModal, setShowConductModal] = useState(false);
+  const [showTeamOnlyRulesModal, setShowTeamOnlyRulesModal] = useState(false);
+  const [showTeamOnlyConductModal, setShowTeamOnlyConductModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,6 +46,10 @@ export const TeamRulesInfo: React.FC<TeamRulesInfoProps> = ({
         let rulesExist = !!teamData.rules?.content;
         let conductExist = !!teamData.codeOfConduct?.content;
         let fromLeague = false;
+        
+        // Check team-only rules (these are never overridden)
+        setHasTeamOnlyRules(!!teamData.teamOnlyRules?.content);
+        setHasTeamOnlyConduct(!!teamData.teamOnlyCodeOfConduct?.content);
         
         // Check if team is in a league
         if (teamData.leagueId && teamData.leagueStatus === 'active') {
@@ -80,7 +88,7 @@ export const TeamRulesInfo: React.FC<TeamRulesInfoProps> = ({
   if (compact) {
     return (
       <>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {(hasRules || canEditTeamRules) && (
             <button
               onClick={() => setShowRulesModal(true)}
@@ -101,6 +109,25 @@ export const TeamRulesInfo: React.FC<TeamRulesInfoProps> = ({
               {isFromLeague && <BookOpen size={12} className="text-purple-400" />}
             </button>
           )}
+          {/* Team-only rules (supplemental, never overridden) */}
+          {(hasTeamOnlyRules || canEditTeamRules) && isFromLeague && (
+            <button
+              onClick={() => setShowTeamOnlyRulesModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800/50 hover:bg-zinc-700/50 border border-orange-500/30 rounded-lg text-sm text-slate-300 hover:text-white transition-colors"
+            >
+              <Users size={14} className="text-orange-400" />
+              <span>Team Rules</span>
+            </button>
+          )}
+          {(hasTeamOnlyConduct || canEditTeamRules) && isFromLeague && (
+            <button
+              onClick={() => setShowTeamOnlyConductModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800/50 hover:bg-zinc-700/50 border border-orange-500/30 rounded-lg text-sm text-slate-300 hover:text-white transition-colors"
+            >
+              <Users size={14} className="text-orange-400" />
+              <span>Team Conduct</span>
+            </button>
+          )}
         </div>
 
         {/* Modals */}
@@ -117,6 +144,22 @@ export const TeamRulesInfo: React.FC<TeamRulesInfoProps> = ({
           teamId={teamId}
           canEdit={isFromLeague ? canEditLeagueRules : canEditTeamRules}
           type="codeOfConduct"
+        />
+        <RulesModal
+          isOpen={showTeamOnlyRulesModal}
+          onClose={() => setShowTeamOnlyRulesModal(false)}
+          teamId={teamId}
+          canEdit={canEditTeamRules}
+          type="rules"
+          teamOnly={true}
+        />
+        <RulesModal
+          isOpen={showTeamOnlyConductModal}
+          onClose={() => setShowTeamOnlyConductModal(false)}
+          teamId={teamId}
+          canEdit={canEditTeamRules}
+          type="codeOfConduct"
+          teamOnly={true}
         />
       </>
     );
@@ -184,7 +227,56 @@ export const TeamRulesInfo: React.FC<TeamRulesInfoProps> = ({
               </button>
             )}
 
-            {!hasRules && !hasConduct && !canEditTeamRules && (
+            {/* Team-Only Rules (supplemental, never overridden by league) */}
+            {isFromLeague && (hasTeamOnlyRules || hasTeamOnlyConduct || canEditTeamRules) && (
+              <div className="mt-3 pt-3 border-t border-white/5">
+                <p className="text-xs text-orange-400 mb-2 flex items-center gap-1">
+                  <Users size={12} /> Team-Specific (Supplemental)
+                </p>
+                
+                {(hasTeamOnlyRules || canEditTeamRules) && (
+                  <button
+                    onClick={() => setShowTeamOnlyRulesModal(true)}
+                    className="w-full flex items-center justify-between p-3 bg-zinc-800/50 hover:bg-zinc-700/50 border border-orange-500/20 rounded-lg transition-colors group mb-2"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-orange-500/20 text-orange-400">
+                        <FileText size={16} />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-white font-medium">Team Rules</p>
+                        <p className="text-xs text-slate-400">
+                          {hasTeamOnlyRules ? 'Additional team rules' : 'Add team-specific rules'}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight size={18} className="text-slate-500 group-hover:text-white transition-colors" />
+                  </button>
+                )}
+
+                {(hasTeamOnlyConduct || canEditTeamRules) && (
+                  <button
+                    onClick={() => setShowTeamOnlyConductModal(true)}
+                    className="w-full flex items-center justify-between p-3 bg-zinc-800/50 hover:bg-zinc-700/50 border border-orange-500/20 rounded-lg transition-colors group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-orange-500/20 text-orange-400">
+                        <Shield size={16} />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-white font-medium">Team Conduct</p>
+                        <p className="text-xs text-slate-400">
+                          {hasTeamOnlyConduct ? 'Additional conduct guidelines' : 'Add team-specific guidelines'}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight size={18} className="text-slate-500 group-hover:text-white transition-colors" />
+                  </button>
+                )}
+              </div>
+            )}
+
+            {!hasRules && !hasConduct && !hasTeamOnlyRules && !hasTeamOnlyConduct && !canEditTeamRules && (
               <p className="text-sm text-slate-500 text-center py-2">
                 No team policies available
               </p>
@@ -207,6 +299,22 @@ export const TeamRulesInfo: React.FC<TeamRulesInfoProps> = ({
         teamId={teamId}
         canEdit={isFromLeague ? canEditLeagueRules : canEditTeamRules}
         type="codeOfConduct"
+      />
+      <RulesModal
+        isOpen={showTeamOnlyRulesModal}
+        onClose={() => setShowTeamOnlyRulesModal(false)}
+        teamId={teamId}
+        canEdit={canEditTeamRules}
+        type="rules"
+        teamOnly={true}
+      />
+      <RulesModal
+        isOpen={showTeamOnlyConductModal}
+        onClose={() => setShowTeamOnlyConductModal(false)}
+        teamId={teamId}
+        canEdit={canEditTeamRules}
+        type="codeOfConduct"
+        teamOnly={true}
       />
     </>
   );
