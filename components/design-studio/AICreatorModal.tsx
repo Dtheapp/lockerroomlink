@@ -312,7 +312,7 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
       const actualHeight = outputSize === 'custom' ? customHeight : FLYER_SIZES[outputSize].height;
       
       // Call the real AI generation API
-      setGenerationStep('Generating AI designs with DALL-E 3...');
+      setGenerationStep('Generating AI design with DALL-E 3...');
       
       let aiImages: { url: string; revisedPrompt?: string }[] = [];
       let aiError: string | null = null;
@@ -330,7 +330,6 @@ const AICreatorModal: React.FC<AICreatorModalProps> = ({
           designType: designType!,
           style,
           mood,
-          numVariations: 3,
         }),
       });
       

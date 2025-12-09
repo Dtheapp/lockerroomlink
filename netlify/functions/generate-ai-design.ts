@@ -20,6 +20,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Method not allowed' }),
     };
   }
@@ -29,17 +30,19 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return {
       statusCode: 401,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Unauthorized' }),
     };
   }
 
   try {
     const body: GenerateDesignRequest = JSON.parse(event.body || '{}');
-    const { prompt, width, height, designType, style, mood, numVariations = 3 } = body;
+    const { prompt, width, height, designType, style, mood } = body;
 
     if (!prompt) {
       return {
         statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ error: 'Prompt is required' }),
       };
     }
@@ -51,9 +54,10 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
       console.error('OPENAI_API_KEY not configured');
       return {
         statusCode: 500,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           error: 'AI service not configured',
-          details: 'OpenAI API key not configured. Please add OPENAI_API_KEY to your Netlify environment variables.',
+          details: 'OpenAI API key not configured.',
         }),
       };
     }
@@ -62,94 +66,67 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
     const enhancedPrompt = buildEnhancedPrompt(prompt, designType, style, mood);
     
     // Determine optimal size for DALL-E 3 (it only supports specific sizes)
-    // DALL-E 3 sizes: 1024x1024, 1792x1024, 1024x1792
     const dalleSize = getDalleSize(width, height);
 
     console.log('Generating AI design:', {
-      originalPrompt: prompt.substring(0, 100),
-      enhancedPrompt: enhancedPrompt.substring(0, 200),
+      prompt: prompt.substring(0, 100),
       dalleSize,
-      numVariations,
     });
 
-    // Generate images using DALL-E 3
-    // Note: DALL-E 3 only generates 1 image per call, so we need multiple calls for variations
-    const generatedImages: GeneratedImage[] = [];
-    
-    for (let i = 0; i < numVariations; i++) {
-      // Add variation hint to prompt
-      const variationPrompt = i === 0 
-        ? enhancedPrompt 
-        : `${enhancedPrompt} (Variation ${i + 1}: ${getVariationHint(i, style)})`;
+    // Generate ONLY 1 image to stay within timeout
+    const response = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openaiApiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'dall-e-3',
+        prompt: enhancedPrompt,
+        n: 1,
+        size: dalleSize,
+        quality: 'standard',
+        response_format: 'url',
+      }),
+    });
 
-      try {
-        const response = await fetch('https://api.openai.com/v1/images/generations', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${openaiApiKey}`,
-          },
-          body: JSON.stringify({
-            model: 'dall-e-3',
-            prompt: variationPrompt,
-            n: 1,
-            size: dalleSize,
-            quality: 'standard', // 'standard' or 'hd'
-            response_format: 'url',
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.text();
-          console.error(`DALL-E API error for variation ${i + 1}:`, errorData);
-          
-          // If first image fails, return error
-          if (i === 0) {
-            const errorJson = JSON.parse(errorData);
-            return {
-              statusCode: 500,
-              body: JSON.stringify({
-                error: 'AI generation failed',
-                details: errorJson.error?.message || 'Failed to generate image',
-              }),
-            };
-          }
-          // For subsequent variations, just skip
-          continue;
-        }
-
-        const data = await response.json();
-        const imageData = data.data?.[0];
-        
-        if (imageData?.url) {
-          generatedImages.push({
-            url: imageData.url,
-            revisedPrompt: imageData.revised_prompt,
-          });
-        }
-      } catch (err) {
-        console.error(`Error generating variation ${i + 1}:`, err);
-        if (i === 0) throw err;
-      }
-    }
-
-    if (generatedImages.length === 0) {
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('DALL-E API error:', errorData);
       return {
         statusCode: 500,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           error: 'AI generation failed',
-          details: 'No images were generated',
+          details: errorData.substring(0, 200),
+        }),
+      };
+    }
+
+    const data = await response.json();
+    const imageData = data.data?.[0];
+
+    if (!imageData?.url) {
+      return {
+        statusCode: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          error: 'No image generated',
+          details: 'DALL-E returned empty response',
         }),
       };
     }
 
     return {
       statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         success: true,
-        images: generatedImages,
+        images: [{
+          url: imageData.url,
+          revisedPrompt: imageData.revised_prompt,
+        }],
         dalleSize,
-        targetSize: { width, height },
       }),
     };
 
@@ -157,6 +134,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
     console.error('Generate AI design error:', error);
     return {
       statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         error: 'Internal server error',
         details: error instanceof Error ? error.message : 'Unknown error',

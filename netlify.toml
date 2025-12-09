@@ -3,6 +3,17 @@
   publish = "dist"
   functions = "netlify/functions"
 
+# Function configuration - extend timeout for AI generation
+[functions]
+  # Background functions have longer timeout
+  node_bundler = "esbuild"
+
+# Specific function settings
+[functions."generate-ai-design"]
+  # On Pro plan this can be up to 26 seconds
+  # On free plan max is 10 seconds
+  timeout = 26
+
 # =============================================================================
 # BRANCH DEPLOY CONFIGURATION
 # =============================================================================
