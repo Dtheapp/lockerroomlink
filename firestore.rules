@@ -726,9 +726,9 @@ service cloud.firestore {
         allow read: if true;
         allow write: if isTeamCoach(teamId) || isAdmin();
         
-        // Player's film room
+        // Player's film room (public for athlete profile viewing)
         match /filmRoom/{filmId} {
-          allow read: if isAuthenticated();
+          allow read: if true;
           allow write: if isTeamCoach(teamId) || isAdmin();
         }
         
@@ -830,6 +830,12 @@ service cloud.firestore {
         // Allow public read for public profiles
         allow read: if true;
         allow write: if isTeamCoach(teamId) || isAdmin();
+        
+        // Player stats for this game (public for athlete profiles)
+        match /playerStats/{playerId} {
+          allow read: if true;
+          allow write: if isTeamCoach(teamId) || isAdmin();
+        }
       }
       
       // Videos subcollection
