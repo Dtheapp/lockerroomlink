@@ -78,8 +78,8 @@ service cloud.firestore {
     // LEAGUES COLLECTION
     // =============================================================================
     match /leagues/{leagueId} {
-      // Anyone authenticated can read leagues (for searching/joining)
-      allow read: if isAuthenticated();
+      // Allow public read for public league pages
+      allow read: if true;
       
       // Only SuperAdmin can create leagues
       allow create: if isAdmin();
@@ -90,23 +90,23 @@ service cloud.firestore {
       // Only admin can delete leagues
       allow delete: if isAdmin();
       
-      // League Seasons subcollection
+      // League Seasons subcollection (public for league pages)
       match /seasons/{seasonId} {
-        allow read: if isAuthenticated();
+        allow read: if true;
         allow create, update: if isLeagueOwnerOf(leagueId) || isAdmin();
         allow delete: if isAdmin();
       }
       
-      // League Schedules subcollection
+      // League Schedules subcollection (public for league pages)
       match /schedules/{scheduleId} {
-        allow read: if isAuthenticated();
+        allow read: if true;
         allow create, update: if isLeagueOwnerOf(leagueId) || isAdmin();
         allow delete: if isLeagueOwnerOf(leagueId) || isAdmin();
       }
       
-      // Playoff Brackets subcollection
+      // Playoff Brackets subcollection (public for league pages)
       match /brackets/{bracketId} {
-        allow read: if isAuthenticated();
+        allow read: if true;
         allow create, update: if isLeagueOwnerOf(leagueId) || isAdmin();
         allow delete: if isLeagueOwnerOf(leagueId) || isAdmin();
       }
@@ -120,9 +120,9 @@ service cloud.firestore {
         allow delete: if isAdmin();
       }
       
-      // League Announcements subcollection
+      // League Announcements subcollection (public for league pages)
       match /announcements/{announcementId} {
-        allow read: if isAuthenticated();
+        allow read: if true;
         allow create, update, delete: if isLeagueOwnerOf(leagueId) || isAdmin();
       }
     }
@@ -131,8 +131,8 @@ service cloud.firestore {
     // PROGRAMS COLLECTION
     // =============================================================================
     match /programs/{programId} {
-      // Authenticated users can read programs
-      allow read: if isAuthenticated();
+      // Allow public read for public pages
+      allow read: if true;
       
       // Only SuperAdmin can create programs initially
       allow create: if isAdmin();
@@ -659,6 +659,12 @@ service cloud.firestore {
         allow write: if isAuthenticated();
       }
       
+      // Coach/User followers (for public profiles)
+      match /followers/{followerId} {
+        allow read: if true;
+        allow write: if isAuthenticated();
+      }
+      
       // Coach muted users
       match /mutedUsers/{mutedId} {
         allow read: if isUser(userId);
@@ -912,6 +918,50 @@ service cloud.firestore {
       allow write: if isTeamCoach(resource.data.teamId) || 
                       isUser(resource.data.parentUserId) || 
                       isAdmin();
+    }
+    
+    // =============================================================================
+    // COACH KUDOS & FEEDBACK (Public profiles)
+    // =============================================================================
+    
+    // Coach Kudos - Public read for profile display
+    match /coachKudos/{kudosId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+    
+    // Coach Feedback - Private, only admin can view
+    match /coachFeedback/{feedbackId} {
+      allow read: if isAdmin() || 
+                    (isAuthenticated() && resource.data.coachId == request.auth.uid);
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+    
+    // =============================================================================
+    // LEAGUE SEASONS & SCHEDULES (Top-level for public queries)
+    // =============================================================================
+    
+    // League Seasons - Public read for league pages
+    match /leagueSeasons/{seasonId} {
+      allow read: if true;
+      allow create, update: if isLeagueOwner() || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // League Schedules - Public read for league pages
+    match /leagueSchedules/{scheduleId} {
+      allow read: if true;
+      allow create, update: if isLeagueOwner() || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // League Games - Public read for league pages
+    match /leagueGames/{gameId} {
+      allow read: if true;
+      allow create, update: if isLeagueOwner() || isAdmin();
+      allow delete: if isAdmin();
     }
     
     // =============================================================================
