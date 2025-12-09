@@ -134,6 +134,13 @@ const LeagueSignup = lazyWithRetry(() => import('./components/league/LeagueSignu
 
 // Public Pages
 const PublicLeaguePage = lazyWithRetry(() => import('./components/public/PublicLeaguePage'));
+const PublicRefereePage = lazyWithRetry(() => import('./components/referee/PublicRefereePage'));
+
+// Referee Pages
+const RefereeSignup = lazyWithRetry(() => import('./components/referee/RefereeSignup'));
+const RefereeDashboard = lazyWithRetry(() => import('./components/referee/RefereeDashboard'));
+const RefereeSchedule = lazyWithRetry(() => import('./components/referee/RefereeSchedule'));
+const RefereeGameView = lazyWithRetry(() => import('./components/referee/RefereeGameViewWrapper'));
 
 // Loading fallback for lazy-loaded components
 const PageLoader = () => (
@@ -210,6 +217,7 @@ const AppContent: React.FC = () => {
           <Route path="/team/:teamId" element={<PublicTeamProfile />} />
           <Route path="/coach/:username" element={<PublicCoachProfile />} />
           <Route path="/league/:leagueId" element={<PublicLeaguePage />} />
+          <Route path="/referee/:refereeId" element={<PublicRefereePage />} />
           <Route path="/event/:eventId" element={<PublicEventPage />} />
           <Route path="/e/:shareableLink" element={<PublicEventPage />} />
           <Route path="/welcome" element={<LandingPage />} />
@@ -293,6 +301,19 @@ const AppContent: React.FC = () => {
               </Route>
               <Route path="*" element={<Navigate to="/league" replace />} />
             </>
+          ) : userData?.role === 'Referee' ? (
+            // Referee routes - officiating games
+            <>
+              <Route path="/" element={<NewOSYSLayout />}>
+                <Route index element={<Navigate to="/referee" replace />} />
+                <Route path="referee" element={<RefereeDashboard />} />
+                <Route path="referee/schedule" element={<RefereeSchedule />} />
+                <Route path="referee/game/:assignmentId" element={<RefereeGameView />} />
+                <Route path="profile" element={<Profile />} />
+                {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}
+              </Route>
+              <Route path="*" element={<Navigate to="/referee" replace />} />
+            </>
           ) : (
             // Coach/Parent routes - NEW OSYS Layout
             <>
@@ -323,6 +344,8 @@ const AppContent: React.FC = () => {
                 <Route path="commissioner/signup" element={<CommissionerSignup />} />
                 {/* League Signup for users who want to create a league */}
                 <Route path="league/signup" element={<LeagueSignup />} />
+                {/* Referee Signup for users who want to become referees */}
+                <Route path="referee/signup" element={<RefereeSignup />} />
               </Route>
               {/* Keep old demo route for reference */}
               <Route path="/old-dashboard" element={<Layout />}>

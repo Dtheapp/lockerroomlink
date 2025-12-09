@@ -36,6 +36,10 @@ service cloud.firestore {
       return isProgramCommissioner() || isLeagueOwner();
     }
     
+    function isReferee() {
+      return isAuthenticated() && getUserData().role == 'Referee';
+    }
+    
     function isLeagueOwnerOf(leagueId) {
       return isLeagueOwner() && getUserData().leagueId == leagueId;
     }
@@ -189,6 +193,149 @@ service cloud.firestore {
                               isProgramCommissioner() ||
                               isTeamCoach(resource.data.teamId);
       allow delete: if isAdmin();
+    }
+
+    // =============================================================================
+    // REFEREE PROFILES COLLECTION
+    // =============================================================================
+    match /refereeProfiles/{refereeId} {
+      // Anyone authenticated can read referee profiles (for searching/assigning)
+      allow read: if isAuthenticated();
+      
+      // Users can create their own referee profile
+      allow create: if isUser(refereeId);
+      
+      // Only the referee or admin can update their profile
+      allow update: if isUser(refereeId) || isAdmin();
+      
+      // Only admin can delete referee profiles
+      allow delete: if isAdmin();
+    }
+
+    // =============================================================================
+    // REFEREE ASSIGNMENTS COLLECTION
+    // =============================================================================
+    match /refereeAssignments/{assignmentId} {
+      // Referees can read their own assignments
+      // League owners/commissioners can read assignments for their games
+      // Admins can read all
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.refereeId == request.auth.uid ||
+        (isLeagueOwner() && resource.data.leagueId == getUserData().leagueId) ||
+        (isProgramCommissioner() && exists(/databases/$(database)/documents/teams/$(resource.data.teamId)) &&
+         get(/databases/$(database)/documents/teams/$(resource.data.teamId)).data.programId == getUserData().programId)
+      );
+      
+      // League owners, commissioners, coaches can create assignments
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        isLeagueOwner() ||
+        isProgramCommissioner() ||
+        isCoach()
+      );
+      
+      // Referees can update their own assignments (accept/decline)
+      // League owners can update assignments for their league
+      // Admins can update any
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.refereeId == request.auth.uid ||
+        (isLeagueOwner() && resource.data.leagueId == getUserData().leagueId)
+      );
+      
+      // Only admin or league owner can delete assignments
+      allow delete: if isAdmin() || 
+                      (isLeagueOwner() && resource.data.leagueId == getUserData().leagueId);
+    }
+
+    // =============================================================================
+    // REFEREE NOTES COLLECTION (private to referee)
+    // =============================================================================
+    match /refereeNotes/{noteId} {
+      // Only the referee who created the note can access it
+      allow read, write: if isUser(resource.data.refereeId) || isAdmin();
+      allow create: if isUser(request.resource.data.refereeId) || isAdmin();
+    }
+
+    // =============================================================================
+    // REFEREE VERIFICATION REQUESTS COLLECTION
+    // =============================================================================
+    match /refereeVerificationRequests/{requestId} {
+      // Referees can read their own requests, admins can read all
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.refereeId == request.auth.uid
+      );
+      
+      // Referees can create verification requests
+      allow create: if isUser(request.resource.data.refereeId);
+      
+      // Only admin can update (approve/reject)
+      allow update: if isAdmin();
+      
+      // Only admin can delete
+      allow delete: if isAdmin();
+    }
+
+    // =============================================================================
+    // REFEREE RATINGS COLLECTION
+    // =============================================================================
+    match /refereeRatings/{ratingId} {
+      // Anyone authenticated can read ratings
+      allow read: if isAuthenticated();
+      
+      // League owners and coaches can create ratings
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        isLeagueOwner() ||
+        isProgramCommissioner() ||
+        isCoach()
+      );
+      
+      // Only admin can update/delete ratings
+      allow update, delete: if isAdmin();
+    }
+
+    // =============================================================================
+    // REFEREE PAYMENTS COLLECTION
+    // =============================================================================
+    match /refereePayments/{paymentId} {
+      // Referees can read their own payments, league owners can read payments for their league
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.refereeId == request.auth.uid ||
+        (isLeagueOwner() && resource.data.leagueId == getUserData().leagueId)
+      );
+      
+      // League owners can create payments
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (isLeagueOwner() && request.resource.data.leagueId == getUserData().leagueId)
+      );
+      
+      // Only admin can update/delete payments
+      allow update, delete: if isAdmin();
+    }
+
+    // =============================================================================
+    // GAME SCORE SUBMISSIONS COLLECTION
+    // =============================================================================
+    match /gameScoreSubmissions/{submissionId} {
+      // Anyone authenticated can read score submissions
+      allow read: if isAuthenticated();
+      
+      // Referees, coaches, league owners can create score submissions
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        isLeagueOwner() ||
+        isProgramCommissioner() ||
+        isCoach() ||
+        getUserData().role == 'Referee'
+      );
+      
+      // Only admin can update/delete score submissions
+      allow update, delete: if isAdmin();
     }
 
     // =============================================================================
