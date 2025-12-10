@@ -975,6 +975,9 @@ export async function initializeUserCredits(
 /**
  * Migrate existing users to new credit system
  * Ensures users have credits field initialized
+ * 
+ * SECURITY: Uses creditsInitialized flag to prevent re-triggering
+ * even if someone manually deletes their credits field
  */
 export async function migrateUserToNewCreditSystem(
   userId: string,
@@ -988,8 +991,13 @@ export async function migrateUserToNewCreditSystem(
     
     const userData = userSnap.data();
     
-    // Only migrate if user doesn't have new credits field
-    if (userData.credits === undefined) {
+    // SECURITY: Check both credits field AND the initialization flag
+    // This prevents users from re-triggering welcome credits by deleting their credits field
+    const alreadyInitialized = userData.creditsInitialized === true;
+    const hasCreditsField = userData.credits !== undefined;
+    
+    // Only migrate if BOTH: user doesn't have credits AND wasn't already initialized
+    if (!hasCreditsField && !alreadyInitialized) {
       const settings = await getMonetizationSettings();
       const welcomeCredits = settings?.welcomeCredits ?? 10;
       
@@ -998,6 +1006,7 @@ export async function migrateUserToNewCreditSystem(
       
       await updateDoc(userRef, {
         credits: startingCredits,
+        creditsInitialized: true, // SECURITY: Flag to prevent re-initialization
         lifetimeCreditsEarned: startingCredits,
         lifetimeCreditsSpent: 0,
         lifetimeCreditsGifted: 0,
@@ -1015,6 +1024,13 @@ export async function migrateUserToNewCreditSystem(
         description: 'Credit system migration - welcome credits',
         metadata: { reason: 'System migration to unified credits' },
         createdAt: serverTimestamp(),
+      });
+    } else if (!hasCreditsField && alreadyInitialized) {
+      // SECURITY: User was already initialized but credits field is missing
+      // This could indicate tampering - restore to 0 without giving free credits
+      console.warn(`SECURITY: User ${userId} has creditsInitialized=true but no credits field. Possible tampering.`);
+      await updateDoc(userRef, {
+        credits: 0, // No free credits for suspicious activity
       });
     }
   } catch (error) {

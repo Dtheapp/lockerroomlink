@@ -5,7 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Coins, Check, Sparkles, Shield, CreditCard, AlertTriangle, Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getMonetizationSettings, addCredits } from '../../services/creditService';
+import { getMonetizationSettings } from '../../services/creditService';
 import type { CreditBundle, MonetizationSettings } from '../../types/credits';
 
 interface BuyCreditsModalProps {
@@ -56,55 +56,37 @@ const BuyCreditsModal: React.FC<BuyCreditsModalProps> = ({ onClose, onPurchaseCo
     
     try {
       // ============================================================================
-      // ⚠️ SECURITY WARNING - TEST MODE ONLY ⚠️
+      // SECURE PAYMENT FLOW - PayPal Integration Required
       // ============================================================================
-      // This is a SIMULATED purchase for development/testing.
-      // 
-      // IN PRODUCTION, credit purchases MUST:
-      // 1. Use PayPal SDK to create a real order
-      // 2. Redirect user to PayPal for payment approval
-      // 3. Capture payment via BACKEND/Cloud Function
-      // 4. ONLY add credits AFTER payment is verified server-side
-      // 5. Log payment in paymentLogs collection with PayPal transaction ID
+      // Credit purchases are handled EXCLUSIVELY through PayPal:
+      // 1. Client creates PayPal order via /api/create-credit-order
+      // 2. User approves payment in PayPal
+      // 3. Server captures payment via /api/capture-credit-order
+      // 4. Server-side Cloud Function adds credits ONLY after verification
       //
-      // NEVER add credits client-side based on client-initiated purchase!
-      // A malicious user could bypass PayPal and add unlimited credits.
-      //
-      // TODO: Implement secure PayPal flow before production launch
+      // SECURITY: addCredits is NEVER called from client for purchases.
+      // All credit additions go through server-side verification.
       // ============================================================================
       
-      console.warn('⚠️ TEST MODE: Simulating purchase - NOT FOR PRODUCTION');
+      // PayPal integration coming soon - show informative message
+      setError('Credit purchases are coming soon! For now, new users receive 10 free credits. Contact support for more credits during the pilot period.');
+      setProcessing(false);
+      return;
       
-      // Simulated delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // TEST ONLY: Add credits to user account
-      // In production, this should ONLY happen in a Cloud Function
-      // after verifying PayPal payment
-      const totalCredits = selectedBundle.credits + (selectedBundle.bonusCredits || 0);
-      const result = await addCredits(
-        user.uid, 
-        totalCredits, 
-        'purchase', 
-        `[TEST] Purchased ${selectedBundle.name} bundle`,
-        {
-          bundleId: selectedBundle.id,
-          bundleName: selectedBundle.name,
-          price: selectedBundle.price,
-          paymentMethod: 'TEST_MODE',
-          // In production: paypalOrderId, paypalPayerId from PayPal response
-        }
-      );
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to add credits');
-      }
-      
-      setSuccess(true);
-      setTimeout(() => {
-        onPurchaseComplete?.();
-        onClose();
-      }, 2000);
+      // TODO: Uncomment when PayPal is fully integrated:
+      // const createOrderResponse = await fetch('/.netlify/functions/create-credit-order', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({
+      //     userId: user.uid,
+      //     bundleId: selectedBundle.id,
+      //     credits: selectedBundle.credits,
+      //     bonusCredits: selectedBundle.bonusCredits || 0,
+      //     price: selectedBundle.price,
+      //   }),
+      // });
+      // ... PayPal approval flow ...
+      // ... capture-credit-order adds credits server-side ...
       
     } catch (err: any) {
       console.error('Purchase error:', err);

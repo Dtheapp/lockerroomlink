@@ -626,8 +626,9 @@ service cloud.firestore {
       allow create: if isAuthenticated() && request.auth.uid == userId;
       
       // Users can update their own profile, but NOT credit-related fields
-      // Credit fields can only be updated by SuperAdmin
-      allow update: if (isUser(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['credits', 'lifetimeCreditsEarned', 'lifetimeCreditsSpent', 'lifetimeCreditsGifted', 'lifetimeCreditsReceived', 'pilotProgramId', 'pilotExpiresAt'])) || isAdmin();
+      // Credit fields can only be updated by SuperAdmin or server-side functions
+      // SECURITY: creditsInitialized is also protected to prevent re-triggering welcome credits
+      allow update: if (isUser(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['credits', 'creditsInitialized', 'lifetimeCreditsEarned', 'lifetimeCreditsSpent', 'lifetimeCreditsGifted', 'lifetimeCreditsReceived', 'pilotProgramId', 'pilotExpiresAt', 'teamsCreated'])) || isAdmin();
       
       // Only SuperAdmin can delete users
       allow delete: if isAdmin();
