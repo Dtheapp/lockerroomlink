@@ -14,6 +14,7 @@ import { db } from '../../services/firebase';
 import { SPORT_CONFIGS, getSportOptions } from '../../config/sportConfig';
 import type { SportType } from '../../types';
 import { AgeGroupSelector } from '../AgeGroupSelector';
+import { TeamColorPicker, TeamColorPreview, TEAM_COLOR_PALETTE } from '../TeamColorPicker';
 import { 
   Shield, 
   ChevronRight, 
@@ -26,30 +27,6 @@ import {
 } from 'lucide-react';
 
 const TEAM_CREATION_COST = 50; // Credits required to create a team
-
-// Expanded color palette organized by color family - covers most common team colors
-const TEAM_COLOR_PALETTE = {
-  // Reds
-  reds: ['#7f1d1d', '#991b1b', '#b91c1c', '#dc2626', '#ef4444', '#f87171', '#fca5a5'],
-  // Oranges
-  oranges: ['#7c2d12', '#9a3412', '#c2410c', '#ea580c', '#f97316', '#fb923c', '#fdba74'],
-  // Yellows/Golds
-  yellows: ['#713f12', '#854d0e', '#a16207', '#ca8a04', '#eab308', '#facc15', '#fde047'],
-  // Greens
-  greens: ['#14532d', '#166534', '#15803d', '#16a34a', '#22c55e', '#4ade80', '#86efac'],
-  // Teals/Cyans
-  teals: ['#134e4a', '#115e59', '#0f766e', '#0d9488', '#14b8a6', '#2dd4bf', '#5eead4'],
-  // Blues
-  blues: ['#1e3a5f', '#1e40af', '#1d4ed8', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd'],
-  // Purples
-  purples: ['#4c1d95', '#5b21b6', '#6d28d9', '#7c3aed', '#8b5cf6', '#a78bfa', '#c4b5fd'],
-  // Pinks/Magentas
-  pinks: ['#831843', '#9d174d', '#be185d', '#db2777', '#ec4899', '#f472b6', '#f9a8d4'],
-  // Neutrals (Black, Gray, White spectrum)
-  neutrals: ['#000000', '#171717', '#262626', '#404040', '#525252', '#737373', '#a3a3a3', '#d4d4d4', '#ffffff'],
-  // Metallic/Special (common for sports)
-  metallics: ['#b8860b', '#c0c0c0', '#cd7f32', '#ffd700', '#8b4513', '#2f4f4f']
-};
 
 export const CommissionerCreateTeam: React.FC = () => {
   const { user, userData, programData, leagueData } = useAuth();

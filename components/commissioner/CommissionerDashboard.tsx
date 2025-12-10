@@ -8,6 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { TeamColorPicker, TeamColorPreview } from '../TeamColorPicker';
 import { 
   getTeamsByProgram, 
   getGrievancesByProgram,
@@ -1253,41 +1254,24 @@ export const CommissionerDashboard: React.FC = () => {
               </div>
               
               {/* Colors */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>Primary Color</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={editPrimaryColor}
-                      onChange={(e) => setEditPrimaryColor(e.target.value)}
-                      className="w-10 h-10 rounded cursor-pointer border-0"
-                    />
-                    <input
-                      type="text"
-                      value={editPrimaryColor}
-                      onChange={(e) => setEditPrimaryColor(e.target.value)}
-                      className={`flex-1 border rounded-lg py-2 px-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-slate-300 text-slate-900'}`}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>Secondary Color</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={editSecondaryColor}
-                      onChange={(e) => setEditSecondaryColor(e.target.value)}
-                      className="w-10 h-10 rounded cursor-pointer border-0"
-                    />
-                    <input
-                      type="text"
-                      value={editSecondaryColor}
-                      onChange={(e) => setEditSecondaryColor(e.target.value)}
-                      className={`flex-1 border rounded-lg py-2 px-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-slate-300 text-slate-900'}`}
-                    />
-                  </div>
-                </div>
+              <div className="space-y-3">
+                <TeamColorPicker
+                  label="Primary Color:"
+                  value={editPrimaryColor}
+                  onChange={setEditPrimaryColor}
+                  showHexInput={false}
+                />
+                <TeamColorPicker
+                  label="Secondary Color:"
+                  value={editSecondaryColor}
+                  onChange={setEditSecondaryColor}
+                  showHexInput={false}
+                />
+                <TeamColorPreview
+                  primaryColor={editPrimaryColor}
+                  secondaryColor={editSecondaryColor}
+                  teamName={editName}
+                />
               </div>
               
               {/* Max Roster Size */}
