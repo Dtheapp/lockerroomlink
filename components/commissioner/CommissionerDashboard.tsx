@@ -38,10 +38,15 @@ import {
   Target,
   Layers,
   Edit2,
-  Trash2
+  Trash2,
+  Link2,
+  Search,
+  X,
+  CheckCircle2
 } from 'lucide-react';
 import { RulesModal } from '../RulesModal';
 import { AgeGroupSelector } from '../AgeGroupSelector';
+import { StateSelector, isValidUSState } from '../StateSelector';
 
 export const CommissionerDashboard: React.FC = () => {
   const { user, userData, programData, leagueData } = useAuth();
@@ -91,6 +96,12 @@ export const CommissionerDashboard: React.FC = () => {
   const [editSecondaryColor, setEditSecondaryColor] = useState('#1e293b');
   const [editIsCheerTeam, setEditIsCheerTeam] = useState(false);
   const [editLinkedCheerTeamId, setEditLinkedCheerTeamId] = useState('');
+  // For cheer teams - link to sport team
+  const [editLinkedToTeamId, setEditLinkedToTeamId] = useState('');
+  const [editLinkedToTeamName, setEditLinkedToTeamName] = useState('');
+  const [editSportTeamSearch, setEditSportTeamSearch] = useState('');
+  const [editSportTeamResults, setEditSportTeamResults] = useState<{id: string; name: string; sport: string}[]>([]);
+  const [searchingSportTeams, setSearchingSportTeams] = useState(false);
   const [editMaxRosterSize, setEditMaxRosterSize] = useState(25);
   const [availableCheerTeams, setAvailableCheerTeams] = useState<Team[]>([]);
   const [editError, setEditError] = useState('');
@@ -329,6 +340,10 @@ export const CommissionerDashboard: React.FC = () => {
     setEditSecondaryColor(team.secondaryColor || '#1e293b');
     setEditIsCheerTeam(team.isCheerTeam || false);
     setEditLinkedCheerTeamId(team.linkedCheerTeamId || '');
+    setEditLinkedToTeamId(team.linkedToTeamId || '');
+    setEditLinkedToTeamName(team.linkedToTeamName || '');
+    setEditSportTeamSearch('');
+    setEditSportTeamResults([]);
     setEditMaxRosterSize(team.maxRosterSize || 25);
     setEditError('');
     
@@ -347,6 +362,37 @@ export const CommissionerDashboard: React.FC = () => {
     }
     
     setShowEditModal(true);
+  };
+
+  // Search for sport teams to link cheer team to (in edit modal)
+  const handleEditSearchSportTeams = async () => {
+    if (!user?.uid || !editSportTeamSearch.trim()) return;
+    
+    setSearchingSportTeams(true);
+    try {
+      const teamsQuery = query(
+        collection(db, 'teams'),
+        where('ownerId', '==', user.uid),
+        where('isCheerTeam', '!=', true)
+      );
+      const snap = await getDocs(teamsQuery);
+      
+      const searchLower = editSportTeamSearch.toLowerCase();
+      const results = snap.docs
+        .filter(doc => doc.id !== editingTeam?.id) // Exclude current team
+        .map(doc => ({
+          id: doc.id,
+          name: doc.data().name || 'Unnamed Team',
+          sport: doc.data().sport || 'football',
+        }))
+        .filter(team => team.name.toLowerCase().includes(searchLower));
+      
+      setEditSportTeamResults(results);
+    } catch (err) {
+      console.error('Error searching sport teams:', err);
+    } finally {
+      setSearchingSportTeams(false);
+    }
   };
 
   // Save edited team
@@ -413,6 +459,34 @@ export const CommissionerDashboard: React.FC = () => {
       // Only update linkedCheerTeamId for non-cheer teams
       if (!editIsCheerTeam) {
         updateData.linkedCheerTeamId = editLinkedCheerTeamId || null;
+      }
+      
+      // For cheer teams - update linked sport team
+      if (editIsCheerTeam) {
+        updateData.linkedToTeamId = editLinkedToTeamId || null;
+        updateData.linkedToTeamName = editLinkedToTeamName || null;
+        
+        // Update the sport team with bi-directional link
+        if (editLinkedToTeamId && editLinkedToTeamId !== editingTeam?.linkedToTeamId) {
+          // Remove link from old sport team if existed
+          if (editingTeam?.linkedToTeamId) {
+            await updateDoc(doc(db, 'teams', editingTeam.linkedToTeamId), {
+              linkedCheerTeamId: null,
+              updatedAt: serverTimestamp()
+            });
+          }
+          // Add link to new sport team
+          await updateDoc(doc(db, 'teams', editLinkedToTeamId), {
+            linkedCheerTeamId: editingTeam?.id,
+            updatedAt: serverTimestamp()
+          });
+        } else if (!editLinkedToTeamId && editingTeam?.linkedToTeamId) {
+          // Removed link - clear from old sport team
+          await updateDoc(doc(db, 'teams', editingTeam.linkedToTeamId), {
+            linkedCheerTeamId: null,
+            updatedAt: serverTimestamp()
+          });
+        }
       }
       
       if (teamIdChanged) {
@@ -1226,12 +1300,12 @@ export const CommissionerDashboard: React.FC = () => {
                   <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
                     State <span className="text-red-400">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <StateSelector
                     value={editState}
-                    onChange={(e) => setEditState(e.target.value)}
-                    placeholder="GA"
-                    className={`w-full border rounded-lg py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`}
+                    onChange={setEditState}
+                    required
+                    placeholder="State"
+                    className="[&_input]:py-2.5 [&_input]:px-3"
                   />
                 </div>
               </div>
@@ -1296,12 +1370,99 @@ export const CommissionerDashboard: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={editIsCheerTeam}
-                    onChange={(e) => setEditIsCheerTeam(e.target.checked)}
+                    onChange={(e) => {
+                      setEditIsCheerTeam(e.target.checked);
+                      if (!e.target.checked) {
+                        setEditLinkedToTeamId('');
+                        setEditLinkedToTeamName('');
+                        setEditSportTeamSearch('');
+                        setEditSportTeamResults([]);
+                      }
+                    }}
                     className="sr-only peer"
                   />
                   <div className="w-11 h-6 bg-gray-600 peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                 </label>
               </div>
+              
+              {/* Link to Sport Team (only show for cheer teams) */}
+              {editIsCheerTeam && (
+                <div className={`rounded-lg p-3 border-2 border-dashed ${theme === 'dark' ? 'border-pink-500/30 bg-pink-500/5' : 'border-pink-300 bg-pink-50'}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Link2 className="w-4 h-4 text-pink-500" />
+                    <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      Link to Sport Team
+                    </p>
+                  </div>
+                  <p className={`text-xs mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Search for a sport team this cheer squad supports.
+                  </p>
+                  
+                  {editLinkedToTeamId ? (
+                    <div className={`flex items-center justify-between p-2 rounded-lg ${theme === 'dark' ? 'bg-green-500/20 border border-green-500/30' : 'bg-green-100 border border-green-300'}`}>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                          {editLinkedToTeamName}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setEditLinkedToTeamId(''); setEditLinkedToTeamName(''); }}
+                        className="p-1 hover:bg-red-500/20 rounded transition-colors"
+                      >
+                        <X className="w-4 h-4 text-red-400" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={editSportTeamSearch}
+                          onChange={(e) => setEditSportTeamSearch(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleEditSearchSportTeams())}
+                          placeholder="Search sport teams..."
+                          className={`flex-1 px-2 py-1.5 text-sm rounded border ${
+                            theme === 'dark' 
+                              ? 'bg-gray-700 border-gray-600 text-white placeholder:text-gray-500' 
+                              : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleEditSearchSportTeams}
+                          disabled={searchingSportTeams || !editSportTeamSearch.trim()}
+                          className="px-3 py-1.5 bg-pink-600 hover:bg-pink-500 disabled:bg-gray-600 text-white rounded text-sm transition-colors flex items-center gap-1"
+                        >
+                          {searchingSportTeams ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
+                        </button>
+                      </div>
+                      
+                      {editSportTeamResults.length > 0 && (
+                        <div className={`mt-2 max-h-32 overflow-y-auto rounded border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                          {editSportTeamResults.map((team) => (
+                            <button
+                              key={team.id}
+                              type="button"
+                              onClick={() => {
+                                setEditLinkedToTeamId(team.id);
+                                setEditLinkedToTeamName(team.name);
+                                setEditSportTeamSearch('');
+                                setEditSportTeamResults([]);
+                              }}
+                              className={`w-full px-2 py-1.5 text-left text-sm hover:bg-purple-500/20 transition-colors border-b last:border-b-0 ${theme === 'dark' ? 'border-gray-700 text-white' : 'border-gray-100 text-gray-900'}`}
+                            >
+                              <span className="font-medium">{team.name}</span>
+                              <span className={`ml-2 text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>({team.sport})</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               
               {/* Linked Cheer Team (only show for non-cheer teams) */}
               {!editIsCheerTeam && availableCheerTeams.length > 0 && (

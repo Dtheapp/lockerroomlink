@@ -15,6 +15,7 @@ import { SPORT_CONFIGS, getSportOptions } from '../../config/sportConfig';
 import type { SportType } from '../../types';
 import { AgeGroupSelector } from '../AgeGroupSelector';
 import { TeamColorPicker, TeamColorPreview, TEAM_COLOR_PALETTE } from '../TeamColorPicker';
+import { StateSelector, isValidUSState } from '../StateSelector';
 import { 
   Shield, 
   ChevronRight, 
@@ -471,18 +472,11 @@ export const CommissionerCreateTeam: React.FC = () => {
                 <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
                   State *
                 </label>
-                <input
-                  type="text"
+                <StateSelector
                   value={state}
-                  onChange={(e) => setState(e.target.value.toUpperCase())}
-                  placeholder="e.g., TX"
-                  maxLength={2}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent uppercase ${
-                    theme === 'dark' 
-                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                  }`}
+                  onChange={setState}
                   required
+                  placeholder="e.g., TX"
                 />
               </div>
             </div>
