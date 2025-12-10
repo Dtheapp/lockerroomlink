@@ -432,6 +432,7 @@ export interface UserProfile {
   commissionerSince?: Timestamp;       // When they became commissioner/league owner
   isAssistantCommissioner?: boolean;   // For assistant commissioner role
   assistantForProgramId?: string;      // Which program they assist
+  teamsCreated?: number;               // Lifetime teams created (for first-team-free tracking)
 }
 
 // --- SEASON MANAGEMENT ---

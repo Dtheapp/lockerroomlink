@@ -7,6 +7,7 @@
 
 ### Rule 2: Follow ALL 25 Traits
 **You MUST follow ALL 25 traits in `/WORKING_TRAITS.md`** every time you do work. Key ones:
+Key mindset to follow: always try to build world class, never cut corners, think about security and completeness first.
 - **Trait 1** - Thorough Pre-Testing: Verify everything works before asking user to test
 - **Trait 2** - Security Audit: MANDATORY after every feature
 - **Trait 5** - Completeness First: Make features bulletproof
@@ -45,7 +46,7 @@
 ---
 
 ## Project Overview
-LockerRoomLink (OSYS - Our Sports Your Stats) is a youth sports platform built with:
+OSYS - Operating System for Youth Sports is a youth sports platform built with:
 - React 19 + TypeScript + Vite
 - Firebase (Firestore, Auth, Storage)
 - Tailwind CSS
