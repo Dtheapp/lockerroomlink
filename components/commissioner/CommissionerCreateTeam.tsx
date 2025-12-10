@@ -22,8 +22,7 @@ import {
   Loader2, 
   AlertCircle, 
   CheckCircle2,
-  Palette,
-  Calendar
+  Palette
 } from 'lucide-react';
 
 const TEAM_CREATION_COST = 50; // Credits required to create a team
@@ -43,7 +42,6 @@ export const CommissionerCreateTeam: React.FC = () => {
   const [sport, setSport] = useState<SportType>((programData?.sport as SportType) || 'football');
   const [ageGroup, setAgeGroup] = useState<string | string[]>('');
   const [ageGroupType, setAgeGroupType] = useState<'single' | 'multi'>('single');
-  const [seasonYear, setSeasonYear] = useState(new Date().getFullYear());
   const [primaryColor, setPrimaryColor] = useState('#f97316');
   const [secondaryColor, setSecondaryColor] = useState('#1e293b');
   const [customPrimaryHex, setCustomPrimaryHex] = useState('');
@@ -181,7 +179,6 @@ export const CommissionerCreateTeam: React.FC = () => {
         ageGroup: primaryAgeGroup,
         ageGroups: ageGroupsArray,
         ageGroupType,
-        seasonYear,
         color: primaryColor,
         primaryColor,
         secondaryColor,
@@ -363,31 +360,6 @@ export const CommissionerCreateTeam: React.FC = () => {
                       {sportOption.emoji} {sportOption.label}
                     </option>
                   ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    Season Year *
-                  </div>
-                </label>
-                <select
-                  value={seasonYear}
-                  onChange={(e) => setSeasonYear(parseInt(e.target.value))}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                    theme === 'dark' 
-                      ? 'bg-gray-700 border-gray-600 text-white' 
-                      : 'bg-white border-gray-300 text-gray-900'
-                  }`}
-                >
-                  {[...Array(5)].map((_, i) => {
-                    const year = new Date().getFullYear() + i;
-                    return (
-                      <option key={year} value={year}>{year}</option>
-                    );
-                  })}
                 </select>
               </div>
             </div>
