@@ -47,6 +47,10 @@ const ManageUsers: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState('');
   
+  // DELETE COMPLETELY STATE - removes from Firebase Auth AND Firestore
+  const [deleteCompletely, setDeleteCompletely] = useState(true);
+  const [deleteError, setDeleteError] = useState('');
+  
   // EDIT FORM STATE
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState<'Coach' | 'Parent'>('Parent');
@@ -375,21 +379,52 @@ const ManageUsers: React.FC = () => {
     }
     
     setSaving(true);
+    setDeleteError('');
+    
     try {
-      // If coach, remove from team first
-      if (selectedUser.role === 'Coach' && selectedUser.teamId) {
-        const teamRef = doc(db, 'teams', selectedUser.teamId);
-        await updateDoc(teamRef, { coachId: null });
+      if (deleteCompletely) {
+        // Call Netlify function to delete from BOTH Firebase Auth AND Firestore
+        const response = await fetch('/.netlify/functions/delete-user-completely', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            targetUserId: selectedUser.uid,
+            adminUserId: user?.uid,
+            deleteAuth: true,
+            deleteFirestore: true,
+          }),
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to delete user completely');
+        }
+        
+        if (!result.success && result.errors?.length) {
+          console.warn('Partial deletion:', result.errors);
+        }
+        
+        await logActivity('Delete User Completely', `Completely deleted ${selectedUser.name} (${selectedUser.email}) - Auth: ${result.deletedAuth}, Firestore: ${result.deletedFirestore}`);
+      } else {
+        // Original behavior: only delete from Firestore
+        // If coach, remove from team first
+        if (selectedUser.role === 'Coach' && selectedUser.teamId) {
+          const teamRef = doc(db, 'teams', selectedUser.teamId);
+          await updateDoc(teamRef, { coachId: null });
+        }
+        
+        await deleteDoc(doc(db, 'users', selectedUser.uid));
+        
+        await logActivity('Delete User (Firestore Only)', `Deleted ${selectedUser.name} (${selectedUser.email}) from Firestore only`);
       }
-      
-      await deleteDoc(doc(db, 'users', selectedUser.uid));
-      
-      await logActivity('Delete User', `Deleted ${selectedUser.name} (${selectedUser.email})`);
       
       setIsDeleteModalOpen(false);
       setSelectedUser(null);
-    } catch (error) {
+      setDeleteCompletely(true); // Reset for next time
+    } catch (error: any) {
       console.error("Error deleting user:", error);
+      setDeleteError(error.message || 'Failed to delete user');
     } finally {
       setSaving(false);
     }
@@ -1078,7 +1113,7 @@ const ManageUsers: React.FC = () => {
 
       {/* MODAL: Delete Confirmation */}
       {isDeleteModalOpen && selectedUser && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm" onClick={() => setIsDeleteModalOpen(false)}>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm" onClick={() => { setIsDeleteModalOpen(false); setDeleteError(''); setDeleteCompletely(true); }}>
           <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl w-full max-w-md border border-slate-200 dark:border-zinc-800 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
@@ -1101,8 +1136,38 @@ const ManageUsers: React.FC = () => {
               </div>
             )}
             
+            {/* Delete Completely Checkbox */}
+            <div className="mb-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 rounded-lg p-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={deleteCompletely}
+                  onChange={(e) => setDeleteCompletely(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                />
+                <div>
+                  <span className="font-semibold text-red-700 dark:text-red-400">Delete Completely</span>
+                  <p className="text-xs text-red-600/80 dark:text-red-400/70 mt-1">
+                    Removes from Firebase Auth AND Firestore. They won't be able to log in again with this email.
+                  </p>
+                </div>
+              </label>
+              {!deleteCompletely && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 pl-7">
+                  ⚠️ Only removes from Firestore. The Auth account will remain and email will still be "in use".
+                </p>
+              )}
+            </div>
+            
+            {/* Error display */}
+            {deleteError && (
+              <div className="mb-4 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-800 text-red-700 dark:text-red-400 p-3 rounded-lg text-sm">
+                {deleteError}
+              </div>
+            )}
+            
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200 dark:border-zinc-800">
-              <button type="button" onClick={() => setIsDeleteModalOpen(false)} className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">Cancel</button>
+              <button type="button" onClick={() => { setIsDeleteModalOpen(false); setDeleteError(''); setDeleteCompletely(true); }} className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">Cancel</button>
               <button onClick={handleDeleteUser} disabled={saving} className="px-6 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold disabled:opacity-50 shadow-lg shadow-red-900/20 flex items-center gap-2">
                 {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Trash2 className="w-4 h-4" />}
                 Delete

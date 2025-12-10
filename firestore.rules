@@ -820,8 +820,8 @@ service cloud.firestore {
       
       // Team chat messages
       match /messages/{messageId} {
-        allow read: if isTeamMember(teamId);
-        allow write: if isTeamMember(teamId);
+        allow read: if isTeamMember(teamId) || isAdmin();
+        allow write: if isTeamMember(teamId) || isAdmin();
       }
       
       // Season stats subcollection
@@ -990,9 +990,9 @@ service cloud.firestore {
     // SETTINGS & CONFIGURATION
     // =============================================================================
     
-    // App Settings (SuperAdmin only write, anyone can read)
+    // App Settings (SuperAdmin only write, public read for app config before auth)
     match /appConfig/{configId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if isAdmin();
     }
     
