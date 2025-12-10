@@ -209,6 +209,7 @@ const AuthScreen: React.FC = () => {
             userProfile.commissionerSince = new Date();
           }
           
+          console.log('Creating user profile with credits:', userProfile.credits, userProfile);
           await setDoc(doc(db, 'users', user.uid), userProfile);
         } catch (dbErr: any) {
           // If database operations fail, delete the auth user we just created

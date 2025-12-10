@@ -79,16 +79,14 @@ const FeatureTicker: React.FC = () => {
   }, [charIndex, featureIndex, features, maxVisible]);
   
   return (
-    <div className="flex items-center justify-center gap-x-2 overflow-hidden whitespace-nowrap">
+    <div className="flex items-center justify-center gap-1 w-full px-4">
       {/* Currently typing on the LEFT */}
-      {currentTyping && (
-        <span className="text-purple-300 font-semibold shrink-0 drop-shadow-lg">
-          {currentTyping}
-          <span className="animate-pulse text-purple-200">|</span>
-        </span>
-      )}
-      {/* Completed features scroll to the RIGHT, getting more faded */}
-      {visibleFeatures.map((feature, index) => (
+      <span className="text-purple-300 font-semibold shrink-0 drop-shadow-lg">
+        {currentTyping}
+        <span className="animate-pulse text-purple-200">|</span>
+      </span>
+      {/* Completed features to the RIGHT, getting more faded */}
+      {visibleFeatures.slice(0, 1).map((feature, index) => (
         <span 
           key={`${feature}-${featureIndex}-${index}`}
           className="text-slate-200 transition-all duration-500 shrink-0"
@@ -96,7 +94,7 @@ const FeatureTicker: React.FC = () => {
             opacity: Math.max(0.5, 1 - index * 0.25)
           }}
         >
-          <span className="text-purple-400 mx-1">•</span>
+          <span className="text-purple-400 mx-0.5">•</span>
           {feature}
         </span>
       ))}
@@ -112,12 +110,12 @@ const LandingPage: React.FC = () => {
       <AnimatedBackground />
 
       {/* Navigation */}
-      <nav className="osys-glass fixed top-4 left-1/2 -translate-x-1/2 z-50 px-6 py-3 flex items-center gap-8">
+      <nav className="osys-glass fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 flex items-center gap-6">
         <Link to="/" className="flex items-center gap-2">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-xl">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-lg">
             ⚡
           </div>
-          <span className="text-xl font-bold text-slate-900">OSYS</span>
+          <span className="text-lg font-bold text-slate-900">OSYS</span>
         </Link>
         
         <div className="hidden md:flex items-center gap-6 text-sm text-slate-700 font-medium">
@@ -151,7 +149,7 @@ const LandingPage: React.FC = () => {
           </h1>
 
           <div className="text-xl md:text-2xl max-w-3xl mx-auto mb-8 osys-animate-slide-up" style={{ animationDelay: '0.1s' }}>
-            <div className="min-h-[2rem] mb-3">
+            <div className="h-8 mb-3 flex items-center justify-center">
               <FeatureTicker />
             </div>
             <p className="text-slate-200 text-lg">Everything your team needs in one powerful platform.</p>

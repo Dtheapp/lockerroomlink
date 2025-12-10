@@ -109,8 +109,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (firebaseUser) {
         setUser(firebaseUser);
 
-        // Track migration attempts to prevent loops
-        let migrationAttempted = false;
+        // Check if user needs credits migration BEFORE setting up listener
+        // This prevents race conditions with the onSnapshot callback
+        const checkAndMigrateCredits = async () => {
+          try {
+            const userDocRef = doc(db, 'users', firebaseUser.uid);
+            const userSnap = await getDoc(userDocRef);
+            if (userSnap.exists() && userSnap.data().credits === undefined) {
+              await migrateUserToNewCreditSystem(firebaseUser.uid, 10);
+              console.log('User credits initialized');
+            }
+          } catch (err) {
+            console.error('Credit initialization error:', err);
+          }
+        };
+        
+        // Run migration first, then set up listener
+        checkAndMigrateCredits();
 
         // 1. LISTEN TO USER PROFILE (Real-time)
         const userDocRef = doc(db, 'users', firebaseUser.uid);
@@ -118,15 +133,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (docSnap.exists()) {
                 const profile = docSnap.data() as UserProfile;
                 setUserData(profile);
-
-                // CREDIT SYSTEM: Initialize credits for users who don't have them yet
-                // Only attempt once per session to prevent error loops
-                if (!migrationAttempted && profile.credits === undefined) {
-                  migrationAttempted = true;
-                  migrateUserToNewCreditSystem(firebaseUser.uid, 10)
-                    .then(() => console.log('User credits initialized'))
-                    .catch(err => console.error('Credit initialization error:', err));
-                }
 
                 // Set Sentry user context for error tracking
                 setSentryUser({

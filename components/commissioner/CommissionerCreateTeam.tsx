@@ -77,6 +77,30 @@ export const CommissionerCreateTeam: React.FC = () => {
   const [availableCheerTeams, setAvailableCheerTeams] = useState<{id: string; name: string}[]>([]);
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
+  const [existingTeamCount, setExistingTeamCount] = useState<number | null>(null);
+
+  // Check how many teams the user already owns
+  useEffect(() => {
+    const countUserTeams = async () => {
+      if (!user?.uid) return;
+      try {
+        const teamsQuery = query(
+          collection(db, 'teams'),
+          where('ownerId', '==', user.uid)
+        );
+        const snap = await getDocs(teamsQuery);
+        setExistingTeamCount(snap.size);
+      } catch (err) {
+        console.error('Error counting teams:', err);
+        setExistingTeamCount(0);
+      }
+    };
+    countUserTeams();
+  }, [user?.uid]);
+
+  // First team is free, subsequent teams cost credits
+  const isFirstTeamFree = existingTeamCount === 0;
+  const creationCost = isFirstTeamFree ? 0 : TEAM_CREATION_COST;
 
   // Validate hex color code
   const isValidHex = (hex: string): boolean => {
@@ -177,12 +201,14 @@ export const CommissionerCreateTeam: React.FC = () => {
         return;
       }
       
-      // Check credits
-      const credits = await getUserCreditBalance(user.uid);
-      if (credits < TEAM_CREATION_COST) {
-        setError(`Not enough credits. You need ${TEAM_CREATION_COST} credits to create a team. You have ${credits}.`);
-        setLoading(false);
-        return;
+      // Check credits (skip if first team is free)
+      if (!isFirstTeamFree) {
+        const credits = await getUserCreditBalance(user.uid);
+        if (credits < TEAM_CREATION_COST) {
+          setError(`Not enough credits. You need ${TEAM_CREATION_COST} credits to create a team. You have ${credits}.`);
+          setLoading(false);
+          return;
+        }
       }
       
       // Prepare age group data
@@ -224,8 +250,10 @@ export const CommissionerCreateTeam: React.FC = () => {
       
       await setDoc(doc(db, 'teams', customTeamId), teamData);
       
-      // Deduct credits after successful team creation
-      await deductCredits(user.uid, TEAM_CREATION_COST, 'team_create', `Created team: ${teamName}`);
+      // Deduct credits after successful team creation (skip if first team)
+      if (!isFirstTeamFree) {
+        await deductCredits(user.uid, TEAM_CREATION_COST, 'team_create', `Created team: ${teamName}`);
+      }
       
       setSuccess(true);
       
@@ -288,15 +316,28 @@ export const CommissionerCreateTeam: React.FC = () => {
           )}
 
           {/* Cost Info */}
-          <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4 mb-6">
-            <div className="flex justify-between items-center">
-              <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}>Team Creation Cost</span>
-              <span className="text-lg font-bold text-purple-500">{TEAM_CREATION_COST} Credits</span>
+          {existingTeamCount !== null && (
+            <div className={`rounded-lg p-4 mb-6 ${
+              isFirstTeamFree 
+                ? 'bg-green-500/10 border border-green-500/20' 
+                : 'bg-purple-500/10 border border-purple-500/20'
+            }`}>
+              <div className="flex justify-between items-center">
+                <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}>
+                  {isFirstTeamFree ? '🎉 First Team' : 'Team Creation Cost'}
+                </span>
+                <span className={`text-lg font-bold ${isFirstTeamFree ? 'text-green-500' : 'text-purple-500'}`}>
+                  {isFirstTeamFree ? 'FREE!' : `${TEAM_CREATION_COST} Credits`}
+                </span>
+              </div>
+              <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                {isFirstTeamFree 
+                  ? 'Create your first team for free! Additional teams cost ' + TEAM_CREATION_COST + ' credits.'
+                  : `Your balance: ${userData?.credits || 0} credits`
+                }
+              </p>
             </div>
-            <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-              Your balance: {userData?.credits || 0} credits
-            </p>
-          </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Team Name */}

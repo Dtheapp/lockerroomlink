@@ -879,13 +879,14 @@ export const CommissionerDashboard: React.FC = () => {
             teams.length === 0 ? (
               <div className="p-8 text-center">
                 <Users className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-slate-400'}`} />
-                <p className={`mb-4 ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>No teams yet. Create your first team to get started.</p>
+                <p className={`mb-2 font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>🎉 Create your first team for FREE!</p>
+                <p className={`mb-4 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>Get started by creating your first team - it's on us.</p>
                 <button
                   onClick={() => navigate('/commissioner/teams/create')}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
                 >
                   <Plus className="w-4 h-4" />
-                  Create Team
+                  Create First Team Free
                 </button>
               </div>
             ) : (

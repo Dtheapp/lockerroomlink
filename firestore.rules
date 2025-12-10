@@ -71,6 +71,11 @@ service cloud.firestore {
       );
     }
     
+    function isTeamOwner(teamId) {
+      return isCommissioner() && 
+             get(/databases/$(database)/documents/teams/$(teamId)).data.ownerId == request.auth.uid;
+    }
+    
     function isTeamMember(teamId) {
       return isAuthenticated() && (
         getUserData().teamId == teamId || 
@@ -731,18 +736,20 @@ service cloud.firestore {
       // Commissioners can create teams they own, coaches can update their teams
       allow create: if isCommissioner() || isAdmin();
       allow update: if isTeamCoach(teamId) || isCommissioner() || isAdmin();
-      allow delete: if isAdmin();
+      // Team owner (commissioner who created) or admin can delete
+      allow delete: if isAdmin() || 
+                       (isCommissioner() && resource.data.ownerId == request.auth.uid);
       
       // Players subcollection
       match /players/{playerId} {
         // Allow public read for public athlete profiles
         allow read: if true;
-        allow write: if isTeamCoach(teamId) || isAdmin();
+        allow write: if isTeamCoach(teamId) || isTeamOwner(teamId) || isAdmin();
         
         // Player's film room (public for athlete profile viewing)
         match /filmRoom/{filmId} {
           allow read: if true;
-          allow write: if isTeamCoach(teamId) || isAdmin();
+          allow write: if isTeamCoach(teamId) || isTeamOwner(teamId) || isAdmin();
         }
         
         // Player's followers (fans)
@@ -779,44 +786,44 @@ service cloud.firestore {
       // Plays subcollection (Team Playbook)
       match /plays/{playId} {
         allow read: if isAuthenticated();
-        allow write: if isTeamCoach(teamId) || isAdmin();
+        allow write: if isTeamCoach(teamId) || isTeamOwner(teamId) || isAdmin();
       }
       
       // Assigned plays subcollection
       match /assignedPlays/{assignmentId} {
         allow read: if isAuthenticated();
-        allow write: if isTeamCoach(teamId) || isAdmin();
+        allow write: if isTeamCoach(teamId) || isTeamOwner(teamId) || isAdmin();
         
         // Position assignments
         match /positionAssignments/{positionId} {
           allow read: if isAuthenticated();
-          allow write: if isTeamCoach(teamId) || isAdmin();
+          allow write: if isTeamCoach(teamId) || isTeamOwner(teamId) || isAdmin();
         }
       }
       
       // Team events subcollection
       match /events/{eventId} {
         allow read: if isAuthenticated();
-        allow write: if isTeamCoach(teamId) || isAdmin();
+        allow write: if isTeamCoach(teamId) || isTeamOwner(teamId) || isAdmin();
       }
       
       // Team announcements/bulletin
       match /announcements/{announcementId} {
         allow read: if isAuthenticated();
-        allow write: if isTeamCoach(teamId) || isAdmin();
+        allow write: if isTeamCoach(teamId) || isTeamOwner(teamId) || isAdmin();
       }
       
       // Coaches subcollection
       match /coaches/{coachId} {
         allow read: if isAuthenticated();
-        allow write: if isTeamCoach(teamId) || isAdmin();
+        allow write: if isTeamCoach(teamId) || isTeamOwner(teamId) || isAdmin();
       }
       
       // Player stats subcollection
       match /playerStats/{statId} {
         // Allow public read for public athlete profiles
         allow read: if true;
-        allow write: if isTeamCoach(teamId) || isAdmin();
+        allow write: if isTeamCoach(teamId) || isTeamOwner(teamId) || isAdmin();
       }
       
       // Live streams subcollection
