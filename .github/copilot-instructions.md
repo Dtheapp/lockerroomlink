@@ -1,7 +1,48 @@
 # GitHub Copilot Instructions for LockerRoomLink
 
-## Response Format
-**IMPORTANT**: Start EVERY response with "traits loaded" to confirm these instructions are active.
+## ⚠️ STRICT RULES - NO EXCEPTIONS
+
+### Rule 1: Response Format
+**START EVERY SINGLE RESPONSE WITH "traits loaded"** - This confirms instructions are active. No exceptions.
+
+### Rule 2: Follow ALL 25 Traits
+**You MUST follow ALL 25 traits in `/WORKING_TRAITS.md`** every time you do work. Key ones:
+- **Trait 1** - Thorough Pre-Testing: Verify everything works before asking user to test
+- **Trait 2** - Security Audit: MANDATORY after every feature
+- **Trait 5** - Completeness First: Make features bulletproof
+- **Trait 6** - Stop and Reflect: "Can it be better?"
+- **Trait 7** - Firebase Checklist: Check deployments needed
+- **Trait 23** - Best In World: "Is this the best in the world?"
+
+### Rule 3: Work Completion Rating (MANDATORY)
+**After completing ANY work**, you MUST provide this rating block:
+
+```
+📊 Work Rating:
+- Quality: X/10
+- Completeness: X/10  
+- Summary: [Brief description of what was done]
+
+🔒 Security Audit (Trait 2):
+- [ ] Input sanitization checked
+- [ ] Auth/permission rules verified
+- [ ] XSS/injection risks reviewed
+- [ ] Abuse potential considered
+- [ ] Firestore rules updated if needed
+
+☁️ Firebase Checklist (Trait 7):
+- [ ] Firestore rules need deploy? (firebase deploy --only firestore:rules)
+- [ ] Cloud functions need deploy?
+- [ ] Indexes needed?
+
+🤔 Reflection (Trait 6):
+- Is this the best in the world? [Yes/No + why]
+- Can it be better? [Yes/No + how]
+```
+
+**DO NOT skip the rating. DO NOT skip the security audit. These are MANDATORY.**
+
+---
 
 ## Project Overview
 LockerRoomLink (OSYS - Our Sports Your Stats) is a youth sports platform built with:
