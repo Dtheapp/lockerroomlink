@@ -480,77 +480,31 @@ export const CommissionerCreateTeam: React.FC = () => {
                 Select your team's primary and secondary colors. These will be used throughout the app for your team's branding.
               </p>
 
-              {/* Color Palette Grid */}
-              <div className={`rounded-lg p-4 space-y-3 ${theme === 'dark' ? 'bg-gray-700/30' : 'bg-gray-50 border border-gray-200'}`}>
-                {/* Reds */}
-                <div className="flex flex-wrap gap-1.5">
-                  {TEAM_COLOR_PALETTE.reds.map((c) => (
-                    <button key={c} type="button" onClick={() => { setPrimaryColor(c); setCustomPrimaryHex(''); }}
-                      className={`w-7 h-7 rounded-md transition-all ${primaryColor === c ? `ring-2 ring-offset-1 scale-110 ${theme === 'dark' ? 'ring-white ring-offset-gray-800' : 'ring-gray-900 ring-offset-white'}` : 'hover:scale-105'}`}
-                      style={{ backgroundColor: c }} title={c} />
-                  ))}
-                  <span className={`w-px h-7 ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}`} />
-                  {/* Oranges */}
-                  {TEAM_COLOR_PALETTE.oranges.map((c) => (
-                    <button key={c} type="button" onClick={() => { setPrimaryColor(c); setCustomPrimaryHex(''); }}
-                      className={`w-7 h-7 rounded-md transition-all ${primaryColor === c ? `ring-2 ring-offset-1 scale-110 ${theme === 'dark' ? 'ring-white ring-offset-gray-800' : 'ring-gray-900 ring-offset-white'}` : 'hover:scale-105'}`}
-                      style={{ backgroundColor: c }} title={c} />
-                  ))}
-                </div>
-                {/* Yellows & Greens */}
-                <div className="flex flex-wrap gap-1.5">
-                  {TEAM_COLOR_PALETTE.yellows.map((c) => (
-                    <button key={c} type="button" onClick={() => { setPrimaryColor(c); setCustomPrimaryHex(''); }}
-                      className={`w-7 h-7 rounded-md transition-all ${primaryColor === c ? `ring-2 ring-offset-1 scale-110 ${theme === 'dark' ? 'ring-white ring-offset-gray-800' : 'ring-gray-900 ring-offset-white'}` : 'hover:scale-105'}`}
-                      style={{ backgroundColor: c }} title={c} />
-                  ))}
-                  <span className={`w-px h-7 ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}`} />
-                  {TEAM_COLOR_PALETTE.greens.map((c) => (
-                    <button key={c} type="button" onClick={() => { setPrimaryColor(c); setCustomPrimaryHex(''); }}
-                      className={`w-7 h-7 rounded-md transition-all ${primaryColor === c ? `ring-2 ring-offset-1 scale-110 ${theme === 'dark' ? 'ring-white ring-offset-gray-800' : 'ring-gray-900 ring-offset-white'}` : 'hover:scale-105'}`}
-                      style={{ backgroundColor: c }} title={c} />
-                  ))}
-                </div>
-                {/* Teals & Blues */}
-                <div className="flex flex-wrap gap-1.5">
-                  {TEAM_COLOR_PALETTE.teals.map((c) => (
-                    <button key={c} type="button" onClick={() => { setPrimaryColor(c); setCustomPrimaryHex(''); }}
-                      className={`w-7 h-7 rounded-md transition-all ${primaryColor === c ? `ring-2 ring-offset-1 scale-110 ${theme === 'dark' ? 'ring-white ring-offset-gray-800' : 'ring-gray-900 ring-offset-white'}` : 'hover:scale-105'}`}
-                      style={{ backgroundColor: c }} title={c} />
-                  ))}
-                  <span className={`w-px h-7 ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}`} />
-                  {TEAM_COLOR_PALETTE.blues.map((c) => (
-                    <button key={c} type="button" onClick={() => { setPrimaryColor(c); setCustomPrimaryHex(''); }}
-                      className={`w-7 h-7 rounded-md transition-all ${primaryColor === c ? `ring-2 ring-offset-1 scale-110 ${theme === 'dark' ? 'ring-white ring-offset-gray-800' : 'ring-gray-900 ring-offset-white'}` : 'hover:scale-105'}`}
-                      style={{ backgroundColor: c }} title={c} />
-                  ))}
-                </div>
-                {/* Purples & Pinks */}
-                <div className="flex flex-wrap gap-1.5">
-                  {TEAM_COLOR_PALETTE.purples.map((c) => (
-                    <button key={c} type="button" onClick={() => { setPrimaryColor(c); setCustomPrimaryHex(''); }}
-                      className={`w-7 h-7 rounded-md transition-all ${primaryColor === c ? `ring-2 ring-offset-1 scale-110 ${theme === 'dark' ? 'ring-white ring-offset-gray-800' : 'ring-gray-900 ring-offset-white'}` : 'hover:scale-105'}`}
-                      style={{ backgroundColor: c }} title={c} />
-                  ))}
-                  <span className={`w-px h-7 ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}`} />
-                  {TEAM_COLOR_PALETTE.pinks.map((c) => (
-                    <button key={c} type="button" onClick={() => { setPrimaryColor(c); setCustomPrimaryHex(''); }}
-                      className={`w-7 h-7 rounded-md transition-all ${primaryColor === c ? `ring-2 ring-offset-1 scale-110 ${theme === 'dark' ? 'ring-white ring-offset-gray-800' : 'ring-gray-900 ring-offset-white'}` : 'hover:scale-105'}`}
-                      style={{ backgroundColor: c }} title={c} />
-                  ))}
-                </div>
-                {/* Neutrals & Metallics */}
-                <div className="flex flex-wrap gap-1.5">
-                  {TEAM_COLOR_PALETTE.neutrals.map((c) => (
-                    <button key={c} type="button" onClick={() => { setPrimaryColor(c); setCustomPrimaryHex(''); }}
-                      className={`w-7 h-7 rounded-md transition-all border ${c === '#ffffff' ? 'border-gray-300' : 'border-transparent'} ${primaryColor === c ? `ring-2 ring-offset-1 scale-110 ${theme === 'dark' ? 'ring-white ring-offset-gray-800' : 'ring-gray-900 ring-offset-white'}` : 'hover:scale-105'}`}
-                      style={{ backgroundColor: c }} title={c} />
-                  ))}
-                  <span className={`w-px h-7 ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}`} />
-                  {TEAM_COLOR_PALETTE.metallics.map((c) => (
-                    <button key={c} type="button" onClick={() => { setPrimaryColor(c); setCustomPrimaryHex(''); }}
-                      className={`w-7 h-7 rounded-md transition-all ${primaryColor === c ? `ring-2 ring-offset-1 scale-110 ${theme === 'dark' ? 'ring-white ring-offset-gray-800' : 'ring-gray-900 ring-offset-white'}` : 'hover:scale-105'}`}
-                      style={{ backgroundColor: c }} title={c} />
+              {/* Primary Color Palette - Clean inline layout */}
+              <div>
+                <label className={`text-xs font-medium block mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Primary Color:
+                </label>
+                <div className="flex flex-wrap gap-1">
+                  {Object.entries(TEAM_COLOR_PALETTE).map(([family, colors]) => (
+                    <div key={`pri-${family}`} className="flex gap-0.5">
+                      {colors.map((c) => (
+                        <button
+                          key={`pri-${c}`}
+                          type="button"
+                          onClick={() => { setPrimaryColor(c); setCustomPrimaryHex(''); }}
+                          className={`w-5 h-5 rounded transition-all border ${
+                            c === '#ffffff' ? 'border-gray-300' : 'border-transparent'
+                          } ${
+                            primaryColor === c 
+                              ? `ring-2 ring-offset-1 scale-125 z-10 ${theme === 'dark' ? 'ring-purple-400 ring-offset-gray-800' : 'ring-purple-600 ring-offset-white'}` 
+                              : 'hover:scale-110'
+                          }`}
+                          style={{ backgroundColor: c }}
+                          title={c}
+                        />
+                      ))}
+                    </div>
                   ))}
                 </div>
               </div>

@@ -41,7 +41,7 @@ Key mindset to follow: always try to build world class, never cut corners, think
 - Can it be better? [Yes/No + how]
 ```
 
-**DO NOT skip the rating. DO NOT skip the security audit. These are MANDATORY.**
+**DO NOT skip the rating. DO NOT skip the security audit. Do not push to git unless told to do so, These are MANDATORY.**
 
 ---
 
