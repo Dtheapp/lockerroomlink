@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { 
   doc, 
   getDoc, 
@@ -40,6 +41,7 @@ import {
 export const CommissionerTeamDetail: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
   const { userData } = useAuth();
+  const { theme } = useTheme();
   const navigate = useNavigate();
   
   const [team, setTeam] = useState<Team | null>(null);
@@ -121,7 +123,7 @@ export const CommissionerTeamDetail: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
       </div>
     );
@@ -129,11 +131,11 @@ export const CommissionerTeamDetail: React.FC = () => {
 
   if (!team) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="text-center">
           <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-white mb-2">Team Not Found</h2>
-          <Link to="/commissioner/teams" className="text-purple-400 hover:text-purple-300">
+          <h2 className={`text-xl font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Team Not Found</h2>
+          <Link to="/commissioner/teams" className="text-purple-500 hover:text-purple-400">
             Back to Teams
           </Link>
         </div>
@@ -142,32 +144,32 @@ export const CommissionerTeamDetail: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 pb-20">
+    <div className={`min-h-screen pb-20 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700">
+      <div className={`border-b ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Link to="/commissioner" className="text-gray-400 hover:text-white">
+              <Link to="/commissioner" className={theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}>
                 <Shield className="w-5 h-5" />
               </Link>
-              <ChevronRight className="w-4 h-4 text-gray-600" />
-              <Link to="/commissioner/teams" className="text-gray-400 hover:text-white">
+              <ChevronRight className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+              <Link to="/commissioner/teams" className={theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}>
                 Teams
               </Link>
-              <ChevronRight className="w-4 h-4 text-gray-600" />
-              <h1 className="text-xl font-bold text-white">{team.name}</h1>
+              <ChevronRight className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+              <h1 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{team.name}</h1>
             </div>
             <div className="flex items-center gap-2">
               <Link
                 to={`/commissioner/teams/${teamId}/edit`}
-                className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
               >
-                <Edit2 className="w-5 h-5 text-gray-400" />
+                <Edit2 className={`w-5 h-5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
               </Link>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="p-2 bg-gray-700 hover:bg-red-600/20 rounded-lg transition-colors"
+                className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-red-600/20' : 'bg-gray-100 hover:bg-red-50'}`}
               >
                 <Trash2 className="w-5 h-5 text-red-400" />
               </button>
@@ -178,7 +180,7 @@ export const CommissionerTeamDetail: React.FC = () => {
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         {/* Team Header Card */}
-        <div className="bg-gray-800 rounded-xl p-6">
+        <div className={`rounded-xl p-6 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-gray-200 shadow-sm'}`}>
           <div className="flex items-center gap-6">
             <div 
               className="w-20 h-20 rounded-xl flex items-center justify-center text-white text-3xl font-bold flex-shrink-0"
@@ -187,8 +189,8 @@ export const CommissionerTeamDetail: React.FC = () => {
               {team.name?.charAt(0) || 'T'}
             </div>
             <div className="flex-1">
-              <h2 className="text-2xl font-bold text-white">{team.name}</h2>
-              <div className="flex items-center gap-4 mt-2 text-gray-400">
+              <h2 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{team.name}</h2>
+              <div className={`flex items-center gap-4 mt-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                 <span>{team.sport}</span>
                 <span>•</span>
                 <span>{team.ageGroup || 'No age group'}</span>
@@ -204,12 +206,12 @@ export const CommissionerTeamDetail: React.FC = () => {
             {/* Quick Stats */}
             <div className="hidden md:flex items-center gap-6">
               <div className="text-center">
-                <p className="text-2xl font-bold text-white">{players.length}</p>
-                <p className="text-sm text-gray-400">Players</p>
+                <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{players.length}</p>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Players</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-white">{coaches.length}</p>
-                <p className="text-sm text-gray-400">Coaches</p>
+                <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{coaches.length}</p>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Coaches</p>
               </div>
             </div>
           </div>
@@ -219,15 +221,15 @@ export const CommissionerTeamDetail: React.FC = () => {
         {linkedCheerTeam ? (
           <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Link2 className="w-5 h-5 text-purple-400" />
+              <Link2 className="w-5 h-5 text-purple-500" />
               <div>
-                <p className="text-sm text-purple-400">Linked Cheer Team</p>
-                <p className="text-white font-medium">{linkedCheerTeam.name}</p>
+                <p className="text-sm text-purple-500">Linked Cheer Team</p>
+                <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{linkedCheerTeam.name}</p>
               </div>
             </div>
             <Link
               to={`/commissioner/teams/${linkedCheerTeam.id}`}
-              className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
+              className="text-sm text-purple-500 hover:text-purple-400 flex items-center gap-1"
             >
               View Team <ChevronRight className="w-4 h-4" />
             </Link>
@@ -235,7 +237,11 @@ export const CommissionerTeamDetail: React.FC = () => {
         ) : !team.isCheerTeam && (
           <button
             onClick={() => setShowLinkCheerModal(true)}
-            className="w-full bg-gray-800 hover:bg-gray-750 border border-dashed border-gray-600 hover:border-purple-500/50 rounded-xl p-4 flex items-center justify-center gap-2 transition-all text-gray-400 hover:text-purple-400"
+            className={`w-full rounded-xl p-4 flex items-center justify-center gap-2 transition-all border border-dashed ${
+              theme === 'dark' 
+                ? 'bg-gray-800 hover:bg-gray-750 border-gray-600 hover:border-purple-500/50 text-gray-400 hover:text-purple-400' 
+                : 'bg-white hover:bg-gray-50 border-gray-300 hover:border-purple-400 text-gray-500 hover:text-purple-500'
+            }`}
           >
             <Link2 className="w-5 h-5" />
             Link Cheer Team
@@ -244,15 +250,15 @@ export const CommissionerTeamDetail: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Coaches Section */}
-          <div className="bg-gray-800 rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
-              <h3 className="font-semibold text-white flex items-center gap-2">
+          <div className={`rounded-xl overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-gray-200 shadow-sm'}`}>
+            <div className={`px-4 py-3 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className={`font-semibold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                 <User className="w-5 h-5 text-green-400" />
                 Coaches ({coaches.length})
               </h3>
               <Link
                 to={`/commissioner/teams/${teamId}/assign-coach`}
-                className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                className="text-sm text-purple-500 hover:text-purple-400 flex items-center gap-1"
               >
                 <UserPlus className="w-4 h-4" />
                 Assign
@@ -261,8 +267,8 @@ export const CommissionerTeamDetail: React.FC = () => {
             
             {coaches.length === 0 ? (
               <div className="p-8 text-center">
-                <User className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400 mb-4">No coaches assigned yet</p>
+                <User className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+                <p className={`mb-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>No coaches assigned yet</p>
                 <Link
                   to={`/commissioner/teams/${teamId}/assign-coach`}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-sm"
@@ -272,7 +278,7 @@ export const CommissionerTeamDetail: React.FC = () => {
                 </Link>
               </div>
             ) : (
-              <div className="divide-y divide-gray-700">
+              <div className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
                 {coaches.map((coach) => (
                   <div key={coach.uid} className="px-4 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -280,18 +286,18 @@ export const CommissionerTeamDetail: React.FC = () => {
                         <User className="w-5 h-5 text-green-400" />
                       </div>
                       <div>
-                        <p className="text-white font-medium">{coach.name}</p>
-                        <p className="text-sm text-gray-400">{coach.email}</p>
+                        <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{coach.name}</p>
+                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{coach.email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       {coach.phone && (
-                        <a href={`tel:${coach.phone}`} className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg">
-                          <Phone className="w-4 h-4 text-gray-400" />
+                        <a href={`tel:${coach.phone}`} className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}>
+                          <Phone className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
                         </a>
                       )}
-                      <a href={`mailto:${coach.email}`} className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg">
-                        <Mail className="w-4 h-4 text-gray-400" />
+                      <a href={`mailto:${coach.email}`} className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}>
+                        <Mail className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
                       </a>
                     </div>
                   </div>
@@ -301,15 +307,15 @@ export const CommissionerTeamDetail: React.FC = () => {
           </div>
 
           {/* Players Section */}
-          <div className="bg-gray-800 rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
-              <h3 className="font-semibold text-white flex items-center gap-2">
+          <div className={`rounded-xl overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-gray-200 shadow-sm'}`}>
+            <div className={`px-4 py-3 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className={`font-semibold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                 <Users className="w-5 h-5 text-blue-400" />
                 Roster ({players.length}{team.maxRosterSize ? `/${team.maxRosterSize}` : ''})
               </h3>
               <Link
                 to={`/commissioner/teams/${teamId}/roster`}
-                className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                className="text-sm text-purple-500 hover:text-purple-400 flex items-center gap-1"
               >
                 Manage <ChevronRight className="w-4 h-4" />
               </Link>
@@ -317,12 +323,12 @@ export const CommissionerTeamDetail: React.FC = () => {
             
             {players.length === 0 ? (
               <div className="p-8 text-center">
-                <Users className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400">No players on roster yet</p>
-                <p className="text-sm text-gray-500 mt-1">Coaches can add players to the roster</p>
+                <Users className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+                <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>No players on roster yet</p>
+                <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>Coaches can add players to the roster</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-700 max-h-96 overflow-y-auto">
+              <div className={`divide-y max-h-96 overflow-y-auto ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
                 {players.slice(0, 10).map((player) => (
                   <div key={player.id} className="px-4 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -330,8 +336,8 @@ export const CommissionerTeamDetail: React.FC = () => {
                         {player.jerseyNumber || '-'}
                       </div>
                       <div>
-                        <p className="text-white font-medium">{player.name}</p>
-                        <p className="text-xs text-gray-400">{player.position || 'No position'}</p>
+                        <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{player.name}</p>
+                        <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{player.position || 'No position'}</p>
                       </div>
                     </div>
                   </div>
@@ -340,7 +346,7 @@ export const CommissionerTeamDetail: React.FC = () => {
                   <div className="px-4 py-3 text-center">
                     <Link
                       to={`/commissioner/teams/${teamId}/roster`}
-                      className="text-sm text-purple-400 hover:text-purple-300"
+                      className="text-sm text-purple-500 hover:text-purple-400"
                     >
                       View all {players.length} players
                     </Link>
@@ -355,25 +361,25 @@ export const CommissionerTeamDetail: React.FC = () => {
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full">
+          <div className={`rounded-xl p-6 max-w-md w-full ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center">
                 <AlertTriangle className="w-6 h-6 text-red-500" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white">Delete Team?</h3>
-                <p className="text-sm text-gray-400">This action cannot be undone</p>
+                <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Delete Team?</h3>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>This action cannot be undone</p>
               </div>
             </div>
             
-            <p className="text-gray-300 mb-6">
+            <p className={`mb-6 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
               Are you sure you want to delete <strong>{team.name}</strong>? All players, stats, and team data will be permanently removed.
             </p>
             
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                className={`flex-1 py-2 rounded-lg transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'}`}
               >
                 Cancel
               </button>

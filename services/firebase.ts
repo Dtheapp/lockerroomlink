@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, clearIndexedDbPersistence, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 
@@ -27,5 +27,23 @@ isSupported().then((supported) => {
     analytics = getAnalytics(app);
   }
 });
+
+// Utility to clear Firestore cache if corrupted
+export const clearFirestoreCache = async () => {
+  try {
+    // Delete all IndexedDB databases for Firestore
+    const databases = await indexedDB.databases();
+    for (const dbInfo of databases) {
+      if (dbInfo.name && dbInfo.name.includes('firestore')) {
+        indexedDB.deleteDatabase(dbInfo.name);
+        console.log('Cleared Firestore IndexedDB:', dbInfo.name);
+      }
+    }
+    // Reload to reinitialize
+    window.location.reload();
+  } catch (error) {
+    console.error('Error clearing Firestore cache:', error);
+  }
+};
 
 export { auth, db, storage, analytics };

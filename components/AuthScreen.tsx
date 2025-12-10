@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, confirmPasswordReset } from 'firebase/auth';
-import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { ArrowLeft, CheckCircle, Download, Share, PlusSquare, Smartphone, X, Trophy, Users, Star, Zap, TrendingUp, Play, Eye, EyeOff } from 'lucide-react';
 import { useSearchParams, Link } from 'react-router-dom';
@@ -178,13 +178,23 @@ const AuthScreen: React.FC = () => {
             if (teamDoc.exists()) verifiedTeamId = teamId;
           }
 
+          // Map UI role to database role
+          // Commissioner type: 'team' -> TeamCommissioner, 'league' -> LeagueCommissioner
+          // Ref -> Referee
+          const dbRole = signUpRole === 'Commissioner' 
+                       ? (commissionerType === 'team' ? 'TeamCommissioner' : 'LeagueCommissioner')
+                       : signUpRole === 'Ref' ? 'Referee' 
+                       : signUpRole;
+          
           const userProfile: any = {
             uid: user.uid,
             name,
             email,
-            role: signUpRole,
+            role: dbRole,
             teamId: verifiedTeamId,
-            username: cleanUsername
+            username: cleanUsername,
+            credits: 10,
+            createdAt: serverTimestamp(),
           };
           
           if (signUpRole === 'Fan') {

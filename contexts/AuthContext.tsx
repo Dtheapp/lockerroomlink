@@ -119,13 +119,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 const profile = docSnap.data() as UserProfile;
                 setUserData(profile);
 
-                // CREDIT SYSTEM: Migrate existing users who don't have credits yet
+                // CREDIT SYSTEM: Initialize credits for users who don't have them yet
                 // Only attempt once per session to prevent error loops
-                if (!migrationAttempted && profile.credits === undefined && profile.role !== 'SuperAdmin') {
+                if (!migrationAttempted && profile.credits === undefined) {
                   migrationAttempted = true;
-                  migrateUserToNewCreditSystem(firebaseUser.uid, profile.cloneCredits ?? 10)
+                  migrateUserToNewCreditSystem(firebaseUser.uid, 10)
                     .then(() => console.log('User credits initialized'))
-                    .catch(err => console.error('Credit migration error:', err));
+                    .catch(err => console.error('Credit initialization error:', err));
                 }
 
                 // Set Sentry user context for error tracking

@@ -128,6 +128,7 @@ const CommissionerCreateTeam = lazyWithRetry(() => import('./components/commissi
 const CommissionerTeamDetail = lazyWithRetry(() => import('./components/commissioner/CommissionerTeamDetail'));
 const CommissionerAssignCoach = lazyWithRetry(() => import('./components/commissioner/CommissionerAssignCoach'));
 const CommissionerGrievances = lazyWithRetry(() => import('./components/commissioner/CommissionerGrievances'));
+const CommissionerInfractions = lazyWithRetry(() => import('./components/commissioner/CommissionerInfractions'));
 const TeamScheduleView = lazyWithRetry(() => import('./components/commissioner/TeamScheduleView'));
 
 // League Owner Pages
@@ -289,8 +290,8 @@ const AppContent: React.FC = () => {
               </Route>
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </>
-          ) : userData?.role === 'ProgramCommissioner' ? (
-            // Program Commissioner routes
+          ) : (userData?.role === 'LeagueCommissioner' || userData?.role === 'TeamCommissioner' || userData?.role === 'ProgramCommissioner' || userData?.role === 'Commissioner') ? (
+            // Commissioner routes (Team or League)
             <>
               <Route path="/" element={<NewOSYSLayout />}>
                 <Route index element={<Navigate to="/commissioner" replace />} />
@@ -300,7 +301,13 @@ const AppContent: React.FC = () => {
                 <Route path="commissioner/teams/:teamId" element={<CommissionerTeamDetail />} />
                 <Route path="commissioner/teams/:teamId/assign-coach" element={<CommissionerAssignCoach />} />
                 <Route path="commissioner/grievances" element={<CommissionerGrievances />} />
+                <Route path="commissioner/infractions" element={<CommissionerInfractions />} />
                 <Route path="commissioner/schedule" element={<TeamScheduleView />} />
+                <Route path="team/:teamId" element={<CommissionerTeamDetail />} />
+                <Route path="playbook" element={<Playbook />} />
+                <Route path="roster" element={<Roster />} />
+                <Route path="marketing" element={<MarketingHub />} />
+                {config.chatEnabled && <Route path="chat" element={<Chat />} />}
                 <Route path="profile" element={<Profile />} />
                 <Route path="notifications" element={<NotificationsPage />} />
                 {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}

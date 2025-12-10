@@ -974,11 +974,11 @@ export async function initializeUserCredits(
 
 /**
  * Migrate existing users to new credit system
- * Converts cloneCredits to new unified credits
+ * Ensures users have credits field initialized
  */
 export async function migrateUserToNewCreditSystem(
   userId: string,
-  existingCloneCredits: number = 10
+  existingCredits: number = 10
 ): Promise<void> {
   try {
     const userRef = doc(db, 'users', userId);
@@ -993,8 +993,8 @@ export async function migrateUserToNewCreditSystem(
       const settings = await getMonetizationSettings();
       const welcomeCredits = settings?.welcomeCredits ?? 10;
       
-      // Give them the higher of: their existing clone credits, or welcome credits
-      const startingCredits = Math.max(existingCloneCredits, welcomeCredits);
+      // Give them the higher of: their existing credits, or welcome credits
+      const startingCredits = Math.max(existingCredits, welcomeCredits);
       
       await updateDoc(userRef, {
         credits: startingCredits,
@@ -1003,8 +1003,6 @@ export async function migrateUserToNewCreditSystem(
         lifetimeCreditsGifted: 0,
         lifetimeCreditsReceived: 0,
         featureUsage: {},
-        // Keep old fields for backwards compatibility during transition
-        // cloneCredits: delete, -- will remove in final cleanup
       });
       
       // Log the migration as a transaction

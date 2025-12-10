@@ -127,7 +127,6 @@ const CoachPlaybook: React.FC<CoachPlaybookProps> = ({ onClose }) => {
   
   // Clone Play Modal state
   const [showCloneModal, setShowCloneModal] = useState(false);
-  // Note: cloneCredits is now managed internally by ClonePlayModal via useCredits hook
   
   // Trace Play Modal state
   const [showTraceModal, setShowTraceModal] = useState(false);

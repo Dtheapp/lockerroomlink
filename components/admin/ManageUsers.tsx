@@ -267,7 +267,7 @@ const ManageUsers: React.FC = () => {
     setEditName(targetUser.name || '');
     setEditRole(targetUser.role as 'Coach' | 'Parent');
     setEditUsername(targetUser.username || '');
-    setEditCredits(targetUser.credits ?? targetUser.cloneCredits ?? 10); // Use new credits field, fallback to old
+    setEditCredits(targetUser.credits ?? 10);
     setEditError('');
     setIsEditModalOpen(true);
   };
@@ -343,10 +343,8 @@ const ManageUsers: React.FC = () => {
         updates.username = editUsername.trim();
       }
       
-      // Update credits (new unified credits field)
+      // Update credits
       updates.credits = editCredits;
-      // Also update legacy field for backwards compatibility during migration
-      updates.cloneCredits = editCredits;
       
       // Handle role change for coaches
       if (selectedUser.role === 'Coach' && editRole === 'Parent' && selectedUser.teamId) {
@@ -501,6 +499,7 @@ const ManageUsers: React.FC = () => {
         name: newSuperAdminName.trim(),
         role: 'SuperAdmin',
         teamId: null,
+        credits: 10,
         mustChangePassword: true, // Force password change on first login
         createdAt: serverTimestamp(),
         createdBy: user?.email || 'Root Admin'
@@ -879,7 +878,7 @@ const ManageUsers: React.FC = () => {
                         {/* Show credits for all users */}
                         <span className="ml-2 inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400" title="Credits">
                           <Zap className="w-3 h-3" />
-                          {u.credits ?? u.cloneCredits ?? 10}
+                          {u.credits ?? 10}
                         </span>
                     </td>
                     <td className="px-6 py-4">

@@ -137,6 +137,31 @@ const NewOSYSLayout: React.FC = () => {
 
   // Navigation items based on role and config
   const getNavItems = () => {
+    // Check if user is a commissioner
+    const isCommissioner = ['Commissioner', 'TeamCommissioner', 'LeagueCommissioner', 'ProgramCommissioner'].includes(userData?.role || '');
+    const isTeamCommissioner = userData?.role === 'TeamCommissioner' || 
+                                (userData?.commissionerType === 'team') ||
+                                (!userData?.commissionerType && !['LeagueCommissioner', 'LeagueOwner'].includes(userData?.role || ''));
+    
+    // Commissioner-specific navigation
+    if (isCommissioner) {
+      return [
+        { icon: '📊', label: 'Dashboard', path: '/commissioner', section: 'Main' },
+        { icon: '📋', label: 'Playbook', path: '/playbook', section: 'Main', configKey: 'playbookEnabled' },
+        { icon: '👥', label: 'Roster', path: '/roster', section: 'Main' },
+        { icon: '📅', label: 'Schedule', path: '/commissioner/schedule', section: 'Main' },
+        { icon: '🏟️', label: isTeamCommissioner ? 'Manage Teams' : 'Manage Leagues', path: isTeamCommissioner ? '/commissioner/teams' : '/commissioner/leagues', section: 'Create' },
+        { icon: '📢', label: 'Marketing', path: '/marketing', section: 'Create' },
+        { icon: '💬', label: 'Messages', path: '/messenger', section: 'Engage', configKey: 'messengerEnabled', unreadKey: 'messenger' },
+        { icon: '🗨️', label: 'Team Chat', path: '/chat', section: 'Engage', configKey: 'chatEnabled', unreadKey: 'teamChat' },
+        { icon: '⚠️', label: 'Grievances', path: '/commissioner/grievances', section: 'Admin', unreadKey: 'grievances' },
+        { icon: '🎫', label: 'Infractions', path: '/commissioner/infractions', section: 'Admin', unreadKey: 'infractions' },
+      ].filter(item => {
+        if (item.configKey && !config[item.configKey as keyof typeof config]) return false;
+        return true;
+      });
+    }
+    
     const items = [
       { icon: '📊', label: 'Dashboard', path: '/dashboard', section: 'Main' },
       { icon: '📋', label: 'Playbook', path: '/playbook', section: 'Main', configKey: 'playbookEnabled', hideForParent: true },
@@ -165,7 +190,7 @@ const NewOSYSLayout: React.FC = () => {
   };
 
   const navItems = getNavItems();
-  const sections = ['Main', 'Create', 'Engage', 'Analyze', 'Shop'];
+  const sections = ['Main', 'Create', 'Engage', 'Admin', 'Analyze', 'Shop'];
 
   const hasUnread = (key?: string): boolean => {
     if (!key) return false;
@@ -245,13 +270,21 @@ const NewOSYSLayout: React.FC = () => {
         <div className={`flex items-center justify-between p-4 border-b ${
           theme === 'dark' ? 'border-white/10' : 'border-slate-200'
         }`}>
-          <button onClick={handleLogoClick} className={`flex items-center gap-3 hover:opacity-80 transition-opacity ${isSidebarCollapsed ? 'lg:justify-center lg:w-full' : ''}`}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-xl shadow-lg shadow-purple-500/30 text-white">
-              ⚡
-            </div>
-            {!isSidebarCollapsed && <span className="font-bold text-xl tracking-tight lg:block">OSYS</span>}
-            {isSidebarCollapsed && <span className="font-bold text-xl tracking-tight lg:hidden">OSYS</span>}
-          </button>
+          <div className={`flex items-center gap-3 ${isSidebarCollapsed ? 'lg:justify-center lg:w-full' : ''}`}>
+            <button onClick={handleLogoClick} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-xl shadow-lg shadow-purple-500/30 text-white">
+                ⚡
+              </div>
+              {!isSidebarCollapsed && <span className="font-bold text-xl tracking-tight lg:block">OSYS</span>}
+              {isSidebarCollapsed && <span className="font-bold text-xl tracking-tight lg:hidden">OSYS</span>}
+            </button>
+            {/* Notification Bell - next to logo */}
+            {!isSidebarCollapsed && (
+              <div className="hidden lg:block">
+                <NotificationBell />
+              </div>
+            )}
+          </div>
           <button 
             onClick={() => setIsSidebarOpen(false)}
             className={`lg:hidden p-2 rounded-lg ${
@@ -482,11 +515,6 @@ const NewOSYSLayout: React.FC = () => {
 
       {/* Main Content Area */}
       <main ref={mainContentRef} className={`${isSidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'} min-h-screen pt-16 lg:pt-0 overflow-y-auto transition-all`}>
-        {/* Desktop Notification Bell - Fixed in top right */}
-        <div className="hidden lg:flex fixed top-4 right-6 z-40 items-center gap-3">
-          <NotificationBell />
-        </div>
-        
         <div className="p-4 lg:p-8">
           <Outlet />
         </div>

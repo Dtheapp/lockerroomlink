@@ -153,6 +153,7 @@ export const DonateModal: React.FC<DonateModalProps> = ({
                     email: donorEmail,
                     name: donorName,
                     role: 'Fan',
+                    credits: 10,
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp(),
                     createdVia: 'donation',

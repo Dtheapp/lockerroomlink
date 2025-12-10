@@ -6,8 +6,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { getTeamsByProgram } from '../../services/leagueService';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import type { Team } from '../../types';
 import { 
@@ -23,7 +24,8 @@ import {
 } from 'lucide-react';
 
 export const CommissionerTeamList: React.FC = () => {
-  const { userData } = useAuth();
+  const { userData, user } = useAuth();
+  const { theme } = useTheme();
   
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,14 +34,33 @@ export const CommissionerTeamList: React.FC = () => {
   const [teamStats, setTeamStats] = useState<Record<string, { players: number; coaches: number }>>({});
 
   useEffect(() => {
-    if (!userData?.programId) {
+    if (!user?.uid) {
       setLoading(false);
       return;
     }
 
     const loadTeams = async () => {
       try {
-        const teamsData = await getTeamsByProgram(userData.programId!);
+        let teamsData: Team[] = [];
+        
+        // First try to get teams by programId (for commissioners with programs)
+        if (userData?.programId) {
+          teamsData = await getTeamsByProgram(userData.programId!);
+        }
+        
+        // Also get teams by ownerId (for team commissioners who own teams directly)
+        const ownerQuery = query(collection(db, 'teams'), where('ownerId', '==', user.uid));
+        const ownerSnap = await getDocs(ownerQuery);
+        const ownerTeams = ownerSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
+        
+        // Merge and dedupe teams
+        const teamIds = new Set(teamsData.map(t => t.id));
+        for (const team of ownerTeams) {
+          if (!teamIds.has(team.id)) {
+            teamsData.push(team);
+          }
+        }
+        
         setTeams(teamsData);
         
         // Load player/coach counts for each team
@@ -62,7 +83,7 @@ export const CommissionerTeamList: React.FC = () => {
     };
 
     loadTeams();
-  }, [userData?.programId]);
+  }, [userData?.programId, user?.uid]);
 
   // Get unique age groups for filter
   const ageGroups = [...new Set(teams.map(t => t.ageGroup).filter(Boolean))];
@@ -77,24 +98,24 @@ export const CommissionerTeamList: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 pb-20">
+    <div className={`min-h-screen pb-20 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700">
+      <div className={`border-b ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Link to="/commissioner" className="text-gray-400 hover:text-white">
+              <Link to="/commissioner" className={theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}>
                 <Shield className="w-5 h-5" />
               </Link>
-              <ChevronRight className="w-4 h-4 text-gray-600" />
-              <h1 className="text-xl font-bold text-white">Team Management</h1>
+              <ChevronRight className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+              <h1 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Team Management</h1>
             </div>
             <Link
               to="/commissioner/teams/create"
@@ -111,22 +132,30 @@ export const CommissionerTeamList: React.FC = () => {
         {/* Search & Filter */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search teams..."
-              className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                theme === 'dark' 
+                  ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-400' 
+                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+              }`}
             />
           </div>
           
           <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-gray-400" />
+            <Filter className={`w-5 h-5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
             <select
               value={filterAgeGroup}
               onChange={(e) => setFilterAgeGroup(e.target.value)}
-              className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className={`px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                theme === 'dark' 
+                  ? 'bg-gray-800 border-gray-700 text-white' 
+                  : 'bg-white border-gray-300 text-gray-900'
+              }`}
             >
               <option value="all">All Age Groups</option>
               {ageGroups.map((group) => (
@@ -138,12 +167,12 @@ export const CommissionerTeamList: React.FC = () => {
 
         {/* Teams Grid */}
         {filteredTeams.length === 0 ? (
-          <div className="bg-gray-800 rounded-xl p-12 text-center">
-            <Users className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-white mb-2">
+          <div className={`rounded-xl p-12 text-center ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-gray-200'}`}>
+            <Users className={`w-16 h-16 mx-auto mb-4 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+            <h2 className={`text-xl font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
               {teams.length === 0 ? 'No Teams Yet' : 'No Teams Found'}
             </h2>
-            <p className="text-gray-400 mb-6">
+            <p className={`mb-6 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
               {teams.length === 0 
                 ? 'Create your first team to get started managing your program.'
                 : 'Try adjusting your search or filter criteria.'}
@@ -164,7 +193,11 @@ export const CommissionerTeamList: React.FC = () => {
               <Link
                 key={team.id}
                 to={`/commissioner/teams/${team.id}`}
-                className="bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-purple-500/50 rounded-xl p-4 transition-all group"
+                className={`rounded-xl p-4 transition-all group ${
+                  theme === 'dark' 
+                    ? 'bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-purple-500/50' 
+                    : 'bg-white hover:bg-gray-50 border border-gray-200 hover:border-purple-400 shadow-sm'
+                }`}
               >
                 <div className="flex items-start gap-4">
                   <div 
@@ -175,23 +208,23 @@ export const CommissionerTeamList: React.FC = () => {
                   </div>
                   
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-semibold text-white truncate group-hover:text-purple-400 transition-colors">
+                    <h3 className={`text-lg font-semibold truncate group-hover:text-purple-500 transition-colors ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                       {team.name}
                     </h3>
-                    <p className="text-sm text-gray-400">
+                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                       {team.sport} • {team.ageGroup || 'No age group'}
                     </p>
                     
                     <div className="flex items-center gap-4 mt-3">
                       <div className="flex items-center gap-1.5 text-sm">
                         <Users className="w-4 h-4 text-blue-400" />
-                        <span className="text-gray-300">
+                        <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>
                           {teamStats[team.id!]?.players || 0} players
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 text-sm">
                         <UserCheck className="w-4 h-4 text-green-400" />
-                        <span className="text-gray-300">
+                        <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>
                           {teamStats[team.id!]?.coaches || 0} coaches
                         </span>
                       </div>
@@ -201,7 +234,7 @@ export const CommissionerTeamList: React.FC = () => {
                 
                 {/* Linked cheer team indicator */}
                 {team.linkedCheerTeamId && (
-                  <div className="mt-3 pt-3 border-t border-gray-700 flex items-center gap-2 text-sm text-purple-400">
+                  <div className={`mt-3 pt-3 border-t flex items-center gap-2 text-sm text-purple-500 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
                     <Link2 className="w-4 h-4" />
                     <span>Linked Cheer Team</span>
                   </div>
@@ -213,24 +246,24 @@ export const CommissionerTeamList: React.FC = () => {
 
         {/* Summary Stats */}
         {teams.length > 0 && (
-          <div className="bg-gray-800 rounded-xl p-4 flex flex-wrap items-center justify-center gap-8">
+          <div className={`rounded-xl p-4 flex flex-wrap items-center justify-center gap-8 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-gray-200 shadow-sm'}`}>
             <div className="text-center">
-              <p className="text-2xl font-bold text-white">{teams.length}</p>
-              <p className="text-sm text-gray-400">Total Teams</p>
+              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{teams.length}</p>
+              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Teams</p>
             </div>
-            <div className="h-8 w-px bg-gray-700" />
+            <div className={`h-8 w-px ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}`} />
             <div className="text-center">
-              <p className="text-2xl font-bold text-white">
+              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                 {Object.values(teamStats).reduce((sum, s) => sum + s.players, 0)}
               </p>
-              <p className="text-sm text-gray-400">Total Players</p>
+              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Players</p>
             </div>
-            <div className="h-8 w-px bg-gray-700" />
+            <div className={`h-8 w-px ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}`} />
             <div className="text-center">
-              <p className="text-2xl font-bold text-white">
+              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                 {Object.values(teamStats).reduce((sum, s) => sum + s.coaches, 0)}
               </p>
-              <p className="text-sm text-gray-400">Total Coaches</p>
+              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Coaches</p>
             </div>
           </div>
         )}

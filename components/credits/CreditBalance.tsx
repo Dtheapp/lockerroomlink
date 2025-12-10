@@ -1,8 +1,10 @@
 // =============================================================================
 // CREDIT BALANCE - Display user's credit balance with buy option
+// Uses userData.credits from AuthContext (real-time listener) as source of truth
+// Only falls back to direct Firestore fetch if userData is not available
 // =============================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Coins, Plus, Sparkles } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getUserCreditBalance } from '../../services/creditService';
@@ -20,29 +22,53 @@ const CreditBalance: React.FC<CreditBalanceProps> = ({
   className = '' 
 }) => {
   const { user, userData } = useAuth();
-  const [balance, setBalance] = useState<number>(0);
+  const [fetchedBalance, setFetchedBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBuyModal, setShowBuyModal] = useState(false);
   
+  // Primary source: userData.credits from real-time listener
+  // Fallback: fetchedBalance from direct Firestore query
+  const balance = userData?.credits ?? fetchedBalance ?? 0;
+  
+  // Only fetch directly if userData.credits is not available
   useEffect(() => {
-    if (user?.uid) {
-      loadBalance();
+    if (!user?.uid) {
+      setLoading(false);
+      return;
     }
+    
+    // If we have userData.credits, use it immediately (no loading state)
+    if (userData?.credits !== undefined) {
+      setLoading(false);
+      return;
+    }
+    
+    // Fallback: fetch directly from Firestore
+    const fetchBalance = async () => {
+      try {
+        const bal = await getUserCreditBalance(user.uid);
+        setFetchedBalance(bal);
+      } catch (err) {
+        console.error('Error loading credit balance:', err);
+        setFetchedBalance(0);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchBalance();
   }, [user?.uid, userData?.credits]);
   
-  const loadBalance = async () => {
+  // Refresh balance after purchase (forces re-fetch)
+  const handlePurchaseComplete = useCallback(async () => {
     if (!user?.uid) return;
     try {
       const bal = await getUserCreditBalance(user.uid);
-      setBalance(bal);
+      setFetchedBalance(bal);
     } catch (err) {
-      console.error('Error loading credit balance:', err);
-      // Fall back to userData if available
-      setBalance(userData?.credits || 0);
-    } finally {
-      setLoading(false);
+      console.error('Error refreshing balance:', err);
     }
-  };
+  }, [user?.uid]);
   
   // SuperAdmins don't need credits display
   if (userData?.role === 'SuperAdmin') return null;
@@ -69,7 +95,7 @@ const CreditBalance: React.FC<CreditBalanceProps> = ({
         {showBuyModal && (
           <BuyCreditsModal 
             onClose={() => setShowBuyModal(false)} 
-            onPurchaseComplete={loadBalance}
+            onPurchaseComplete={handlePurchaseComplete}
           />
         )}
       </>
@@ -116,7 +142,7 @@ const CreditBalance: React.FC<CreditBalanceProps> = ({
         {showBuyModal && (
           <BuyCreditsModal 
             onClose={() => setShowBuyModal(false)} 
-            onPurchaseComplete={loadBalance}
+            onPurchaseComplete={handlePurchaseComplete}
           />
         )}
       </>

@@ -1,6 +1,6 @@
 import { Timestamp } from 'firebase/firestore';
 
-export type UserRole = 'Coach' | 'Parent' | 'Fan' | 'SuperAdmin' | 'LeagueOwner' | 'ProgramCommissioner' | 'Referee' | 'Commissioner' | 'Ref';
+export type UserRole = 'Coach' | 'Parent' | 'Fan' | 'SuperAdmin' | 'LeagueOwner' | 'ProgramCommissioner' | 'Referee' | 'Commissioner' | 'Ref' | 'TeamCommissioner' | 'LeagueCommissioner';
 
 // --- RULES & CODE OF CONDUCT ---
 
@@ -198,12 +198,14 @@ export type InfractionSeverity = 'minor' | 'moderate' | 'major' | 'severe';
 export type InfractionCategory = 'unsportsmanlike' | 'rule_violation' | 'safety' | 'eligibility' | 'equipment' | 'administrative' | 'other';
 export type InfractionStatus = 'submitted' | 'under_review' | 'resolved' | 'dismissed' | 'appealed';
 
+// Infraction - rule violations reported by referees
 export interface Infraction {
   id: string;
   teamId: string;
   teamName?: string;
   leagueId: string;
   leagueName?: string;
+  playerName?: string;  // For quick search/display (denormalized)
   
   // Reporter (Referee)
   reportedBy: string;           // Referee user ID
@@ -258,6 +260,7 @@ export interface Infraction {
   updatedAt?: Timestamp | Date;
   resolvedAt?: Timestamp | Date;
   resolvedBy?: string;
+  resolution?: string;  // Resolution summary/notes
 }
 
 export interface InfractionThread {
@@ -412,11 +415,6 @@ export interface UserProfile {
   pilotExpiresAt?: Timestamp;          // When pilot access expires
   lastCreditTransactionAt?: Timestamp; // Last credit activity
   
-  // @deprecated - Legacy fields, will be removed after migration
-  cloneCredits?: number;               // DEPRECATED: Use credits instead
-  totalClonesUsed?: number;            // DEPRECATED: Use featureUsage instead
-  purchasedCredits?: number;           // DEPRECATED: Use credits instead
-  
   // --- FAN-SPECIFIC FIELDS ---
   followedAthletes?: string[]; // Array of athlete usernames the fan follows
   followedCoaches?: string[]; // Array of coach user IDs the user follows
@@ -554,12 +552,31 @@ export interface SeasonRegistration {
 // Sport Types - expandable for future sports
 export type SportType = 'football' | 'basketball' | 'soccer' | 'baseball' | 'cheer' | 'volleyball' | 'other';
 
+// Standard age groups for youth sports
+export const AGE_GROUPS = [
+  // Youth (age-based)
+  '5U', '6U', '7U', '8U', '9U', '10U', '11U', '12U',
+  // Middle/High School (grade-based)
+  '6th Grade', '7th Grade', '8th Grade', '9th Grade', '10th Grade', '11th Grade', '12th Grade',
+  // College (year-based)
+  'Freshman', 'Sophomore', 'Junior', 'Senior',
+  // Adult Leagues
+  'Open', 'Adult', 'Masters', 'Seniors', 'Golden'
+] as const;
+
+export type AgeGroup = typeof AGE_GROUPS[number];
+
 export interface Team {
   id: string;
   name: string;
   sport?: SportType; // Sport type for multi-sport support (default: 'football')
-  ageGroup?: string; // Age group for the team (e.g., "8U", "10U", "12U")
-  color?: string; // Team color for display
+  ageGroup?: string; // Primary age group for the team (e.g., "8U", "10U", "12U")
+  ageGroups?: string[]; // For multi-grade teams (e.g., ["8U", "9U"])
+  ageGroupType?: 'single' | 'multi'; // Whether team spans multiple age groups
+  seasonYear?: number; // Season year (e.g., 2025)
+  color?: string; // Team color for display (backward compatible - same as primaryColor)
+  primaryColor?: string; // Primary team color (hex, e.g., "#f97316")
+  secondaryColor?: string; // Secondary team color (hex, e.g., "#1e293b")
   isCheerTeam?: boolean; // Whether this is a cheer team
   coachId: string | null;
   headCoachId?: string | null; // Designated head coach who can manage other coaches
@@ -586,6 +603,9 @@ export interface Team {
     zip?: string;
     country?: string;           // Default: "USA"
   };
+  // Legacy/fallback location fields (prefer location.city/location.state)
+  city?: string;
+  state?: string;
   
   // --- LEAGUE & PROGRAM FIELDS ---
   programId?: string;                   // Which program owns this team

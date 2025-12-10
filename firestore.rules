@@ -23,17 +23,21 @@ service cloud.firestore {
       return isAuthenticated() && getUserData().role == 'SuperAdmin';
     }
     
-    // --- NEW: League & Commissioner Role Checks ---
+    // --- Commissioner Role Checks ---
     function isLeagueOwner() {
       return isAuthenticated() && getUserData().role == 'LeagueOwner';
     }
     
-    function isProgramCommissioner() {
-      return isAuthenticated() && getUserData().role == 'ProgramCommissioner';
+    function isLeagueCommissioner() {
+      return isAuthenticated() && (getUserData().role == 'LeagueCommissioner' || getUserData().role == 'ProgramCommissioner' || getUserData().role == 'Commissioner');
+    }
+    
+    function isTeamCommissioner() {
+      return isAuthenticated() && getUserData().role == 'TeamCommissioner';
     }
     
     function isCommissioner() {
-      return isProgramCommissioner() || isLeagueOwner();
+      return isLeagueCommissioner() || isTeamCommissioner() || isLeagueOwner();
     }
     
     function isReferee() {
@@ -44,8 +48,8 @@ service cloud.firestore {
       return isLeagueOwner() && getUserData().leagueId == leagueId;
     }
     
-    function isProgramCommissionerOf(programId) {
-      return isProgramCommissioner() && getUserData().programId == programId;
+    function isLeagueCommissionerOf(programId) {
+      return isLeagueCommissioner() && getUserData().programId == programId;
     }
     
     function isAssistantCommissionerOf(programId) {
@@ -55,7 +59,7 @@ service cloud.firestore {
     }
     
     function canManageProgram(programId) {
-      return isProgramCommissionerOf(programId) || 
+      return isLeagueCommissionerOf(programId) || 
              isAssistantCommissionerOf(programId) || 
              isAdmin();
     }
@@ -114,8 +118,8 @@ service cloud.firestore {
       // League Requests subcollection
       match /requests/{requestId} {
         allow read: if isLeagueOwnerOf(leagueId) || isAdmin() || 
-                      (isProgramCommissioner() && resource.data.requestedBy == request.auth.uid);
-        allow create: if isProgramCommissioner() || isAdmin();
+                      (isLeagueCommissioner() && resource.data.requestedBy == request.auth.uid);
+        allow create: if isLeagueCommissioner() || isAdmin();
         allow update: if isLeagueOwnerOf(leagueId) || isAdmin();
         allow delete: if isAdmin();
       }
@@ -163,7 +167,7 @@ service cloud.firestore {
         (isLeagueOwner() && resource.data.leagueId == getUserData().leagueId) ||
         resource.data.requestedBy == request.auth.uid
       );
-      allow create: if isProgramCommissioner() || isAdmin();
+      allow create: if isLeagueCommissioner() || isAdmin();
       allow update: if isAdmin() || 
                       (isLeagueOwner() && resource.data.leagueId == getUserData().leagueId);
       allow delete: if isAdmin();
@@ -175,12 +179,12 @@ service cloud.firestore {
     match /grievances/{grievanceId} {
       allow read: if isAuthenticated() && (
         isAdmin() ||
-        (isProgramCommissioner() && resource.data.programId == getUserData().programId) ||
+        (isLeagueCommissioner() && resource.data.programId == getUserData().programId) ||
         resource.data.submittedBy == request.auth.uid
       );
       allow create: if isAuthenticated();
       allow update: if isAdmin() || 
-                      (isProgramCommissioner() && resource.data.programId == getUserData().programId);
+                      (isLeagueCommissioner() && resource.data.programId == getUserData().programId);
       allow delete: if isAdmin();
     }
     
@@ -190,7 +194,7 @@ service cloud.firestore {
     match /teamScheduleAcceptance/{acceptanceId} {
       allow read: if isAuthenticated();
       allow create, update: if isAdmin() || 
-                              isProgramCommissioner() ||
+                              isLeagueCommissioner() ||
                               isTeamCoach(resource.data.teamId);
       allow delete: if isAdmin();
     }
@@ -223,7 +227,7 @@ service cloud.firestore {
         isAdmin() ||
         resource.data.refereeId == request.auth.uid ||
         (isLeagueOwner() && resource.data.leagueId == getUserData().leagueId) ||
-        (isProgramCommissioner() && exists(/databases/$(database)/documents/teams/$(resource.data.teamId)) &&
+        (isLeagueCommissioner() && exists(/databases/$(database)/documents/teams/$(resource.data.teamId)) &&
          get(/databases/$(database)/documents/teams/$(resource.data.teamId)).data.programId == getUserData().programId)
       );
       
@@ -231,7 +235,7 @@ service cloud.firestore {
       allow create: if isAuthenticated() && (
         isAdmin() ||
         isLeagueOwner() ||
-        isProgramCommissioner() ||
+        isLeagueCommissioner() ||
         isCoach()
       );
       
@@ -289,7 +293,7 @@ service cloud.firestore {
       allow create: if isAuthenticated() && (
         isAdmin() ||
         isLeagueOwner() ||
-        isProgramCommissioner() ||
+        isLeagueCommissioner() ||
         isCoach()
       );
       
@@ -351,7 +355,7 @@ service cloud.firestore {
       allow create: if isAuthenticated() && (
         isAdmin() ||
         isLeagueOwner() ||
-        isProgramCommissioner() ||
+        isLeagueCommissioner() ||
         isCoach() ||
         getUserData().role == 'Referee'
       );
@@ -724,7 +728,10 @@ service cloud.firestore {
     match /teams/{teamId} {
       // Allow public read for public profiles (unauthenticated users can view teams/players)
       allow read: if true;
-      allow write: if isTeamCoach(teamId) || isAdmin();
+      // Commissioners can create teams they own, coaches can update their teams
+      allow create: if isCommissioner() || isAdmin();
+      allow update: if isTeamCoach(teamId) || isCommissioner() || isAdmin();
+      allow delete: if isAdmin();
       
       // Players subcollection
       match /players/{playerId} {

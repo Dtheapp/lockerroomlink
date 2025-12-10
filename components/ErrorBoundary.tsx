@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { AlertTriangle, RefreshCw, Home, Download } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Home, Download, Trash2 } from 'lucide-react';
+import { clearFirestoreCache } from '../services/firebase';
 
 interface Props {
   children: React.ReactNode;
@@ -9,6 +10,7 @@ interface State {
   hasError: boolean;
   error: Error | null;
   isChunkError: boolean;
+  isFirestoreError: boolean;
 }
 
 // Error Boundary component to catch and handle React errors gracefully
@@ -16,7 +18,7 @@ interface State {
 export default class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null, isChunkError: false };
+    this.state = { hasError: false, error: null, isChunkError: false, isFirestoreError: false };
   }
 
   static getDerivedStateFromError(error: Error): State {
@@ -28,30 +30,50 @@ export default class ErrorBoundary extends React.Component<Props, State> {
       error?.message?.includes('text/html') ||
       error?.name === 'ChunkLoadError';
     
-    return { hasError: true, error, isChunkError };
+    // Check if this is a Firestore internal assertion error
+    const isFirestoreError = 
+      error?.message?.includes('FIRESTORE') ||
+      error?.message?.includes('INTERNAL ASSERTION FAILED') ||
+      error?.message?.includes('Unexpected state');
+    
+    return { hasError: true, error, isChunkError, isFirestoreError };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
   }
 
-  handleReload = async () => {
-    // Unregister service worker first
-    if ('serviceWorker' in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      for (const registration of registrations) {
-        await registration.unregister();
+  handleReload = () => {
+    // Use try/catch for cleanup attempts, but always reload at the end
+    const cleanup = async () => {
+      try {
+        // Unregister service worker first
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for (const registration of registrations) {
+            await registration.unregister();
+          }
+        }
+      } catch (e) {
+        console.log('SW unregister error:', e);
       }
-    }
-    
-    // Clear all caches
-    if ('caches' in window) {
-      const names = await caches.keys();
-      await Promise.all(names.map(name => caches.delete(name)));
-    }
-    
-    // Force hard refresh (bypass cache)
-    window.location.href = window.location.href.split('?')[0] + '?nocache=' + Date.now();
+      
+      try {
+        // Clear all caches
+        if ('caches' in window) {
+          const names = await caches.keys();
+          await Promise.all(names.map(name => caches.delete(name)));
+        }
+      } catch (e) {
+        console.log('Cache clear error:', e);
+      }
+    };
+
+    // Do cleanup then reload, or just reload if cleanup fails
+    cleanup().finally(() => {
+      // Force hard refresh (bypass cache)
+      window.location.href = window.location.href.split('?')[0] + '?nocache=' + Date.now();
+    });
   };
 
   handleGoHome = () => {
@@ -61,6 +83,43 @@ export default class ErrorBoundary extends React.Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      // Special UI for Firestore internal errors (corrupted cache)
+      if (this.state.isFirestoreError) {
+        return (
+          <div className="min-h-screen bg-zinc-50 dark:bg-black flex items-center justify-center p-4">
+            <div className="max-w-md w-full bg-white dark:bg-zinc-900 rounded-2xl p-8 border border-zinc-200 dark:border-zinc-800 shadow-2xl text-center">
+              <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-8 h-8 text-yellow-600 dark:text-yellow-400" />
+              </div>
+              
+              <h1 className="text-2xl font-bold text-zinc-900 dark:text-white mb-2">
+                Cache Error
+              </h1>
+              
+              <p className="text-zinc-600 dark:text-zinc-400 mb-6">
+                The local database cache is out of sync. This can happen when data is modified directly in the database. Click below to clear the cache and reload.
+              </p>
+
+              <button
+                onClick={clearFirestoreCache}
+                className="w-full flex items-center justify-center gap-2 bg-yellow-600 hover:bg-yellow-700 text-white py-3 px-4 rounded-lg font-semibold transition-colors mb-3"
+              >
+                <Trash2 className="w-4 h-4" />
+                Clear Cache & Reload
+              </button>
+              
+              <button
+                onClick={this.handleReload}
+                className="w-full flex items-center justify-center gap-2 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white py-3 px-4 rounded-lg font-semibold transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Just Refresh
+              </button>
+            </div>
+          </div>
+        );
+      }
+
       // Special UI for chunk load errors (usually from stale cache)
       if (this.state.isChunkError) {
         return (

@@ -1,5 +1,6 @@
 // =============================================================================
 // USE CREDITS HOOK - Check if user can use a feature and handle credit deduction
+// Uses userData.credits from AuthContext as primary source (real-time)
 // =============================================================================
 
 import { useState, useEffect, useCallback } from 'react';
@@ -31,29 +32,32 @@ interface UseCreditsResult {
 
 export const useCredits = (): UseCreditsResult => {
   const { user, userData } = useAuth();
-  const [balance, setBalance] = useState(0);
+  const [fetchedBalance, setFetchedBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<MonetizationSettings | null>(null);
   
-  // Load balance and settings
+  // Primary source: userData.credits from real-time listener
+  // Fallback: fetchedBalance from direct Firestore query
+  const balance = userData?.credits ?? fetchedBalance ?? 0;
+  
+  // Load settings and fallback balance
   useEffect(() => {
     const load = async () => {
       if (!user?.uid) {
-        console.log('[useCredits] No user.uid, skipping load');
         setLoading(false);
         return;
       }
       
-      console.log('[useCredits] Loading balance for user:', user.uid);
-      
       try {
-        const [bal, monetization] = await Promise.all([
-          getUserCreditBalance(user.uid),
-          getMonetizationSettings(),
-        ]);
-        console.log('[useCredits] Loaded balance:', bal);
-        setBalance(bal);
+        // Always load monetization settings
+        const monetization = await getMonetizationSettings();
         setSettings(monetization);
+        
+        // Only fetch balance directly if userData.credits is not available
+        if (userData?.credits === undefined) {
+          const bal = await getUserCreditBalance(user.uid);
+          setFetchedBalance(bal);
+        }
       } catch (err) {
         console.error('Error loading credits:', err);
       } finally {
@@ -62,15 +66,17 @@ export const useCredits = (): UseCreditsResult => {
     };
     
     load();
-  }, [user?.uid]);
+  }, [user?.uid, userData?.credits]);
   
-  // Refresh balance
+  // Refresh balance (for after transactions)
   const refreshBalance = useCallback(async () => {
     if (!user?.uid) return;
-    console.log('[useCredits] Refreshing balance for user:', user.uid);
-    const bal = await getUserCreditBalance(user.uid);
-    console.log('[useCredits] Refreshed balance:', bal);
-    setBalance(bal);
+    try {
+      const bal = await getUserCreditBalance(user.uid);
+      setFetchedBalance(bal);
+    } catch (err) {
+      console.error('Error refreshing balance:', err);
+    }
   }, [user?.uid]);
   
   // Check if user can use a feature
