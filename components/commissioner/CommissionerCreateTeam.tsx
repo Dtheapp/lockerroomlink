@@ -22,7 +22,10 @@ import {
   Loader2, 
   AlertCircle, 
   CheckCircle2,
-  Palette
+  Palette,
+  Search,
+  Link2,
+  X
 } from 'lucide-react';
 
 const TEAM_CREATION_COST = 50; // Credits required to create a team
@@ -50,6 +53,12 @@ export const CommissionerCreateTeam: React.FC = () => {
   const [isCheerTeam, setIsCheerTeam] = useState(false);
   const [linkedCheerTeamId, setLinkedCheerTeamId] = useState('');
   const [availableCheerTeams, setAvailableCheerTeams] = useState<{id: string; name: string}[]>([]);
+  // For cheer teams - link to a sport team
+  const [linkedToTeamId, setLinkedToTeamId] = useState('');
+  const [linkedToTeamName, setLinkedToTeamName] = useState('');
+  const [sportTeamSearch, setSportTeamSearch] = useState('');
+  const [sportTeamResults, setSportTeamResults] = useState<{id: string; name: string; sport: string; ageGroup: string}[]>([]);
+  const [searchingSportTeams, setSearchingSportTeams] = useState(false);
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
 
@@ -107,6 +116,53 @@ export const CommissionerCreateTeam: React.FC = () => {
     
     loadCheerTeams();
   }, [user?.uid, isCheerTeam]);
+
+  // Search for sport teams to link cheer team to
+  const handleSearchSportTeams = async () => {
+    if (!user?.uid || !sportTeamSearch.trim()) return;
+    
+    setSearchingSportTeams(true);
+    try {
+      // Search teams owned by this user that are NOT cheer teams
+      const teamsQuery = query(
+        collection(db, 'teams'),
+        where('ownerId', '==', user.uid),
+        where('isCheerTeam', '!=', true)
+      );
+      const snap = await getDocs(teamsQuery);
+      
+      // Filter by search term (case-insensitive)
+      const searchLower = sportTeamSearch.toLowerCase();
+      const results = snap.docs
+        .map(doc => ({
+          id: doc.id,
+          name: doc.data().name || 'Unnamed Team',
+          sport: doc.data().sport || 'football',
+          ageGroup: Array.isArray(doc.data().ageGroup) ? doc.data().ageGroup.join('/') : (doc.data().ageGroup || 'N/A')
+        }))
+        .filter(team => team.name.toLowerCase().includes(searchLower));
+      
+      setSportTeamResults(results);
+    } catch (err) {
+      console.error('Error searching sport teams:', err);
+    } finally {
+      setSearchingSportTeams(false);
+    }
+  };
+
+  // Select a sport team to link to
+  const handleSelectSportTeam = (team: {id: string; name: string}) => {
+    setLinkedToTeamId(team.id);
+    setLinkedToTeamName(team.name);
+    setSportTeamSearch('');
+    setSportTeamResults([]);
+  };
+
+  // Clear linked sport team
+  const handleClearLinkedSportTeam = () => {
+    setLinkedToTeamId('');
+    setLinkedToTeamName('');
+  };
 
   const handleAgeGroupChange = (value: string | string[], type: 'single' | 'multi') => {
     setAgeGroup(value);
@@ -204,7 +260,21 @@ export const CommissionerCreateTeam: React.FC = () => {
         teamData.linkedCheerTeamId = linkedCheerTeamId;
       }
       
+      // Add linked sport team if selected (for cheer teams)
+      if (isCheerTeam && linkedToTeamId) {
+        teamData.linkedToTeamId = linkedToTeamId;
+        teamData.linkedToTeamName = linkedToTeamName;
+      }
+      
       await setDoc(doc(db, 'teams', customTeamId), teamData);
+      
+      // If this is a cheer team linked to a sport team, update the sport team with bi-directional link
+      if (isCheerTeam && linkedToTeamId) {
+        await updateDoc(doc(db, 'teams', linkedToTeamId), {
+          linkedCheerTeamId: customTeamId,
+          updatedAt: serverTimestamp()
+        });
+      }
       
       // Increment lifetime teams created counter (prevents delete-and-recreate abuse)
       await updateDoc(doc(db, 'users', user.uid), {
@@ -615,12 +685,114 @@ export const CommissionerCreateTeam: React.FC = () => {
                 <input
                   type="checkbox"
                   checked={isCheerTeam}
-                  onChange={(e) => setIsCheerTeam(e.target.checked)}
+                  onChange={(e) => {
+                    setIsCheerTeam(e.target.checked);
+                    // Clear linked sport team when toggling off
+                    if (!e.target.checked) {
+                      setLinkedToTeamId('');
+                      setLinkedToTeamName('');
+                      setSportTeamSearch('');
+                      setSportTeamResults([]);
+                    }
+                  }}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
               </label>
             </div>
+            
+            {/* Link to Sport Team (only show for cheer teams) */}
+            {isCheerTeam && (
+              <div className={`rounded-lg p-4 border-2 border-dashed ${theme === 'dark' ? 'border-pink-500/30 bg-pink-500/5' : 'border-pink-300 bg-pink-50'}`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Link2 className="w-5 h-5 text-pink-500" />
+                  <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    Link to Sport Team (Optional)
+                  </p>
+                </div>
+                <p className={`text-sm mb-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Search for a sport team this cheer squad supports. This creates a two-way link.
+                </p>
+                
+                {/* Show selected team or search */}
+                {linkedToTeamId ? (
+                  <div className={`flex items-center justify-between p-3 rounded-lg ${theme === 'dark' ? 'bg-green-500/20 border border-green-500/30' : 'bg-green-100 border border-green-300'}`}>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-green-500" />
+                      <div>
+                        <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                          Linked to: {linkedToTeamName}
+                        </p>
+                        <p className={`text-xs ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
+                          This cheer team will be displayed with this sport team
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleClearLinkedSportTeam}
+                      className="p-1 hover:bg-red-500/20 rounded-lg transition-colors"
+                    >
+                      <X className="w-5 h-5 text-red-400" />
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={sportTeamSearch}
+                        onChange={(e) => setSportTeamSearch(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleSearchSportTeams())}
+                        placeholder="Search your sport teams..."
+                        className={`flex-1 px-3 py-2 rounded-lg border ${
+                          theme === 'dark' 
+                            ? 'bg-gray-700 border-gray-600 text-white placeholder:text-gray-500' 
+                            : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSearchSportTeams}
+                        disabled={searchingSportTeams || !sportTeamSearch.trim()}
+                        className="px-4 py-2 bg-pink-600 hover:bg-pink-500 disabled:bg-gray-600 text-white rounded-lg transition-colors flex items-center gap-2"
+                      >
+                        {searchingSportTeams ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Search className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                    
+                    {/* Search Results */}
+                    {sportTeamResults.length > 0 && (
+                      <div className={`mt-2 max-h-40 overflow-y-auto rounded-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                        {sportTeamResults.map((team) => (
+                          <button
+                            key={team.id}
+                            type="button"
+                            onClick={() => handleSelectSportTeam(team)}
+                            className={`w-full px-3 py-2 text-left hover:bg-purple-500/20 transition-colors border-b last:border-b-0 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}
+                          >
+                            <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{team.name}</p>
+                            <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {team.sport} • {team.ageGroup}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {sportTeamSearch && sportTeamResults.length === 0 && !searchingSportTeams && (
+                      <p className={`text-sm mt-2 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
+                        No teams found. Try a different search term.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             
             {/* Link Cheer Team (only show for non-cheer teams with available cheer teams) */}
             {!isCheerTeam && availableCheerTeams.length > 0 && (

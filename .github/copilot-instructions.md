@@ -17,7 +17,7 @@ Key mindset to follow: always try to build world class, never cut corners, think
 
 ### Rule 3: Work Completion Rating (MANDATORY)
 **After completing ANY work**, you MUST provide this rating block:
-
+If you did a build you must add it to the build log, if you fixed a bug you must add it to the bug fix log. If the work was listed on the todo list, you must mark it done. 
 ```
 📊 Work Rating:
 - Quality: X/10
