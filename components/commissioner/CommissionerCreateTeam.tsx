@@ -124,17 +124,17 @@ export const CommissionerCreateTeam: React.FC = () => {
     
     setSearchingSportTeams(true);
     try {
-      // Search teams owned by this user that are NOT cheer teams
+      // Search teams owned by this user (filter out cheer teams client-side to avoid index requirement)
       const teamsQuery = query(
         collection(db, 'teams'),
-        where('ownerId', '==', user.uid),
-        where('isCheerTeam', '!=', true)
+        where('ownerId', '==', user.uid)
       );
       const snap = await getDocs(teamsQuery);
       
-      // Filter by search term (case-insensitive)
+      // Filter by search term and exclude cheer teams
       const searchLower = sportTeamSearch.toLowerCase();
       const results = snap.docs
+        .filter(doc => !doc.data().isCheerTeam) // Exclude cheer teams
         .map(doc => ({
           id: doc.id,
           name: doc.data().name || 'Unnamed Team',
@@ -498,20 +498,20 @@ export const CommissionerCreateTeam: React.FC = () => {
                 <label className={`text-xs font-medium block mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                   Primary Color:
                 </label>
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1.5">
                   {Object.entries(TEAM_COLOR_PALETTE).map(([family, colors]) => (
-                    <div key={`pri-${family}`} className="flex gap-0.5">
+                    <div key={`pri-${family}`} className="flex gap-1">
                       {colors.map((c) => (
                         <button
                           key={`pri-${c}`}
                           type="button"
                           onClick={() => { setPrimaryColor(c); setCustomPrimaryHex(''); }}
-                          className={`w-5 h-5 rounded transition-all border ${
+                          className={`w-7 h-7 sm:w-6 sm:h-6 rounded transition-all border ${
                             c === '#ffffff' ? 'border-gray-300' : 'border-transparent'
                           } ${
                             primaryColor === c 
-                              ? `ring-2 ring-offset-1 scale-125 z-10 ${theme === 'dark' ? 'ring-purple-400 ring-offset-gray-800' : 'ring-purple-600 ring-offset-white'}` 
-                              : 'hover:scale-110'
+                              ? `ring-2 ring-offset-1 scale-110 z-10 ${theme === 'dark' ? 'ring-purple-400 ring-offset-gray-800' : 'ring-purple-600 ring-offset-white'}` 
+                              : 'hover:scale-105 active:scale-95'
                           }`}
                           style={{ backgroundColor: c }}
                           title={c}
@@ -523,7 +523,7 @@ export const CommissionerCreateTeam: React.FC = () => {
               </div>
 
               {/* Primary & Secondary Color Selection */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Primary Color */}
                 <div className={`rounded-lg p-3 ${theme === 'dark' ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
                   <label className={`text-xs font-medium block mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -591,20 +591,20 @@ export const CommissionerCreateTeam: React.FC = () => {
                 <label className={`text-xs font-medium block mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                   Secondary Color:
                 </label>
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1.5">
                   {Object.entries(TEAM_COLOR_PALETTE).map(([family, colors]) => (
-                    <div key={`sec-${family}`} className="flex gap-0.5">
+                    <div key={`sec-${family}`} className="flex gap-1">
                       {colors.map((c) => (
                         <button
                           key={`sec-${c}`}
                           type="button"
                           onClick={() => { setSecondaryColor(c); setCustomSecondaryHex(''); }}
-                          className={`w-5 h-5 rounded transition-all border ${
+                          className={`w-7 h-7 sm:w-6 sm:h-6 rounded transition-all border ${
                             c === '#ffffff' ? 'border-gray-300' : 'border-transparent'
                           } ${
                             secondaryColor === c 
-                              ? `ring-2 ring-offset-1 scale-125 z-10 ${theme === 'dark' ? 'ring-purple-400 ring-offset-gray-800' : 'ring-purple-600 ring-offset-white'}` 
-                              : 'hover:scale-110'
+                              ? `ring-2 ring-offset-1 scale-110 z-10 ${theme === 'dark' ? 'ring-purple-400 ring-offset-gray-800' : 'ring-purple-600 ring-offset-white'}` 
+                              : 'hover:scale-105 active:scale-95'
                           }`}
                           style={{ backgroundColor: c }}
                           title={c}
@@ -824,7 +824,7 @@ export const CommissionerCreateTeam: React.FC = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || !teamName || !teamId.trim() || !ageGroup || !city.trim() || !state.trim()}
+              disabled={loading || !teamName || !teamId.trim() || !ageGroup || !city.trim() || !state.trim() || !isValidUSState(state)}
               className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
             >
               {loading ? (
@@ -835,7 +835,7 @@ export const CommissionerCreateTeam: React.FC = () => {
               ) : (
                 <>
                   <Users className="w-5 h-5" />
-                  Create Team ({TEAM_CREATION_COST} Credits)
+                  {isFirstTeamFree ? 'Create Team (FREE)' : `Create Team (${creationCost} Credits)`}
                 </>
               )}
             </button>

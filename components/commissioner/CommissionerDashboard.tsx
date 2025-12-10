@@ -370,16 +370,16 @@ export const CommissionerDashboard: React.FC = () => {
     
     setSearchingSportTeams(true);
     try {
+      // Search teams owned by this user (filter out cheer teams client-side to avoid index)
       const teamsQuery = query(
         collection(db, 'teams'),
-        where('ownerId', '==', user.uid),
-        where('isCheerTeam', '!=', true)
+        where('ownerId', '==', user.uid)
       );
       const snap = await getDocs(teamsQuery);
       
       const searchLower = editSportTeamSearch.toLowerCase();
       const results = snap.docs
-        .filter(doc => doc.id !== editingTeam?.id) // Exclude current team
+        .filter(doc => !doc.data().isCheerTeam && doc.id !== editingTeam?.id) // Exclude cheer teams and current team
         .map(doc => ({
           id: doc.id,
           name: doc.data().name || 'Unnamed Team',
