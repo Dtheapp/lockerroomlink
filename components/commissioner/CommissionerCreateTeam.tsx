@@ -619,16 +619,31 @@ export const CommissionerCreateTeam: React.FC = () => {
                 </div>
               </div>
 
-              {/* Quick Secondary Color Selector */}
+              {/* Quick Secondary Color Selector - Full palette like primary */}
               <div>
                 <label className={`text-xs font-medium block mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Quick pick secondary color:
+                  Secondary Color:
                 </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {[...TEAM_COLOR_PALETTE.neutrals, '#b8860b', '#c0c0c0', '#ffd700'].map((c) => (
-                    <button key={`sec-${c}`} type="button" onClick={() => { setSecondaryColor(c); setCustomSecondaryHex(''); }}
-                      className={`w-6 h-6 rounded transition-all border ${c === '#ffffff' ? 'border-gray-300' : 'border-transparent'} ${secondaryColor === c ? `ring-2 ring-offset-1 scale-110 ${theme === 'dark' ? 'ring-purple-400 ring-offset-gray-800' : 'ring-purple-600 ring-offset-white'}` : 'hover:scale-105'}`}
-                      style={{ backgroundColor: c }} title={c} />
+                <div className="flex flex-wrap gap-1">
+                  {Object.entries(TEAM_COLOR_PALETTE).map(([family, colors]) => (
+                    <div key={`sec-${family}`} className="flex gap-0.5">
+                      {colors.map((c) => (
+                        <button
+                          key={`sec-${c}`}
+                          type="button"
+                          onClick={() => { setSecondaryColor(c); setCustomSecondaryHex(''); }}
+                          className={`w-5 h-5 rounded transition-all border ${
+                            c === '#ffffff' ? 'border-gray-300' : 'border-transparent'
+                          } ${
+                            secondaryColor === c 
+                              ? `ring-2 ring-offset-1 scale-125 z-10 ${theme === 'dark' ? 'ring-purple-400 ring-offset-gray-800' : 'ring-purple-600 ring-offset-white'}` 
+                              : 'hover:scale-110'
+                          }`}
+                          style={{ backgroundColor: c }}
+                          title={c}
+                        />
+                      ))}
+                    </div>
                   ))}
                 </div>
               </div>
