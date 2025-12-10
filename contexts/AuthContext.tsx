@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, collection, query, where, getDocs, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { setSentryUser, clearSentryUser } from '../services/sentry';
-import { migrateUserToNewCreditSystem } from '../services/creditService';
 import type { UserProfile, Team, Player, League, Program } from '../types';
 
 interface AuthContextType {
@@ -108,24 +107,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
-
-        // Check if user needs credits migration BEFORE setting up listener
-        // This prevents race conditions with the onSnapshot callback
-        const checkAndMigrateCredits = async () => {
-          try {
-            const userDocRef = doc(db, 'users', firebaseUser.uid);
-            const userSnap = await getDoc(userDocRef);
-            if (userSnap.exists() && userSnap.data().credits === undefined) {
-              await migrateUserToNewCreditSystem(firebaseUser.uid, 10);
-              console.log('User credits initialized');
-            }
-          } catch (err) {
-            console.error('Credit initialization error:', err);
-          }
-        };
-        
-        // Run migration first, then set up listener
-        checkAndMigrateCredits();
 
         // 1. LISTEN TO USER PROFILE (Real-time)
         const userDocRef = doc(db, 'users', firebaseUser.uid);

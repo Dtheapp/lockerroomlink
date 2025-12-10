@@ -972,72 +972,6 @@ export async function initializeUserCredits(
   }
 }
 
-/**
- * Migrate existing users to new credit system
- * Ensures users have credits field initialized
- * 
- * SECURITY: Uses creditsInitialized flag to prevent re-triggering
- * even if someone manually deletes their credits field
- */
-export async function migrateUserToNewCreditSystem(
-  userId: string,
-  existingCredits: number = 10
-): Promise<void> {
-  try {
-    const userRef = doc(db, 'users', userId);
-    const userSnap = await getDoc(userRef);
-    
-    if (!userSnap.exists()) return;
-    
-    const userData = userSnap.data();
-    
-    // SECURITY: Check both credits field AND the initialization flag
-    // This prevents users from re-triggering welcome credits by deleting their credits field
-    const alreadyInitialized = userData.creditsInitialized === true;
-    const hasCreditsField = userData.credits !== undefined;
-    
-    // Only migrate if BOTH: user doesn't have credits AND wasn't already initialized
-    if (!hasCreditsField && !alreadyInitialized) {
-      const settings = await getMonetizationSettings();
-      const welcomeCredits = settings?.welcomeCredits ?? 10;
-      
-      // Give them the higher of: their existing credits, or welcome credits
-      const startingCredits = Math.max(existingCredits, welcomeCredits);
-      
-      await updateDoc(userRef, {
-        credits: startingCredits,
-        creditsInitialized: true, // SECURITY: Flag to prevent re-initialization
-        lifetimeCreditsEarned: startingCredits,
-        lifetimeCreditsSpent: 0,
-        lifetimeCreditsGifted: 0,
-        lifetimeCreditsReceived: 0,
-        featureUsage: {},
-      });
-      
-      // Log the migration as a transaction
-      const txRef = doc(collection(db, 'users', userId, 'creditTransactions'));
-      await setDoc(txRef, {
-        userId,
-        type: 'welcome',
-        amount: startingCredits,
-        balance: startingCredits,
-        description: 'Credit system migration - welcome credits',
-        metadata: { reason: 'System migration to unified credits' },
-        createdAt: serverTimestamp(),
-      });
-    } else if (!hasCreditsField && alreadyInitialized) {
-      // SECURITY: User was already initialized but credits field is missing
-      // This could indicate tampering - restore to 0 without giving free credits
-      console.warn(`SECURITY: User ${userId} has creditsInitialized=true but no credits field. Possible tampering.`);
-      await updateDoc(userRef, {
-        credits: 0, // No free credits for suspicious activity
-      });
-    }
-  } catch (error) {
-    console.error('Error migrating user credits:', error);
-  }
-}
-
 export default {
   getMonetizationSettings,
   saveMonetizationSettings,
@@ -1054,5 +988,4 @@ export default {
   addUserToPilotProgram,
   removeUserFromPilotProgram,
   initializeUserCredits,
-  migrateUserToNewCreditSystem,
 };
