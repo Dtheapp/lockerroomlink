@@ -1,0 +1,94 @@
+{
+  "project": {
+    "name": "OSYS - Locker Room Link",
+    "description": "The ultimate youth sports platform - team management, events, fundraising, NIL, and more",
+    "type": "SaaS Platform",
+    "stage": "MVP",
+    "initMode": "import",
+    "importedAt": "2024-12-11",
+    "genesisVersion": "1.0.0"
+  },
+  "focusMode": {
+    "active": "code",
+    "intensity": 75,
+    "autoSwitch": false
+  },
+  "focusModeDefinitions": {
+    "design": {
+      "emoji": "🎨",
+      "prioritize": ["visual polish", "animations", "micro-interactions", "mobile responsiveness"],
+      "deprioritize": ["new features", "backend work"],
+      "preferredModel": "claude-opus-4"
+    },
+    "code": {
+      "emoji": "💻",
+      "prioritize": ["clean architecture", "TypeScript types", "reusable patterns", "OSYSComponents"],
+      "deprioritize": ["visual tweaks", "copy changes"],
+      "preferredModel": "claude-opus-4"
+    },
+    "debug": {
+      "emoji": "🐛",
+      "prioritize": ["root cause analysis", "error logging", "prevention"],
+      "deprioritize": ["new features"],
+      "preferredModel": "claude-opus-4"
+    },
+    "test": {
+      "emoji": "🧪",
+      "prioritize": ["test coverage", "edge cases", "error paths"],
+      "deprioritize": ["new features"],
+      "preferredModel": "claude-sonnet-4"
+    },
+    "ship": {
+      "emoji": "📦",
+      "prioritize": ["deployment", "documentation", "monitoring"],
+      "deprioritize": ["new features"],
+      "preferredModel": "claude-sonnet-4"
+    },
+    "scale": {
+      "emoji": "🚀",
+      "prioritize": ["performance", "caching", "code splitting", "lazy loading"],
+      "deprioritize": ["new features"],
+      "preferredModel": "claude-opus-4"
+    },
+    "security": {
+      "emoji": "🔒",
+      "prioritize": ["auth flows", "Firestore rules", "input validation", "XSS prevention"],
+      "deprioritize": ["UI work"],
+      "preferredModel": "claude-opus-4"
+    },
+    "revenue": {
+      "emoji": "💰",
+      "prioritize": ["monetization", "payments", "conversions", "analytics"],
+      "deprioritize": ["free features"],
+      "preferredModel": "claude-opus-4"
+    },
+    "growth": {
+      "emoji": "📈",
+      "prioritize": ["viral features", "referrals", "onboarding", "retention"],
+      "deprioritize": ["backend optimization"],
+      "preferredModel": "claude-opus-4"
+    }
+  },
+  "qualityGates": {
+    "minimumRating": 9,
+    "requireSecurityAudit": true,
+    "requireMobileFirst": true,
+    "requireTypeScript": true
+  },
+  "techStack": {
+    "frontend": "React 19 + TypeScript + Vite",
+    "styling": "Tailwind CSS",
+    "backend": "Firebase (Firestore, Auth, Storage)",
+    "payments": "PayPal (events), Stripe (planned)",
+    "hosting": "Netlify",
+    "devServer": "http://localhost:3001/"
+  },
+  "aiSettings": {
+    "startWord": "OMG",
+    "endPhrase": "DONE BOSS",
+    "savePhrase": "Sir yes, Sir!!",
+    "rateEveryTask": true,
+    "logErrors": true,
+    "capturelearnings": true
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "metadata": {
+    "totalObservations": 2,
+    "lastObservationId": "OBS-002"
+  },
+  "observations": [
+    {
+      "id": "OBS-001",
+      "date": "2024-12-11",
+      "category": "pattern",
+      "observation": "Badge and Button variant errors occur frequently across OSYS",
+      "evidence": [
+        "ERR-001: Badge variant 'info' used incorrectly",
+        "Multiple instances in codebase still using wrong variants"
+      ],
+      "confidence": 95,
+      "suggestedAction": "Add component variant checklist to COPILOT.md",
+      "status": "pending-review"
+    },
+    {
+      "id": "OBS-002",
+      "date": "2024-12-11",
+      "category": "efficiency",
+      "observation": "AuthContext data being re-fetched unnecessarily in some components",
+      "evidence": [
+        "Found 3 components doing getDoc() for user data that's already in AuthContext",
+        "This causes extra Firestore reads and slower rendering"
+      ],
+      "confidence": 90,
+      "suggestedAction": "Audit all components for redundant Firestore reads",
+      "status": "pending-review"
+    }
+  ],
+  "instructionHealth": {
+    "lastAudit": "2024-12-11",
+    "coverage": 85,
+    "gaps": [
+      "No explicit list of valid component variants",
+      "Missing Firestore read optimization guidelines"
+    ],
+    "strengths": [
+      "Clear role definitions",
+      "Good Firebase patterns",
+      "Strong design system guidance"
+    ]
+  }
+}

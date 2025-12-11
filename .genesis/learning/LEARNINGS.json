@@ -1,0 +1,136 @@
+{
+  "metadata": {
+    "totalLearnings": 15,
+    "lastLearningId": "L-015",
+    "categoryCounts": {
+      "react": 3,
+      "typescript": 2,
+      "firebase": 4,
+      "ui-ux": 3,
+      "architecture": 2,
+      "business": 1
+    }
+  },
+  "learnings": [
+    {
+      "id": "L-001",
+      "session": "pre-genesis",
+      "date": "2024-12-01",
+      "category": "ui-ux",
+      "title": "CTA 'Get Started' intent",
+      "pattern": "'Get Started' should go to signup (?signup=true), not login. New users expect to create account.",
+      "example": "<Link to='/auth?signup=true'>Get Started</Link>",
+      "appliesTo": ["landing pages", "marketing CTAs", "onboarding"],
+      "confidence": 100,
+      "reuses": 5
+    },
+    {
+      "id": "L-002",
+      "session": "pre-genesis",
+      "date": "2024-12-01",
+      "category": "architecture",
+      "title": "Use sportConfig for all sport-specific data",
+      "pattern": "Never hardcode positions, stats, or features. Always use sportConfig.ts which handles all sports dynamically.",
+      "example": "const positions = getPositions(teamData?.sport);",
+      "appliesTo": ["roster components", "stat tracking", "player cards", "playbook"],
+      "confidence": 100,
+      "reuses": 20
+    },
+    {
+      "id": "L-003",
+      "session": "pre-genesis",
+      "date": "2024-12-02",
+      "category": "ui-ux",
+      "title": "Badge variant mapping for OSYS",
+      "pattern": "Valid variants: 'default' | 'primary' | 'gold' | 'success' | 'live' | 'coming' | 'warning' | 'error'. NO 'info' or 'danger'.",
+      "example": "<Badge variant='primary'>Info</Badge> // NOT variant='info'",
+      "appliesTo": ["all Badge components"],
+      "confidence": 100,
+      "reuses": 15
+    },
+    {
+      "id": "L-004",
+      "session": "pre-genesis",
+      "date": "2024-12-02",
+      "category": "ui-ux",
+      "title": "Button variant mapping for OSYS",
+      "pattern": "Valid variants: 'primary' | 'gold' | 'ghost' | 'outline'. NO 'secondary' or 'danger'.",
+      "example": "<Button variant='ghost'>Cancel</Button>",
+      "appliesTo": ["all Button components"],
+      "confidence": 100,
+      "reuses": 12
+    },
+    {
+      "id": "L-005",
+      "session": "pre-genesis",
+      "date": "2024-12-03",
+      "category": "typescript",
+      "title": "UserRole uses Capital case",
+      "pattern": "All UserRole values start with capital letter: 'Coach' | 'Parent' | 'Fan' | 'SuperAdmin' | etc.",
+      "example": "if (userData?.role === 'Coach')",
+      "appliesTo": ["role checks", "permissions", "conditional rendering"],
+      "confidence": 100,
+      "reuses": 25
+    },
+    {
+      "id": "L-006",
+      "session": "pre-genesis",
+      "date": "2024-12-03",
+      "category": "firebase",
+      "title": "AuthContext provides real-time data",
+      "pattern": "Never re-fetch user, userData, or teamData - AuthContext has real-time listeners. Use the hook values directly.",
+      "example": "const { user, userData, teamData } = useAuth(); // Already real-time",
+      "appliesTo": ["any component needing user data"],
+      "confidence": 100,
+      "reuses": 30
+    },
+    {
+      "id": "L-007",
+      "session": "pre-genesis",
+      "date": "2024-12-04",
+      "category": "firebase",
+      "title": "Firestore helper functions in rules",
+      "pattern": "Use isAuthenticated(), isCoach(), isAdmin(), isLeagueOwner(), isTeamCoach(teamId) in firestore.rules.",
+      "example": "allow read: if isAuthenticated() && isTeamCoach(teamId);",
+      "appliesTo": ["firestore.rules"],
+      "confidence": 100,
+      "reuses": 15
+    },
+    {
+      "id": "L-008",
+      "session": "pre-genesis",
+      "date": "2024-12-05",
+      "category": "react",
+      "title": "Lazy loading with retry",
+      "pattern": "Use lazyWithRetry() from App.tsx for all lazy-loaded components. Handles chunk load errors automatically.",
+      "example": "const Dashboard = lazyWithRetry(() => import('./components/Dashboard'));",
+      "appliesTo": ["lazy-loaded routes"],
+      "confidence": 100,
+      "reuses": 8
+    },
+    {
+      "id": "L-009",
+      "session": "pre-genesis",
+      "date": "2024-12-06",
+      "category": "firebase",
+      "title": "Firestore compound index requirement",
+      "pattern": "When using multiple where() with different operators + orderBy(), create composite index in firestore.indexes.json.",
+      "example": "query(collection, where('teamId', '==', x), where('date', '>=', y), orderBy('date'))",
+      "appliesTo": ["complex queries", "date range queries"],
+      "confidence": 95,
+      "reuses": 6
+    },
+    {
+      "id": "L-010",
+      "session": "pre-genesis",
+      "date": "2024-12-07",
+      "category": "architecture",
+      "title": "Component imports from OSYSComponents",
+      "pattern": "Always import UI primitives from OSYSComponents.tsx and forms from OSYSFormElements.tsx.",
+      "example": "import { Button, Badge, GlassCard } from '../components/ui/OSYSComponents';",
+      "appliesTo": ["all components"],
+      "confidence": 100,
+      "reuses": 50
+    }
+  ]
+}

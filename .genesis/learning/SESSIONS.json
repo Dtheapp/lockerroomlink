@@ -1,0 +1,28 @@
+{
+  "metadata": {
+    "totalSessions": 1,
+    "lastSessionId": "S-001",
+    "projectStart": "2024-12-01"
+  },
+  "sessions": [
+    {
+      "id": "S-001",
+      "date": "2024-12-11",
+      "startTime": "10:00",
+      "endTime": null,
+      "status": "active",
+      "focusMode": "code",
+      "summary": "Genesis integration - Making OSYS the pilot app",
+      "goals": [
+        "Integrate Genesis AI Dev OS into OSYS",
+        "Set up tracking infrastructure",
+        "Begin compound learning"
+      ],
+      "accomplishments": [],
+      "errorsEncountered": [],
+      "learningsCaptured": [],
+      "humanTasksCreated": [],
+      "rating": null
+    }
+  ]
+}

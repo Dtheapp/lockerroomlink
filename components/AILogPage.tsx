@@ -141,6 +141,30 @@ const seedHistoricalSessions = async (): Promise<void> => {
     chatTranscript: 'Session 4 - December 11, 2025\n\nBuilt AI Session Logging System (/ailog):\n- Created aiLogService.ts with CRUD operations\n- Built AILogPage.tsx with expandable cards and stats\n- Added route to App.tsx\n- Deployed Firestore rules\n\nBuilt World-Class Unified Instructions:\n- Merged AI_TRAINER.md (724 lines) + copilot-instructions.md (187 lines)\n- Created single optimized 400-line file\n- Priority Zero table at top\n- Quick commands and Never Do tables\n- Integrated with /ailog system',
     filesModified: ['aiLogService.ts', 'AILogPage.tsx', 'App.tsx', 'firestore.rules', 'copilot-instructions.md', 'PROGRESS.md'],
   });
+
+  // Session 5 - December 11, 2025 (Evening) - THE PLAYGROUND 🎮
+  const session5 = await createAISession('🎮 THE PLAYGROUND - Youth Social Platform');
+  await completeAISession(session5.id, {
+    todos: [
+      { id: 1, title: 'Analyze current OSYS features', description: 'Review existing codebase for video/chat capabilities', status: 'completed' },
+      { id: 2, title: 'Design Youth Social Platform vision', description: 'Create comprehensive vision based on pilot youth feedback', status: 'completed' },
+      { id: 3, title: 'Create technical specs', description: 'PLAYGROUND_SPECS.md with WebRTC, data models, APIs', status: 'completed' },
+      { id: 4, title: 'Update FEATURE_ROADMAP.md', description: 'Add as priority feature with timeline and monetization', status: 'completed' },
+    ],
+    builds: [
+      { title: 'PLAYGROUND_SPECS.md', description: 'Full technical spec - WebRTC architecture, Firestore schema, VideoCall/AITutor/ParentControls components, 14-week timeline', timestamp: now },
+      { title: 'FEATURE_ROADMAP.md Update', description: 'Added THE PLAYGROUND as #1 priority with ASCII mockups, $4.99/mo monetization, $748K/mo revenue projections', timestamp: now },
+      { title: 'PROGRESS.md Update', description: 'Added Session 2 log and milestones for Playground phases', timestamp: now },
+    ],
+    bugFixes: [],
+    workRating: { quality: 9.5, completeness: 10, summary: 'Created enterprise-grade technical specs with working code examples. The only youth social platform with parental visibility baked into every feature.' },
+    securityAudit: { inputSanitization: true, authRules: true, xssReviewed: true, abusePotential: true, firestoreRules: true, notes: 'WebRTC P2P (no server video storage), call logging for parents, time restrictions, concerning content detection in AI Tutor, team-gated access only' },
+    summary: 'GAME CHANGER! Youth pilot feedback: "We want FaceTime and hangout rooms with teammates!" Created THE PLAYGROUND - youth-safe social platform that transforms OSYS from "coach\'s app" to "MY app". Features: Voice/Video Calls, Playground Rooms, Virtual Film Room, AI Tutor, Parent Safety Dashboard.',
+    pendingWork: ['Phase 1: WebRTC voice/video calls (Weeks 1-3)', 'Phase 2: Parent Safety Dashboard (Week 4)', 'Phase 3: AI Tutor MVP (Weeks 5-6)', 'Phase 4: Playground Rooms (Weeks 7-10)'],
+    notes: 'Direct from pilot youth feedback. Kids said they would use OSYS over Snapchat if they could call/hangout with teammates. This is the viral feature.',
+    chatTranscript: 'Session 5 - December 11, 2025 - THE PLAYGROUND 🎮\n\nUser: The youth gave me the biggest idea - they want FaceTime video calls with teammates, hop in rooms together like Zoom, virtual film room with coach screen share, and AI tutor for school/sports/life/goals.\n\nAI: OMG - THIS IS THE GAME CHANGER! 🎮🔥 This makes OSYS go from "my coach\'s app" to "MY app" for kids. The "Snapchat of Youth Sports" but SAFER because parents see everything.\n\n[Created comprehensive vision document]\n\nUser: 3 and 4 (Create technical specs + Update feature roadmap)\n\nAI: Created PLAYGROUND_SPECS.md with full WebRTC implementation, data models, component code, 14-week timeline. Updated FEATURE_ROADMAP.md with THE PLAYGROUND as #1 priority.\n\nFeatures Designed:\n• 📞 Voice/Video Calls (WebRTC P2P)\n• 🎮 Playground Rooms (Zoom-style hangouts)\n• 🎬 Virtual Film Room (Coach screen share + telestrator)\n• 🧠 AI Tutor "Coach Brain" (4 modes)\n• 🛡️ Parent Safety Dashboard\n\nWhy This Changes Everything:\n- Kids on OSYS 1x/day → 10x/day\n- Only social platform where parents WANT kids\n- Competes with Snapchat but safer',
+    filesModified: ['PLAYGROUND_SPECS.md (NEW - 600+ lines)', 'FEATURE_ROADMAP.md (added 200+ lines)', 'PROGRESS.md (session + milestones)'],
+  });
 };
 
 // ============================================================================
@@ -156,16 +180,25 @@ interface StatCardProps {
 }
 
 const StatCard: React.FC<StatCardProps> = ({ icon, label, value, color, subtext }) => {
+  const { theme } = useTheme();
   return (
-    <div className={`bg-gradient-to-br ${color} rounded-2xl p-4 md:p-6 border border-white/10`}>
+    <div className={`rounded-2xl p-4 md:p-6 border ${
+      theme === 'dark' 
+        ? `bg-gradient-to-br ${color} border-white/10` 
+        : 'bg-white border-slate-200 shadow-sm'
+    }`}>
       <div className="flex items-center gap-3 mb-2">
-        <div className="p-2 bg-white/10 rounded-lg">
+        <div className={`p-2 rounded-lg ${
+          theme === 'dark' ? 'bg-white/10' : 'bg-slate-100'
+        }`}>
           {icon}
         </div>
-        <span className="text-sm text-white/70">{label}</span>
+        <span className={`text-sm ${theme === 'dark' ? 'text-white/70' : 'text-slate-600'}`}>{label}</span>
       </div>
-      <div className="text-3xl md:text-4xl font-bold text-white">{value}</div>
-      {subtext && <div className="text-xs text-white/50 mt-1">{subtext}</div>}
+      <div className={`text-3xl md:text-4xl font-bold ${
+        theme === 'dark' ? 'text-white' : 'text-slate-900'
+      }`}>{value}</div>
+      {subtext && <div className={`text-xs mt-1 ${theme === 'dark' ? 'text-white/50' : 'text-slate-500'}`}>{subtext}</div>}
     </div>
   );
 };
@@ -293,7 +326,7 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onViewChat }) => {
             <div className={`p-2 rounded-lg transition-transform ${
               expanded ? 'rotate-180' : ''
             } ${theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'}`}>
-              <ChevronDown className="w-5 h-5" />
+              <ChevronDown className={`w-5 h-5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`} />
             </div>
           </div>
         </div>
@@ -563,8 +596,8 @@ const ChatModal: React.FC<ChatModalProps> = ({ session, onClose }) => {
       />
       
       {/* Modal */}
-      <div className={`relative w-full max-w-4xl max-h-[90vh] rounded-2xl overflow-hidden flex flex-col ${
-        theme === 'dark' ? 'bg-zinc-900' : 'bg-white'
+      <div className={`relative w-full max-w-4xl max-h-[90vh] rounded-2xl overflow-hidden flex flex-col shadow-2xl ${
+        theme === 'dark' ? 'bg-zinc-900' : 'bg-white border border-slate-200'
       }`}>
         {/* Header */}
         <div className={`p-4 border-b flex items-center justify-between ${
@@ -690,9 +723,9 @@ const AILogPage: React.FC = () => {
   
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
+      <div className={`flex items-center justify-center min-h-[60vh] ${theme === 'dark' ? '' : 'bg-slate-50'}`}>
         <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-purple-500 mx-auto mb-4" />
+          <Loader2 className={`w-12 h-12 animate-spin mx-auto mb-4 ${theme === 'dark' ? 'text-purple-500' : 'text-purple-600'}`} />
           <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>
             Loading AI sessions...
           </p>
@@ -715,11 +748,13 @@ const AILogPage: React.FC = () => {
   }
   
   return (
-    <div className="p-4 md:p-6 pb-24 max-w-7xl mx-auto">
+    <div className={`min-h-screen p-4 md:p-6 pb-24 max-w-7xl mx-auto ${theme === 'dark' ? '' : 'bg-slate-50'}`}>
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-4 mb-4">
-          <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30">
+          <div className={`w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center ${
+            theme === 'dark' ? 'shadow-lg shadow-purple-500/30' : 'shadow-md'
+          }`}>
             <Brain className="w-7 h-7 text-white" />
           </div>
           <div>
@@ -781,10 +816,12 @@ const AILogPage: React.FC = () => {
             onClick={() => setFilter(tab.id as any)}
             className={`px-4 py-2 rounded-xl font-medium transition-all ${
               filter === tab.id
-                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                ? theme === 'dark'
+                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                  : 'bg-purple-600 text-white shadow-md'
                 : theme === 'dark'
                 ? 'bg-zinc-800 text-slate-400 hover:text-white'
-                : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-purple-300'
             }`}
           >
             {tab.label}
@@ -805,10 +842,10 @@ const AILogPage: React.FC = () => {
         </div>
       ) : (
         <div className={`text-center py-16 rounded-2xl ${
-          theme === 'dark' ? 'bg-zinc-900/50' : 'bg-slate-50'
+          theme === 'dark' ? 'bg-zinc-900/50' : 'bg-white border border-slate-200 shadow-sm'
         }`}>
           <Sparkles className={`w-16 h-16 mx-auto mb-4 ${
-            theme === 'dark' ? 'text-purple-500' : 'text-purple-400'
+            theme === 'dark' ? 'text-purple-500' : 'text-purple-600'
           }`} />
           <h3 className={`text-xl font-bold mb-2 ${
             theme === 'dark' ? 'text-white' : 'text-slate-900'
@@ -853,9 +890,9 @@ const AILogPage: React.FC = () => {
             <ul className={`text-sm mt-2 space-y-1 ${
               theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
             }`}>
-              <li>• At the start of each AI chat, say <code className="bg-black/20 px-1 rounded">"new session"</code> to create a log entry</li>
+              <li>• At the start of each AI chat, say <code className={`px-1.5 py-0.5 rounded font-mono text-xs ${theme === 'dark' ? 'bg-black/30 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>"new session"</code> to create a log entry</li>
               <li>• The AI will track all TODOs, builds, and bug fixes during the session</li>
-              <li>• At the end, say <code className="bg-black/20 px-1 rounded">"save training"</code> to save everything including the full chat</li>
+              <li>• At the end, say <code className={`px-1.5 py-0.5 rounded font-mono text-xs ${theme === 'dark' ? 'bg-black/30 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>"save training"</code> to save everything including the full chat</li>
               <li>• Each session includes work ratings, security audits, and pending work notes</li>
             </ul>
           </div>

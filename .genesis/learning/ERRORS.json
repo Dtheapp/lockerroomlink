@@ -1,0 +1,113 @@
+{
+  "metadata": {
+    "totalErrors": 15,
+    "lastErrorId": "ERR-015",
+    "categoryCounts": {
+      "typescript": 5,
+      "react": 3,
+      "firebase": 4,
+      "css": 2,
+      "auth": 1
+    }
+  },
+  "errors": [
+    {
+      "id": "ERR-001",
+      "session": "pre-genesis",
+      "date": "2024-12-01",
+      "category": "typescript",
+      "severity": "high",
+      "title": "Badge variant 'info' doesn't exist",
+      "symptom": "Property 'info' does not exist on type BadgeVariant",
+      "rootCause": "OSYS design system uses specific variants: default, primary, gold, success, live, coming, warning, error. No 'info' or 'danger'.",
+      "solution": "Use 'primary' instead of 'info', 'error' instead of 'danger'",
+      "prevention": "Check OSYSComponents.tsx for valid variants before using",
+      "timeToSolve": 5,
+      "codeExample": {
+        "wrong": "<Badge variant=\"info\">New</Badge>",
+        "right": "<Badge variant=\"primary\">New</Badge>"
+      }
+    },
+    {
+      "id": "ERR-002",
+      "session": "pre-genesis",
+      "date": "2024-12-01",
+      "category": "typescript",
+      "severity": "high",
+      "title": "UserRole case mismatch",
+      "symptom": "Role comparison always returns false",
+      "rootCause": "UserRole enum uses Capital first letter: 'Coach' not 'coach'",
+      "solution": "Use 'Coach', 'Parent', 'Fan', etc. with capital first letter",
+      "prevention": "Reference types.ts for exact UserRole values",
+      "timeToSolve": 10,
+      "codeExample": {
+        "wrong": "if (userData?.role === 'coach')",
+        "right": "if (userData?.role === 'Coach')"
+      }
+    },
+    {
+      "id": "ERR-003",
+      "session": "pre-genesis",
+      "date": "2024-12-02",
+      "category": "firebase",
+      "severity": "medium",
+      "title": "Credits field wrong name",
+      "symptom": "Credits always showing 0 or undefined",
+      "rootCause": "Old field was 'cloneCredits', unified to 'credits'",
+      "solution": "Use userData?.credits instead of userData?.cloneCredits",
+      "prevention": "Credits come from AuthContext - no need to re-fetch",
+      "timeToSolve": 15,
+      "codeExample": {
+        "wrong": "const credits = userData?.cloneCredits;",
+        "right": "const credits = userData?.credits ?? 0;"
+      }
+    },
+    {
+      "id": "ERR-004",
+      "session": "pre-genesis",
+      "date": "2024-12-03",
+      "category": "firebase",
+      "severity": "critical",
+      "title": "Firestore permission denied",
+      "symptom": "FirebaseError: Missing or insufficient permissions",
+      "rootCause": "Security rules not updated for new collection or query pattern",
+      "solution": "Update firestore.rules with appropriate rules, then deploy",
+      "prevention": "Always update rules when adding new collections or changing query patterns",
+      "timeToSolve": 20,
+      "codeExample": {
+        "wrong": "// No rules for new collection",
+        "right": "match /newCollection/{docId} { allow read: if isAuthenticated(); }"
+      }
+    },
+    {
+      "id": "ERR-005",
+      "session": "pre-genesis",
+      "date": "2024-12-05",
+      "category": "react",
+      "severity": "medium",
+      "title": "Chunk load error after deploy",
+      "symptom": "Failed to fetch dynamically imported module",
+      "rootCause": "Old cached chunks don't match new build hashes",
+      "solution": "Handled by lazyWithRetry() in App.tsx - auto-reloads page",
+      "prevention": "Already handled, but consider cache-busting headers",
+      "timeToSolve": 0
+    },
+    {
+      "id": "ERR-006",
+      "session": "pre-genesis",
+      "date": "2024-12-06",
+      "category": "typescript",
+      "severity": "medium",
+      "title": "Sport-specific hardcoding",
+      "symptom": "Positions wrong for basketball teams",
+      "rootCause": "Hardcoded football positions instead of using sportConfig",
+      "solution": "Use getPositions(teamData?.sport) from sportConfig.ts",
+      "prevention": "NEVER hardcode positions, stats, or sport-specific data",
+      "timeToSolve": 10,
+      "codeExample": {
+        "wrong": "const positions = ['QB', 'RB', 'WR'];",
+        "right": "const positions = getPositions(teamData?.sport);"
+      }
+    }
+  ]
+}

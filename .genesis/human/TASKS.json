@@ -1,0 +1,76 @@
+{
+  "metadata": {
+    "totalTasks": 5,
+    "pendingCount": 4,
+    "completedCount": 1
+  },
+  "tasks": [
+    {
+      "id": "HT-001",
+      "createdAt": "2024-12-11",
+      "priority": "high",
+      "category": "testing",
+      "title": "Test mobile responsiveness on real devices",
+      "description": "Test OSYS on iPhone, Android, and tablets. Document any layout issues, text overflow, or touch targets that are too small.",
+      "script": null,
+      "estimatedTime": "30min",
+      "expectedOutput": "List of responsive issues with screenshots",
+      "feedsInto": "learning/ERRORS.json",
+      "status": "pending"
+    },
+    {
+      "id": "HT-002",
+      "createdAt": "2024-12-11",
+      "priority": "high",
+      "category": "research",
+      "title": "Research competitor pricing",
+      "description": "Analyze TeamSnap, SportsEngine, GameChanger pricing pages. Document tiers, features per tier, and positioning.",
+      "script": "scrape_pricing.py",
+      "estimatedTime": "20min",
+      "expectedOutput": "Competitive pricing analysis in JSON",
+      "feedsInto": "growth/COMPETITORS.json",
+      "status": "pending"
+    },
+    {
+      "id": "HT-003",
+      "createdAt": "2024-12-11",
+      "priority": "medium",
+      "category": "outreach",
+      "title": "Recruit beta coaches",
+      "description": "Reach out to 10 youth sports coaches to be beta testers. Focus on football and basketball initially.",
+      "script": null,
+      "estimatedTime": "1hr",
+      "expectedOutput": "List of confirmed beta testers with contact info",
+      "feedsInto": "growth/LAUNCH_PLAN.json",
+      "status": "pending"
+    },
+    {
+      "id": "HT-004",
+      "createdAt": "2024-12-11",
+      "priority": "medium",
+      "category": "financial",
+      "title": "Set up Stripe integration",
+      "description": "Create Stripe account, get API keys, test payment flow in sandbox mode.",
+      "script": null,
+      "estimatedTime": "45min",
+      "expectedOutput": "Stripe API keys and test transaction confirmation",
+      "feedsInto": "context/PROJECT.md",
+      "status": "pending"
+    },
+    {
+      "id": "HT-005",
+      "createdAt": "2024-12-11",
+      "priority": "low",
+      "category": "research",
+      "title": "Analyze App Store reviews",
+      "description": "Run review scraper on TeamSnap and GameChanger to identify pain points.",
+      "script": "scrape_reviews.py",
+      "estimatedTime": "15min",
+      "expectedOutput": "Common complaints and feature requests",
+      "feedsInto": "growth/MARKET_ANALYSIS.json",
+      "status": "completed",
+      "completedAt": "2024-12-11",
+      "result": "Top complaints: slow load times, confusing UI, expensive pricing"
+    }
+  ]
+}

@@ -11,16 +11,17 @@ This document outlines features that will make OSYS the **#1 youth sports platfo
 # 📋 TABLE OF CONTENTS
 
 0. [🚨 PILOT CRITICAL: Team Age Groups & Draft System](#-pilot-critical-team-age-groups--draft-system) 🔴 **BLOCKER**
-1. [Tier 0: Platform Revenue Streams](#tier-0-platform-revenue-streams)
-2. [Tier 0.5: Growth & Trust Infrastructure](#tier-05-growth--trust-infrastructure) 🆕
+1. [🎮 THE PLAYGROUND: Youth Social Platform](#-the-playground-youth-social-platform) 🔥 **GAME CHANGER**
+2. [Tier 0: Platform Revenue Streams](#tier-0-platform-revenue-streams)
+3. [Tier 0.5: Growth & Trust Infrastructure](#tier-05-growth--trust-infrastructure) 🆕
    - [0.10 Stat Import from Competitor Apps](#010--stat-import-from-competitor-apps) 🆕
-3. [Tier 1: Revolutionary Features](#tier-1-revolutionary-features-industry-first)
-4. [Tier 2: Engagement & Gamification](#tier-2-engagement--gamification)
-5. [Tier 3: Monetization & Sustainability](#tier-3-monetization--sustainability)
-6. [Tier 4: Futuristic AR/VR Features](#tier-4-futuristic--ar--vr)
-7. [Tier 5: Community & Social](#tier-5-community--social)
-8. [Tier 6: Quick Wins](#tier-6-quick-wins-easier-to-implement)
-9. [Implementation Priority Matrix](#implementation-priority-matrix)
+4. [Tier 1: Revolutionary Features](#tier-1-revolutionary-features-industry-first)
+5. [Tier 2: Engagement & Gamification](#tier-2-engagement--gamification)
+6. [Tier 3: Monetization & Sustainability](#tier-3-monetization--sustainability)
+7. [Tier 4: Futuristic AR/VR Features](#tier-4-futuristic--ar--vr)
+8. [Tier 5: Community & Social](#tier-5-community--social)
+9. [Tier 6: Quick Wins](#tier-6-quick-wins-easier-to-implement)
+10. [Implementation Priority Matrix](#implementation-priority-matrix)
 
 ---
 
@@ -400,6 +401,245 @@ When lottery mode is enabled:
 | Draft day can be scheduled | ✅ Working |
 | Live draft completes without errors | 100% |
 | Coaches receive draft notifications | 100% |
+
+---
+
+# 🎮 THE PLAYGROUND: Youth Social Platform
+
+> **STATUS:** 🔥 **GAME CHANGER** - Direct youth feedback from pilot program
+> **Priority:** P0 - Makes kids WANT to use OSYS over Snapchat
+> **Build Time:** 14 weeks (phased)
+> **Source:** Pilot youth interviews - "We want FaceTime and hangout rooms!"
+
+## The Vision
+
+**THE PLAYGROUND** transforms OSYS from "my coach's app" into "MY app" for youth athletes.
+
+> **Quote from pilot youth:** "If I could call my teammates and hangout like Snapchat but for just my team, I'd use this every day."
+
+---
+
+## Why This Changes Everything
+
+| Current State | With Playground |
+|---------------|-----------------|
+| Kids check OSYS 1x/day (practice schedule) | Kids on OSYS 10x/day (talking to teammates) |
+| Parents make kids use it | Kids BEG to use it |
+| Competes with nothing | Competes with Snapchat, Discord |
+| Coach-focused | **Athlete-centered** |
+| Utility app | **Social platform** |
+
+---
+
+## 🎯 Core Features
+
+### 1. 📞 Voice & Video Calls (P2P)
+**"FaceTime for teammates"**
+
+- 1-on-1 voice or video calls with team members only
+- Team-gated (can only call people on your team)
+- Full call logging for parent visibility
+- Time restrictions (parents set allowed hours)
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  📞 CALLING...                                          │
+│                                                         │
+│           ┌─────────────┐                               │
+│           │    📹       │                               │
+│           │   Marcus    │                               │
+│           │  #24 - RB   │                               │
+│           └─────────────┘                               │
+│                                                         │
+│     🔇 Mute    📷 Camera    ❌ End                      │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Tech:** WebRTC via `simple-peer`, Firebase Realtime for signaling
+
+---
+
+### 2. 🎮 Playground Rooms (Group Hangouts)
+**"Zoom for teammates"**
+
+- Team creates a "room" - others join
+- Video/audio, chat, reactions
+- Screen sharing for games or YouTube watch parties
+- Mini-games built-in (trivia, challenges)
+- Coach can start "Film Room" for play review
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  🎮 THE PLAYGROUND                                      │
+│                                                         │
+│  ACTIVE ROOMS:                                          │
+│  ┌─────────────────────────────────────────┐            │
+│  │ 🏈 Marcus's Game Room     👥 4/8        │   [JOIN]  │
+│  │    Playing: Trivia Challenge            │            │
+│  └─────────────────────────────────────────┘            │
+│  ┌─────────────────────────────────────────┐            │
+│  │ 🎬 Film Room (Coach Led)  👥 12/20      │   [JOIN]  │
+│  │    Reviewing: Week 5 vs Tigers          │            │
+│  └─────────────────────────────────────────┘            │
+│                                                         │
+│                    [ + Create Room ]                    │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Tech:** WebRTC Mesh (2-6 people), Daily.co SFU (6+ people)
+
+---
+
+### 3. 🎬 Virtual Film Room
+**"Coach shares screen, players learn"**
+
+- Coach shares screen with play diagrams or game film
+- Telestrator drawing over video
+- Players can ask questions via chat
+- "Hot Seat" mode - Coach calls on players to explain plays
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  🎬 FILM ROOM - Coach Johnson                               │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│    ┌────────────────────────────────────┐    💬 CHAT       │
+│    │                                    │    ───────────── │
+│    │    [COACH'S SCREEN SHARE]         │    Coach: Watch  │
+│    │                                    │    Marcus's cut  │
+│    │    🏈 --> 📺 Telestrator Lines    │                  │
+│    │                                    │    Tyler: Why    │
+│    └────────────────────────────────────┘    outside?      │
+│                                                             │
+│    👥 Players Watching: 14                                  │
+│    ✋ Questions: 3                                          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 4. 🧠 AI Tutor "Coach Brain"
+**"Athlete's personal AI mentor"**
+
+Four modes:
+| Mode | Purpose | Examples |
+|------|---------|----------|
+| 📚 **School** | Homework help | Math problems, essay feedback |
+| 🏈 **Sports** | Game knowledge | "Explain cover 2 defense" |
+| 💙 **Life** | Emotional support | Handling pressure, confidence |
+| 🎯 **Goals** | Goal setting | Training plans, habit tracking |
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  🧠 COACH BRAIN                                         │
+│  ──────────────────────────────────────────────────────│
+│                                                         │
+│  [📚 School] [🏈 Sports] [💙 Life] [🎯 Goals]          │
+│                                                         │
+│  👤 "Can you help me with fractions? I have a test"    │
+│                                                         │
+│  🧠 "Hey Marcus! Fractions are like dividing pizza 🍕  │
+│      Let's say you and 3 teammates share a pizza       │
+│      equally. Each person gets 1/4 (one-fourth).       │
+│                                                         │
+│      Think of it like the field - if you divide it     │
+│      into 4 zones, each zone is 1/4 of the field!      │
+│                                                         │
+│      Want me to give you some practice problems?"      │
+│                                                         │
+│  [ Type your question... ]                    [Send]   │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Safety:** All conversations visible to parents. Concerning content triggers alerts.
+
+---
+
+## 🔒 Parent Safety Dashboard
+
+Parents see EVERYTHING. Full transparency = Full trust.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  🛡️ SAFETY DASHBOARD - Marcus                          │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  CALL HISTORY (Last 7 Days)                            │
+│  ────────────────────────────────────────────────────  │
+│  📞 Dec 10, 7:15 PM - Tyler (5 min)                    │
+│  📹 Dec 9, 4:30 PM - Team Film Room (45 min)           │
+│  📞 Dec 8, 6:00 PM - Coach Johnson (2 min)             │
+│                                                         │
+│  AI TUTOR CONVERSATIONS                                │
+│  ────────────────────────────────────────────────────  │
+│  📚 Dec 10 - Math homework (fractions)                 │
+│  🏈 Dec 9 - Asked about blitz pickup                   │
+│                                                         │
+│  ⚙️ CONTROLS                                           │
+│  ────────────────────────────────────────────────────  │
+│  Calls Enabled: [ON]     Hours: 4:00 PM - 9:00 PM      │
+│  Playground:    [ON]     Hours: 3:00 PM - 9:00 PM      │
+│  AI Tutor:      [ON]                                    │
+│  Blocked Users: [0]      [ Manage ]                    │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 💰 Monetization
+
+| Feature | Free Tier | Premium ($4.99/mo) |
+|---------|-----------|-------------------|
+| 1-on-1 Calls | ✅ Unlimited | ✅ Unlimited |
+| Playground Rooms | 4 people max | 12 people max |
+| Film Room | View only | Create + Telestrator |
+| AI Tutor | 5 questions/day | Unlimited |
+
+**Revenue Projections:**
+- 100,000 athletes × 20% conversion × $4.99/mo = **$99,800/mo**
+- 1M athletes × 15% conversion × $4.99/mo = **$748,500/mo**
+
+---
+
+## 📅 Build Timeline
+
+| Week | Phase | Deliverables |
+|------|-------|--------------|
+| 1-3 | Voice/Video Calls | WebRTC setup, 1-on-1 calls, call logging |
+| 4 | Parent Dashboard | Safety controls, call history, time restrictions |
+| 5-6 | AI Tutor MVP | OpenAI integration, 4 modes, concerning content detection |
+| 7-10 | Playground Rooms | Multi-peer video, chat, reactions |
+| 11-12 | Film Room | Screen sharing, telestrator |
+| 13-14 | Polish | Bug fixes, UX refinement, parent onboarding |
+
+---
+
+## Why This Beats Snapchat
+
+| Snapchat | OSYS Playground |
+|----------|-----------------|
+| Friends = anyone | Friends = verified teammates only |
+| Parents can't see | Parents see everything |
+| Disappearing messages | All logged for safety |
+| No purpose | Purpose: Sports + School + Life |
+| Ads everywhere | Ad-free, clean experience |
+| Stranger danger | Only your team |
+
+> **"The only social app where parents WANT their kids to spend time."**
+
+---
+
+## Success Metrics
+
+| Metric | Target |
+|--------|--------|
+| Daily Active Athletes | 60% of registered athletes |
+| Avg. session time | 15+ minutes |
+| Parent approval rating | 95%+ |
+| AI Tutor satisfaction | 4.5/5 stars |
+| Premium conversion | 20% |
+
+**Full Technical Specification:** See [PLAYGROUND_SPECS.md](PLAYGROUND_SPECS.md)
 
 ---
 

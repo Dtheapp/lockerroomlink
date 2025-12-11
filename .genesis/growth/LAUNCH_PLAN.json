@@ -1,0 +1,129 @@
+{
+  "phases": [
+    {
+      "id": 1,
+      "name": "Validation",
+      "status": "completed",
+      "completedAt": "2024-12-01",
+      "goals": [
+        "Validate problem exists",
+        "Identify target user (youth sports coaches)",
+        "Define MVP scope"
+      ],
+      "outcomes": [
+        "Problem validated with 10+ coach interviews",
+        "Coach persona defined",
+        "MVP features prioritized"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Build MVP",
+      "status": "in-progress",
+      "startedAt": "2024-12-01",
+      "targetCompletion": "2024-12-31",
+      "completion": 70,
+      "goals": [
+        "Core team management",
+        "Roster & player profiles",
+        "Event scheduling",
+        "Team chat",
+        "Basic stats tracking"
+      ],
+      "remainingWork": [
+        "Polish mobile experience",
+        "Complete Stripe integration",
+        "Finalize onboarding flow"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Private Beta",
+      "status": "upcoming",
+      "targetStart": "2025-01-01",
+      "targetCompletion": "2025-01-31",
+      "goals": [
+        "10-20 beta coaches",
+        "Gather feedback",
+        "Fix critical bugs",
+        "Validate pricing"
+      ],
+      "successCriteria": [
+        "80%+ weekly active usage",
+        "NPS > 40",
+        "< 5 critical bugs"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Public Launch",
+      "status": "upcoming",
+      "targetStart": "2025-02-01",
+      "goals": [
+        "Open registration",
+        "Launch marketing",
+        "Activate FOMO strategies",
+        "First paying customers"
+      ],
+      "successCriteria": [
+        "100 teams",
+        "$1K MRR",
+        "< 5% churn"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Growth",
+      "status": "upcoming",
+      "targetStart": "2025-03-01",
+      "goals": [
+        "Viral loop activation",
+        "League partnerships",
+        "NIL marketplace launch",
+        "Scale infrastructure"
+      ],
+      "successCriteria": [
+        "1,000 teams",
+        "$10K MRR",
+        "Viral coefficient > 1"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Dominance",
+      "status": "upcoming",
+      "targetStart": "2025-06-01",
+      "goals": [
+        "Market leader in segment",
+        "Fundraising round (optional)",
+        "Expand to new sports",
+        "Enterprise tier"
+      ],
+      "successCriteria": [
+        "10,000+ teams",
+        "$100K MRR",
+        "Category recognition"
+      ]
+    }
+  ],
+  "launchChecklist": {
+    "technical": [
+      { "item": "Load testing completed", "status": "pending" },
+      { "item": "Error monitoring (Sentry)", "status": "done" },
+      { "item": "Analytics tracking", "status": "done" },
+      { "item": "Backup strategy", "status": "pending" },
+      { "item": "SSL/Security audit", "status": "done" }
+    ],
+    "marketing": [
+      { "item": "Landing page live", "status": "done" },
+      { "item": "Waitlist form active", "status": "pending" },
+      { "item": "Social media accounts", "status": "pending" },
+      { "item": "Press kit ready", "status": "pending" }
+    ],
+    "legal": [
+      { "item": "Terms of Service", "status": "pending" },
+      { "item": "Privacy Policy", "status": "pending" },
+      { "item": "COPPA compliance (minors)", "status": "pending" }
+    ]
+  }
+}

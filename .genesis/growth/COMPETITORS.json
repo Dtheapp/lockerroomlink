@@ -1,0 +1,86 @@
+{
+  "metadata": {
+    "lastUpdated": "2024-12-11"
+  },
+  "competitors": [
+    {
+      "name": "TeamSnap",
+      "website": "https://www.teamsnap.com",
+      "position": "Market leader",
+      "founded": 2009,
+      "funding": "$45M+",
+      "pricing": {
+        "free": "Basic team management",
+        "team": "$9.99/mo per team",
+        "club": "Custom pricing"
+      },
+      "strengths": [
+        "Brand recognition",
+        "Large user base",
+        "Integrations ecosystem"
+      ],
+      "weaknesses": [
+        "Dated UI/UX",
+        "Slow feature updates",
+        "No NIL support",
+        "Expensive for multi-team"
+      ],
+      "osysAdvantage": "Modern UI, NIL tools, better mobile experience"
+    },
+    {
+      "name": "SportsEngine",
+      "website": "https://www.sportsengine.com",
+      "position": "Enterprise focus",
+      "founded": 2008,
+      "funding": "Acquired by NBC Sports",
+      "pricing": {
+        "team": "$8/mo per team",
+        "league": "Custom pricing",
+        "organization": "Enterprise pricing"
+      },
+      "strengths": [
+        "NBC Sports backing",
+        "League-level features",
+        "Registration tools"
+      ],
+      "weaknesses": [
+        "Complex setup",
+        "Overkill for small teams",
+        "Poor mobile app",
+        "No AI features"
+      ],
+      "osysAdvantage": "Simpler onboarding, AI-powered features, better UX"
+    },
+    {
+      "name": "GameChanger",
+      "website": "https://gc.com",
+      "position": "Stats/scorekeeping focus",
+      "founded": 2010,
+      "funding": "Acquired by Dick's Sporting Goods",
+      "pricing": {
+        "free": "Basic scorekeeping",
+        "team": "$12.99/mo",
+        "gameday": "$4.99/game"
+      },
+      "strengths": [
+        "Best-in-class scorekeeping",
+        "Live streaming",
+        "Highlight clips"
+      ],
+      "weaknesses": [
+        "Baseball/softball focus",
+        "Limited team management",
+        "No fundraising",
+        "No playbook tools"
+      ],
+      "osysAdvantage": "Full platform vs. point solution, multi-sport, playbook"
+    }
+  ],
+  "marketGaps": [
+    "No competitor has NIL tools for youth",
+    "All have dated mobile experiences",
+    "None offer AI-powered insights",
+    "Fundraising is afterthought everywhere",
+    "No one does playbook + management together"
+  ]
+}

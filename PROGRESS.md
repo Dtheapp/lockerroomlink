@@ -1391,6 +1391,8 @@ Match players to roster → Confirm → Done!
 |-----------|-------------|--------|-------|
 | **PILOT CONFIRMED** | Dec 9, 2025 | ✅ DONE | 20-team organization on board! |
 | 🚨 **Age Groups + Draft System** | Dec 20, 2025 | ⬜ | 🔴 BLOCKER - Team creation fix |
+| 🎮 **THE PLAYGROUND (Specs)** | Dec 11, 2025 | ✅ DONE | Technical specs + roadmap |
+| 🎮 **Playground Phase 1** | Jan 31, 2026 | ⬜ | Voice/Video calls MVP |
 | 5 Sports Ready | Dec 20, 2025 | ⬜ | Football, Basketball, Baseball, Soccer, Volleyball |
 | **Stat Import (GameChanger)** | Dec 25, 2025 | ⬜ | CSV upload + auto-mapping |
 | Draft System MVP | Dec 25, 2025 | ⬜ | Core draft functionality |
@@ -1534,6 +1536,55 @@ Match players to roster → Confirm → Done!
 ---
 
 ### December 2025
+
+#### December 11, 2025 (Session 2 - THE PLAYGROUND)
+**Session Focus:** 🎮 Youth Social Platform Feature Planning (from Pilot Feedback!)
+
+> **GAME CHANGER:** Youth in pilot program gave transformative feedback:
+> *"We want FaceTime and hangout rooms with our teammates!"*
+
+- ✅ Created [PLAYGROUND_SPECS.md](PLAYGROUND_SPECS.md) - Full technical specification
+  - WebRTC architecture with `simple-peer` for P2P calls
+  - Complete Firestore schema (CallLog, PlaygroundRoom, TutorSession, ParentalControls)
+  - `VideoCall.tsx` component - full WebRTC implementation
+  - `IncomingCall.tsx` component - incoming call UI
+  - `ParentControlsPanel.tsx` - time restrictions, call logs
+  - `AITutor.tsx` - 4 modes (school/sports/life/goals)
+  - `tutorService.ts` - OpenAI integration with concerning content detection
+  - `playgroundService.ts` - call permissions, logging, room management
+  - Firestore security rules for all new collections
+  - 14-week implementation timeline
+
+- ✅ Updated [FEATURE_ROADMAP.md](FEATURE_ROADMAP.md)
+  - Added THE PLAYGROUND as **#1 priority** (after pilot blocker)
+  - Complete feature breakdown with ASCII mockups
+  - Parent Safety Dashboard design
+  - Monetization: Free tier vs $4.99/mo Premium
+  - Revenue projections: $99K-$748K/month at scale
+
+**Features Designed:**
+| Feature | Description | Tech |
+|---------|-------------|------|
+| 📞 Voice/Video Calls | 1-on-1 with teammates | WebRTC, simple-peer |
+| 🎮 Playground Rooms | Group video hangouts (Zoom-style) | WebRTC Mesh + Daily.co SFU |
+| 🎬 Virtual Film Room | Coach-led screen share + telestrator | Screen capture API |
+| 🧠 AI Tutor | School/Sports/Life/Goals modes | OpenAI GPT-4 |
+| 🛡️ Parent Dashboard | Call logs, time restrictions, alerts | Firebase RTDB |
+
+**New Files Created:**
+- PLAYGROUND_SPECS.md (comprehensive technical spec)
+
+**Monetization Added:**
+- AI Tutor: Free 5 questions/day, $2.99/mo unlimited
+- Playground Premium: $4.99/mo unlimited participants
+- Revenue potential: $748K/mo at 1M athletes
+
+**Why This Changes Everything:**
+- Kids check OSYS 1x/day (schedule) → 10x/day (talking to teammates)
+- Only social platform where parents WANT kids to spend time
+- Competes with Snapchat/Discord but safer
+
+---
 
 #### December 11, 2025
 **Session Focus:** Age Group Calculator + Season Manager Mobile Optimization + DraftPool Fixes

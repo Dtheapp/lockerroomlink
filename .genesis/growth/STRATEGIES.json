@@ -1,0 +1,98 @@
+{
+  "metadata": {
+    "lastUpdated": "2024-12-11",
+    "totalStrategies": 6
+  },
+  "activeStrategies": [
+    {
+      "id": "STRAT-001",
+      "name": "FOMO Beta Launch",
+      "type": "fomo",
+      "status": "ready",
+      "description": "Limited beta access with waitlist counter. Creates urgency and social proof.",
+      "tactics": [
+        "Waitlist with position number displayed",
+        "Early bird pricing expires countdown",
+        "Exclusive features for first 100 coaches",
+        "'Only X spots left' messaging"
+      ],
+      "expectedImpact": "high",
+      "appliesWhen": ["public launch", "new feature releases"]
+    },
+    {
+      "id": "STRAT-002",
+      "name": "Coach Referral Loop",
+      "type": "viral",
+      "status": "ready",
+      "description": "Coaches invite other coaches for mutual benefits.",
+      "tactics": [
+        "Referral codes with bonus credits",
+        "Team invite links track source",
+        "Leaderboard for top referrers",
+        "Both parties get premium trial"
+      ],
+      "expectedImpact": "high",
+      "appliesWhen": ["post-launch growth"]
+    },
+    {
+      "id": "STRAT-003",
+      "name": "Social Stat Cards",
+      "type": "viral",
+      "status": "ready",
+      "description": "Shareable player stat cards that go viral on parent social media.",
+      "tactics": [
+        "Beautiful stat cards with team branding",
+        "One-tap share to Instagram/Facebook",
+        "OSYS watermark on every shared card",
+        "Parent pride drives organic reach"
+      ],
+      "expectedImpact": "high",
+      "appliesWhen": ["after games", "season highlights"]
+    },
+    {
+      "id": "STRAT-004",
+      "name": "League Takeover",
+      "type": "b2b",
+      "status": "planned",
+      "description": "Get entire leagues to adopt OSYS for all teams.",
+      "tactics": [
+        "League-wide discount (all teams at once)",
+        "Unified scheduling across league",
+        "Standings auto-updated",
+        "Commissioner dashboard"
+      ],
+      "expectedImpact": "high",
+      "appliesWhen": ["b2b sales", "league partnerships"]
+    },
+    {
+      "id": "STRAT-005",
+      "name": "NIL Platform for Youth",
+      "type": "differentiation",
+      "status": "in-progress",
+      "description": "First platform offering NIL tools for youth athletes.",
+      "tactics": [
+        "Athlete profiles with highlight reels",
+        "Brand sponsorship marketplace",
+        "Parent-controlled monetization",
+        "Compliance with state laws"
+      ],
+      "expectedImpact": "very-high",
+      "appliesWhen": ["market differentiation", "premium tier"]
+    },
+    {
+      "id": "STRAT-006",
+      "name": "Token-Gated Features",
+      "type": "blockchain",
+      "status": "future",
+      "description": "NFT-based access to premium features. Leverage FEGROX #4 Solidity skills.",
+      "tactics": [
+        "Coach NFT badges (proof of achievement)",
+        "Season pass tokens (transferable)",
+        "Achievement NFTs for athletes",
+        "DAO voting for feature requests"
+      ],
+      "expectedImpact": "medium",
+      "appliesWhen": ["web3 adoption increases", "differentiation needed"]
+    }
+  ]
+}

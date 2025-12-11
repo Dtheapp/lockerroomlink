@@ -1,0 +1,73 @@
+{
+  "architecture": [
+    {
+      "id": "DEC-001",
+      "date": "2024-12-01",
+      "title": "Firebase over Supabase",
+      "context": "Needed backend for OSYS",
+      "decision": "Use Firebase (Firestore, Auth, Storage)",
+      "reasoning": "Better real-time capabilities, more mature auth, existing expertise",
+      "alternatives": ["Supabase", "Custom backend"],
+      "consequences": "Vendor lock-in, but faster development"
+    },
+    {
+      "id": "DEC-002",
+      "date": "2024-12-01",
+      "title": "React over Next.js",
+      "context": "Frontend framework selection",
+      "decision": "Use React + Vite (SPA)",
+      "reasoning": "Simpler deployment, no SSR needed for this use case, faster dev iteration",
+      "alternatives": ["Next.js", "Remix"],
+      "consequences": "SEO requires workarounds, but target users come from app not search"
+    },
+    {
+      "id": "DEC-003",
+      "date": "2024-12-03",
+      "title": "Unified credits system",
+      "context": "Multiple credit types were confusing",
+      "decision": "Consolidate to single 'credits' field",
+      "reasoning": "Simpler UX, easier to understand value",
+      "alternatives": ["Keep separate credit types"],
+      "consequences": "Migration needed for existing users"
+    },
+    {
+      "id": "DEC-004",
+      "date": "2024-12-05",
+      "title": "sportConfig for multi-sport support",
+      "context": "Need to support football, basketball, soccer, etc.",
+      "decision": "Create sportConfig.ts with all sport-specific data",
+      "reasoning": "Single source of truth, easy to add new sports",
+      "alternatives": ["Hardcode per sport", "Database-driven config"],
+      "consequences": "Requires code change to add sports, but more performant"
+    }
+  ],
+  "flowMap": {
+    "lastUpdated": "2024-12-11",
+    "entryPoints": [
+      {
+        "route": "/",
+        "component": "LandingPage",
+        "auth": "none",
+        "flows": ["signup", "login", "explore"]
+      },
+      {
+        "route": "/auth",
+        "component": "AuthScreen",
+        "auth": "none",
+        "flows": ["login", "signup", "password-reset"]
+      },
+      {
+        "route": "/dashboard",
+        "component": "NewOSYSDashboard",
+        "auth": "required",
+        "flows": ["team-management", "events", "chat", "stats"]
+      }
+    ],
+    "coreFlows": {
+      "onboarding": ["LandingPage", "AuthScreen", "Profile", "TeamSelector/CreateTeam", "Dashboard"],
+      "teamManagement": ["Dashboard", "OSYSRoster", "PlayerProfile", "Stats"],
+      "events": ["OSYSEvents", "TicketPurchaseModal", "MyTickets"],
+      "chat": ["Chat", "Messenger", "OSYSMessenger"]
+    }
+  }
+}
