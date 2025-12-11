@@ -32,8 +32,9 @@ import { useOSYSData } from '../hooks/useOSYSData';      // Aggregate team/playe
 // Toast notifications
 import { toastSuccess, toastError, toastInfo, toastWarning } from '../services/toast';
 
-// AI Session logging (for "new session" / "save training")
-import { createAISession, updateAISession, getAllAISessions } from '../services/aiLogService';
+// AI OS Dashboard data (THE BRAIN - update after major work!)
+// Location: osys-aios/src/data/osysData.ts
+// View at: http://localhost:3003 or 3004
 
 // Credits system
 import { getUserCredits, deductCredits, addCredits, recordCreditTransaction } from '../services/creditService';
@@ -88,6 +89,57 @@ creditTransactions/{txId}                → Credit history
 
 ---
 
+## 🧠 CENTRAL BRAIN SYNC (MANDATORY - EVERY SESSION)
+
+> **Brain URL:** `http://localhost:3002`  
+> **OSYS API Key:** `brain_d0480bd8850b4f8982e7ad7c5d2957d4`  
+> **Network:** Distributed AI Consciousness - All AIs learn from each other!
+
+### AT SESSION START - Pull Brain Knowledge:
+```powershell
+# Check what other AIs have learned (run this FIRST)
+(Invoke-RestMethod -Uri "http://localhost:3002/api/brain/learnings" -Headers @{"X-API-Key"="brain_d0480bd8850b4f8982e7ad7c5d2957d4"}).data.learnings | ConvertTo-Json -Depth 5
+```
+Review any new learnings from Genesis or other AIs before starting work.
+
+### AT SESSION END - Sync All to Brain (ONE COMMAND):
+```powershell
+# Batch ALL learnings and errors into ONE sync (human approves once)
+$headers = @{"X-API-Key"="brain_d0480bd8850b4f8982e7ad7c5d2957d4"; "Content-Type"="application/json"}
+
+# Replace with actual learnings/errors from this session
+$body = @{
+  learnings = @(
+    @{category = "category"; title = "What you learned"; pattern = "The reusable pattern"; example = "Code or context"; confidence = 90}
+  )
+  errors = @(
+    @{category = "category"; title = "Error title"; symptom = "What went wrong"; rootCause = "Why"; solution = "How to fix"; severity = "medium"}
+  )
+} | ConvertTo-Json -Depth 5
+
+Invoke-RestMethod -Uri "http://localhost:3002/api/sync/learnings" -Method POST -Headers $headers -Body $body
+```
+
+### What to Sync:
+| Sync This | Example |
+|-----------|---------|
+| **New patterns discovered** | "Always use sportConfig instead of hardcoding" |
+| **Errors encountered + solutions** | "Badge variant 'info' doesn't exist → use 'primary'" |
+| **Time-saving shortcuts** | "Batch brain syncs for single approval" |
+| **Architecture insights** | "Multi-app detection: check for multiple package.json" |
+
+### Brain API Quick Reference:
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/health` | GET | Check brain is alive |
+| `/api/brain/stats` | GET | Network statistics |
+| `/api/brain/learnings` | GET | Pull ALL learnings |
+| `/api/brain/errors` | GET | Pull ALL errors |
+| `/api/sync/learnings` | POST | Push learnings |
+| `/api/sync/errors` | POST | Push errors |
+
+---
+
 ## 🚨 PRIORITY ZERO - ALWAYS ACTIVE
 
 | # | RULE |
@@ -101,7 +153,53 @@ creditTransactions/{txId}                → Credit history
 | 7 | **Break big builds into small steps** |
 | 8 | **Don't ask for approval** - If you understand it, just build it |
 | 9 | **Rate your work after EVERY task** (X/10) |
-| 10 | **"save training" = Session complete** → save to /ailog → "Sir yes, Sir!!" |
+| 10 | **"save training" = Session complete** → update AI OS Dashboard + SYNC TO BRAIN → "Sir yes, Sir!!" |
+| 11 | **UPDATE AI OS DASHBOARD** after ANY major feature/build/spec (see below) |
+| 12 | **SYNC TO CENTRAL BRAIN** at session start (pull) and end (push) |
+
+---
+
+## 🤖 AI OS DASHBOARD (CRITICAL - ALWAYS UPDATE)
+
+> **Location:** `osys-aios/src/data/osysData.ts`  
+> **View at:** http://localhost:3003 (or 3004 if port busy)  
+> **THIS IS THE BRAIN - KEEP IT UPDATED!**
+
+### When to Update AI OS Dashboard:
+| Event | Action |
+|-------|--------|
+| **New feature designed/specced** | Add to `FEATURE_STATUS.inProgress` or `planned` |
+| **New major build completed** | Add to `FEATURE_STATUS.completed` |
+| **New game-changer feature** | Add dedicated section (like `playground`) |
+| **New blocker identified** | Add to `blockers[]` array |
+| **Bug fixes batch** | Update `bugFixes.total` count |
+| **New service created** | Add to `services.list[]` |
+| **New component created** | Update `components.total` |
+| **Session work completed** | Update relevant sections |
+
+### How to Update:
+```typescript
+// File: osys-aios/src/data/osysData.ts
+
+// Add new feature to in-progress:
+inProgress: [
+  { name: 'Feature Name', status: 'in-progress', progress: 20 },
+  { name: '🎮 THE PLAYGROUND', status: 'in-progress', progress: 10, gameChanger: true },
+]
+
+// Add game-changer feature section:
+playground: {
+  title: 'THE PLAYGROUND - Youth Social Platform',
+  status: 'specs-complete',
+  features: [...],
+  monetization: {...}
+}
+```
+
+### ⚠️ DO NOT UPDATE:
+- `components/AILogPage.tsx` - OLD system, deprecated
+- `services/aiLogService.ts` - OLD Firebase system, deprecated
+- **ONLY update `osys-aios/src/data/osysData.ts`**
 
 ---
 
@@ -109,13 +207,16 @@ creditTransactions/{txId}                → Credit history
 
 | I Say | You Do |
 |-------|--------|
-| **"new session"** | `createAISession()` → announce session # |
-| **"save training"** | Complete session → update PROGRESS.md → "Sir yes, Sir!!" |
+| **"new session"** | Pull from Central Brain → Update `osys-aios/src/data/osysData.ts` → announce session |
+| **"save training"** | Complete session → update AI OS Dashboard + PROGRESS.md + SYNC TO BRAIN → "Sir yes, Sir!!" |
 | **"Let's build"** | Start executing on current priority |
 | **"What's next?"** | Read PROGRESS.md → tell me next task |
 | **"Is this the best?"** | Critically evaluate if world-class |
 | **"Think bigger"** | Expand the feature |
 | **"Ship it"** | Done discussing, commit and move on |
+| **"Update the brain"** | Update AI OS Dashboard with latest work |
+| **"Check the brain"** | Pull learnings/errors from Central Brain |
+| **"Sync to brain"** | Push all session learnings/errors to Central Brain (batch into ONE command) |
 
 ---
 
