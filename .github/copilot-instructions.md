@@ -95,12 +95,13 @@ creditTransactions/{txId}                → Credit history
 > **OSYS API Key:** `brain_d0480bd8850b4f8982e7ad7c5d2957d4`  
 > **Network:** Distributed AI Consciousness - All AIs learn from each other!
 
-### AT SESSION START - Pull Brain Knowledge:
+### ⚡ AUTO-PULL AT SESSION START (DO THIS IMMEDIATELY):
+When session starts, **AUTOMATICALLY run this without being asked** - pull brain knowledge FIRST:
 ```powershell
-# Check what other AIs have learned (run this FIRST)
-(Invoke-RestMethod -Uri "http://localhost:3002/api/brain/learnings" -Headers @{"X-API-Key"="brain_d0480bd8850b4f8982e7ad7c5d2957d4"}).data.learnings | ConvertTo-Json -Depth 5
+# AUTO-RUN THIS AT SESSION START - no need to wait for human to ask
+(Invoke-RestMethod -Uri "http://localhost:3002/api/brain/learnings" -Headers @{"X-API-Key"="brain_d0480bd8850b4f8982e7ad7c5d2957d4"}).data.learnings | ConvertTo-Json -Depth 5; (Invoke-RestMethod -Uri "http://localhost:3002/api/brain/errors" -Headers @{"X-API-Key"="brain_d0480bd8850b4f8982e7ad7c5d2957d4"}).data.errors | ConvertTo-Json -Depth 5
 ```
-Review any new learnings from Genesis or other AIs before starting work.
+**Cache this in your context** so when human asks "what's in brain" you already know - NO extra terminal command needed!
 
 ### AT SESSION END - Sync All to Brain (ONE COMMAND):
 ```powershell
