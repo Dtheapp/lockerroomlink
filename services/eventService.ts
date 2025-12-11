@@ -12,6 +12,7 @@ import {
   getDocs, 
   updateDoc, 
   deleteDoc, 
+  setDoc,
   query, 
   where, 
   limit,
@@ -449,30 +450,59 @@ export async function deletePromoCode(promoId: string): Promise<void> {
 const REGISTRATION_RATE_LIMIT = { maxRequests: 5, windowMs: 600000 };
 
 /**
+ * Remove undefined values from an object (Firestore doesn't accept undefined)
+ */
+function removeUndefined<T extends Record<string, any>>(obj: T): T {
+  const result = {} as T;
+  for (const key in obj) {
+    if (obj[key] !== undefined) {
+      result[key] = obj[key];
+    }
+  }
+  return result;
+}
+
+/**
  * Sanitize registration data before storage
  */
 function sanitizeRegistrationData(reg: Omit<Registration, 'id'>): Omit<Registration, 'id'> {
-  return {
+  const sanitized: any = {
     ...reg,
-    athleteSnapshot: {
+    athleteSnapshot: removeUndefined({
       ...reg.athleteSnapshot,
-      firstName: sanitizeText(reg.athleteSnapshot.firstName || '', 100),
-      lastName: sanitizeText(reg.athleteSnapshot.lastName || '', 100),
-    },
-    emergencyContact: reg.emergencyContact ? {
+      firstName: sanitizeText(reg.athleteSnapshot?.firstName || '', 100),
+      lastName: sanitizeText(reg.athleteSnapshot?.lastName || '', 100),
+      ...(reg.athleteSnapshot?.dateOfBirth ? { dateOfBirth: reg.athleteSnapshot.dateOfBirth } : {}),
+      ...(reg.athleteSnapshot?.profileImage ? { profileImage: reg.athleteSnapshot.profileImage } : {}),
+    }),
+  };
+  
+  // Only add emergencyContact if it exists and has data
+  if (reg.emergencyContact && (reg.emergencyContact.name || reg.emergencyContact.phone)) {
+    sanitized.emergencyContact = removeUndefined({
       name: sanitizeText(reg.emergencyContact.name || '', 100),
       relationship: sanitizeText(reg.emergencyContact.relationship || '', 50),
       phone: sanitizePhone(reg.emergencyContact.phone || ''),
-    } : undefined,
-    medicalInfo: reg.medicalInfo ? {
-      allergies: reg.medicalInfo.allergies ? sanitizeText(reg.medicalInfo.allergies, 500) : undefined,
-      medications: reg.medicalInfo.medications ? sanitizeText(reg.medicalInfo.medications, 500) : undefined,
-      conditions: reg.medicalInfo.conditions ? sanitizeText(reg.medicalInfo.conditions, 500) : undefined,
-      insuranceProvider: reg.medicalInfo.insuranceProvider ? sanitizeText(reg.medicalInfo.insuranceProvider, 200) : undefined,
-      insurancePolicyNumber: reg.medicalInfo.insurancePolicyNumber ? sanitizeText(reg.medicalInfo.insurancePolicyNumber, 100) : undefined,
-    } : undefined,
-    waiverSignature: reg.waiverSignature ? sanitizeText(reg.waiverSignature, 200) : undefined,
-  };
+    });
+  }
+  
+  // Only add medicalInfo if it exists and has data
+  if (reg.medicalInfo && (reg.medicalInfo.allergies || reg.medicalInfo.medications || reg.medicalInfo.conditions || reg.medicalInfo.insuranceProvider)) {
+    sanitized.medicalInfo = removeUndefined({
+      ...(reg.medicalInfo.allergies ? { allergies: sanitizeText(reg.medicalInfo.allergies, 500) } : {}),
+      ...(reg.medicalInfo.medications ? { medications: sanitizeText(reg.medicalInfo.medications, 500) } : {}),
+      ...(reg.medicalInfo.conditions ? { conditions: sanitizeText(reg.medicalInfo.conditions, 500) } : {}),
+      ...(reg.medicalInfo.insuranceProvider ? { insuranceProvider: sanitizeText(reg.medicalInfo.insuranceProvider, 200) } : {}),
+      ...(reg.medicalInfo.insurancePolicyNumber ? { insurancePolicyNumber: sanitizeText(reg.medicalInfo.insurancePolicyNumber, 100) } : {}),
+    });
+  }
+  
+  // Only add waiverSignature if it exists
+  if (reg.waiverSignature) {
+    sanitized.waiverSignature = sanitizeText(reg.waiverSignature, 200);
+  }
+  
+  return removeUndefined(sanitized);
 }
 
 /**
@@ -495,50 +525,84 @@ export async function createRegistrationOrder(
     throw new Error('Maximum 10 athletes per registration order.');
   }
 
-  const batch = writeBatch(db);
+  // DEBUG: Log what we're about to write
+  console.log('[Registration] === STARTING REGISTRATION ===');
+  console.log('[Registration] Order parentUserId:', order.parentUserId);
+  console.log('[Registration] Order eventId:', order.eventId);
+  console.log('[Registration] Order teamId:', order.teamId);
+  console.log('[Registration] Registration count:', registrations.length);
   
-  // Create order document
+  // Test individual operations to find which one fails
   const orderRef = doc(collection(db, REGISTRATION_ORDERS_COLLECTION));
   const registrationIds: string[] = [];
   
-  // Create registration documents with sanitized data
-  for (const reg of registrations) {
+  // STEP 1: Try to create the order first
+  try {
+    console.log('[Registration] STEP 1: Creating order...');
+    await setDoc(orderRef, {
+      ...order,
+      registrationIds: [], // Will update later
+    });
+    console.log('[Registration] STEP 1: Order created successfully!');
+  } catch (e: any) {
+    console.error('[Registration] STEP 1 FAILED: Order creation failed!', e.code, e.message);
+    throw new Error(`Order creation failed: ${e.message}`);
+  }
+  
+  // STEP 2: Create each registration
+  for (let i = 0; i < registrations.length; i++) {
+    const reg = registrations[i];
     const sanitizedReg = sanitizeRegistrationData(reg);
     const regRef = doc(collection(db, REGISTRATIONS_COLLECTION));
     registrationIds.push(regRef.id);
-    batch.set(regRef, {
-      ...sanitizedReg,
-      orderId: orderRef.id,
-    });
     
-    // Increment tier count (pricing tiers are subcollections)
-    if (reg.pricingTierId) {
-      const tierRef = doc(db, EVENTS_COLLECTION, reg.eventId, 'pricingTiers', reg.pricingTierId);
-      batch.update(tierRef, { currentQuantity: increment(1) });
+    try {
+      console.log(`[Registration] STEP 2.${i+1}: Creating registration for athlete...`);
+      await setDoc(regRef, {
+        ...sanitizedReg,
+        orderId: orderRef.id,
+      });
+      console.log(`[Registration] STEP 2.${i+1}: Registration created successfully!`);
+    } catch (e: any) {
+      console.error(`[Registration] STEP 2.${i+1} FAILED: Registration creation failed!`, e.code, e.message);
+      throw new Error(`Registration creation failed: ${e.message}`);
     }
     
-    // Increment promo code usage
-    if (reg.promoCodeId) {
-      const promoRef = doc(db, PROMO_CODES_COLLECTION, reg.promoCodeId);
-      batch.update(promoRef, { currentUses: increment(1) });
-    }
+    // TODO: Re-enable pricing tier tracking once tiers are properly set up on events
+    // For now, we skip tier updates - using flat rate from event.registrationFee
+    // STEP 3: Update pricing tier - BYPASSED
+    // if (reg.pricingTierId) { ... }
+    
+    // TODO: Re-enable promo code tracking once promo system is fully tested
+    // STEP 4: Update promo code - BYPASSED for now
+    // if (reg.promoCodeId) { ... }
   }
   
-  // Set order with registration IDs
-  batch.set(orderRef, {
-    ...order,
-    registrationIds,
-  });
+  // STEP 5: Update event count
+  try {
+    console.log('[Registration] STEP 3: Updating event count...');
+    const eventRef = doc(db, EVENTS_COLLECTION, order.eventId);
+    await updateDoc(eventRef, { 
+      currentCount: increment(registrations.length),
+      updatedAt: Timestamp.now(),
+    });
+    console.log('[Registration] STEP 3: Event count updated successfully!');
+  } catch (e: any) {
+    console.error('[Registration] STEP 3 FAILED: Event count update failed!', e.code, e.message);
+    throw new Error(`Event count update failed: ${e.message}`);
+  }
   
-  // Update event count
-  const eventRef = doc(db, EVENTS_COLLECTION, order.eventId);
-  batch.update(eventRef, { 
-    currentCount: increment(registrations.length),
-    updatedAt: Timestamp.now(),
-  });
+  // STEP 4: Update order with registration IDs
+  try {
+    console.log('[Registration] STEP 4: Updating order with registration IDs...');
+    await updateDoc(orderRef, { registrationIds });
+    console.log('[Registration] STEP 4: Order updated successfully!');
+  } catch (e: any) {
+    console.error('[Registration] STEP 4 FAILED: Order update failed!', e.code, e.message);
+    throw new Error(`Order update failed: ${e.message}`);
+  }
   
-  await batch.commit();
-  
+  console.log('[Registration] === REGISTRATION COMPLETE ===');
   return { orderId: orderRef.id, registrationIds };
 }
 

@@ -4,6 +4,7 @@ import { db } from '../../../services/firebase';
 import { Player } from '../../../types';
 import { Event, PricingTier } from '../../../types/events';
 import { validateAthleteAge, getAgeLabel, formatAgeRequirement } from '../../../services/ageValidator';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   User,
   Check,
@@ -46,6 +47,7 @@ const AthleteSelector: React.FC<AthleteSelectorProps> = ({
   onSelectionChange,
   onAddNewAthlete
 }) => {
+  const { players: authPlayers } = useAuth();
   const [athletes, setAthletes] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,12 +67,12 @@ const AthleteSelector: React.FC<AthleteSelectorProps> = ({
     return true;
   });
 
-  // Default tier (lowest price active tier)
-  const defaultTier = activeTiers.reduce((min, tier) => 
-    tier.price < min.price ? tier : min
-  , activeTiers[0]);
+  // Default tier (lowest price active tier, or fallback free tier if none exist)
+  const defaultTier = activeTiers.length > 0 
+    ? activeTiers.reduce((min, tier) => tier.price < min.price ? tier : min, activeTiers[0])
+    : { id: 'default', name: 'Registration', price: 0, isActive: true, currentQuantity: 0 } as PricingTier;
 
-  // Fetch parent's athletes
+  // Fetch parent's athletes - now uses AuthContext players + fallback query
   useEffect(() => {
     const fetchAthletes = async () => {
       if (!parentId) return;
@@ -79,23 +81,73 @@ const AthleteSelector: React.FC<AthleteSelectorProps> = ({
       setError(null);
       
       try {
-        // Query players where parentId matches
-        const playersQuery = query(
-          collection(db, 'teams', event.teamId, 'players'),
+        // First, use athletes from AuthContext (already loaded for Parents)
+        // This includes players from top-level 'players' collection AND all team subcollections
+        if (authPlayers && authPlayers.length > 0) {
+          setAthletes(authPlayers);
+          setLoading(false);
+          return;
+        }
+        
+        // Fallback: Query both places if AuthContext doesn't have them yet
+        const allAthletes: Player[] = [];
+        
+        // 1. Query top-level 'players' collection (unassigned athletes)
+        const topLevelQuery = query(
+          collection(db, 'players'),
           where('parentId', '==', parentId)
         );
-        
-        const snapshot = await getDocs(playersQuery);
-        const athletesData: Player[] = [];
-        
-        snapshot.forEach(doc => {
-          athletesData.push({ id: doc.id, ...doc.data() } as Player);
+        const topLevelSnapshot = await getDocs(topLevelQuery);
+        topLevelSnapshot.forEach(doc => {
+          allAthletes.push({ 
+            id: doc.id, 
+            teamId: doc.data().teamId || null,
+            ...doc.data() 
+          } as Player);
         });
         
-        // Also check other teams if parent has athletes there
-        // For now, we'll just use the current team's players
+        // 2. Query the event's team players (if parent has athletes there)
+        if (event.teamId) {
+          const teamPlayersQuery = query(
+            collection(db, 'teams', event.teamId, 'players'),
+            where('parentId', '==', parentId)
+          );
+          const teamSnapshot = await getDocs(teamPlayersQuery);
+          teamSnapshot.forEach(doc => {
+            // Avoid duplicates
+            if (!allAthletes.find(p => p.id === doc.id)) {
+              allAthletes.push({ 
+                id: doc.id, 
+                teamId: event.teamId,
+                ...doc.data() 
+              } as Player);
+            }
+          });
+        }
         
-        setAthletes(athletesData);
+        // 3. Query ALL teams for this parent's athletes (comprehensive search)
+        const teamsSnapshot = await getDocs(collection(db, 'teams'));
+        for (const teamDoc of teamsSnapshot.docs) {
+          if (teamDoc.id === event.teamId) continue; // Already checked
+          
+          const playersQuery = query(
+            collection(db, 'teams', teamDoc.id, 'players'),
+            where('parentId', '==', parentId)
+          );
+          const playersSnapshot = await getDocs(playersQuery);
+          playersSnapshot.docs.forEach(playerDoc => {
+            // Avoid duplicates
+            if (!allAthletes.find(p => p.id === playerDoc.id)) {
+              allAthletes.push({ 
+                id: playerDoc.id, 
+                teamId: teamDoc.id,
+                ...playerDoc.data() 
+              } as Player);
+            }
+          });
+        }
+        
+        setAthletes(allAthletes);
       } catch (err: any) {
         console.error('Error fetching athletes:', err);
         setError('Failed to load athletes');
@@ -105,7 +157,7 @@ const AthleteSelector: React.FC<AthleteSelectorProps> = ({
     };
     
     fetchAthletes();
-  }, [parentId, event.teamId]);
+  }, [parentId, event.teamId, authPlayers]);
 
   // Check if athlete is selected
   const isSelected = (athleteId: string): boolean => {
@@ -132,19 +184,17 @@ const AthleteSelector: React.FC<AthleteSelectorProps> = ({
       onSelectionChange(selectedAthletes.filter(sa => sa.athlete.id !== athlete.id));
     } else {
       // Add to selection with default tier
-      if (defaultTier) {
-        onSelectionChange([...selectedAthletes, {
-          athlete,
-          pricingTierId: defaultTier.id,
-          pricingTierName: defaultTier.name,
-          price: defaultTier.price,
-          ageValidation: {
-            isValid: ageValidation.isValid,
-            age: ageValidation.age,
-            message: ageValidation.message,
-          },
-        }]);
-      }
+      onSelectionChange([...selectedAthletes, {
+        athlete,
+        pricingTierId: defaultTier.id,
+        pricingTierName: defaultTier.name,
+        price: defaultTier.price,
+        ageValidation: {
+          isValid: ageValidation.isValid,
+          age: ageValidation.age,
+          message: ageValidation.message,
+        },
+      }]);
     }
   };
 

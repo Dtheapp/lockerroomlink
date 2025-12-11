@@ -104,14 +104,14 @@ const AdminLayout: React.FC = () => {
           {sidebarOpen ? (
             <div className="text-2xl font-black tracking-tighter text-zinc-900 dark:text-white min-w-0">
               <div className="truncate">
-                  <span className="text-orange-500">LOCKER</span><span className="text-zinc-900 dark:text-white">ROOM</span>
+                  <span className="bg-gradient-to-r from-purple-500 to-indigo-500 bg-clip-text text-transparent">OSYS</span>
               </div>
-              <p className="text-xs font-bold text-orange-500 mt-1 uppercase tracking-widest">Super Admin</p>
+              <p className="text-xs font-bold text-purple-500 mt-1 uppercase tracking-widest">Super Admin</p>
             </div>
           ) : (
             <div className="flex justify-center w-full">
-              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg font-black text-white text-sm shadow-lg">
-                LR
+              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg font-black text-white text-sm shadow-lg">
+                OS
               </div>
             </div>
           )}
@@ -180,13 +180,13 @@ const AdminLayout: React.FC = () => {
         <div className="md:hidden flex items-center justify-between bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-900 p-4 shadow-sm">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-zinc-600 dark:text-zinc-300 hover:text-orange-600 transition-colors"
+            className="text-zinc-600 dark:text-zinc-300 hover:text-purple-600 transition-colors"
             data-menu-toggle
           >
             {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
           <h1 className="text-lg font-black text-zinc-900 dark:text-white tracking-tight">
-              <span className="text-orange-500">LOCKER</span>ROOM
+              <span className="bg-gradient-to-r from-purple-500 to-indigo-500 bg-clip-text text-transparent">OSYS</span>
           </h1>
           <div className="w-6"></div>
         </div>

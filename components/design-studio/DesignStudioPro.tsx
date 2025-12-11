@@ -715,6 +715,7 @@ const DesignStudioPro: React.FC = () => {
       currentSize,
       userData.uid,
       userData.name || 'Unknown',
+      userData.role || 'Fan',
       options
     );
     

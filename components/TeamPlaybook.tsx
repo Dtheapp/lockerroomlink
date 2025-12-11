@@ -6,6 +6,7 @@ import { db } from '../services/firebase';
 import type { CoachPlay, PlayElement, PlayRoute, TeamPlayAssignment, Team, OffensePlayType, DefensePlayType, Formation, DrawingLine, PlayShape, LineType, Player, PositionAssignment } from '../types';
 import { BookOpen, Eye, X, Plus, Trash2, Shield, Sword, Zap, Users, AlertCircle, ChevronDown, ChevronUp, FolderOpen, Search, Layers, UserPlus, Check, User, Save } from 'lucide-react';
 import { AnimatedBackground, GlassCard } from './ui/OSYSComponents';
+import NoAthleteBlock from './NoAthleteBlock';
 
 const ROUTE_COLORS = [
   '#FACC15', '#06b6d4', '#ec4899', '#a3e635', '#f87171', '#ffffff', '#a855f7', '#ea580c', '#3b82f6', '#14b8a6', '#8b5cf6'
@@ -826,6 +827,7 @@ const TeamPlaybook: React.FC = () => {
   );
 
   return (
+    <NoAthleteBlock featureName="Playbook">
     <div className="relative min-h-screen">
       <AnimatedBackground />
       <div className="relative z-10 space-y-6 pb-20">
@@ -1594,6 +1596,7 @@ const TeamPlaybook: React.FC = () => {
       )}
     </div>
     </div>
+    </NoAthleteBlock>
   );
 };
 

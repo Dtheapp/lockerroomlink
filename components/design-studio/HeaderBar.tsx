@@ -91,19 +91,19 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
   }, [zoom, isEditingZoom]);
 
   return (
-    <div className={`h-14 border-b flex items-center justify-between px-4 ${
+    <div className={`h-14 border-b flex items-center px-2 sm:px-4 overflow-x-auto ${
       theme === 'dark' ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'
     }`}>
       {/* Left Section */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
         <button
           onClick={onBack}
-          className={`flex items-center gap-2 transition-colors ${
+          className={`flex items-center gap-1 sm:gap-2 transition-colors ${
             theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
           }`}
         >
           <ChevronLeft className="w-5 h-5" />
-          <span className="text-sm">Back</span>
+          <span className="text-sm hidden sm:inline">Back</span>
         </button>
 
         <div className={`w-px h-6 ${theme === 'dark' ? 'bg-zinc-700' : 'bg-slate-200'}`} />
@@ -132,7 +132,7 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
             }`}
           >
             <Sparkles className="w-4 h-4 text-purple-400" />
-            {designName || 'Untitled Design'}
+            <span className="hidden sm:inline max-w-[120px] truncate">{designName || 'Untitled Design'}</span>
           </button>
         )}
 
@@ -175,7 +175,7 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
       </div>
 
       {/* Center Section - Undo/Redo & Zoom */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 mx-2 sm:mx-4 flex-shrink-0">
         <button
           onClick={onUndo}
           disabled={!canUndo}
@@ -205,115 +205,114 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
           <Redo2 className="w-5 h-5" />
         </button>
 
-        <div className={`w-px h-6 mx-2 ${theme === 'dark' ? 'bg-zinc-700' : 'bg-slate-200'}`} />
+        {/* Zoom Controls - Hidden on mobile */}
+        <div className="hidden sm:flex items-center gap-1">
+          <div className={`w-px h-6 mx-2 ${theme === 'dark' ? 'bg-zinc-700' : 'bg-slate-200'}`} />
 
-        {/* Zoom Controls */}
-        <button
-          onClick={onZoomOut}
-          className={`p-2 rounded-lg transition-colors ${
-            theme === 'dark' 
-              ? 'text-slate-300 hover:bg-zinc-800 hover:text-white' 
-              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-          title="Zoom Out (-5%)"
-        >
-          <ZoomOut className="w-4 h-4" />
-        </button>
-        {isEditingZoom ? (
-          <input
-            ref={zoomInputRef}
-            type="number"
-            value={zoomInput}
-            onChange={(e) => setZoomInput(e.target.value)}
-            onBlur={() => {
-              const val = parseInt(zoomInput);
-              if (!isNaN(val) && val >= 10 && val <= 400) {
-                onZoomChange(val);
-              } else {
-                setZoomInput(zoom.toString());
-              }
-              setIsEditingZoom(false);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                const val = parseInt(zoomInput);
-                if (!isNaN(val) && val >= 10 && val <= 400) {
-                  onZoomChange(val);
-                }
-                setIsEditingZoom(false);
-              }
-              if (e.key === 'Escape') {
-                setZoomInput(zoom.toString());
-                setIsEditingZoom(false);
-              }
-            }}
-            className={`w-16 px-2 py-1 rounded text-sm text-center border focus:outline-none focus:border-purple-500 ${
-              theme === 'dark' 
-                ? 'bg-zinc-800 border-zinc-600 text-white' 
-                : 'bg-white border-slate-300 text-slate-900'
-            }`}
-            autoFocus
-            min="10"
-            max="400"
-          />
-        ) : (
           <button
-            onClick={() => {
-              setZoomInput(zoom.toString());
-              setIsEditingZoom(true);
-              setTimeout(() => zoomInputRef.current?.select(), 0);
-            }}
-            className={`px-2 py-1 rounded-lg text-sm min-w-[50px] text-center transition-colors ${
+            onClick={onZoomOut}
+            className={`p-2 rounded-lg transition-colors ${
               theme === 'dark' 
                 ? 'text-slate-300 hover:bg-zinc-800 hover:text-white' 
                 : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
             }`}
-            title="Click to enter custom zoom (10-400%)"
+            title="Zoom Out (-5%)"
           >
-            {zoom}%
+            <ZoomOut className="w-4 h-4" />
           </button>
-        )}
-        <button
-          onClick={onZoomIn}
-          className={`p-2 rounded-lg transition-colors ${
-            theme === 'dark' 
-              ? 'text-slate-300 hover:bg-zinc-800 hover:text-white' 
-              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-          title="Zoom In (+5%)"
-        >
-          <ZoomIn className="w-4 h-4" />
-        </button>
-        <button
-          onClick={onFitToScreen}
-          className={`p-2 rounded-lg transition-colors ${
-            theme === 'dark' 
-              ? 'text-slate-300 hover:bg-zinc-800 hover:text-white' 
-              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-          title="Fit to Screen"
-        >
-          <Minimize2 className="w-4 h-4" />
-        </button>
+          {isEditingZoom ? (
+            <input
+              ref={zoomInputRef}
+              type="number"
+              value={zoomInput}
+              onChange={(e) => setZoomInput(e.target.value)}
+              onBlur={() => {
+                const val = parseInt(zoomInput);
+                if (!isNaN(val) && val >= 10 && val <= 400) {
+                  onZoomChange(val);
+                } else {
+                  setZoomInput(zoom.toString());
+                }
+                setIsEditingZoom(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const val = parseInt(zoomInput);
+                  if (!isNaN(val) && val >= 10 && val <= 400) {
+                    onZoomChange(val);
+                  }
+                  setIsEditingZoom(false);
+                }
+                if (e.key === 'Escape') {
+                  setZoomInput(zoom.toString());
+                  setIsEditingZoom(false);
+                }
+              }}
+              className={`w-16 px-2 py-1 rounded text-sm text-center border focus:outline-none focus:border-purple-500 ${
+                theme === 'dark' 
+                  ? 'bg-zinc-800 border-zinc-600 text-white' 
+                  : 'bg-white border-slate-300 text-slate-900'
+              }`}
+              autoFocus
+              min="10"
+              max="400"
+            />
+          ) : (
+            <button
+              onClick={() => {
+                setZoomInput(zoom.toString());
+                setIsEditingZoom(true);
+                setTimeout(() => zoomInputRef.current?.select(), 0);
+              }}
+              className={`px-2 py-1 rounded-lg text-sm min-w-[50px] text-center transition-colors ${
+                theme === 'dark' 
+                  ? 'text-slate-300 hover:bg-zinc-800 hover:text-white' 
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+              title="Click to enter custom zoom (10-400%)"
+            >
+              {zoom}%
+            </button>
+          )}
+          <button
+            onClick={onZoomIn}
+            className={`p-2 rounded-lg transition-colors ${
+              theme === 'dark' 
+                ? 'text-slate-300 hover:bg-zinc-800 hover:text-white' 
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+            title="Zoom In (+5%)"
+          >
+            <ZoomIn className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onFitToScreen}
+            className={`p-2 rounded-lg transition-colors ${
+              theme === 'dark' 
+                ? 'text-slate-300 hover:bg-zinc-800 hover:text-white' 
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+            title="Fit to Screen"
+          >
+            <Minimize2 className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Right Section */}
-      <div className="flex items-center gap-2">
-        {/* My Designs */}
-        {onOpenGallery && (
-          <button
-            onClick={onOpenGallery}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-              theme === 'dark' 
-                ? 'text-slate-400 hover:bg-zinc-800 hover:text-white' 
-                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-            }`}
-            title="My Designs"
-          >
-            <FolderOpen className="w-5 h-5" />
-            <span className="text-sm hidden sm:inline">My Designs</span>
-          </button>
-        )}
+      <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0 ml-auto">
+        {/* Fullscreen - Icon only */}
+        <button
+          onClick={onFullscreen}
+          className={`p-2 rounded-lg transition-colors ${
+            theme === 'dark' 
+              ? 'text-slate-400 hover:bg-zinc-800 hover:text-white' 
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+          }`}
+          title="Edit Fullscreen"
+        >
+          <Maximize2 className="w-5 h-5" />
+        </button>
 
         {/* Grid Toggle */}
         <button
@@ -343,38 +342,33 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
           <Eye className="w-5 h-5" />
         </button>
 
-        {/* Fullscreen Edit */}
-        <button
-          onClick={onFullscreen}
-          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-orange-500 hover:bg-orange-600 text-white`}
-          title="Edit Fullscreen"
-        >
-          ⛶ Fullscreen
-        </button>
-
-        <div className={`w-px h-6 ${theme === 'dark' ? 'bg-zinc-700' : 'bg-slate-200'}`} />
+        <div className={`w-px h-6 hidden sm:block ${theme === 'dark' ? 'bg-zinc-700' : 'bg-slate-200'}`} />
 
         {/* Save */}
         <button
           onClick={onSave}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors ${
+          className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg text-sm transition-colors ${
             theme === 'dark' 
               ? 'bg-zinc-800 hover:bg-zinc-700 text-white' 
               : 'bg-slate-100 hover:bg-slate-200 text-slate-900'
           }`}
         >
           <Save className="w-4 h-4" />
-          Save
+          <span className="hidden sm:inline">Save</span>
         </button>
 
         {/* Export */}
         <div className="relative">
           <button
             onClick={() => setShowExportMenu(!showExportMenu)}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm text-white transition-colors"
+            className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg text-sm transition-colors ${
+              theme === 'dark' 
+                ? 'bg-zinc-800 hover:bg-zinc-700 text-white' 
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-900'
+            }`}
           >
             <Download className="w-4 h-4" />
-            Export
+            <span className="hidden sm:inline">Export</span>
           </button>
           
           {showExportMenu && (
@@ -412,6 +406,22 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
             </div>
           )}
         </div>
+
+        {/* My Designs - At the end */}
+        {onOpenGallery && (
+          <button
+            onClick={onOpenGallery}
+            className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg text-sm transition-colors ${
+              theme === 'dark' 
+                ? 'bg-zinc-800 hover:bg-zinc-700 text-white' 
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-900'
+            }`}
+            title="My Designs"
+          >
+            <FolderOpen className="w-4 h-4" />
+            <span className="hidden sm:inline">My Designs</span>
+          </button>
+        )}
       </div>
     </div>
   );

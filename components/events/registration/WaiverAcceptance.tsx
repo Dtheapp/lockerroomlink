@@ -214,9 +214,19 @@ export const WaiverAcceptance: React.FC<WaiverAcceptanceProps> = ({
             Event: {event.title}
           </p>
           <p>
-            Date: {event.eventStartDate.toDate().toLocaleDateString()} - {event.eventEndDate.toDate().toLocaleDateString()}
+            Date: {event.eventStartDate 
+              ? (typeof event.eventStartDate.toDate === 'function' 
+                  ? event.eventStartDate.toDate().toLocaleDateString() 
+                  : new Date(event.eventStartDate as any).toLocaleDateString())
+              : 'TBD'
+            } - {event.eventEndDate 
+              ? (typeof event.eventEndDate.toDate === 'function' 
+                  ? event.eventEndDate.toDate().toLocaleDateString() 
+                  : new Date(event.eventEndDate as any).toLocaleDateString())
+              : 'TBD'
+            }
           </p>
-          {event.location.name && (
+          {event.location?.name && (
             <p>Location: {event.location.name}</p>
           )}
         </div>

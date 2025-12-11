@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { 
   doc, 
   getDoc, 
@@ -36,6 +37,7 @@ import {
 export const CommissionerAssignCoach: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
   const { userData } = useAuth();
+  const { theme } = useTheme();
   const navigate = useNavigate();
   
   const [team, setTeam] = useState<Team | null>(null);
@@ -168,7 +170,7 @@ export const CommissionerAssignCoach: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
       </div>
     );
@@ -179,20 +181,20 @@ export const CommissionerAssignCoach: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 pb-20">
+    <div className={`min-h-screen pb-20 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700">
+      <div className={`border-b ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
         <div className="max-w-3xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
-            <Link to="/commissioner" className="text-gray-400 hover:text-white">
+            <Link to="/commissioner" className={theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}>
               <Shield className="w-5 h-5" />
             </Link>
-            <ChevronRight className="w-4 h-4 text-gray-600" />
-            <Link to={`/commissioner/teams/${teamId}`} className="text-gray-400 hover:text-white">
+            <ChevronRight className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+            <Link to={`/commissioner/teams/${teamId}`} className={theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}>
               {team.name}
             </Link>
-            <ChevronRight className="w-4 h-4 text-gray-600" />
-            <h1 className="text-xl font-bold text-white">Assign Coaches</h1>
+            <ChevronRight className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+            <h1 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Assign Coaches</h1>
           </div>
         </div>
       </div>
@@ -202,47 +204,47 @@ export const CommissionerAssignCoach: React.FC = () => {
         {success && (
           <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 flex items-center gap-3">
             <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
-            <p className="text-green-400">{success}</p>
+            <p className="text-green-500">{success}</p>
           </div>
         )}
         
         {error && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-            <p className="text-red-400">{error}</p>
+            <p className="text-red-500">{error}</p>
           </div>
         )}
 
         {/* Currently Assigned Coaches */}
-        <div className="bg-gray-800 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-700">
-            <h2 className="font-semibold text-white flex items-center gap-2">
-              <User className="w-5 h-5 text-green-400" />
+        <div className={`rounded-xl overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-gray-200 shadow-sm'}`}>
+          <div className={`px-4 py-3 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+            <h2 className={`font-semibold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              <User className="w-5 h-5 text-green-500" />
               Assigned Coaches ({assignedCoaches.length})
             </h2>
           </div>
           
           {assignedCoaches.length === 0 ? (
             <div className="p-6 text-center">
-              <p className="text-gray-400">No coaches assigned to this team yet</p>
+              <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>No coaches assigned to this team yet</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-700">
+            <div className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
               {assignedCoaches.map((coach) => (
                 <div key={coach.uid} className="px-4 py-3 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
-                      <User className="w-5 h-5 text-green-400" />
+                      <User className="w-5 h-5 text-green-500" />
                     </div>
                     <div>
-                      <p className="text-white font-medium">{coach.name}</p>
-                      <p className="text-sm text-gray-400">{coach.email}</p>
+                      <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{coach.name}</p>
+                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{coach.email}</p>
                     </div>
                   </div>
                   <button
                     onClick={() => handleRemoveCoach(coach)}
                     disabled={removing === coach.uid}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors text-sm"
+                    className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors text-sm"
                   >
                     {removing === coach.uid ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -258,47 +260,51 @@ export const CommissionerAssignCoach: React.FC = () => {
         </div>
 
         {/* Available Coaches */}
-        <div className="bg-gray-800 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-700">
-            <h2 className="font-semibold text-white flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-purple-400" />
+        <div className={`rounded-xl overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-gray-200 shadow-sm'}`}>
+          <div className={`px-4 py-3 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+            <h2 className={`font-semibold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              <UserPlus className="w-5 h-5 text-purple-500" />
               Available Coaches
             </h2>
           </div>
           
           {/* Search */}
-          <div className="p-4 border-b border-gray-700">
+          <div className={`p-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search coaches by name or email..."
-                className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500"
+                className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                  theme === 'dark' 
+                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                }`}
               />
             </div>
           </div>
           
           {filteredAvailable.length === 0 ? (
             <div className="p-6 text-center">
-              <p className="text-gray-400">
+              <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
                 {searchQuery ? 'No coaches found matching your search' : 'No available coaches to assign'}
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-700 max-h-96 overflow-y-auto">
+            <div className={`divide-y max-h-96 overflow-y-auto ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
               {filteredAvailable.map((coach) => (
                 <div key={coach.uid} className="px-4 py-3 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center">
-                      <User className="w-5 h-5 text-gray-400" />
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                      <User className={`w-5 h-5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
                     </div>
                     <div>
-                      <p className="text-white font-medium">{coach.name}</p>
-                      <p className="text-sm text-gray-400">{coach.email}</p>
+                      <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{coach.name}</p>
+                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{coach.email}</p>
                       {coach.teamIds && coach.teamIds.length > 0 && (
-                        <p className="text-xs text-gray-500">Assigned to {coach.teamIds.length} team(s)</p>
+                        <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Assigned to {coach.teamIds.length} team(s)</p>
                       )}
                     </div>
                   </div>
@@ -323,7 +329,7 @@ export const CommissionerAssignCoach: React.FC = () => {
         {/* Back Button */}
         <Link
           to={`/commissioner/teams/${teamId}`}
-          className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+          className={`inline-flex items-center gap-2 transition-colors ${theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
         >
           <ChevronRight className="w-4 h-4 rotate-180" />
           Back to Team

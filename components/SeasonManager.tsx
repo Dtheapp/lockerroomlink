@@ -5,7 +5,7 @@ import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import type { Season, SeasonRegistration, SeasonStatus, SportType } from '../types';
-import { Calendar, Users, DollarSign, Play, Square, CheckCircle, Clock, AlertCircle, ChevronRight, Plus, X, FileText, Palette, Trophy, UserPlus, Settings, CalendarDays, Info } from 'lucide-react';
+import { Calendar, Users, DollarSign, Play, Square, CheckCircle, Clock, AlertCircle, ChevronRight, Plus, X, FileText, Palette, Trophy, UserPlus, Settings, CalendarDays, Info, Link2, Copy, Check } from 'lucide-react';
 import { GlassCard } from './ui/OSYSComponents';
 import { GameScheduleManager } from './season/GameScheduleManager';
 
@@ -28,6 +28,12 @@ interface SeasonManagerProps {
   sport: SportType;
   currentSeasonId?: string | null;
   rosterCount?: number; // Number of players currently on the roster
+  // League membership info - if team is in active league, they cannot create seasons
+  leagueId?: string | null;
+  leagueStatus?: 'none' | 'pending' | 'active' | 'left' | 'kicked';
+  leagueName?: string;
+  // If true, team has a league-created season and can create registration event
+  hasLeagueSeason?: boolean;
   onSeasonChange?: (seasonId: string | null) => void;
   onNavigateToDesignStudio?: (data?: RegistrationFlyerData) => void; // Callback to navigate to Design Studio with optional season data
 }
@@ -38,6 +44,10 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
   sport, 
   currentSeasonId,
   rosterCount = 0,
+  leagueId,
+  leagueStatus,
+  leagueName,
+  hasLeagueSeason,
   onSeasonChange,
   onNavigateToDesignStudio
 }) => {
@@ -82,9 +92,15 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
   // Track if we need to create flyer after season creation
   const [pendingFlyerSeasonId, setPendingFlyerSeasonId] = useState<string | null>(null);
   
+  // Track copied link state for UI feedback
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  
   const [creating, setCreating] = useState(false);
   const [ending, setEnding] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  
+  // Check if team is in an active league (cannot create own seasons)
+  const isInActiveLeague = Boolean(leagueId && leagueStatus === 'active');
   
   // Fetch seasons
   useEffect(() => {
@@ -129,6 +145,22 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
     return season.status === 'registration' && 
            now >= season.registrationOpenDate && 
            now <= season.registrationCloseDate;
+  };
+  
+  // Copy registration link to clipboard
+  const handleCopyRegistrationLink = async (season: Season) => {
+    // Use the public event ID if available, otherwise use team ID and season ID
+    const registrationUrl = season.publicEventId 
+      ? `${window.location.origin}/event/${season.publicEventId}`
+      : `${window.location.origin}/team/${teamId}/register?season=${season.id}`;
+    
+    try {
+      await navigator.clipboard.writeText(registrationUrl);
+      setCopiedLink(season.id);
+      setTimeout(() => setCopiedLink(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy link:', err);
+    }
   };
   
   // Create new season
@@ -186,8 +218,10 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
       const docRef = await addDoc(collection(db, 'teams', teamId, 'seasons'), seasonData);
       
       // Create a registration event linked to this season
+      // Create in BOTH team subcollection AND top-level events collection for public discoverability
       const eventData = {
         teamId,
+        teamName, // Include team name for public search
         title: `${newSeason.name.trim()} Registration`,
         description: newSeason.description.trim() || `Registration for ${teamName} ${newSeason.name.trim()}`,
         type: 'registration',
@@ -199,17 +233,26 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
         registrationFee: Math.round(newSeason.registrationFee * 100),
         maxAttendees: newSeason.maxRosterSize || 0,
         seasonId: docRef.id, // Link to the season
-        status: 'upcoming',
+        status: 'active', // Set to active so it appears in public search
         flyerNeeded: true, // Flag that flyer needs to be created
         createdAt: serverTimestamp(),
         createdBy: userData.uid,
       };
       
+      // Create in team subcollection (for team-specific queries)
       const eventRef = await addDoc(collection(db, 'teams', teamId, 'events'), eventData);
       
-      // Update season with the registration event ID
+      // ALSO create in top-level events collection (for public discovery)
+      const publicEventData = {
+        ...eventData,
+        teamEventId: eventRef.id, // Reference to team subcollection event
+      };
+      const publicEventRef = await addDoc(collection(db, 'events'), publicEventData);
+      
+      // Update season with BOTH event IDs
       await updateDoc(doc(db, 'teams', teamId, 'seasons', docRef.id), {
         registrationEventId: eventRef.id,
+        publicEventId: publicEventRef.id, // Track the public event too
       });
       
       // Update team's current season
@@ -503,6 +546,19 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
       {/* Current Season Status */}
       {currentSeason ? (
         <GlassCard className="p-6">
+          {/* League Info Banner - show if team is in active league */}
+          {isInActiveLeague && (
+            <div className={`mb-4 p-3 rounded-lg flex items-center gap-3 ${
+              theme === 'dark' ? 'bg-blue-500/10 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'
+            }`}>
+              <Info className="w-5 h-5 text-blue-500 flex-shrink-0" />
+              <div>
+                <span className={`text-sm ${theme === 'dark' ? 'text-blue-300' : 'text-blue-700'}`}>
+                  Season managed by <strong>{leagueName || 'your league'}</strong>
+                </span>
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
@@ -517,7 +573,8 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
             </div>
             
             <div className="flex items-center gap-2">
-              {currentSeason.status === 'registration' && (
+              {/* Start Season - Only for non-league teams */}
+              {currentSeason.status === 'registration' && !isInActiveLeague && (
                 <button
                   onClick={() => handleStartSeason(currentSeason)}
                   className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
@@ -527,7 +584,8 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                 </button>
               )}
               
-              {currentSeason.status === 'active' && (
+              {/* End Season - Only for non-league teams */}
+              {currentSeason.status === 'active' && !isInActiveLeague && (
                 <button
                   onClick={() => {
                     setSelectedSeason(currentSeason);
@@ -564,6 +622,29 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                 >
                   <CalendarDays className="w-4 h-4" />
                   Schedule
+                </button>
+              )}
+              
+              {/* Share Registration Link Button */}
+              {currentSeason.status === 'registration' && (
+                <button
+                  onClick={() => handleCopyRegistrationLink(currentSeason)}
+                  className={`px-4 py-2 ${copiedLink === currentSeason.id 
+                    ? 'bg-green-600 hover:bg-green-700' 
+                    : 'bg-purple-600 hover:bg-purple-700'} text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors`}
+                  title="Copy shareable registration link"
+                >
+                  {copiedLink === currentSeason.id ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Link2 className="w-4 h-4" />
+                      Share Link
+                    </>
+                  )}
                 </button>
               )}
             </div>
@@ -616,6 +697,61 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
             </div>
           )}
           
+          {/* Registration Link - Share with Parents */}
+          {currentSeason.status === 'registration' && (
+            <div className={`mt-4 p-4 rounded-lg border-2 ${
+              theme === 'dark' 
+                ? 'bg-purple-500/10 border-purple-500/30' 
+                : 'bg-purple-50 border-purple-200'
+            }`}>
+              <div className="flex items-center gap-2 mb-2">
+                <Link2 className={`w-4 h-4 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
+                <span className={`text-sm font-medium ${theme === 'dark' ? 'text-purple-300' : 'text-purple-700'}`}>
+                  Registration Link
+                </span>
+              </div>
+              <p className={`text-xs mb-3 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                Share this link with parents to register their athletes
+              </p>
+              <div className={`flex items-center gap-2 p-2 rounded-lg ${
+                theme === 'dark' ? 'bg-black/30' : 'bg-white'
+              }`}>
+                <input 
+                  type="text"
+                  readOnly
+                  value={currentSeason.publicEventId 
+                    ? `${window.location.origin}/event/${currentSeason.publicEventId}`
+                    : `${window.location.origin}/team/${teamId}/register?season=${currentSeason.id}`}
+                  className={`flex-1 text-sm truncate bg-transparent border-none outline-none ${
+                    theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'
+                  }`}
+                />
+                <button
+                  onClick={() => handleCopyRegistrationLink(currentSeason)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                    copiedLink === currentSeason.id
+                      ? 'bg-green-500 text-white'
+                      : theme === 'dark'
+                        ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                        : 'bg-purple-500 hover:bg-purple-600 text-white'
+                  }`}
+                >
+                  {copiedLink === currentSeason.id ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      Copy
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+          
           {/* Flyer Status */}
           {!currentSeason.flyerId && (
             <button
@@ -655,6 +791,28 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
       ) : (
         // No active season
         <GlassCard className="p-8 text-center">
+          {/* If team is in active league, show waiting message */}
+          {isInActiveLeague ? (
+            <>
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-500/20 flex items-center justify-center">
+                <Clock className="w-8 h-8 text-blue-500" />
+              </div>
+              <h3 className={`text-lg font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                Waiting for League
+              </h3>
+              <p className={`text-sm mb-4 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                Your team is part of <strong className={theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}>{leagueName || 'a league'}</strong>.
+                <br />
+                The league commissioner will start the season for all teams.
+              </p>
+              <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-100'}`}>
+                <p className={`text-xs ${theme === 'dark' ? 'text-blue-300' : 'text-blue-700'}`}>
+                  💡 Once the league starts the season, you can create your registration event for parents to sign up.
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
           <Trophy className={`w-12 h-12 mx-auto mb-4 ${theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400'}`} />
           <h3 className={`text-lg font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
             No Active Season
@@ -704,6 +862,8 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
               Start New Season
             </button>
           </div>
+            </>
+          )}
         </GlassCard>
       )}
       
@@ -736,8 +896,8 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
         </div>
       )}
       
-      {/* Create Season Button (if has current season) */}
-      {currentSeason && currentSeason.status === 'completed' && (
+      {/* Create Season Button (if has current season) - Only for non-league teams */}
+      {currentSeason && currentSeason.status === 'completed' && !isInActiveLeague && (
         <button
           onClick={() => setShowCreateModal(true)}
           className={`w-full p-4 rounded-lg border-2 border-dashed flex items-center justify-center gap-2 transition-colors ${

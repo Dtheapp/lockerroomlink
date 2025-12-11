@@ -6,6 +6,10 @@ import React from 'react';
 export const AnimatedBackground: React.FC = () => {
   return (
     <div className="osys-bg">
+      {/* Premium Gradient & Mesh Effects */}
+      <div className="osys-bg-gradient" />
+      <div className="osys-bg-mesh" />
+      {/* Animated Floating Orbs */}
       <div className="osys-orb osys-orb-1" />
       <div className="osys-orb osys-orb-2" />
       <div className="osys-orb osys-orb-3" />

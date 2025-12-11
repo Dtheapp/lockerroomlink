@@ -229,7 +229,7 @@ const AthletePosts: React.FC<AthletePostsProps> = ({ teamId, playerId, player, p
               <textarea
                 value={newPostText}
                 onChange={(e) => setNewPostText(e.target.value)}
-                placeholder={`What's on ${player.name.split(' ')[0]}'s mind?`}
+                placeholder={`What's on ${(player.name || 'Athlete').split(' ')[0]}'s mind?`}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
                 rows={4}
                 maxLength={1000}

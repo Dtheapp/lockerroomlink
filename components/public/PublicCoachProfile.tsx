@@ -429,24 +429,45 @@ You will receive updates in this chat as your grievance is reviewed.
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-black to-zinc-900 flex items-center justify-center">
-        <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-orange-500"></div>
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center relative overflow-hidden">
+        {/* Premium Animated Background */}
+        <div className="osys-bg">
+          <div className="osys-bg-gradient"></div>
+          <div className="osys-bg-mesh"></div>
+          <div className="osys-orb osys-orb-1"></div>
+          <div className="osys-orb osys-orb-2"></div>
+          <div className="osys-orb osys-orb-3"></div>
+        </div>
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="w-20 h-20 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
+          <p className="mt-4 text-slate-400 animate-pulse">Loading coach profile...</p>
+        </div>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-black to-zinc-900 flex flex-col items-center justify-center p-4">
-        <div className="bg-zinc-800/50 rounded-2xl p-8 text-center max-w-md border border-zinc-700">
-          <User className="w-16 h-16 text-zinc-600 mx-auto mb-4" />
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        {/* Premium Animated Background */}
+        <div className="osys-bg">
+          <div className="osys-bg-gradient"></div>
+          <div className="osys-bg-mesh"></div>
+          <div className="osys-orb osys-orb-1"></div>
+          <div className="osys-orb osys-orb-2"></div>
+          <div className="osys-orb osys-orb-3"></div>
+        </div>
+        <div className="relative z-10 osys-glass bg-slate-900/60 backdrop-blur-xl rounded-2xl p-8 text-center max-w-md border border-white/10 shadow-2xl">
+          <div className="w-16 h-16 rounded-2xl bg-slate-800/50 mx-auto mb-4 flex items-center justify-center">
+            <User className="w-8 h-8 text-slate-600" />
+          </div>
           <h1 className="text-2xl font-bold text-white mb-2">Coach Not Found</h1>
-          <p className="text-zinc-400 mb-6">
+          <p className="text-slate-400 mb-6">
             The coach profile you're looking for doesn't exist or has been removed.
           </p>
           <Link 
             to="/"
-            className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 text-white px-6 py-3 rounded-lg font-bold transition-colors"
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-6 py-3 rounded-xl font-bold transition-all hover:scale-105 shadow-lg shadow-indigo-500/30"
           >
             <Home className="w-5 h-5" />
             Go to Home
@@ -460,29 +481,37 @@ You will receive updates in this chat as your grievance is reviewed.
   const isParent = userData?.role === 'Parent';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-black to-zinc-900">
+    <div className="min-h-screen bg-slate-950 relative overflow-hidden">
+      {/* Premium Animated Background */}
+      <div className="osys-bg">
+        <div className="osys-bg-gradient"></div>
+        <div className="osys-bg-mesh"></div>
+        <div className="osys-orb osys-orb-1"></div>
+        <div className="osys-orb osys-orb-2"></div>
+        <div className="osys-orb osys-orb-3"></div>
+      </div>
+      
       {/* Success Toast */}
       {submitSuccess && (
-        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-fade-in">
+        <div className="fixed top-4 right-4 z-50 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-3 rounded-xl shadow-lg shadow-emerald-500/30 flex items-center gap-2 animate-fade-in border border-emerald-400/30">
           <CheckCircle className="w-5 h-5" />
           {submitSuccess === 'kudos' ? 'Kudos sent! Thank you!' : 'Feedback submitted privately to admins'}
         </div>
       )}
 
       {/* Header Bar */}
-      <header className="bg-zinc-900/80 backdrop-blur-sm border-b border-zinc-800 sticky top-0 z-10">
+      <header className="relative z-20 bg-slate-900/60 backdrop-blur-xl border-b border-white/10 sticky top-0">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-1 text-xl font-black tracking-tighter">
-            <span className="text-orange-500">LEVEL</span>
-            <span className="text-white">UP</span>
+          <Link to="/" className="flex items-center gap-2 text-xl font-black tracking-tighter">
+            <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">OSYS</span>
           </Link>
-          <span className="text-xs text-zinc-500">Coach Profile</span>
+          <span className="text-xs text-slate-500 px-3 py-1 rounded-full bg-slate-800/50 border border-white/10">Coach Profile</span>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-8">
+      <main className="max-w-4xl mx-auto px-4 py-8 relative z-10">
         {/* Hero Section */}
-        <div className="bg-gradient-to-r from-zinc-800/80 to-zinc-900/80 rounded-2xl p-6 md:p-8 border border-zinc-700/50 mb-8">
+        <div className="osys-glass bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 md:p-8 border border-white/10 mb-8 shadow-xl">
           <div className="flex flex-col md:flex-row items-center gap-6">
             {/* Coach Photo */}
             <div className="relative">
@@ -527,7 +556,7 @@ You will receive updates in this chat as your grievance is reviewed.
                   </span>
                 )}
                 {!isHeadCoach.some(Boolean) && !isOC.some(Boolean) && !isDC.some(Boolean) && (
-                  <span className="bg-zinc-700 text-zinc-300 px-3 py-1 rounded-full text-sm font-medium">
+                  <span className="bg-slate-700/50 text-slate-300 px-3 py-1 rounded-lg text-sm font-medium border border-white/10">
                     Coach
                   </span>
                 )}
@@ -620,7 +649,7 @@ You will receive updates in this chat as your grievance is reviewed.
                     )}
                     <button
                       onClick={() => setShowFeedbackModal(true)}
-                      className="flex items-center gap-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 px-4 py-2 rounded-lg font-semibold transition-all"
+                      className="flex items-center gap-2 bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 px-4 py-2 rounded-xl font-semibold transition-all border border-white/10"
                     >
                       <MessageSquare className="w-4 h-4" />
                       File Grievance
@@ -633,16 +662,16 @@ You will receive updates in this chat as your grievance is reviewed.
         </div>
 
         {/* About Section */}
-        <div className="bg-zinc-800/50 rounded-xl border border-zinc-700 p-6 mb-8">
+        <div className="osys-glass bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-white/10 p-6 mb-8 shadow-lg">
           <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <User className="w-5 h-5 text-orange-500" />
+            <User className="w-5 h-5 text-indigo-400" />
             About Coach {coach.name.split(' ')[0]}
           </h2>
           
           {coach.bio ? (
-            <p className="text-zinc-300 leading-relaxed whitespace-pre-wrap">{coach.bio}</p>
+            <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{coach.bio}</p>
           ) : (
-            <p className="text-zinc-500 italic">
+            <p className="text-slate-500 italic">
               This coach hasn't added a bio yet.
             </p>
           )}
@@ -650,14 +679,14 @@ You will receive updates in this chat as your grievance is reviewed.
 
         {/* Contact Info (if available and public) */}
         {coach.email && (
-          <div className="bg-zinc-800/50 rounded-xl border border-zinc-700 p-6 mb-8">
+          <div className="osys-glass bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-white/10 p-6 mb-8 shadow-lg">
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              <Mail className="w-5 h-5 text-orange-500" />
+              <Mail className="w-5 h-5 text-indigo-400" />
               Contact
             </h2>
-            <p className="text-zinc-400">
-              <span className="text-zinc-500">Email:</span>{' '}
-              <a href={`mailto:${coach.email}`} className="text-sky-400 hover:text-sky-300 transition-colors">
+            <p className="text-slate-400">
+              <span className="text-slate-500">Email:</span>{' '}
+              <a href={`mailto:${coach.email}`} className="text-indigo-400 hover:text-indigo-300 transition-colors">
                 {coach.email}
               </a>
             </p>
@@ -666,7 +695,7 @@ You will receive updates in this chat as your grievance is reviewed.
 
         {/* Teams Overview */}
         {teams.length > 0 && (
-          <div className="bg-zinc-800/50 rounded-xl border border-zinc-700 p-6">
+          <div className="osys-glass bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-white/10 p-6 shadow-lg">
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <Users className="w-5 h-5 text-orange-500" />
               Teams
@@ -687,11 +716,11 @@ You will receive updates in this chat as your grievance is reviewed.
                   href={`#/team/${team.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-zinc-900/50 rounded-lg p-4 border border-zinc-700 hover:border-zinc-500 transition-colors"
+                  className="bg-slate-800/50 rounded-xl p-4 border border-white/10 hover:border-white/20 hover:bg-slate-800/70 transition-all"
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                      isHeadCoach[index] ? 'bg-amber-500' : (isOC[index] || isDC[index] || isSTC[index]) ? 'bg-purple-600' : 'bg-zinc-700'
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                      isHeadCoach[index] ? 'bg-gradient-to-br from-amber-500 to-orange-600' : (isOC[index] || isDC[index] || isSTC[index]) ? 'bg-gradient-to-br from-purple-600 to-indigo-600' : 'bg-slate-700/50'
                     }`}>
                       <Shield className="w-6 h-6 text-white" />
                     </div>
@@ -711,11 +740,11 @@ You will receive updates in this chat as your grievance is reviewed.
                           <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">STC</span>
                         )}
                         {!isHeadCoach[index] && !isOC[index] && !isDC[index] && !isSTC[index] && (
-                          <span className="text-[10px] text-zinc-500">Coach</span>
+                          <span className="text-[10px] text-slate-500">Coach</span>
                         )}
                       </div>
                       {team.record && (
-                        <p className="text-xs text-zinc-400 mt-1">
+                        <p className="text-xs text-slate-400 mt-1">
                           Record: {team.record.wins}-{team.record.losses}-{team.record.ties}
                         </p>
                       )}
@@ -745,28 +774,31 @@ You will receive updates in this chat as your grievance is reviewed.
         </div>
 
         {/* Footer */}
-        <footer className="mt-12 text-center text-zinc-600 text-sm">
-          <p>Powered by <span className="text-purple-500 font-bold">OSYS</span></p>
+        <footer className="mt-16 text-center py-8 border-t border-white/10">
+          <p className="text-slate-500 text-sm">
+            Powered by <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent font-bold">OSYS</span>
+          </p>
+          <p className="text-slate-600 text-xs mt-1">The Operating System for Youth Sports</p>
         </footer>
       </main>
 
       {/* Photo Modal */}
       {showPhotoModal && coach.photoUrl && (
         <div 
-          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-50"
           onClick={() => setShowPhotoModal(false)}
         >
           <div className="relative max-w-2xl max-h-[80vh]">
             <button
               onClick={() => setShowPhotoModal(false)}
-              className="absolute -top-12 right-0 p-2 text-white hover:text-zinc-300 transition-colors"
+              className="absolute -top-12 right-0 p-2 text-white hover:text-slate-300 transition-colors"
             >
               <X className="w-8 h-8" />
             </button>
             <img 
               src={coach.photoUrl} 
               alt={coach.name}
-              className="max-w-full max-h-[80vh] object-contain rounded-lg"
+              className="max-w-full max-h-[80vh] object-contain rounded-2xl border border-white/10"
             />
             <p className="text-center text-white font-bold mt-4">{coach.name}</p>
           </div>
@@ -775,19 +807,19 @@ You will receive updates in this chat as your grievance is reviewed.
 
       {/* Kudos Modal */}
       {showKudosModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-zinc-900 rounded-2xl p-6 max-w-md w-full border border-zinc-700 shadow-2xl">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="osys-glass bg-slate-900/90 backdrop-blur-xl rounded-2xl p-6 max-w-md w-full border border-white/10 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
                 <Heart className="w-6 h-6 text-pink-500" />
                 Give Kudos
               </h3>
-              <button onClick={() => setShowKudosModal(false)} className="text-zinc-400 hover:text-white">
+              <button onClick={() => setShowKudosModal(false)} className="text-slate-400 hover:text-white transition-colors">
                 <X className="w-6 h-6" />
               </button>
             </div>
             
-            <p className="text-zinc-400 mb-4">
+            <p className="text-slate-400 mb-4">
               Show your appreciation for Coach {coach.name.split(' ')[0]}! Your kudos will be displayed publicly.
             </p>
             
@@ -796,22 +828,22 @@ You will receive updates in this chat as your grievance is reviewed.
               onChange={(e) => setKudosMessage(e.target.value)}
               placeholder="Add a short thank you message (optional)"
               maxLength={200}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white placeholder-zinc-500 focus:outline-none focus:border-pink-500 resize-none"
+              className="w-full bg-slate-800/50 border border-white/10 rounded-xl p-3 text-white placeholder-slate-500 focus:outline-none focus:border-pink-500/50 focus:ring-1 focus:ring-pink-500/20 resize-none transition-all"
               rows={3}
             />
-            <p className="text-xs text-zinc-500 mt-1 mb-4">{kudosMessage.length}/200 characters</p>
+            <p className="text-xs text-slate-500 mt-1 mb-4">{kudosMessage.length}/200 characters</p>
             
             <div className="flex gap-3">
               <button
                 onClick={() => setShowKudosModal(false)}
-                className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white py-3 rounded-lg font-semibold transition-colors"
+                className="flex-1 bg-slate-700/50 hover:bg-slate-600/50 text-white py-3 rounded-xl font-semibold transition-all border border-white/10"
               >
                 Cancel
               </button>
               <button
                 onClick={handleGiveKudos}
                 disabled={submitting}
-                className="flex-1 bg-gradient-to-r from-pink-600 to-red-600 hover:from-pink-500 hover:to-red-500 text-white py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex-1 bg-gradient-to-r from-pink-600 to-red-600 hover:from-pink-500 hover:to-red-500 text-white py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-50 hover:scale-[1.02] shadow-lg shadow-pink-500/20"
               >
                 {submitting ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -829,30 +861,30 @@ You will receive updates in this chat as your grievance is reviewed.
 
       {/* Private Feedback Modal */}
       {showFeedbackModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-zinc-900 rounded-2xl p-6 max-w-md w-full border border-zinc-700 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="osys-glass bg-slate-900/90 backdrop-blur-xl rounded-2xl p-6 max-w-md w-full border border-white/10 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
                 <MessageSquare className="w-6 h-6 text-sky-500" />
                 File Grievance
               </h3>
-              <button onClick={() => setShowFeedbackModal(false)} className="text-zinc-400 hover:text-white">
+              <button onClick={() => setShowFeedbackModal(false)} className="text-slate-400 hover:text-white transition-colors">
                 <X className="w-6 h-6" />
               </button>
             </div>
             
-            <div className="bg-sky-500/10 border border-sky-500/30 rounded-lg p-3 mb-4">
+            <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-3 mb-4">
               <p className="text-sky-300 text-sm flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                 This grievance is private and will only be seen by organization administrators. It will not be shown to the coach.
               </p>
             </div>
 
-            <label className="block text-sm font-medium text-zinc-300 mb-2">Select Team <span className="text-red-400">*</span></label>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Select Team <span className="text-red-400">*</span></label>
             <select
               value={selectedTeamId}
               onChange={(e) => setSelectedTeamId(e.target.value)}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white mb-4 focus:outline-none focus:border-sky-500"
+              className="w-full bg-slate-800/50 border border-white/10 rounded-xl p-3 text-white mb-4 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
             >
               <option value="">-- Select the team --</option>
               {parentTeams.map(team => (
@@ -860,11 +892,11 @@ You will receive updates in this chat as your grievance is reviewed.
               ))}
             </select>
             
-            <label className="block text-sm font-medium text-zinc-300 mb-2">Category</label>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Category</label>
             <select
               value={feedbackCategory}
               onChange={(e) => setFeedbackCategory(e.target.value as any)}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white mb-4 focus:outline-none focus:border-sky-500"
+              className="w-full bg-slate-800/50 border border-white/10 rounded-xl p-3 text-white mb-4 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
             >
               <option value="communication">Communication</option>
               <option value="conduct">Conduct/Behavior</option>
@@ -873,26 +905,26 @@ You will receive updates in this chat as your grievance is reviewed.
               <option value="other">Other</option>
             </select>
             
-            <label className="block text-sm font-medium text-zinc-300 mb-2">Describe Your Concern <span className="text-red-400">*</span></label>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Describe Your Concern <span className="text-red-400">*</span></label>
             <textarea
               value={feedbackMessage}
               onChange={(e) => setFeedbackMessage(e.target.value)}
               placeholder="Please describe your concern in detail..."
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white placeholder-zinc-500 focus:outline-none focus:border-sky-500 resize-none"
+              className="w-full bg-slate-800/50 border border-white/10 rounded-xl p-3 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 resize-none transition-all"
               rows={4}
             />
             
             <div className="flex gap-3 mt-4">
               <button
                 onClick={() => setShowFeedbackModal(false)}
-                className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white py-3 rounded-lg font-semibold transition-colors"
+                className="flex-1 bg-slate-700/50 hover:bg-slate-600/50 text-white py-3 rounded-xl font-semibold transition-all border border-white/10"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSubmitFeedback}
                 disabled={submitting || !feedbackMessage.trim() || !selectedTeamId}
-                className="flex-1 bg-sky-600 hover:bg-sky-500 text-white py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex-1 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-50 hover:scale-[1.02] shadow-lg shadow-sky-500/20"
               >
                 {submitting ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

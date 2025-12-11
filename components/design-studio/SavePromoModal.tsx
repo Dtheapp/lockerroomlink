@@ -95,7 +95,7 @@ const SavePromoModal: React.FC<SavePromoModalProps> = ({
   
   const isCoach = userRole === 'Coach' || userRole === 'SuperAdmin';
   const isParent = userRole === 'Parent';
-  const canSaveToTeam = isCoach && teams.length > 0;
+  const canSaveToTeam = (isCoach || isParent) && (teams.length > 0 || currentTeamId);
   const canSaveToPlayer = isParent && players.length > 0;
   const canAffordHighQuality = userCredits >= HIGH_QUALITY_EXPORT_CREDITS;
   
@@ -242,7 +242,7 @@ const SavePromoModal: React.FC<SavePromoModalProps> = ({
                 {location === 'personal' && <Check size={18} className="text-violet-400" />}
               </button>
               
-              {/* Team - Only for coaches */}
+              {/* Team - For coaches and parents */}
               {canSaveToTeam && (
                 <button
                   onClick={() => setLocation('team')}
@@ -259,7 +259,11 @@ const SavePromoModal: React.FC<SavePromoModalProps> = ({
                   </div>
                   <div className="text-left flex-1">
                     <p className="font-medium text-white">Team Promo Folder</p>
-                    <p className="text-xs text-zinc-500">Save to team's shared designs (resets with season)</p>
+                    <p className="text-xs text-zinc-500">
+                      {isParent 
+                        ? 'Share your design with the team (coaches can approve/delete)'
+                        : 'Save to team\'s shared designs (resets with season)'}
+                    </p>
                   </div>
                   {location === 'team' && <Check size={18} className="text-orange-400" />}
                 </button>

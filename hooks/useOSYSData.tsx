@@ -48,15 +48,16 @@ export function useAthleteData(athleteUsername?: string) {
     }
 
     // If we have a selected player from auth context, use that
-    if (selectedPlayer && teamData) {
+    // Note: Player may not have a team yet (unassigned)
+    if (selectedPlayer) {
       setData({
         ...mockAthlete,
         id: selectedPlayer.id,
         name: selectedPlayer.name || mockAthlete.name,
         number: selectedPlayer.number || mockAthlete.number,
         position: selectedPlayer.position || mockAthlete.position,
-        teamId: selectedPlayer.teamId,
-        teamName: teamData.name || mockAthlete.teamName,
+        teamId: selectedPlayer.teamId || null,
+        teamName: teamData?.name || (selectedPlayer.teamId ? 'Loading...' : 'No Team Yet'),
         photoUrl: selectedPlayer.photoUrl || null,
         stats: {
           ...mockAthlete.stats,

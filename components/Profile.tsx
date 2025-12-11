@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { doc, updateDoc, collection, addDoc, query, where, onSnapshot, getDocs, deleteDoc, getDoc } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { useLocation } from 'react-router-dom';
+import { doc, updateDoc, collection, addDoc, query, where, onSnapshot, getDocs, deleteDoc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { db, auth } from '../services/firebase';
 import { uploadFile, deleteFile } from '../services/storage';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye, Sword, User, Camera, Star, Crown, Ruler, Scale, Users, Trash2, AtSign, Link as LinkIcon, Copy, Check, ExternalLink, Film, Play } from 'lucide-react';
+import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye, Sword, User, Camera, Star, Crown, Ruler, Scale, Users, Trash2, AtSign, Link as LinkIcon, Copy, Check, ExternalLink, Film, Play, UserCheck, Key } from 'lucide-react';
 import type { Player, MedicalInfo, Team, PlayerFilmEntry } from '../types';
 import PlayerStatsModal from './stats/PlayerStatsModal';
 
 const Profile: React.FC = () => {
   const { user, userData, players: contextPlayers, teamData } = useAuth();
   const { theme } = useTheme();
+  const location = useLocation();
   
   // PARENT PROFILE STATES
   const [isEditing, setIsEditing] = useState(false);
@@ -40,8 +43,8 @@ const Profile: React.FC = () => {
     name: '',
     username: '',
     dob: '',
-    teamId: '',
-    height: '',
+    heightFt: '',
+    heightIn: '',
     weight: '',
     shirtSize: '',
     pantSize: ''
@@ -54,6 +57,12 @@ const Profile: React.FC = () => {
   // Delete athlete confirmation
   const [deleteAthleteConfirm, setDeleteAthleteConfirm] = useState<Player | null>(null);
   const [deletingAthlete, setDeletingAthlete] = useState(false);
+  
+  // Release athlete (make independent account)
+  const [releaseAthleteConfirm, setReleaseAthleteConfirm] = useState<Player | null>(null);
+  const [releasingAthlete, setReleasingAthlete] = useState(false);
+  const [releasePassword, setReleasePassword] = useState('');
+  const [releaseError, setReleaseError] = useState('');
   
   // Player Stats Modal state
   const [viewStatsPlayer, setViewStatsPlayer] = useState<Player | null>(null);
@@ -109,6 +118,19 @@ const Profile: React.FC = () => {
   const [editUsernameError, setEditUsernameError] = useState<string | null>(null);
   const [checkingEditUsername, setCheckingEditUsername] = useState(false);
 
+  // Helper: Check if player is 18+ years old
+  const isPlayerAdult = (dob: string | undefined): boolean => {
+    if (!dob) return false;
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age >= 18;
+  };
+
   // 1. Load Parent Data
   useEffect(() => {
     if (userData) {
@@ -124,6 +146,16 @@ const Profile: React.FC = () => {
       }
     }
   }, [userData]);
+
+  // Check if navigated with state to open Add Athlete modal
+  useEffect(() => {
+    const state = location.state as { openAddAthlete?: boolean } | null;
+    if (state?.openAddAthlete && userData?.role === 'Parent') {
+      setIsAddAthleteModalOpen(true);
+      // Clear the state so refreshing doesn't reopen
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, userData?.role]);
 
   // Fetch all teams the coach belongs to and their positions
   useEffect(() => {
@@ -547,7 +579,7 @@ const Profile: React.FC = () => {
 
   const handleSavePlayer = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!selectedAthlete || !selectedAthlete.teamId || savingPlayer) return;
+      if (!selectedAthlete || savingPlayer) return;
 
       // Check if username is changing and validate
       const usernameChanged = editForm.username !== (selectedAthlete.username || '');
@@ -576,10 +608,41 @@ const Profile: React.FC = () => {
               bloodType: editForm.bloodType
           };
           
-          // Check if team is changing
+          // Determine if this is a new team assignment or team change
+          const hadNoTeam = !selectedAthlete.teamId;
           const isTeamChanging = editForm.teamId && editForm.teamId !== selectedAthlete.teamId;
+          const isAssigningToTeam = hadNoTeam && editForm.teamId;
           
-          if (isTeamChanging) {
+          if (isAssigningToTeam) {
+            // Player had no team, now assigning to a team
+            const newPlayerData = {
+              name: editForm.name,
+              username: formatUsername(editForm.username),
+              dob: editForm.dob,
+              height: editForm.height,
+              weight: editForm.weight,
+              shirtSize: editForm.shirtSize,
+              pantSize: editForm.pantSize,
+              bio: editForm.bio || '',
+              medical: medicalData,
+              parentId: user?.uid,
+              teamId: editForm.teamId,
+              number: 0, // Coach will assign
+              position: 'TBD',
+              stats: selectedAthlete.stats || { td: 0, tkl: 0 },
+              photoUrl: selectedAthlete.photoUrl || null,
+              createdAt: serverTimestamp()
+            };
+            
+            // Create player in new team
+            await addDoc(collection(db, 'teams', editForm.teamId, 'players'), newPlayerData);
+            
+            // Delete from top-level players collection
+            await deleteDoc(doc(db, 'players', selectedAthlete.id));
+            
+            // Reload page to refresh context
+            window.location.reload();
+          } else if (isTeamChanging && selectedAthlete.teamId) {
             // Move player to new team
             // 1. Create player in new team
             const newPlayerData = {
@@ -607,9 +670,23 @@ const Profile: React.FC = () => {
             
             // Reload page to refresh context
             window.location.reload();
-          } else {
+          } else if (selectedAthlete.teamId) {
             // Same team - just update
             const playerRef = doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id);
+            await updateDoc(playerRef, { 
+              name: editForm.name,
+              username: formatUsername(editForm.username),
+              dob: editForm.dob,
+              height: editForm.height,
+              weight: editForm.weight,
+              shirtSize: editForm.shirtSize,
+              pantSize: editForm.pantSize,
+              bio: editForm.bio || '',
+              medical: medicalData 
+            });
+          } else {
+            // No team and not assigning to one - update top-level player
+            const playerRef = doc(db, 'players', selectedAthlete.id);
             await updateDoc(playerRef, { 
               name: editForm.name,
               username: formatUsername(editForm.username),
@@ -638,8 +715,14 @@ const Profile: React.FC = () => {
     e.preventDefault();
     if (addingAthlete || !user) return;
     
-    if (!newAthleteForm.teamId) {
-      alert('Please select a team for your athlete');
+    // Validate required fields
+    if (!newAthleteForm.name?.trim()) {
+      alert('Please enter the athlete\'s name');
+      return;
+    }
+    
+    if (!newAthleteForm.dob) {
+      alert('Please enter the athlete\'s date of birth');
       return;
     }
     
@@ -660,34 +743,45 @@ const Profile: React.FC = () => {
     
     setAddingAthlete(true);
     try {
+      // Combine height from ft/in inputs
+      const heightStr = newAthleteForm.heightFt || newAthleteForm.heightIn 
+        ? `${newAthleteForm.heightFt || 0} ft ${newAthleteForm.heightIn || 0} in`
+        : '';
+      
       const playerData = {
         name: newAthleteForm.name,
         username: formatUsername(newAthleteForm.username),
         dob: newAthleteForm.dob,
-        teamId: newAthleteForm.teamId,
+        teamId: null, // Players start unassigned - they register to teams separately
         parentId: user.uid,
-        height: newAthleteForm.height,
+        height: heightStr,
         weight: newAthleteForm.weight,
         shirtSize: newAthleteForm.shirtSize,
         pantSize: newAthleteForm.pantSize,
         number: 0, // Placeholder - coach will assign
         position: 'TBD', // To be determined by coach
         stats: { td: 0, tkl: 0 },
-        medical: { allergies: 'None', conditions: 'None', medications: 'None', bloodType: '' }
+        medical: { allergies: 'None', conditions: 'None', medications: 'None', bloodType: '' },
+        status: 'unassigned', // Mark as unassigned - ready to register to a team
+        createdAt: new Date().toISOString()
       };
       
-      await addDoc(collection(db, 'teams', newAthleteForm.teamId, 'players'), playerData);
+      // Save to top-level players collection (not under a team)
+      await addDoc(collection(db, 'players'), playerData);
       
       // Reset form and close modal
-      setNewAthleteForm({ name: '', username: '', dob: '', teamId: '', height: '', weight: '', shirtSize: '', pantSize: '' });
+      setNewAthleteForm({ name: '', username: '', dob: '', heightFt: '', heightIn: '', weight: '', shirtSize: '', pantSize: '' });
       setUsernameError(null);
       setIsAddAthleteModalOpen(false);
       
       // Reload to refresh context with new player
       window.location.reload();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding athlete:', error);
-      alert('Failed to add athlete. Please try again.');
+      const errorMessage = error?.code === 'permission-denied' 
+        ? 'Permission denied. Please try logging out and back in.'
+        : error?.message || 'Failed to add athlete. Please try again.';
+      alert(errorMessage);
     } finally {
       setAddingAthlete(false);
     }
@@ -699,7 +793,12 @@ const Profile: React.FC = () => {
     
     setDeletingAthlete(true);
     try {
-      await deleteDoc(doc(db, 'teams', deleteAthleteConfirm.teamId, 'players', deleteAthleteConfirm.id));
+      // Delete from appropriate collection based on whether player has a team
+      if (deleteAthleteConfirm.teamId) {
+        await deleteDoc(doc(db, 'teams', deleteAthleteConfirm.teamId, 'players', deleteAthleteConfirm.id));
+      } else {
+        await deleteDoc(doc(db, 'players', deleteAthleteConfirm.id));
+      }
       setDeleteAthleteConfirm(null);
       
       // Reload to refresh context
@@ -712,9 +811,89 @@ const Profile: React.FC = () => {
     }
   };
 
+  // Handle releasing an athlete to their own independent account
+  const handleReleaseAthlete = async () => {
+    if (!releaseAthleteConfirm || !releasePassword || releasingAthlete || !user) return;
+    
+    // Athlete must have a username to be released
+    if (!releaseAthleteConfirm.username) {
+      setReleaseError('This athlete needs a username before they can be released. Edit their profile to add one.');
+      return;
+    }
+    
+    setReleasingAthlete(true);
+    setReleaseError('');
+    
+    try {
+      // 1. Re-authenticate parent to verify password
+      const credential = EmailAuthProvider.credential(user.email!, releasePassword);
+      await reauthenticateWithCredential(user, credential);
+      
+      // 2. Create a new Firebase Auth account for the released player
+      // Use a generated email pattern: username@player.osys.team
+      const playerEmail = `${releaseAthleteConfirm.username.toLowerCase()}@player.osys.team`;
+      
+      // Create the auth account with parent's password (they'll change it on first login)
+      const playerCredential = await createUserWithEmailAndPassword(auth, playerEmail, releasePassword);
+      const playerUid = playerCredential.user.uid;
+      
+      // 3. Create user profile for the player
+      await setDoc(doc(db, 'users', playerUid), {
+        uid: playerUid,
+        name: releaseAthleteConfirm.name,
+        email: playerEmail,
+        username: releaseAthleteConfirm.username.toLowerCase(),
+        role: 'Athlete',
+        teamId: releaseAthleteConfirm.teamId || null,
+        playerId: releaseAthleteConfirm.id,
+        forceAccountSetup: true, // Forces email + password change on first login
+        releasedFromParent: user.uid,
+        releasedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        credits: 0
+      });
+      
+      // 4. Update the player document to mark as released
+      const playerDocRef = releaseAthleteConfirm.teamId 
+        ? doc(db, 'teams', releaseAthleteConfirm.teamId, 'players', releaseAthleteConfirm.id)
+        : doc(db, 'players', releaseAthleteConfirm.id);
+      
+      await updateDoc(playerDocRef, {
+        released: true,
+        releasedAt: serverTimestamp(),
+        releasedUid: playerUid,
+        parentId: null // Remove parent link
+      });
+      
+      // 5. Sign back in as parent (creating new user signs out current user)
+      // We need to sign the parent back in
+      const { signInWithEmailAndPassword } = await import('firebase/auth');
+      await signInWithEmailAndPassword(auth, user.email!, releasePassword);
+      
+      // Success!
+      setReleaseAthleteConfirm(null);
+      setReleasePassword('');
+      alert(`${releaseAthleteConfirm.name} has been released! They can now log in with their username "${releaseAthleteConfirm.username}" and your password. They will be prompted to set their own email and password on first login.`);
+      
+      // Reload to refresh
+      window.location.reload();
+    } catch (error: any) {
+      console.error('Error releasing athlete:', error);
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        setReleaseError('Incorrect password. Please enter your current password.');
+      } else if (error.code === 'auth/email-already-in-use') {
+        setReleaseError('This athlete already has an account. They may already be released.');
+      } else {
+        setReleaseError(error.message || 'Failed to release athlete. Please try again.');
+      }
+    } finally {
+      setReleasingAthlete(false);
+    }
+  };
+
   // Photo upload handlers
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedAthlete || !selectedAthlete.teamId || !e.target.files || e.target.files.length === 0) return;
+    if (!selectedAthlete || !e.target.files || e.target.files.length === 0) return;
     
     const file = e.target.files[0];
     
@@ -731,9 +910,15 @@ const Profile: React.FC = () => {
     setUploadingPhoto(true);
     try {
       // Upload to Firebase Storage and save url + storage path on player document
-      const path = `teams/${selectedAthlete.teamId}/players/${selectedAthlete.id}/photo-${Date.now()}-${file.name}`;
-      const uploaded = await uploadFile(file, path);
-      const playerRef = doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id);
+      const storagePath = selectedAthlete.teamId 
+        ? `teams/${selectedAthlete.teamId}/players/${selectedAthlete.id}/photo-${Date.now()}-${file.name}`
+        : `players/${selectedAthlete.id}/photo-${Date.now()}-${file.name}`;
+      const uploaded = await uploadFile(file, storagePath);
+      
+      // Update correct document based on team assignment
+      const playerRef = selectedAthlete.teamId 
+        ? doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id)
+        : doc(db, 'players', selectedAthlete.id);
       await updateDoc(playerRef, { photoUrl: uploaded.url, photoPath: uploaded.path });
       setSelectedAthlete({ ...selectedAthlete, photoUrl: uploaded.url, photoPath: uploaded.path });
     } catch (error) {
@@ -1144,6 +1329,16 @@ const Profile: React.FC = () => {
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
+                                  {/* Release Button - only show if player has username and isn't already released */}
+                                  {player.username && !player.released && (
+                                    <button 
+                                      onClick={() => { setReleaseAthleteConfirm(player); setReleasePassword(''); setReleaseError(''); }}
+                                      className="p-1.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-full transition-colors"
+                                      title="Release to Independent Account"
+                                    >
+                                      <UserCheck className="w-4 h-4" />
+                                    </button>
+                                  )}
                                 </div>
 
                                 {/* Player Photo & Basic Info */}
@@ -1189,13 +1384,24 @@ const Profile: React.FC = () => {
                                         {/* Team Badge */}
                                         <div className="flex items-center gap-1 mt-1.5">
                                           <Users className="w-3 h-3 text-sky-500" />
-                                          <span className="text-xs text-sky-600 dark:text-sky-400 font-medium">{playerTeam?.name || 'Unknown Team'}</span>
-                                          <button
-                                            onClick={(e) => { e.stopPropagation(); openEditModal(player); }}
-                                            className="ml-1 text-[10px] text-sky-500 hover:text-sky-700 dark:hover:text-sky-300 underline"
-                                          >
-                                            (change)
-                                          </button>
+                                          {playerTeam ? (
+                                            <>
+                                              <span className="text-xs text-sky-600 dark:text-sky-400 font-medium">{playerTeam.name}</span>
+                                              <button
+                                                onClick={(e) => { e.stopPropagation(); openEditModal(player); }}
+                                                className="ml-1 text-[10px] text-sky-500 hover:text-sky-700 dark:hover:text-sky-300 underline"
+                                              >
+                                                (change)
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); openEditModal(player); }}
+                                              className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded font-bold hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors"
+                                            >
+                                              ⚠️ No Team - Join Now!
+                                            </button>
+                                          )}
                                         </div>
                                         <p className="text-xs text-slate-500 mt-1">DOB: {player.dob || '--'}</p>
                                     </div>
@@ -1370,6 +1576,23 @@ const Profile: React.FC = () => {
                                     <Plus className="w-4 h-4" /> {athleteFilmRooms[player.id]?.length > 0 ? 'Add' : 'Add Film'}
                                   </button>
                                 </div>
+                                
+                                {/* RELEASE TO INDEPENDENT ACCOUNT - Only for 18+ */}
+                                {!player.released && isPlayerAdult(player.dob) && player.username && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setReleaseAthleteConfirm(player); setReleaseError(''); setReleasePassword(''); }}
+                                    className="w-full mt-3 flex items-center justify-center gap-2 text-sm font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 py-2.5 rounded-lg border border-emerald-200 dark:border-emerald-900/30 transition-colors"
+                                  >
+                                    <Key className="w-4 h-4" /> Release to Own Account
+                                  </button>
+                                )}
+                                {player.released && (
+                                  <div className="mt-3 bg-emerald-50 dark:bg-emerald-900/10 p-2 rounded-lg border border-emerald-200 dark:border-emerald-900/30 text-center">
+                                    <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                                      ✓ Released - Has independent account
+                                    </p>
+                                  </div>
+                                )}
                             </div>
                           );
                       })}
@@ -1694,7 +1917,7 @@ const Profile: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">Add Athlete</h3>
-                  <p className="text-slate-500 text-sm">Register your athlete to a team</p>
+                  <p className="text-slate-500 text-sm">Create your athlete's profile</p>
                 </div>
               </div>
               <button onClick={() => setIsAddAthleteModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
@@ -1703,25 +1926,6 @@ const Profile: React.FC = () => {
             </div>
             
             <form onSubmit={handleAddAthlete} className="p-6 space-y-4">
-              {/* Team Selection */}
-              <div>
-                <label className="block text-xs font-bold text-sky-600 dark:text-sky-400 mb-2 uppercase tracking-wider flex items-center gap-1">
-                  <Users className="w-3 h-3" /> Select Team *
-                </label>
-                <select 
-                  value={newAthleteForm.teamId} 
-                  onChange={e => setNewAthleteForm({...newAthleteForm, teamId: e.target.value})} 
-                  className="w-full bg-white dark:bg-black border border-sky-300 dark:border-sky-700 rounded-lg p-3 text-slate-900 dark:text-white"
-                  required
-                >
-                  <option value="">Choose a team...</option>
-                  {allTeams.map(team => (
-                    <option key={team.id} value={team.id}>{team.name}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-500 mt-1">Contact your coach if you don't see your team</p>
-              </div>
-              
               {/* Basic Info */}
               <div>
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Athlete's Full Name *</label>
@@ -1785,21 +1989,47 @@ const Profile: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Height</label>
-                    <input 
-                      value={newAthleteForm.height} 
-                      onChange={e => setNewAthleteForm({...newAthleteForm, height: e.target.value})} 
-                      placeholder="4 ft 6 in"
-                      className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
-                    />
+                    <div className="flex gap-2">
+                      <div className="flex-1 relative">
+                        <input 
+                          type="number"
+                          min="0"
+                          max="8"
+                          value={newAthleteForm.heightFt} 
+                          onChange={e => setNewAthleteForm({...newAthleteForm, heightFt: e.target.value})} 
+                          placeholder="4"
+                          className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 pr-8 text-slate-900 dark:text-white" 
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">ft</span>
+                      </div>
+                      <div className="flex-1 relative">
+                        <input 
+                          type="number"
+                          min="0"
+                          max="11"
+                          value={newAthleteForm.heightIn} 
+                          onChange={e => setNewAthleteForm({...newAthleteForm, heightIn: e.target.value})} 
+                          placeholder="6"
+                          className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 pr-8 text-slate-900 dark:text-white" 
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">in</span>
+                      </div>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Weight</label>
-                    <input 
-                      value={newAthleteForm.weight} 
-                      onChange={e => setNewAthleteForm({...newAthleteForm, weight: e.target.value})} 
-                      placeholder="85 lbs"
-                      className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
-                    />
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        min="0"
+                        max="400"
+                        value={newAthleteForm.weight} 
+                        onChange={e => setNewAthleteForm({...newAthleteForm, weight: e.target.value})} 
+                        placeholder="85"
+                        className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 pr-10 text-slate-900 dark:text-white" 
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">lbs</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1852,7 +2082,7 @@ const Profile: React.FC = () => {
               {/* Info Note */}
               <div className="bg-sky-50 dark:bg-sky-900/20 p-3 rounded-lg border border-sky-200 dark:border-sky-900/30">
                 <p className="text-xs text-sky-700 dark:text-sky-400">
-                  💡 Your coach will assign a jersey number and position after reviewing your athlete.
+                  💡 After creating your athlete, you can register them to a team using the team's registration link.
                 </p>
               </div>
 
@@ -1944,6 +2174,104 @@ const Profile: React.FC = () => {
                   <>
                     <Trash2 className="w-4 h-4" />
                     Remove
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RELEASE ATHLETE MODAL */}
+      {releaseAthleteConfirm && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-emerald-500/10 rounded-full flex items-center justify-center">
+                  <UserCheck className="w-5 h-5 text-emerald-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Release Athlete</h3>
+                  <p className="text-sm text-slate-500 dark:text-zinc-400">Create independent account</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => { setReleaseAthleteConfirm(null); setReleasePassword(''); setReleaseError(''); }}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className={`rounded-lg p-4 mb-4 ${theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'}`}>
+              <div className="flex items-center gap-3">
+                {releaseAthleteConfirm.photoUrl ? (
+                  <img src={releaseAthleteConfirm.photoUrl} alt={releaseAthleteConfirm.name} className="w-12 h-12 rounded-full object-cover" />
+                ) : (
+                  <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+                    #{releaseAthleteConfirm.number || '?'}
+                  </div>
+                )}
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-white">{releaseAthleteConfirm.name}</p>
+                  <p className="text-xs text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                    <AtSign className="w-3 h-3" />{releaseAthleteConfirm.username}
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3 mb-4">
+              <p className="text-sm text-emerald-800 dark:text-emerald-300 font-medium mb-2">What happens when you release:</p>
+              <ul className="text-xs text-emerald-700 dark:text-emerald-400 space-y-1">
+                <li>• {releaseAthleteConfirm.name} gets their own account</li>
+                <li>• They log in with username "<strong>{releaseAthleteConfirm.username}</strong>"</li>
+                <li>• They use YOUR current password for first login</li>
+                <li>• They'll be asked to set their own email & password</li>
+                <li>• They will no longer appear in your account</li>
+              </ul>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                <Key className="w-4 h-4 inline mr-1" />
+                Confirm with your password
+              </label>
+              <input
+                type="password"
+                value={releasePassword}
+                onChange={(e) => setReleasePassword(e.target.value)}
+                placeholder="Enter your password"
+                className={`w-full py-2.5 px-4 rounded-lg border ${theme === 'dark' ? 'bg-black border-zinc-700 text-white' : 'bg-white border-slate-300 text-slate-900'} focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500`}
+              />
+            </div>
+            
+            {releaseError && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 mb-4">
+                <p className="text-sm text-red-600 dark:text-red-400">{releaseError}</p>
+              </div>
+            )}
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setReleaseAthleteConfirm(null); setReleasePassword(''); setReleaseError(''); }}
+                disabled={releasingAthlete}
+                className={`flex-1 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50 ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10 text-zinc-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReleaseAthlete}
+                disabled={releasingAthlete || !releasePassword}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              >
+                {releasingAthlete ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <UserCheck className="w-4 h-4" />
+                    Release
                   </>
                 )}
               </button>

@@ -484,3 +484,73 @@ export function getPositionLabel(sport: SportType | undefined, positionValue: st
   const position = positions.find(p => p.value === positionValue);
   return position?.label || positionValue;
 }
+
+/**
+ * Get list of position names for a sport (for dropdowns)
+ */
+export function getPositionsForSport(sport: string): string[] {
+  const config = SPORT_CONFIGS[sport as SportType] || SPORT_CONFIGS.football;
+  return config.positions.map(p => p.label);
+}
+
+/**
+ * Get jersey number rules for a sport
+ */
+export interface JerseyRules {
+  min: number;
+  max: number;
+  restricted?: number[];
+  message?: string;
+}
+
+export function getJerseyNumberRules(sport: string): JerseyRules | null {
+  const config = SPORT_CONFIGS[sport as SportType];
+  if (!config) return null;
+  
+  // Sport-specific jersey rules
+  switch (sport) {
+    case 'football':
+      return { min: 1, max: 99, message: 'Jersey numbers 1-99' };
+    case 'basketball':
+      return { min: 0, max: 99, message: 'Jersey numbers 0-99' };
+    case 'baseball':
+    case 'softball':
+      return { min: 0, max: 99, message: 'Jersey numbers 0-99' };
+    case 'soccer':
+      return { min: 1, max: 99, message: 'Jersey numbers 1-99' };
+    case 'hockey':
+      return { min: 1, max: 99, message: 'Jersey numbers 1-99' };
+    case 'volleyball':
+      return { min: 1, max: 99, message: 'Jersey numbers 1-99' };
+    case 'lacrosse':
+      return { min: 1, max: 99, message: 'Jersey numbers 1-99' };
+    default:
+      return { min: 1, max: 99, message: 'Jersey numbers 1-99' };
+  }
+}
+
+/**
+ * Validate a jersey number for a sport
+ */
+export function validateJerseyNumber(number: number, sport: string): { valid: boolean; error?: string } {
+  const rules = getJerseyNumberRules(sport);
+  if (!rules) {
+    return { valid: true };
+  }
+  
+  if (number < rules.min || number > rules.max) {
+    return { 
+      valid: false, 
+      error: `Jersey number must be between ${rules.min} and ${rules.max}` 
+    };
+  }
+  
+  if (rules.restricted && rules.restricted.includes(number)) {
+    return { 
+      valid: false, 
+      error: `Jersey number ${number} is not allowed` 
+    };
+  }
+  
+  return { valid: true };
+}

@@ -147,13 +147,11 @@ const NewOSYSLayout: React.FC = () => {
     if (isCommissioner) {
       return [
         { icon: '📊', label: 'Dashboard', path: '/commissioner', section: 'Main' },
-        { icon: '📋', label: 'Playbook', path: '/playbook', section: 'Main', configKey: 'playbookEnabled' },
-        { icon: '👥', label: 'Roster', path: '/roster', section: 'Main' },
-        { icon: '📅', label: 'Schedule', path: '/commissioner/schedule', section: 'Main' },
+        { icon: '👥', label: 'Roster', path: '/commissioner/roster', section: 'Main' },
         { icon: '🏟️', label: isTeamCommissioner ? 'Manage Teams' : 'Manage Leagues', path: isTeamCommissioner ? '/commissioner/teams' : '/commissioner/leagues', section: 'Create' },
-        { icon: '📢', label: 'Marketing', path: '/marketing', section: 'Create' },
         { icon: '💬', label: 'Messages', path: '/messenger', section: 'Engage', configKey: 'messengerEnabled', unreadKey: 'messenger' },
-        { icon: '🗨️', label: 'Team Chat', path: '/chat', section: 'Engage', configKey: 'chatEnabled', unreadKey: 'teamChat' },
+        { icon: '🗨️', label: 'Team Chat', path: '/commissioner/chat', section: 'Engage', configKey: 'chatEnabled', unreadKey: 'teamChat' },
+        { icon: '📣', label: 'Announcements', path: '/commissioner/announcements', section: 'Engage' },
         { icon: '⚠️', label: 'Grievances', path: '/commissioner/grievances', section: 'Admin', unreadKey: 'grievances' },
         { icon: '🎫', label: 'Infractions', path: '/commissioner/infractions', section: 'Admin', unreadKey: 'infractions' },
       ].filter(item => {
@@ -167,12 +165,12 @@ const NewOSYSLayout: React.FC = () => {
       { icon: '📋', label: 'Playbook', path: '/playbook', section: 'Main', configKey: 'playbookEnabled', hideForParent: true },
       { icon: '👥', label: 'Roster', path: '/roster', section: 'Main' },
       { icon: '📅', label: 'Schedule', path: '/events', section: 'Main' },
-      { icon: '🎨', label: 'Design Studio', path: '/design', section: 'Create', coachOnly: true },
-      { icon: '📢', label: 'Marketing', path: '/marketing', section: 'Create' },
+      { icon: '🎨', label: 'Design Studio', path: '/design', section: 'Create' },
       { icon: '💬', label: 'Messages', path: '/messenger', section: 'Engage', configKey: 'messengerEnabled', unreadKey: 'messenger' },
       { icon: '🗨️', label: 'Team Chat', path: '/chat', section: 'Engage', configKey: 'chatEnabled', unreadKey: 'teamChat' },
       { icon: '🛡️', label: 'Strategy', path: '/strategies', section: 'Engage', configKey: 'chatEnabled', coachOnly: true, unreadKey: 'strategy' },
       { icon: '📺', label: 'Film Room', path: '/videos', section: 'Engage', configKey: 'videoLibraryEnabled' },
+      { icon: '📢', label: 'Marketing', path: '/marketing', section: 'Engage' },
       { icon: '📈', label: 'Stats', path: '/stats', section: 'Analyze', configKey: 'statsEnabled' },
       { icon: '📓', label: 'My Plays', path: '/coaching', section: 'Analyze', configKey: 'playbookEnabled', coachOnly: true },
       { icon: '🛒', label: 'Marketplace', path: '#marketplace', section: 'Shop', comingSoon: true },
@@ -240,18 +238,18 @@ const NewOSYSLayout: React.FC = () => {
         />
       )}
 
-      {/* Sidebar Collapse Toggle Button - Desktop only - positioned OUTSIDE sidebar on right edge */}
+      {/* Sidebar Collapse Toggle Button - Desktop only - matches Design Studio style */}
       <button
         onClick={toggleSidebarCollapse}
-        className={`hidden lg:flex fixed top-20 w-8 h-8 rounded-full border-2 items-center justify-center transition-all z-[60] shadow-lg ${
+        className={`hidden lg:flex fixed top-1/2 -translate-y-1/2 z-[60] w-5 h-12 items-center justify-center rounded-r-md transition-colors ${
           theme === 'dark' 
-            ? 'bg-slate-800 border-orange-500/50 hover:bg-slate-700 hover:border-orange-400 text-orange-400' 
-            : 'bg-white border-purple-400 hover:bg-purple-50 hover:border-purple-500 text-purple-600 shadow-purple-200'
+            ? 'bg-zinc-800 hover:bg-zinc-700 text-slate-400 hover:text-white border border-l-0 border-zinc-700' 
+            : 'bg-slate-200 hover:bg-slate-300 text-slate-600 hover:text-slate-900 border border-l-0 border-slate-300'
         }`}
-        style={{ left: isSidebarCollapsed ? '48px' : '248px' }}
+        style={{ left: isSidebarCollapsed ? '64px' : '256px' }}
         title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
-        {isSidebarCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+        {isSidebarCollapsed ? '›' : '‹'}
       </button>
 
       {/* Sidebar */}

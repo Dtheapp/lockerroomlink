@@ -1,6 +1,6 @@
 import { Timestamp } from 'firebase/firestore';
 
-export type UserRole = 'Coach' | 'Parent' | 'Fan' | 'SuperAdmin' | 'LeagueOwner' | 'ProgramCommissioner' | 'Referee' | 'Commissioner' | 'Ref' | 'TeamCommissioner' | 'LeagueCommissioner';
+export type UserRole = 'Coach' | 'Parent' | 'Fan' | 'SuperAdmin' | 'LeagueOwner' | 'ProgramCommissioner' | 'Referee' | 'Commissioner' | 'Ref' | 'TeamCommissioner' | 'LeagueCommissioner' | 'Athlete';
 
 // --- RULES & CODE OF CONDUCT ---
 
@@ -415,6 +415,10 @@ export interface UserProfile {
   pilotExpiresAt?: Timestamp;          // When pilot access expires
   lastCreditTransactionAt?: Timestamp; // Last credit activity
   
+  // --- ATHLETE-SPECIFIC FIELDS ---
+  isIndependentAthlete?: boolean;      // True if signed up directly (18+) or released from parent
+  dob?: string;                        // Date of birth for athletes
+  
   // --- FAN-SPECIFIC FIELDS ---
   followedAthletes?: string[]; // Array of athlete usernames the fan follows
   followedCoaches?: string[]; // Array of coach user IDs the user follows
@@ -433,6 +437,11 @@ export interface UserProfile {
   isAssistantCommissioner?: boolean;   // For assistant commissioner role
   assistantForProgramId?: string;      // Which program they assist
   teamsCreated?: number;               // Lifetime teams created (for first-team-free tracking)
+  
+  // --- TEAM MANAGER SUB-ACCOUNT FIELDS ---
+  isTeamManager?: boolean;             // True if this is a pseudo-profile for a team manager
+  managerId?: string;                  // The team manager document ID
+  commissionerId?: string;             // The commissioner who created this manager
 }
 
 // --- SEASON MANAGEMENT ---
@@ -480,6 +489,7 @@ export interface Season {
   
   // Registration event link
   registrationEventId?: string; // Link to events collection for the registration event
+  publicEventId?: string; // Link to top-level events collection for public discovery
   
   // Stats
   playerCount: number; // Current registered players
@@ -550,6 +560,108 @@ export interface SeasonRegistration {
   approvedBy?: string;
 }
 
+// =============================================================================
+// DRAFT POOL SYSTEM - Waitlist for team registration
+// =============================================================================
+
+export type DraftPoolPaymentStatus = 'paid_full' | 'paid_partial' | 'pay_in_person' | 'pending';
+
+export interface DraftPoolEntry {
+  id: string;
+  
+  // Player info
+  playerId?: string;              // If existing player in system
+  playerName: string;
+  playerAge?: number;
+  playerDob?: string;             // Date of birth (YYYY-MM-DD)
+  
+  // Contact info (for independent athletes OR parent info)
+  contactName: string;            // Parent name or athlete's own name if 18+
+  contactEmail: string;
+  contactPhone?: string;
+  
+  // Registration source
+  registeredByUserId: string;     // Who registered (parent or athlete themselves)
+  registeredByName: string;
+  isIndependentAthlete: boolean;  // True if athlete registered themselves (18+)
+  
+  // Team/Program targeting
+  teamId?: string;                // Specific team if known
+  programId?: string;             // Commissioner's program
+  ownerId: string;                // Team/Program owner (commissioner) who manages this pool
+  sport: SportType;
+  ageGroup: string;               // Target age group
+  
+  // Payment status (visible to coach/commissioner only)
+  paymentStatus: DraftPoolPaymentStatus;
+  amountPaid: number;             // Amount paid in cents
+  totalAmount: number;            // Total registration fee in cents
+  remainingBalance: number;       // What's left to pay (cents)
+  paymentMethod?: 'paypal' | 'cash' | 'check' | 'other';
+  paymentNotes?: string;          // Notes about payment (e.g., "Will pay at first practice")
+  
+  // Registration details
+  seasonId?: string;              // If registering for a specific season
+  registrationId?: string;        // Link to full registration record
+  
+  // Waiver
+  waiverSigned: boolean;
+  waiverSignedAt?: any;
+  waiverSignedBy?: string;
+  
+  // Emergency contact (required for youth)
+  emergencyContact?: {
+    name: string;
+    phone: string;
+    relationship: string;
+  };
+  
+  // Medical info (optional)
+  medicalInfo?: {
+    allergies?: string;
+    medications?: string;
+    conditions?: string;
+    insuranceProvider?: string;
+    insurancePolicyNumber?: string;
+  };
+  
+  // Uniform sizes (if collected during registration)
+  uniformSizes?: {
+    jersey?: string;
+    shorts?: string;
+    helmet?: string;
+  };
+  
+  // Draft status
+  status: 'waiting' | 'drafted' | 'declined' | 'expired';
+  draftedAt?: any;
+  draftedBy?: string;             // Coach/Commissioner who drafted
+  draftedToTeamId?: string;       // Team they were drafted to
+  draftedToTeamName?: string;
+  declinedReason?: string;
+  
+  // Auto-draft eligibility (for single-team age groups)
+  eligibleForAutoDraft: boolean;  // True if only 1 team in this sport/age group
+  
+  // Position/preferences
+  preferredPositions?: string[];
+  notes?: string;                 // Parent/athlete notes
+  
+  // Timestamps
+  createdAt: any;
+  updatedAt?: any;
+  expiresAt?: any;                // Optional expiration
+}
+
+// Summary view for draft pool display
+export interface DraftPoolSummary {
+  total: number;
+  paidFull: number;
+  paidPartial: number;
+  payInPerson: number;
+  pending: number;
+}
+
 // Sport Types - expandable for future sports
 export type SportType = 'football' | 'basketball' | 'soccer' | 'baseball' | 'cheer' | 'volleyball' | 'other';
 
@@ -587,6 +699,10 @@ export interface Team {
   defensiveCoordinatorId?: string | null; // DC - runs the defense
   specialTeamsCoordinatorId?: string | null; // STC - runs special teams
   
+  // Team Owner (Commissioner who created the team)
+  ownerId?: string;               // User ID of team owner/commissioner
+  ownerName?: string;             // Name of team owner
+  
   // Season management
   currentSeasonId?: string | null; // Currently active season
   
@@ -611,6 +727,7 @@ export interface Team {
   // --- LEAGUE & PROGRAM FIELDS ---
   programId?: string;                   // Which program owns this team
   leagueId?: string;                    // Which league (if any)
+  leagueName?: string;                  // Name of the league (denormalized for display)
   linkedCheerTeamId?: string;           // For sports teams - linked cheer team
   linkedToTeamId?: string;              // For cheer teams - which team they cheer for
   linkedToTeamName?: string;            // Display name "Cheerleader for Tigers34"
@@ -655,7 +772,7 @@ export interface Player {
   id: string;
   name: string;
   username?: string; // Unique athlete username for tracking (e.g., @johnny_smith)
-  teamId: string; // REQUIRED: Team the player belongs to
+  teamId: string | null; // Team the player belongs to (null if unassigned)
   // REMOVED NUMBER/POSITION FROM CORE PARENT INPUT FLOW:
   number?: number; 
   jerseyNumber?: number; // Alias for number
@@ -677,7 +794,13 @@ export interface Player {
   photoPath?: string;
   
   // Link to Parent
-  parentId?: string; 
+  parentId?: string | null; // null when released
+  
+  // Released Player (independent account)
+  released?: boolean; // True when parent releases player to their own account
+  releasedAt?: any; // Timestamp when released
+  releasedUid?: string; // Firebase Auth UID for the released player's account
+  forceAccountSetup?: boolean; // True until player sets their own email/password
   
   // Personal & Medical
   dob?: string;
@@ -1494,4 +1617,66 @@ export interface CoachMutedUser {
   mutedAt: any;
   reason?: string;
   expiresAt?: any;
+}
+
+// ============================================
+// TEAM MANAGER SUB-ACCOUNTS
+// ============================================
+// Sub-accounts created by commissioners to help manage teams
+// Stored in: /teamManagers/{managerId}
+
+export type TeamManagerStatus = 'active' | 'paused' | 'invited' | 'suspended';
+
+export interface TeamManagerPermissions {
+  roster: boolean;           // Add/edit/remove players
+  schedule: boolean;         // Create/edit events
+  chat: boolean;             // Send messages in team chat
+  announcements: boolean;    // Post bulletins
+  notifications: boolean;    // Send push notifications
+  registrations: boolean;    // View/approve registrations
+  stats: boolean;            // View stats (read-only)
+  designStudio: boolean;     // Access design studio
+  filmRoom: boolean;         // Upload to film room
+}
+
+export interface TeamManager {
+  id: string;
+  
+  // Basic Info
+  name: string;
+  email: string;
+  
+  // Relationship
+  teamId: string;
+  teamName?: string;         // Denormalized for display
+  commissionerId: string;    // Who created this manager
+  commissionerName?: string; // Denormalized for display
+  
+  // Status
+  status: TeamManagerStatus;
+  
+  // Permissions (Phase 2 - for now all managers get full access)
+  permissions: TeamManagerPermissions;
+  
+  // Tracking
+  lastLogin?: Timestamp;
+  lastActivity?: Timestamp;
+  loginCount: number;
+  
+  // Metadata
+  createdAt: Timestamp;
+  createdBy: string;
+  updatedAt?: Timestamp;
+}
+
+// For creating a new manager (without id and timestamps)
+export interface NewTeamManager {
+  name: string;
+  email: string;
+  password: string;          // Only used during creation, not stored in Firestore
+  teamId: string;
+  teamName?: string;
+  commissionerId: string;
+  commissionerName?: string;
+  permissions?: Partial<TeamManagerPermissions>;
 }

@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, getDocs, updateDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { setSentryUser, clearSentryUser } from '../services/sentry';
-import type { UserProfile, Team, Player, League, Program } from '../types';
+import type { UserProfile, Team, Player, League, Program, TeamManager } from '../types';
 
 interface AuthContextType {
   user: User | null;
@@ -25,6 +25,9 @@ interface AuthContextType {
   isLeagueOwner: boolean;
   isProgramCommissioner: boolean;
   isCommissioner: boolean;
+  // Team Manager sub-account support
+  isTeamManager: boolean;
+  teamManagerData: TeamManager | null;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -42,6 +45,8 @@ const AuthContext = createContext<AuthContextType>({
   isLeagueOwner: false,
   isProgramCommissioner: false,
   isCommissioner: false,
+  isTeamManager: false,
+  teamManagerData: null,
 });
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -62,6 +67,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   // Program management for commissioners
   const [programData, setProgramData] = useState<Program | null>(null);
+  
+  // Team Manager sub-account support
+  const [isTeamManager, setIsTeamManager] = useState(false);
+  const [teamManagerData, setTeamManagerData] = useState<TeamManager | null>(null);
   
   // Track if coach teams have been loaded to prevent re-fetching on every profile update
   const coachTeamsLoadedRef = useRef<string | null>(null);
@@ -124,12 +133,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   teamId: profile.teamId,
                 });
 
-                // PARENT FLOW: Load their players from all teams
+                // PARENT FLOW: Load their players from all teams AND top-level players collection
                 if (profile.role === 'Parent') {
                     try {
-                        // Query all teams' player collections for this parent
-                        const teamsSnapshot = await getDocs(collection(db, 'teams'));
                         const allPlayers: Player[] = [];
+                        
+                        // 1. Query top-level 'players' collection for unassigned players
+                        const topLevelPlayersQuery = query(
+                            collection(db, 'players'),
+                            where('parentId', '==', firebaseUser.uid)
+                        );
+                        const topLevelSnapshot = await getDocs(topLevelPlayersQuery);
+                        topLevelSnapshot.docs.forEach(playerDoc => {
+                            allPlayers.push({ 
+                                id: playerDoc.id, 
+                                teamId: playerDoc.data().teamId || null, // May be null for unassigned players
+                                ...playerDoc.data() 
+                            } as Player);
+                        });
+                        
+                        // 2. Query all teams' player collections for this parent
+                        const teamsSnapshot = await getDocs(collection(db, 'teams'));
                         
                         for (const teamDoc of teamsSnapshot.docs) {
                             const playersQuery = query(
@@ -138,19 +162,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                             );
                             const playersSnapshot = await getDocs(playersQuery);
                             playersSnapshot.docs.forEach(playerDoc => {
-                                allPlayers.push({ 
-                                    id: playerDoc.id, 
-                                    teamId: teamDoc.id,
-                                    ...playerDoc.data() 
-                                } as Player);
+                                // Avoid duplicates (in case player exists in both places)
+                                if (!allPlayers.find(p => p.id === playerDoc.id)) {
+                                    allPlayers.push({ 
+                                        id: playerDoc.id, 
+                                        teamId: teamDoc.id,
+                                        ...playerDoc.data() 
+                                    } as Player);
+                                }
                             });
                         }
                         
                         setPlayers(allPlayers);
                         
-                        // Auto-select player
+                        // Auto-select player (prefer assigned players over unassigned)
                         if (allPlayers.length > 0) {
-                            let playerToSelect = allPlayers[0];
+                            // Sort: assigned players first, then unassigned
+                            const sortedPlayers = [...allPlayers].sort((a, b) => {
+                                if (a.teamId && !b.teamId) return -1;
+                                if (!a.teamId && b.teamId) return 1;
+                                return 0;
+                            });
+                            
+                            let playerToSelect = sortedPlayers[0];
                             
                             // If user has a saved selectedPlayerId, try to find it
                             if (profile.selectedPlayerId) {
@@ -160,17 +194,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                             
                             setSelectedPlayerState(playerToSelect);
                             
-                            // Load team data for selected player
-                            if (unsubscribeTeamDoc) unsubscribeTeamDoc();
-                            const teamDocRef = doc(db, 'teams', playerToSelect.teamId);
-                            unsubscribeTeamDoc = onSnapshot(teamDocRef, (teamSnap) => {
-                                if (teamSnap.exists()) {
-                                    setTeamData({ id: teamSnap.id, ...teamSnap.data() } as Team);
-                                } else {
-                                    setTeamData(null);
-                                }
+                            // Load team data for selected player (only if they have a team)
+                            if (playerToSelect.teamId) {
+                                if (unsubscribeTeamDoc) unsubscribeTeamDoc();
+                                const teamDocRef = doc(db, 'teams', playerToSelect.teamId);
+                                unsubscribeTeamDoc = onSnapshot(teamDocRef, (teamSnap) => {
+                                    if (teamSnap.exists()) {
+                                        setTeamData({ id: teamSnap.id, ...teamSnap.data() } as Team);
+                                    } else {
+                                        setTeamData(null);
+                                    }
+                                    setLoading(false);
+                                });
+                            } else {
+                                // Player has no team yet
+                                setTeamData(null);
                                 setLoading(false);
-                            });
+                            }
                         } else {
                             // No players yet
                             setTeamData(null);
@@ -366,9 +406,85 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 }
             } else {
                 // User logged in but no profile doc exists yet
-                setUserData(null);
-                setTeamData(null);
-                setLoading(false);
+                // Check if this is a team manager instead
+                try {
+                    const managerDocRef = doc(db, 'teamManagers', firebaseUser.uid);
+                    const managerSnap = await getDoc(managerDocRef);
+                    
+                    if (managerSnap.exists()) {
+                        // This is a team manager!
+                        const managerData = { id: managerSnap.id, ...managerSnap.data() } as TeamManager;
+                        
+                        // Check if manager is active
+                        if (managerData.status !== 'active') {
+                            console.warn('Team manager account is not active:', managerData.status);
+                            setUserData(null);
+                            setTeamData(null);
+                            setIsTeamManager(false);
+                            setTeamManagerData(null);
+                            setLoading(false);
+                            return;
+                        }
+                        
+                        setIsTeamManager(true);
+                        setTeamManagerData(managerData);
+                        
+                        // Create a pseudo UserProfile for the manager to work with existing components
+                        const pseudoProfile: UserProfile = {
+                            uid: firebaseUser.uid,
+                            email: managerData.email,
+                            name: managerData.name,
+                            role: 'Coach', // Managers act as coaches
+                            teamId: managerData.teamId,
+                            teamIds: [managerData.teamId],
+                            isTeamManager: true, // Custom flag
+                            managerId: managerData.id,
+                            commissionerId: managerData.commissionerId,
+                        } as UserProfile;
+                        
+                        setUserData(pseudoProfile);
+                        
+                        // Set Sentry context
+                        setSentryUser({
+                            id: firebaseUser.uid,
+                            email: managerData.email,
+                            name: managerData.name,
+                            role: 'TeamManager',
+                            teamId: managerData.teamId,
+                        });
+                        
+                        // Update last login
+                        await updateDoc(managerDocRef, {
+                            lastLogin: new Date(),
+                            loginCount: (managerData.loginCount || 0) + 1,
+                        });
+                        
+                        // Load the team data
+                        if (managerData.teamId) {
+                            const teamDocRef = doc(db, 'teams', managerData.teamId);
+                            const teamSnap = await getDoc(teamDocRef);
+                            if (teamSnap.exists()) {
+                                setTeamData({ id: teamSnap.id, ...teamSnap.data() } as Team);
+                            }
+                        }
+                        
+                        setLoading(false);
+                    } else {
+                        // No user profile and not a manager
+                        setUserData(null);
+                        setTeamData(null);
+                        setIsTeamManager(false);
+                        setTeamManagerData(null);
+                        setLoading(false);
+                    }
+                } catch (error) {
+                    console.error('Error checking team manager:', error);
+                    setUserData(null);
+                    setTeamData(null);
+                    setIsTeamManager(false);
+                    setTeamManagerData(null);
+                    setLoading(false);
+                }
             }
         }, (error) => {
             console.error("User Listener Error:", error);
@@ -385,6 +501,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setCoachTeams([]);
         setLeagueData(null);
         setProgramData(null);
+        setIsTeamManager(false);
+        setTeamManagerData(null);
         coachTeamsLoadedRef.current = null; // Reset coach teams loaded tracker
         
         // Clear Sentry user context
@@ -408,7 +526,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     let unsubscribeTeamDoc: () => void;
     
-    if (selectedPlayer && userData?.role === 'Parent') {
+    // Only subscribe to team doc if player has a teamId
+    if (selectedPlayer && selectedPlayer.teamId && userData?.role === 'Parent') {
       const teamDocRef = doc(db, 'teams', selectedPlayer.teamId);
       unsubscribeTeamDoc = onSnapshot(teamDocRef, (teamSnap) => {
         if (teamSnap.exists()) {
@@ -417,6 +536,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setTeamData(null);
         }
       });
+    } else if (selectedPlayer && !selectedPlayer.teamId) {
+      // Player has no team yet - clear team data
+      setTeamData(null);
     }
     
     return () => {
@@ -439,6 +561,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     isLeagueOwner,
     isProgramCommissioner,
     isCommissioner,
+    isTeamManager,
+    teamManagerData,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

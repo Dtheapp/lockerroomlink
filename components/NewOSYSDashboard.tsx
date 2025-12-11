@@ -16,6 +16,7 @@ import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { sanitizeText } from '../services/sanitize';
 import GettingStartedChecklist from './GettingStartedChecklist';
 import SeasonManager, { type RegistrationFlyerData } from './SeasonManager';
+import { DraftPool } from './draftpool';
 import type { LiveStream, BulletinPost, UserProfile } from '../types';
 import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image, Copy, ExternalLink, Share2 } from 'lucide-react';
 
@@ -383,13 +384,27 @@ const NewOSYSDashboard: React.FC = () => {
   // State for Season Management modal
   const [showSeasonManager, setShowSeasonManager] = useState(false);
 
-  // Quick actions based on sport
+  // Check if user is an independent athlete (18+ signup or released player)
+  const isIndependentAthlete = userData?.role === 'Athlete' && (userData?.isIndependentAthlete === true);
+  
+  // Can the user access advanced features like Go Live, Fundraise?
+  const canAccessAdvancedFeatures = userData?.role === 'Coach' || userData?.role === 'SuperAdmin' || isIndependentAthlete;
+
+  // Quick actions based on sport and role
   const quickActions = [
     { icon: '📋', label: 'New Play', link: '/playbook' },
-    { icon: '📺', label: 'Go Live', link: '/videos', comingSoon: true },
+    // Go Live - coaches and independent athletes only
+    ...(canAccessAdvancedFeatures 
+      ? [{ icon: '📺', label: 'Go Live', action: () => setShowGoLiveModal(true) }]
+      : []
+    ),
     { icon: '📢', label: 'Announce', link: '/chat' },
     { icon: '📊', label: 'Log Stats', link: '/stats' },
-    { icon: '💰', label: 'Fundraise', link: '/fundraising', comingSoon: true },
+    // Fundraise - coaches and independent athletes only  
+    ...(canAccessAdvancedFeatures 
+      ? [{ icon: '💰', label: 'Fundraise', link: '/fundraising' }]
+      : []
+    ),
     { icon: '💫', label: 'Send Kudos', link: '/chat' },
     // Coach-only action for season management
     ...(userData?.role === 'Coach' || userData?.role === 'SuperAdmin' ? [{ icon: '📆', label: 'Manage Season', action: () => setShowSeasonManager(true) }] : []),
@@ -751,6 +766,90 @@ const NewOSYSDashboard: React.FC = () => {
     );
   }
 
+  // Show onboarding for independent athletes (18+ or released) without a team
+  if (isIndependentAthlete && !teamData?.id) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center p-4">
+        <GlassCard className={`max-w-2xl w-full p-8 text-center ${theme === 'light' ? 'bg-white border-slate-200 shadow-xl' : ''}`}>
+          <div className="mb-6">
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 ${
+              theme === 'dark' ? 'bg-orange-500/20' : 'bg-orange-100'
+            }`}>
+              <span className="text-4xl">🏃</span>
+            </div>
+            <h1 className={`text-3xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+              Welcome, Athlete!
+            </h1>
+            <p className={`text-lg ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+              You're all set up! Now let's get you on a team.
+            </p>
+          </div>
+          
+          <div className={`p-6 rounded-xl mb-6 text-left ${
+            theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-slate-50 border border-slate-200'
+          }`}>
+            <h3 className={`font-bold mb-3 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>How to Join a Team:</h3>
+            <ol className={`space-y-3 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
+              <li className="flex items-start gap-3">
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                  theme === 'dark' ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-100 text-orange-600'
+                }`}>1</span>
+                <span>Find a team that's accepting players for your sport and age group</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                  theme === 'dark' ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-100 text-orange-600'
+                }`}>2</span>
+                <span>Complete the registration form with your information</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                  theme === 'dark' ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-100 text-orange-600'
+                }`}>3</span>
+                <span>Pay registration fees (in full, partial, or in person)</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                  theme === 'dark' ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-100 text-orange-600'
+                }`}>4</span>
+                <span>You'll be added to the <strong>Draft Pool</strong> where coaches can add you to the roster!</span>
+              </li>
+            </ol>
+          </div>
+
+          <div className={`p-4 rounded-xl mb-6 ${
+            theme === 'dark' ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-200'
+          }`}>
+            <p className={`text-sm ${theme === 'dark' ? 'text-blue-300' : 'text-blue-700'}`}>
+              💡 <strong>Tip:</strong> Ask your coach or commissioner for their team's registration link, or search for open registration events.
+            </p>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <a 
+              href="#/events" 
+              className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-orange-500/30"
+            >
+              <span className="text-xl">🔍</span>
+              Find Open Registrations
+            </a>
+            <a 
+              href="#/profile" 
+              className={`inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${
+                theme === 'dark' 
+                  ? 'bg-white/10 hover:bg-white/20 text-white' 
+                  : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+              }`}
+            >
+              <span className="text-xl">👤</span>
+              Edit Profile
+            </a>
+          </div>
+        </GlassCard>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Public Page Link Banner */}
@@ -986,6 +1085,16 @@ const NewOSYSDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Draft Pool - Shows players waiting to be added to roster */}
+      {teamData?.id && teamData?.sport && teamData?.ageGroup && (
+        <DraftPool
+          teamId={teamData.id}
+          teamOwnerId={(teamData as any).ownerId || teamData.coachId || ''}
+          sport={teamData.sport}
+          ageGroup={teamData.ageGroup}
+        />
+      )}
+
       {/* Getting Started Checklist - show for coaches who haven't dismissed */}
       {showChecklist && userData?.role === 'Coach' && (
         <GettingStartedChecklist 
@@ -1010,6 +1119,9 @@ const NewOSYSDashboard: React.FC = () => {
             sport={teamData.sport || 'football'}
             currentSeasonId={teamData.currentSeasonId}
             rosterCount={roster.length}
+            leagueId={teamData.leagueId}
+            leagueStatus={teamData.leagueStatus}
+            leagueName={teamData.leagueName}
             onNavigateToDesignStudio={(data?: RegistrationFlyerData) => {
               if (data) {
                 // Navigate with season data to prefill registration template
@@ -1123,21 +1235,14 @@ const NewOSYSDashboard: React.FC = () => {
               return (
                 <Link
                   key={i}
-                  to={action.comingSoon ? '#' : action.link || '#'}
+                  to={action.link || '#'}
                   className={`
                     flex flex-col items-center gap-2 p-4 rounded-xl transition
-                    ${action.comingSoon 
-                      ? `${theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'} opacity-50 cursor-not-allowed` 
-                      : `${theme === 'dark' ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'} hover:scale-105`
-                    }
+                    ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'} hover:scale-105
                   `}
-                  onClick={e => action.comingSoon && e.preventDefault()}
                 >
                   <span className="text-2xl">{action.icon}</span>
                   <span className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{action.label}</span>
-                  {action.comingSoon && (
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-slate-700 text-slate-400' : 'bg-slate-300 text-slate-600'}`}>SOON</span>
-                  )}
                 </Link>
               );
             })}
@@ -1418,26 +1523,7 @@ const NewOSYSDashboard: React.FC = () => {
         </GlassCard>
       </div>
 
-      {/* Sport Info Banner */}
-      <GlassCard className={`${theme === 'dark' ? 'bg-gradient-to-r from-purple-900/50 to-pink-900/50' : 'bg-gradient-to-r from-purple-100 to-pink-100 border-purple-200'}`}>
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="text-4xl">{sportConfig.emoji}</div>
-            <div>
-              <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{teamData?.name || 'Your Team'}</h3>
-              <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>{sportConfig.name} • {roster.length} players • {plays.length} plays</p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Link to="/roster" className="px-4 py-2 rounded-lg transition text-sm bg-slate-700 hover:bg-slate-600 dark:bg-white/20 dark:hover:bg-white/30 text-white font-medium border border-slate-600 dark:border-white/20">
-              Manage Roster
-            </Link>
-            <Link to="/playbook" className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition text-sm text-white font-medium shadow-lg shadow-purple-500/30">
-              Open Playbook
-            </Link>
-          </div>
-        </div>
-      </GlassCard>
+
 
       {/* ====== MODALS ====== */}
 

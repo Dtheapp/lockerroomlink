@@ -3,14 +3,14 @@
  * Allows commissioners to create new teams under their program
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { assignTeamToProgram } from '../../services/leagueService';
-import { deductCredits, getUserCreditBalance } from '../../services/creditService';
-import { collection, addDoc, serverTimestamp, doc, setDoc, getDoc, query, where, getDocs, updateDoc, increment } from 'firebase/firestore';
+import { serverTimestamp, doc, setDoc, getDoc, collection, addDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../../services/firebase';
+import { getFirestore } from 'firebase/firestore';
+import { getApp } from 'firebase/app';
 import { SPORT_CONFIGS, getSportOptions } from '../../config/sportConfig';
 import type { SportType } from '../../types';
 import { AgeGroupSelector } from '../AgeGroupSelector';
@@ -23,16 +23,11 @@ import {
   Loader2, 
   AlertCircle, 
   CheckCircle2,
-  Palette,
-  Search,
-  Link2,
-  X
+  Palette
 } from 'lucide-react';
 
-const TEAM_CREATION_COST = 50; // Credits required to create a team
-
 export const CommissionerCreateTeam: React.FC = () => {
-  const { user, userData, programData, leagueData } = useAuth();
+  const { user, userData } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
   
@@ -43,7 +38,7 @@ export const CommissionerCreateTeam: React.FC = () => {
   // Form data
   const [teamName, setTeamName] = useState('');
   const [teamId, setTeamId] = useState('');
-  const [sport, setSport] = useState<SportType>((programData?.sport as SportType) || 'football');
+  const [sport, setSport] = useState<SportType>('football');
   const [ageGroup, setAgeGroup] = useState<string | string[]>('');
   const [ageGroupType, setAgeGroupType] = useState<'single' | 'multi'>('single');
   const [primaryColor, setPrimaryColor] = useState('#f97316');
@@ -52,22 +47,8 @@ export const CommissionerCreateTeam: React.FC = () => {
   const [customSecondaryHex, setCustomSecondaryHex] = useState('');
   const [maxRosterSize, setMaxRosterSize] = useState(25);
   const [isCheerTeam, setIsCheerTeam] = useState(false);
-  const [linkedCheerTeamId, setLinkedCheerTeamId] = useState('');
-  const [availableCheerTeams, setAvailableCheerTeams] = useState<{id: string; name: string}[]>([]);
-  // For cheer teams - link to a sport team
-  const [linkedToTeamId, setLinkedToTeamId] = useState('');
-  const [linkedToTeamName, setLinkedToTeamName] = useState('');
-  const [sportTeamSearch, setSportTeamSearch] = useState('');
-  const [sportTeamResults, setSportTeamResults] = useState<{id: string; name: string; sport: string; ageGroup: string}[]>([]);
-  const [searchingSportTeams, setSearchingSportTeams] = useState(false);
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
-
-  // First team is free - check lifetime teams created (not current count to prevent abuse)
-  // Users can't delete teams and recreate to get infinite free teams
-  const lifetimeTeamsCreated = userData?.teamsCreated || 0;
-  const isFirstTeamFree = lifetimeTeamsCreated === 0;
-  const creationCost = isFirstTeamFree ? 0 : TEAM_CREATION_COST;
 
   // Validate hex color code
   const isValidHex = (hex: string): boolean => {
@@ -76,7 +57,6 @@ export const CommissionerCreateTeam: React.FC = () => {
 
   // Handle custom hex input for primary color
   const handleCustomPrimaryHex = (value: string) => {
-    // Auto-add # if not present
     let hex = value.startsWith('#') ? value : `#${value}`;
     setCustomPrimaryHex(hex);
     if (isValidHex(hex)) {
@@ -96,74 +76,10 @@ export const CommissionerCreateTeam: React.FC = () => {
   // Get all colors as flat array for checking selection
   const allPaletteColors = Object.values(TEAM_COLOR_PALETTE).flat();
 
-  // Load available cheer teams for linking
-  useEffect(() => {
-    const loadCheerTeams = async () => {
-      if (!user?.uid || isCheerTeam) return;
-      
-      try {
-        const cheerQuery = query(
-          collection(db, 'teams'),
-          where('isCheerTeam', '==', true),
-          where('ownerId', '==', user.uid)
-        );
-        const snap = await getDocs(cheerQuery);
-        const teams = snap.docs.map(doc => ({ id: doc.id, name: doc.data().name || 'Unnamed Team' }));
-        setAvailableCheerTeams(teams);
-      } catch (err) {
-        console.error('Error loading cheer teams:', err);
-      }
-    };
-    
-    loadCheerTeams();
-  }, [user?.uid, isCheerTeam]);
-
-  // Search for sport teams to link cheer team to
-  const handleSearchSportTeams = async () => {
-    if (!user?.uid || !sportTeamSearch.trim()) return;
-    
-    setSearchingSportTeams(true);
-    try {
-      // Search teams owned by this user (filter out cheer teams client-side to avoid index requirement)
-      const teamsQuery = query(
-        collection(db, 'teams'),
-        where('ownerId', '==', user.uid)
-      );
-      const snap = await getDocs(teamsQuery);
-      
-      // Filter by search term and exclude cheer teams
-      const searchLower = sportTeamSearch.toLowerCase();
-      const results = snap.docs
-        .filter(doc => !doc.data().isCheerTeam) // Exclude cheer teams
-        .map(doc => ({
-          id: doc.id,
-          name: doc.data().name || 'Unnamed Team',
-          sport: doc.data().sport || 'football',
-          ageGroup: Array.isArray(doc.data().ageGroup) ? doc.data().ageGroup.join('/') : (doc.data().ageGroup || 'N/A')
-        }))
-        .filter(team => team.name.toLowerCase().includes(searchLower));
-      
-      setSportTeamResults(results);
-    } catch (err) {
-      console.error('Error searching sport teams:', err);
-    } finally {
-      setSearchingSportTeams(false);
-    }
-  };
-
-  // Select a sport team to link to
-  const handleSelectSportTeam = (team: {id: string; name: string}) => {
-    setLinkedToTeamId(team.id);
-    setLinkedToTeamName(team.name);
-    setSportTeamSearch('');
-    setSportTeamResults([]);
-  };
-
-  // Clear linked sport team
-  const handleClearLinkedSportTeam = () => {
-    setLinkedToTeamId('');
-    setLinkedToTeamName('');
-  };
+  // Cost calculation
+  const TEAM_CREATION_COST = 10;
+  const isFirstTeamFree = !userData?.teamsCreated || userData.teamsCreated === 0;
+  const creationCost = isFirstTeamFree ? 0 : TEAM_CREATION_COST;
 
   const handleAgeGroupChange = (value: string | string[], type: 'single' | 'multi') => {
     setAgeGroup(value);
@@ -177,28 +93,30 @@ export const CommissionerCreateTeam: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !userData || !userData.programId) return;
     
-    // Validate age group selection
+    if (!user || !userData) {
+      setError('You must be logged in to create a team.');
+      return;
+    }
+    
+    // Validate required fields
+    if (!teamName.trim()) {
+      setError('Please enter a team name');
+      return;
+    }
+    if (!teamId.trim()) {
+      setError('Please enter a team ID');
+      return;
+    }
+    if (!city.trim() || !state.trim()) {
+      setError('Please enter city and state');
+      return;
+    }
+    
+    // Validate age group
     const hasAgeGroup = Array.isArray(ageGroup) ? ageGroup.length > 0 : !!ageGroup;
     if (!hasAgeGroup) {
       setError('Please select an age group');
-      return;
-    }
-    
-    // Validate city and state
-    if (!city.trim()) {
-      setError('Please enter a city');
-      return;
-    }
-    if (!state.trim()) {
-      setError('Please enter a state');
-      return;
-    }
-    
-    // Validate team ID
-    if (!teamId.trim()) {
-      setError('Please enter a team ID');
       return;
     }
     
@@ -206,32 +124,22 @@ export const CommissionerCreateTeam: React.FC = () => {
     setError(null);
     
     try {
-      // Validate custom team ID format and availability
       const customTeamId = teamId.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '-');
+      
+      // Check if team ID exists
       const existingTeam = await getDoc(doc(db, 'teams', customTeamId));
       if (existingTeam.exists()) {
-        setError(`Team ID "${customTeamId}" is already taken. Please choose a different ID.`);
+        setError(`Team ID "${customTeamId}" is already taken.`);
         setLoading(false);
         return;
       }
       
-      // Check credits (skip if first team is free)
-      if (!isFirstTeamFree) {
-        const credits = await getUserCreditBalance(user.uid);
-        if (credits < TEAM_CREATION_COST) {
-          setError(`Not enough credits. You need ${TEAM_CREATION_COST} credits to create a team. You have ${credits}.`);
-          setLoading(false);
-          return;
-        }
-      }
-      
-      // Prepare age group data
+      // Prepare simple team data
       const primaryAgeGroup = Array.isArray(ageGroup) ? ageGroup[0] : ageGroup;
       const ageGroupsArray = Array.isArray(ageGroup) ? ageGroup : [ageGroup];
       
-      // Create the team with the validated custom ID
-      const teamData: Record<string, any> = {
-        name: teamName,
+      const teamData = {
+        name: teamName.trim(),
         sport,
         ageGroup: primaryAgeGroup,
         ageGroups: ageGroupsArray,
@@ -246,46 +154,17 @@ export const CommissionerCreateTeam: React.FC = () => {
           state: state.trim().toUpperCase(),
         },
         ownerId: user.uid,
-        ownerName: userData.name,
-        programId: userData.programId,
-        leagueId: leagueData?.id || null,
-        leagueStatus: leagueData ? 'active' : null,
-        leagueJoinedAt: leagueData ? serverTimestamp() : null,
+        ownerName: userData.name || 'Unknown',
         createdBy: user.uid,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
       
-      // Add linked cheer team if selected (for non-cheer teams)
-      if (!isCheerTeam && linkedCheerTeamId) {
-        teamData.linkedCheerTeamId = linkedCheerTeamId;
-      }
-      
-      // Add linked sport team if selected (for cheer teams)
-      if (isCheerTeam && linkedToTeamId) {
-        teamData.linkedToTeamId = linkedToTeamId;
-        teamData.linkedToTeamName = linkedToTeamName;
-      }
-      
-      await setDoc(doc(db, 'teams', customTeamId), teamData);
-      
-      // If this is a cheer team linked to a sport team, update the sport team with bi-directional link
-      if (isCheerTeam && linkedToTeamId) {
-        await updateDoc(doc(db, 'teams', linkedToTeamId), {
-          linkedCheerTeamId: customTeamId,
-          updatedAt: serverTimestamp()
-        });
-      }
-      
-      // Increment lifetime teams created counter (prevents delete-and-recreate abuse)
-      await updateDoc(doc(db, 'users', user.uid), {
-        teamsCreated: increment(1)
-      });
-      
-      // Deduct credits after successful team creation (skip if first team)
-      if (!isFirstTeamFree) {
-        await deductCredits(user.uid, TEAM_CREATION_COST, 'team_create', `Created team: ${teamName}`);
-      }
+      // Create the team using batch write to avoid listener conflicts
+      const batch = writeBatch(db);
+      const teamRef = doc(db, 'teams', customTeamId);
+      batch.set(teamRef, teamData);
+      await batch.commit();
       
       setSuccess(true);
       
@@ -296,7 +175,13 @@ export const CommissionerCreateTeam: React.FC = () => {
       
     } catch (err: any) {
       console.error('Team creation error:', err);
-      setError(err.message || 'Failed to create team. Please try again.');
+      
+      // Check for the known INTERNAL ASSERTION error
+      if (err.message?.includes('INTERNAL ASSERTION') || err.toString().includes('INTERNAL ASSERTION')) {
+        setError('Firebase cache error detected. Please clear your browser cache: Open DevTools (F12) → Application → Storage → Clear site data, then refresh the page.');
+      } else {
+        setError(err.message || 'Failed to create team. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -679,152 +564,17 @@ export const CommissionerCreateTeam: React.FC = () => {
                 <input
                   type="checkbox"
                   checked={isCheerTeam}
-                  onChange={(e) => {
-                    setIsCheerTeam(e.target.checked);
-                    // Clear linked sport team when toggling off
-                    if (!e.target.checked) {
-                      setLinkedToTeamId('');
-                      setLinkedToTeamName('');
-                      setSportTeamSearch('');
-                      setSportTeamResults([]);
-                    }
-                  }}
+                  onChange={(e) => setIsCheerTeam(e.target.checked)}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
               </label>
             </div>
-            
-            {/* Link to Sport Team (only show for cheer teams) */}
-            {isCheerTeam && (
-              <div className={`rounded-lg p-4 border-2 border-dashed ${theme === 'dark' ? 'border-pink-500/30 bg-pink-500/5' : 'border-pink-300 bg-pink-50'}`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <Link2 className="w-5 h-5 text-pink-500" />
-                  <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                    Link to Sport Team (Optional)
-                  </p>
-                </div>
-                <p className={`text-sm mb-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Search for a sport team this cheer squad supports. This creates a two-way link.
-                </p>
-                
-                {/* Show selected team or search */}
-                {linkedToTeamId ? (
-                  <div className={`flex items-center justify-between p-3 rounded-lg ${theme === 'dark' ? 'bg-green-500/20 border border-green-500/30' : 'bg-green-100 border border-green-300'}`}>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-5 h-5 text-green-500" />
-                      <div>
-                        <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                          Linked to: {linkedToTeamName}
-                        </p>
-                        <p className={`text-xs ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
-                          This cheer team will be displayed with this sport team
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleClearLinkedSportTeam}
-                      className="p-1 hover:bg-red-500/20 rounded-lg transition-colors"
-                    >
-                      <X className="w-5 h-5 text-red-400" />
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={sportTeamSearch}
-                        onChange={(e) => setSportTeamSearch(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleSearchSportTeams())}
-                        placeholder="Search your sport teams..."
-                        className={`flex-1 px-3 py-2 rounded-lg border ${
-                          theme === 'dark' 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder:text-gray-500' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400'
-                        }`}
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSearchSportTeams}
-                        disabled={searchingSportTeams || !sportTeamSearch.trim()}
-                        className="px-4 py-2 bg-pink-600 hover:bg-pink-500 disabled:bg-gray-600 text-white rounded-lg transition-colors flex items-center gap-2"
-                      >
-                        {searchingSportTeams ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Search className="w-4 h-4" />
-                        )}
-                      </button>
-                    </div>
-                    
-                    {/* Search Results */}
-                    {sportTeamResults.length > 0 && (
-                      <div className={`mt-2 max-h-40 overflow-y-auto rounded-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-                        {sportTeamResults.map((team) => (
-                          <button
-                            key={team.id}
-                            type="button"
-                            onClick={() => handleSelectSportTeam(team)}
-                            className={`w-full px-3 py-2 text-left hover:bg-purple-500/20 transition-colors border-b last:border-b-0 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}
-                          >
-                            <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{team.name}</p>
-                            <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                              {team.sport} • {team.ageGroup}
-                            </p>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    
-                    {sportTeamSearch && sportTeamResults.length === 0 && !searchingSportTeams && (
-                      <p className={`text-sm mt-2 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
-                        No teams found. Try a different search term.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* Link Cheer Team (only show for non-cheer teams with available cheer teams) */}
-            {!isCheerTeam && availableCheerTeams.length > 0 && (
-              <div>
-                <label className={`block mb-2 text-sm font-medium ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
-                  🔗 Link to Cheer Team (Optional)
-                </label>
-                <select
-                  value={linkedCheerTeamId}
-                  onChange={(e) => setLinkedCheerTeamId(e.target.value)}
-                  className={`w-full p-3 rounded-lg border ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} focus:ring-2 focus:ring-purple-500`}
-                >
-                  <option value="">No linked cheer team</option>
-                  {availableCheerTeams.map((ct) => (
-                    <option key={ct.id} value={ct.id}>{ct.name}</option>
-                  ))}
-                </select>
-                <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
-                  Link your sports team to a cheer team to display them together
-                </p>
-              </div>
-            )}
-
-            {/* Program Info */}
-            <div className={`rounded-lg p-4 ${theme === 'dark' ? 'bg-gray-700/30' : 'bg-gray-100'}`}>
-              <p className={`text-sm mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Creating under program</p>
-              <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{programData?.name || 'Your Program'}</p>
-              {leagueData && (
-                <p className="text-sm text-purple-500 mt-1">
-                  League: {leagueData.name}
-                </p>
-              )}
-            </div>
 
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || !teamName || !teamId.trim() || !ageGroup || !city.trim() || !state.trim() || !isValidUSState(state)}
+              disabled={loading || !teamName || !teamId.trim() || (Array.isArray(ageGroup) ? ageGroup.length === 0 : !ageGroup) || !city.trim() || !state.trim() || !isValidUSState(state)}
               className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
             >
               {loading ? (

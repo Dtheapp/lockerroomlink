@@ -93,6 +93,7 @@ For every feature I build:
 - API documentation for services
 - Update any relevant spec files
 - Future devs should never wonder "what does this do?"
+- ADD TO BUILDS LIST ON PROGRESS PAGE
 
 ---
 
@@ -301,18 +302,15 @@ Every screen should make users think: *"Wow, this is nice."*
 ### 25. Platform Dependency - Own Everything 🏰
 **Philosophy:** Handle ALL their needs so they become dependent on us.
 
-**Not an app - an OPERATING SYSTEM for youth sports:**
-- ✅ Team Management → They organize here
-- ✅ Communication → They message here  
-- ✅ Playbooks → They learn here
-- ✅ Stats → They track here
-- ✅ Video → They watch here
-- ⬜ Fundraising → They raise money here
-- ⬜ Tickets → They sell tickets here
-- ⬜ Private Coaching → They book sessions here
-- ⬜ NIL Marketplace → They get deals here
-- ⬜ League Management → Leagues run here
-- ⬜ Registration → They sign up here
+### Design Excellence (26-31) - CRITICAL
+26. **Pixel-Perfect Implementation** - Visual discrepancies are bugs
+27. **Design = Code Quality** - No "close enough"
+28. **Responsive Text Verification** - Text must fit at ALL viewport sizes
+29. **Theme Consistency** - Both light/dark must work
+30. **CSS Variable Verification** - Verify variables are defined before using
+31. **CTA Intent Matching** - "Get Started" → signup, "Sign In" → login
+
+
 
 **The Dependency Flywheel:**
 ```

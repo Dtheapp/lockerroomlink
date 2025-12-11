@@ -68,6 +68,26 @@ netlify link
 | Password requirements set | ⬜ TODO | Min length, complexity | 📁 `components/AuthScreen.tsx` |
 | Rate limiting on auth | ⬜ TODO | Prevent brute force | 🔗 Firebase Console → App Check |
 
+### ⚠️ Player Account Email Change (CRITICAL FOR PROD)
+
+| Task | Status | Notes | Reference |
+|------|--------|-------|-----------|
+| Enable email change for released players | ⬜ TODO | Currently bypassed - see below | 📁 `components/ReleasedPlayerSetup.tsx` |
+
+**Issue:** Firebase requires email verification before changing auth email (`auth/operation-not-allowed`).
+
+**Current Workaround (Testing):**
+- Players keep their `{username}@player.osys.team` email for Firebase Auth
+- Their real email is stored as `contactEmail` in Firestore
+- They log in with username (unchanged)
+
+**Production Options:**
+1. **Use Firebase Admin SDK** (Recommended) - Create a Cloud Function to change email without verification
+2. **Enable email verification flow** - Users verify old email, then can change
+3. **Keep username-based auth** - Players always log in with username, never email
+
+**File:** `components/ReleasedPlayerSetup.tsx` (lines 140-165)
+
 ---
 
 ## 🟠 HIGH PRIORITY (Should Have)

@@ -108,6 +108,48 @@
     pointer-events: none;
 }
 
+/* Background Gradient Overlay */
+.osys-bg-gradient {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        135deg,
+        rgba(99, 102, 241, 0.15) 0%,
+        rgba(139, 92, 246, 0.1) 25%,
+        transparent 50%,
+        rgba(99, 102, 241, 0.05) 75%,
+        rgba(124, 58, 237, 0.1) 100%
+    );
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Mesh Gradient Pattern */
+.osys-bg-mesh {
+    position: absolute;
+    inset: 0;
+    background-image: 
+        radial-gradient(at 20% 30%, rgba(99, 102, 241, 0.2) 0px, transparent 40%),
+        radial-gradient(at 80% 20%, rgba(139, 92, 246, 0.15) 0px, transparent 35%),
+        radial-gradient(at 60% 80%, rgba(124, 58, 237, 0.12) 0px, transparent 45%),
+        radial-gradient(at 10% 90%, rgba(99, 102, 241, 0.1) 0px, transparent 30%);
+    animation: osys-mesh-shift 30s ease-in-out infinite alternate;
+    pointer-events: none;
+    z-index: 1;
+}
+
+@keyframes osys-mesh-shift {
+    0% {
+        background-position: 0% 0%, 100% 0%, 50% 100%, 0% 100%;
+    }
+    50% {
+        background-position: 50% 20%, 80% 30%, 30% 70%, 20% 80%;
+    }
+    100% {
+        background-position: 100% 0%, 0% 50%, 80% 50%, 50% 100%;
+    }
+}
+
 /* Animated Orbs */
 .osys-orb {
     position: absolute;

@@ -8,6 +8,7 @@ import { useSportConfig } from './hooks/useSportConfig';
 import ErrorBoundary from './components/ErrorBoundary';
 import InstallPrompt from './components/InstallPrompt';
 import ForcePasswordChange from './components/ForcePasswordChange';
+import ReleasedPlayerSetup from './components/ReleasedPlayerSetup';
 
 // Layouts (loaded immediately as they're structural)
 import Layout from './layout/Layout';
@@ -52,7 +53,7 @@ function lazyWithRetry<T extends ComponentType<any>>(
 }
 
 // Public Pages (accessible without auth)
-const PublicAthleteProfile = lazyWithRetry(() => import('./components/public/PublicAthleteProfile'));
+const PublicAthleteProfile = lazyWithRetry(() => import('./components/public/PublicAthleteProfileV2'));
 const PublicTeamProfile = lazyWithRetry(() => import('./components/public/PublicTeamProfile'));
 const PublicCoachProfile = lazyWithRetry(() => import('./components/public/PublicCoachProfile'));
 const LandingPage = lazyWithRetry(() => import('./components/LandingPage'));
@@ -70,6 +71,8 @@ const EventDetailsPage = lazyWithRetry(() => import('./components/events/EventDe
 const EventCreatorPage = lazyWithRetry(() => import('./components/events/EventCreatorPage'));
 const EventManagement = lazyWithRetry(() => import('./components/events/EventManagement'));
 const RegistrationFlow = lazyWithRetry(() => import('./components/events/registration/RegistrationFlow'));
+const SimpleRegistrationPage = lazyWithRetry(() => import('./components/events/SimpleRegistrationPage'));
+const SeasonRegistrationPage = lazyWithRetry(() => import('./components/events/SeasonRegistrationPage'));
 const PublicEventPage = lazyWithRetry(() => import('./components/events/PublicEventPage'));
 
 // Design Studio
@@ -130,6 +133,10 @@ const CommissionerAssignCoach = lazyWithRetry(() => import('./components/commiss
 const CommissionerGrievances = lazyWithRetry(() => import('./components/commissioner/CommissionerGrievances'));
 const CommissionerInfractions = lazyWithRetry(() => import('./components/commissioner/CommissionerInfractions'));
 const TeamScheduleView = lazyWithRetry(() => import('./components/commissioner/TeamScheduleView'));
+const CommissionerRoster = lazyWithRetry(() => import('./components/commissioner/CommissionerRoster'));
+const CommissionerTeamChat = lazyWithRetry(() => import('./components/commissioner/CommissionerTeamChat'));
+const CommissionerAnnouncements = lazyWithRetry(() => import('./components/commissioner/CommissionerAnnouncements'));
+const ProgramManager = lazyWithRetry(() => import('./components/commissioner/ProgramManager'));
 
 // League Owner Pages
 const LeagueDashboard = lazyWithRetry(() => import('./components/league/LeagueDashboard'));
@@ -188,14 +195,22 @@ const AppContent: React.FC = () => {
   const { config } = useAppConfig();
   const { hasPlaybook } = useSportConfig();
   const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [showAccountSetup, setShowAccountSetup] = useState(false);
   const [passwordChangeComplete, setPasswordChangeComplete] = useState(false);
 
-  // Check if user needs to change password
+  // Check if user needs to change password or complete account setup (released players)
   useEffect(() => {
-    if (userData && (userData as any).mustChangePassword === true && !passwordChangeComplete) {
-      setShowPasswordChange(true);
-    } else {
-      setShowPasswordChange(false);
+    if (userData) {
+      if ((userData as any).forceAccountSetup === true && !passwordChangeComplete) {
+        setShowAccountSetup(true);
+        setShowPasswordChange(false);
+      } else if ((userData as any).mustChangePassword === true && !passwordChangeComplete) {
+        setShowPasswordChange(true);
+        setShowAccountSetup(false);
+      } else {
+        setShowPasswordChange(false);
+        setShowAccountSetup(false);
+      }
     }
   }, [userData, passwordChangeComplete]);
 
@@ -226,6 +241,19 @@ const AppContent: React.FC = () => {
     );
   }
 
+  // Show released player account setup if needed
+  if (showAccountSetup && user && userData) {
+    return (
+      <ReleasedPlayerSetup 
+        playerName={userData.name || 'Athlete'}
+        onComplete={() => {
+          setPasswordChangeComplete(true);
+          setShowAccountSetup(false);
+        }} 
+      />
+    );
+  }
+
   return (
     <HashRouter>
       <UnsavedChangesProvider>
@@ -239,6 +267,7 @@ const AppContent: React.FC = () => {
           <Route path="/referee/:refereeId" element={<PublicRefereePage />} />
           <Route path="/event/:eventId" element={<PublicEventPage />} />
           <Route path="/e/:shareableLink" element={<PublicEventPage />} />
+          <Route path="/register/:seasonId" element={<SeasonRegistrationPage />} />
           <Route path="/welcome" element={<LandingPage />} />
           <Route path="/fundraising" element={<FundraisingPage />} />
           <Route path="/fundraising/:campaignId" element={<CampaignDetail />} />
@@ -286,7 +315,7 @@ const AppContent: React.FC = () => {
                 <Route path="dashboard" element={<FanDashboard />} />
                 <Route path="profile" element={<FanProfile />} />
                 <Route path="notifications" element={<NotificationsPage />} />
-                <Route path="events/:eventId/register" element={<RegistrationFlow />} />
+                <Route path="events/:eventId/register" element={<SimpleRegistrationPage />} />
               </Route>
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </>
@@ -296,18 +325,17 @@ const AppContent: React.FC = () => {
               <Route path="/" element={<NewOSYSLayout />}>
                 <Route index element={<Navigate to="/commissioner" replace />} />
                 <Route path="commissioner" element={<CommissionerDashboard />} />
+                <Route path="commissioner/programs" element={<ProgramManager />} />
                 <Route path="commissioner/teams" element={<CommissionerTeamList />} />
                 <Route path="commissioner/teams/create" element={<CommissionerCreateTeam />} />
                 <Route path="commissioner/teams/:teamId" element={<CommissionerTeamDetail />} />
                 <Route path="commissioner/teams/:teamId/assign-coach" element={<CommissionerAssignCoach />} />
+                <Route path="commissioner/roster" element={<CommissionerRoster />} />
+                <Route path="commissioner/announcements" element={<CommissionerAnnouncements />} />
+                <Route path="commissioner/chat" element={<CommissionerTeamChat />} />
                 <Route path="commissioner/grievances" element={<CommissionerGrievances />} />
                 <Route path="commissioner/infractions" element={<CommissionerInfractions />} />
-                <Route path="commissioner/schedule" element={<TeamScheduleView />} />
                 <Route path="team/:teamId" element={<CommissionerTeamDetail />} />
-                <Route path="playbook" element={<Playbook />} />
-                <Route path="roster" element={<Roster />} />
-                <Route path="marketing" element={<MarketingHub />} />
-                {config.chatEnabled && <Route path="chat" element={<Chat />} />}
                 <Route path="profile" element={<Profile />} />
                 <Route path="notifications" element={<NotificationsPage />} />
                 {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}
@@ -372,7 +400,7 @@ const AppContent: React.FC = () => {
                 <Route path="events/:eventId" element={<EventDetailsPage />} />
                 <Route path="events/:eventId/edit" element={<EventCreatorPage />} />
                 <Route path="events/:eventId/manage" element={<EventManagement />} />
-                <Route path="events/:eventId/register" element={<RegistrationFlow />} />
+                <Route path="events/:eventId/register" element={<SimpleRegistrationPage />} />
                 {/* Design Studio */}
                 <Route path="design" element={<DesignStudio />} />
                 {/* Marketing Hub */}

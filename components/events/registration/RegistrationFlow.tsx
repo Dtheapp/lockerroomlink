@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, doc, getDoc } from 'firebase/firestore';
+import { db } from '../../../services/firebase';
 import { Event, PricingTier, PromoCode, Registration, WaiverSignature, RegistrationOrder, PaymentMethod } from '../../../types/events';
 import { useAuth } from '../../../contexts/AuthContext';
 import * as eventService from '../../../services/eventService';
+import { addToDraftPool } from '../../../services/draftPoolService';
+import type { DraftPoolPaymentStatus, SportType } from '../../../types';
 import AthleteSelector from './AthleteSelector';
 import type { SelectedAthlete } from './AthleteSelector';
 import RegistrationCart from './RegistrationCart';
@@ -266,24 +269,26 @@ const RegistrationFlow: React.FC<RegistrationFlowPageProps> = ({ eventProp, onCo
         grandTotal,
         paymentMethod: method,
         paymentStatus,
-        paypalOrderId,
-        paypalTransactionId: transactionId,
-        paidAt: method !== 'in_person' && method !== 'payment_plan' ? Timestamp.now() : undefined,
+        ...(paypalOrderId ? { paypalOrderId } : {}),
+        ...(transactionId ? { paypalTransactionId: transactionId } : {}),
+        ...(method !== 'in_person' && method !== 'payment_plan' ? { paidAt: Timestamp.now() } : {}),
         createdAt: Timestamp.now(),
-        completedAt: paymentStatus === 'completed' ? Timestamp.now() : undefined,
+        ...(paymentStatus === 'completed' ? { completedAt: Timestamp.now() } : {}),
         // Payment plan fields
         isPaymentPlan: method === 'payment_plan',
         totalPaid: method === 'payment_plan' ? totalPaid : (method === 'in_person' ? 0 : grandTotal),
         remainingBalance: method === 'payment_plan' ? remainingBalance : (method === 'in_person' ? grandTotal : 0),
-        payments: method === 'payment_plan' && initialPaymentCents && initialPaymentCents > 0 ? [{
-          id: `pmt_${Date.now()}`,
-          amount: initialPaymentCents,
-          paidAt: Timestamp.now(),
-          paymentMethod: 'paypal', // Will update when we add actual payment processing
-          recordedBy: user.uid,
-          note: 'Initial payment at registration'
-        }] : undefined,
-        lastPaymentAt: method === 'payment_plan' && initialPaymentCents && initialPaymentCents > 0 ? Timestamp.now() : undefined,
+        ...(method === 'payment_plan' && initialPaymentCents && initialPaymentCents > 0 ? {
+          payments: [{
+            id: `pmt_${Date.now()}`,
+            amount: initialPaymentCents,
+            paidAt: Timestamp.now(),
+            paymentMethod: 'paypal',
+            recordedBy: user.uid,
+            note: 'Initial payment at registration'
+          }],
+          lastPaymentAt: Timestamp.now()
+        } : {}),
       };
 
       // Build registrations
@@ -314,35 +319,35 @@ const RegistrationFlow: React.FC<RegistrationFlowPageProps> = ({ eventProp, onCo
           parentUserId: user.uid,
           athleteId: sa.athlete.id,
           athleteSnapshot: {
-            firstName: sa.athlete.name.split(' ')[0],
-            lastName: sa.athlete.name.split(' ').slice(1).join(' ') || '',
-            dateOfBirth: sa.athlete.dob,
-            profileImage: sa.athlete.photoUrl
+            firstName: sa.athlete.name?.split(' ')[0] || '',
+            lastName: sa.athlete.name?.split(' ').slice(1).join(' ') || '',
+            dateOfBirth: sa.athlete.dob || null,
+            ...(sa.athlete.photoUrl ? { profileImage: sa.athlete.photoUrl } : {})
           },
           pricingTierId: sa.pricingTierId,
           originalPrice: sa.price,
           discountAmount: discountPerAthlete,
           finalPrice: athleteFinalPrice,
-          promoCodeId: appliedPromoCode?.id,
-          promoCodeUsed: appliedPromoCode?.code,
+          ...(appliedPromoCode?.id ? { promoCodeId: appliedPromoCode.id } : {}),
+          ...(appliedPromoCode?.code ? { promoCodeUsed: appliedPromoCode.code } : {}),
           paymentMethod: method,
           paymentStatus,
-          paypalOrderId,
-          paypalTransactionId: transactionId,
+          ...(paypalOrderId ? { paypalOrderId } : {}),
+          ...(transactionId ? { paypalTransactionId: transactionId } : {}),
           // Payment plan fields
           isPaymentPlan: method === 'payment_plan',
-          totalPaid: method === 'payment_plan' || method === 'in_person' ? athletePaid : undefined,
-          remainingBalance: method === 'payment_plan' || method === 'in_person' ? athleteRemaining : undefined,
+          ...((method === 'payment_plan' || method === 'in_person') && athletePaid !== undefined ? { totalPaid: athletePaid } : {}),
+          ...((method === 'payment_plan' || method === 'in_person') && athleteRemaining !== undefined ? { remainingBalance: athleteRemaining } : {}),
           customFieldResponses: athleteFormData?.customFieldResponses || {},
           emergencyContact: athleteFormData?.emergencyContact || {
             name: '',
             relationship: '',
             phone: ''
           },
-          medicalInfo: athleteFormData?.medicalInfo,
+          ...(athleteFormData?.medicalInfo ? { medicalInfo: athleteFormData.medicalInfo } : {}),
           waiverAccepted: true,
           waiverAcceptedAt: Timestamp.now(),
-          waiverSignature: signature?.signedBy,
+          ...(signature?.signedBy ? { waiverSignature: signature.signedBy } : {}),
           status: paymentStatus === 'completed' ? 'paid' : 'pending_payment',
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
@@ -351,6 +356,90 @@ const RegistrationFlow: React.FC<RegistrationFlowPageProps> = ({ eventProp, onCo
 
       // Save to Firestore
       const result = await eventService.createRegistrationOrder(order, registrations);
+
+      // Add each athlete to the draft pool for coach/commissioner to draft to roster
+      // This is the waitlist system - players wait here until drafted
+      try {
+        // Get team data to get ownerId, sport, and ageGroup
+        const teamRef = doc(db, 'teams', event.teamId);
+        const teamSnap = await getDoc(teamRef);
+        
+        if (teamSnap.exists()) {
+          const teamData = teamSnap.data();
+          
+          // Determine draft pool payment status
+          let draftPaymentStatus: DraftPoolPaymentStatus = 'pending';
+          if (paymentStatus === 'completed') {
+            draftPaymentStatus = 'paid_full';
+          } else if (method === 'in_person') {
+            draftPaymentStatus = 'pay_in_person';
+          } else if (paymentStatus === 'partial') {
+            draftPaymentStatus = 'paid_partial';
+          }
+          
+          // Check if this is an independent athlete registering themselves
+          const isIndependentAthlete = userData?.role === 'Athlete' && userData?.isIndependentAthlete === true;
+          
+          // Add each athlete to the draft pool
+          for (let i = 0; i < selectedAthletes.length; i++) {
+            const sa = selectedAthletes[i];
+            const athleteFormData = formData.find(fd => fd.athleteId === sa.athlete.id);
+            const athletePrice = sa.price - (discount / selectedAthletes.length);
+            const athletePaid = method === 'in_person' ? 0 : 
+                               (method === 'payment_plan' ? Math.floor(totalPaid / selectedAthletes.length) : athletePrice);
+            
+            await addToDraftPool({
+              // Player info
+              playerId: sa.athlete.id,
+              playerName: sa.athlete.name,
+              playerDob: sa.athlete.dob,
+              
+              // Contact info
+              contactName: isIndependentAthlete ? (userData?.name || sa.athlete.name) : (userData?.name || 'Parent'),
+              contactEmail: user.email || '',
+              contactPhone: userData?.phone,
+              
+              // Registration source
+              registeredByUserId: user.uid,
+              registeredByName: userData?.name || 'Unknown',
+              isIndependentAthlete: isIndependentAthlete || false,
+              
+              // Team targeting
+              teamId: event.teamId,
+              ownerId: teamData.ownerId || teamData.coachId || user.uid,
+              sport: (teamData.sport || 'football') as SportType,
+              ageGroup: teamData.ageGroup || 'Unknown',
+              
+              // Payment
+              paymentStatus: draftPaymentStatus,
+              amountPaid: athletePaid,
+              totalAmount: athletePrice,
+              paymentMethod: method === 'in_person' ? 'cash' : 'paypal',
+              
+              // Registration links
+              seasonId: event.seasonId,
+              registrationId: result.registrationIds[i],
+              
+              // Waiver
+              waiverSigned: true,
+              waiverSignedAt: Timestamp.now(),
+              waiverSignedBy: userData?.name || 'Parent/Guardian',
+              
+              // Emergency contact
+              emergencyContact: athleteFormData?.emergencyContact,
+              
+              // Medical info
+              medicalInfo: athleteFormData?.medicalInfo,
+              
+              // Uniform sizes
+              uniformSizes: athleteFormData?.uniformSizes,
+            });
+          }
+        }
+      } catch (draftPoolError) {
+        // Don't fail the registration if draft pool fails
+        console.error('Failed to add to draft pool:', draftPoolError);
+      }
 
       // Set completed order for confirmation
       setCompletedOrder({
@@ -524,7 +613,7 @@ const RegistrationFlow: React.FC<RegistrationFlowPageProps> = ({ eventProp, onCo
         return (
           <WaiverAcceptance
             event={event}
-            teamState={event.location.state}
+            teamState={event.location?.state}
             athleteNames={selectedAthletes.map(sa => sa.athlete.name)}
             signerName={userData?.name || user.email || 'Parent/Guardian'}
             onAccept={handleWaiverAccept}

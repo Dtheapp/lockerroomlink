@@ -199,31 +199,31 @@ export const CommissionerTeamList: React.FC = () => {
                     : 'bg-white hover:bg-gray-50 border border-gray-200 hover:border-purple-400 shadow-sm'
                 }`}
               >
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-3 sm:gap-4">
                   <div 
-                    className="w-14 h-14 rounded-xl flex items-center justify-center text-white text-xl font-bold flex-shrink-0"
+                    className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center text-white text-lg sm:text-xl font-bold flex-shrink-0"
                     style={{ backgroundColor: team.color || '#6366f1' }}
                   >
                     {team.name?.charAt(0) || 'T'}
                   </div>
                   
-                  <div className="flex-1 min-w-0">
-                    <h3 className={`text-lg font-semibold truncate group-hover:text-purple-500 transition-colors ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <h3 className={`text-base sm:text-lg font-semibold truncate group-hover:text-purple-500 transition-colors ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                       {team.name}
                     </h3>
-                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                    <p className={`text-sm truncate ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                       {team.sport} • {team.ageGroup || 'No age group'}
                     </p>
                     
-                    <div className="flex items-center gap-4 mt-3">
-                      <div className="flex items-center gap-1.5 text-sm">
-                        <Users className="w-4 h-4 text-blue-400" />
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 sm:mt-3">
+                      <div className="flex items-center gap-1.5 text-xs sm:text-sm">
+                        <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400" />
                         <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>
                           {teamStats[team.id!]?.players || 0} players
                         </span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-sm">
-                        <UserCheck className="w-4 h-4 text-green-400" />
+                      <div className="flex items-center gap-1.5 text-xs sm:text-sm">
+                        <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-400" />
                         <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>
                           {teamStats[team.id!]?.coaches || 0} coaches
                         </span>

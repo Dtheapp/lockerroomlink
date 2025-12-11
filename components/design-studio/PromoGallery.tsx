@@ -101,7 +101,20 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
   });
   
   const handleDelete = async (promo: PromoItem) => {
-    if (!confirm('Are you sure you want to delete this design?')) return;
+    // Check permission: owner can delete their own, coaches can delete any team promo
+    const isOwner = promo.createdBy === userData?.uid;
+    const isCoachDeletingTeamPromo = isCoach && promo.location === 'team';
+    
+    if (!isOwner && !isCoachDeletingTeamPromo) {
+      alert('You do not have permission to delete this design');
+      return;
+    }
+    
+    const message = promo.createdByParent && isCoach && !isOwner
+      ? `This design was created by parent "${promo.createdByName}". Are you sure you want to delete it?`
+      : 'Are you sure you want to delete this design?';
+    
+    if (!confirm(message)) return;
     
     try {
       let collectionPath: string;
@@ -211,6 +224,23 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
           </button>
           
           {isCoach && teamData && (
+            <button
+              onClick={() => setActiveTab('team')}
+              className={`
+                flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
+                ${activeTab === 'team' 
+                  ? 'bg-orange-600 text-white' 
+                  : theme === 'dark' ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }
+              `}
+            >
+              <Building2 size={16} />
+              Team Promos
+            </button>
+          )}
+          
+          {/* Parents can also view team promos */}
+          {isParent && teamData && (
             <button
               onClick={() => setActiveTab('team')}
               className={`
@@ -355,6 +385,11 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
                   
                   {/* Badges */}
                   <div className="absolute top-2 left-2 flex gap-1">
+                    {promo.createdByParent && (
+                      <span className="px-2 py-0.5 bg-purple-600/80 rounded text-[10px] text-white font-medium">
+                        Parent
+                      </span>
+                    )}
                     {promo.isPublic && (
                       <span className="px-2 py-0.5 bg-green-600/80 rounded text-[10px] text-white font-medium">
                         Public

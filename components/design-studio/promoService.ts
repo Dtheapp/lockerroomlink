@@ -85,9 +85,13 @@ export async function savePromoItem(
   size: FlyerSize,
   userId: string,
   userName: string,
+  userRole: 'Coach' | 'Parent' | 'Fan' | 'Athlete' | 'SuperAdmin' | string,
   options: SavePromoOptions
 ): Promise<string> {
   const now = Timestamp.now();
+  
+  // Determine if this is a parent saving to team (for parent tag)
+  const isParentSavingToTeam = userRole === 'Parent' && options.location === 'team';
   
   // Generate thumbnail
   const thumbnailBlob = await generateThumbnail(canvas, elements);
@@ -129,6 +133,8 @@ export async function savePromoItem(
     size,
     createdBy: userId,
     createdByName: userName,
+    createdByRole: userRole as PromoItem['createdByRole'],
+    createdByParent: isParentSavingToTeam,
     createdAt: now.toDate(),
     updatedAt: now.toDate(),
     location: options.location,

@@ -7,15 +7,19 @@ import TeamStatsBoard from './stats/TeamStatsBoard';
 import CoachStatsEntry from './stats/CoachStatsEntry';
 import GameStatsEntry from './stats/GameStatsEntry';
 import GameHistory from './stats/GameHistory';
-import type { Team, PlayerSeasonStats } from '../types';
-import { BarChart3, Users, TrendingUp, ArrowUpDown, ChevronDown, ChevronUp, Trophy, Shield, Sword, Calendar, ClipboardList, AlertTriangle, Save } from 'lucide-react';
+import PlayerStatsCard from './stats/PlayerStatsCard';
+import type { Team, PlayerSeasonStats, Player } from '../types';
+import { BarChart3, Users, TrendingUp, ArrowUpDown, ChevronDown, ChevronUp, Trophy, Shield, Sword, Calendar, ClipboardList, AlertTriangle, Save, User } from 'lucide-react';
 import NoAthleteBlock from './NoAthleteBlock';
 import { getStats, getSportConfig, type StatConfig } from '../config/sportConfig';
 
 const Stats: React.FC = () => {
-  const { userData, teamData, players, loading: authLoading } = useAuth();
+  const { userData, teamData, players, loading: authLoading, selectedPlayer } = useAuth();
   const { theme } = useTheme();
   const currentYear = new Date().getFullYear();
+  
+  // Player selector for Parents with multiple athletes
+  const [selectedAthleteId, setSelectedAthleteId] = useState<string>('');
   
   // Tab state for Coach view
   const [activeTab, setActiveTab] = useState<'games' | 'season'>('games');
@@ -185,65 +189,81 @@ const Stats: React.FC = () => {
       <div className="flex items-center gap-3">
         <BarChart3 className="w-8 h-8 text-purple-500" />
         <div>
-          <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">Team Stats</h1>
+          <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">
+            {(userData?.role === 'Parent' || userData?.role === 'Athlete') ? 'My Stats' : 'Team Stats'}
+          </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">{currentYear} Season</p>
         </div>
       </div>
 
-      {/* Parent View: Read-only Stats with Game History */}
+      {/* Athlete View: Individual Player Stats */}
+      {userData?.role === 'Athlete' && (
+        <section>
+          {authLoading ? (
+            <div className="bg-zinc-50 dark:bg-zinc-900 rounded-xl p-12 text-center border border-zinc-200 dark:border-zinc-800">
+              <div className="w-12 h-12 border-4 border-dashed rounded-full animate-spin border-purple-500 mx-auto mb-4"></div>
+              <p className="text-zinc-600 dark:text-zinc-400">Loading your stats...</p>
+            </div>
+          ) : !selectedPlayer ? (
+            <div className="bg-zinc-50 dark:bg-zinc-900 rounded-xl p-12 text-center border border-zinc-200 dark:border-zinc-800">
+              <User className="w-16 h-16 text-zinc-300 dark:text-zinc-700 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">No Player Profile Found</h3>
+              <p className="text-zinc-600 dark:text-zinc-400">Your stats will appear here once you're added to a team roster.</p>
+            </div>
+          ) : (
+            <PlayerStatsCard player={selectedPlayer} teamName={teamData?.name} />
+          )}
+        </section>
+      )}
+
+      {/* Parent View: Individual Player Stats with player selector */}
       {userData?.role === 'Parent' && (
         <section>
           {authLoading ? (
             <div className="bg-zinc-50 dark:bg-zinc-900 rounded-xl p-12 text-center border border-zinc-200 dark:border-zinc-800">
               <div className="w-12 h-12 border-4 border-dashed rounded-full animate-spin border-purple-500 mx-auto mb-4"></div>
-              <p className="text-zinc-600 dark:text-zinc-400">Loading team data...</p>
+              <p className="text-zinc-600 dark:text-zinc-400">Loading stats...</p>
             </div>
-          ) : !teamData || !players || players.length === 0 ? (
+          ) : !players || players.length === 0 ? (
             <div className="bg-zinc-50 dark:bg-zinc-900 rounded-xl p-12 text-center border border-zinc-200 dark:border-zinc-800">
               <BarChart3 className="w-16 h-16 text-zinc-300 dark:text-zinc-700 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">No Team Stats Available</h3>
-              <p className="text-zinc-600 dark:text-zinc-400 mb-4">Add your first player to view team statistics</p>
+              <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">No Athletes Added</h3>
+              <p className="text-zinc-600 dark:text-zinc-400 mb-4">Add an athlete to view their statistics</p>
               <a 
-                href="#/roster" 
+                href="#/profile" 
                 className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-bold transition-colors"
               >
-                Go to Roster
+                Add Athlete
               </a>
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Tabs for Parent */}
-              <div className="flex gap-2 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800">
-                <button
-                  onClick={() => setActiveTab('games')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold transition-all ${
-                    activeTab === 'games'
-                      ? 'bg-purple-600 text-white shadow-lg'
-                      : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
-                  }`}
-                >
-                  <Trophy className="w-5 h-5" />
-                  Game History
-                </button>
-                <button
-                  onClick={() => setActiveTab('season')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold transition-all ${
-                    activeTab === 'season'
-                      ? 'bg-purple-600 text-white shadow-lg'
-                      : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
-                  }`}
-                >
-                  <ClipboardList className="w-5 h-5" />
-                  Season Stats
-                </button>
-              </div>
-
-              {/* Tab Content */}
-              {activeTab === 'games' ? (
-                <GameHistory />
-              ) : (
-                <TeamStatsBoard />
+              {/* Player Selector for parents with multiple athletes */}
+              {players.length > 1 && (
+                <div className="bg-white dark:bg-zinc-900 rounded-xl p-4 border border-zinc-200 dark:border-zinc-800">
+                  <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-purple-500" />
+                    Select Athlete
+                  </label>
+                  <select
+                    value={selectedAthleteId || players[0]?.id || ''}
+                    onChange={(e) => setSelectedAthleteId(e.target.value)}
+                    className="w-full md:w-96 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg p-3 text-zinc-900 dark:text-white font-medium focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
+                  >
+                    {players.map(player => (
+                      <option key={player.id} value={player.id}>
+                        {player.name} - #{player.number} ({player.position})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
+
+              {/* Player Stats Card */}
+              <PlayerStatsCard 
+                player={players.find(p => p.id === (selectedAthleteId || players[0]?.id)) || players[0]} 
+                teamName={teamData?.name} 
+              />
             </div>
           )}
         </section>

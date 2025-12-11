@@ -29,6 +29,8 @@ export interface PromoItem {
   // Ownership
   createdBy: string; // User ID who created it
   createdByName: string; // User's display name
+  createdByRole?: 'Coach' | 'Parent' | 'Fan' | 'Athlete' | 'SuperAdmin'; // Role of creator
+  createdByParent?: boolean; // True if created by a parent (for team designs)
   createdAt: Date;
   updatedAt: Date;
   

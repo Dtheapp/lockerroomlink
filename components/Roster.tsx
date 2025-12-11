@@ -11,6 +11,7 @@ import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link as LinkIcon, User
 import PlayerStatsModal from './stats/PlayerStatsModal';
 import EmptyState from './ui/EmptyState';
 import { GlassCard, AnimatedBackground } from './ui/OSYSComponents';
+import NoAthleteBlock from './NoAthleteBlock';
 
 // Pagination settings
 const PLAYERS_PER_PAGE = 12;
@@ -903,6 +904,7 @@ const Roster: React.FC = () => {
   };
 
   return (
+    <NoAthleteBlock featureName="Roster">
     <div className="relative min-h-screen">
       {/* Animated Background */}
       <AnimatedBackground />
@@ -2703,6 +2705,7 @@ const Roster: React.FC = () => {
       )}
       </div>
     </div>
+    </NoAthleteBlock>
   );
 };
 

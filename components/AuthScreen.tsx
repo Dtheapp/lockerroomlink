@@ -10,7 +10,7 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-type SignUpRole = 'Parent' | 'Coach' | 'Fan' | 'Commissioner' | 'Ref';
+type SignUpRole = 'Parent' | 'Coach' | 'Fan' | 'Commissioner' | 'Ref' | 'Player';
 type CommissionerType = 'league' | 'team';
 
 // Floating sport icons for background animation
@@ -69,6 +69,7 @@ const AuthScreen: React.FC = () => {
   const [teamId, setTeamId] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [playerBirthday, setPlayerBirthday] = useState('');
   
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState(''); 
@@ -154,7 +155,7 @@ const AuthScreen: React.FC = () => {
     setError('');
 
     try {
-      if (!email || !password) throw new Error('Email and Password are required.');
+      if (!email || !password) throw new Error('Email/Username and Password are required.');
 
       if (isSignUp) {
         if (!name) throw new Error('Full Name is required.');
@@ -162,6 +163,21 @@ const AuthScreen: React.FC = () => {
         
         // Validate format first (no DB call - user not authenticated yet)
         const cleanUsername = validateUsernameFormat(username);
+        
+        // For Player signup, validate age is 18+
+        if (signUpRole === 'Player') {
+          if (!playerBirthday) throw new Error('Birthday is required for player signup.');
+          const birthDate = new Date(playerBirthday);
+          const today = new Date();
+          let age = today.getFullYear() - birthDate.getFullYear();
+          const monthDiff = today.getMonth() - birthDate.getMonth();
+          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+          }
+          if (age < 18) {
+            throw new Error('You must be 18 or older to sign up as a Player. If you are under 18, ask your parent/guardian to create an account and add you as an athlete.');
+          }
+        }
 
         // Create the Firebase Auth user FIRST
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -181,9 +197,11 @@ const AuthScreen: React.FC = () => {
           // Map UI role to database role
           // Commissioner type: 'team' -> TeamCommissioner, 'league' -> LeagueCommissioner
           // Ref -> Referee
+          // Player -> Athlete (independent adult player)
           const dbRole = signUpRole === 'Commissioner' 
                        ? (commissionerType === 'team' ? 'TeamCommissioner' : 'LeagueCommissioner')
                        : signUpRole === 'Ref' ? 'Referee' 
+                       : signUpRole === 'Player' ? 'Athlete'
                        : signUpRole;
           
           const userProfile: any = {
@@ -196,6 +214,12 @@ const AuthScreen: React.FC = () => {
             credits: 10,
             createdAt: serverTimestamp(),
           };
+          
+          // Add birthday for Player/Athlete signup
+          if (signUpRole === 'Player') {
+            userProfile.dob = playerBirthday;
+            userProfile.isIndependentAthlete = true; // Signed up directly, not released from parent
+          }
           
           if (signUpRole === 'Fan') {
             userProfile.followedAthletes = [];
@@ -218,11 +242,37 @@ const AuthScreen: React.FC = () => {
           throw dbErr;
         }
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        // LOGIN FLOW
+        let loginEmail = email.trim();
+        
+        // Check if input is a username (no @ symbol) instead of email
+        if (!loginEmail.includes('@')) {
+          // This is a username - look up the user to get their email
+          const usernameQuery = query(
+            collection(db, 'users'), 
+            where('username', '==', loginEmail.toLowerCase())
+          );
+          const usernameSnapshot = await getDocs(usernameQuery);
+          
+          if (usernameSnapshot.empty) {
+            throw new Error('No account found with this username.');
+          }
+          
+          const userData = usernameSnapshot.docs[0].data();
+          
+          // Check if this is a released player account
+          if (userData.role === 'Athlete' && userData.email) {
+            loginEmail = userData.email;
+          } else {
+            throw new Error('No account found with this username.');
+          }
+        }
+        
+        await signInWithEmailAndPassword(auth, loginEmail, password);
       }
     } catch (err: any) {
       console.error('Auth Error:', err);
-      const msg = err.code === 'auth/invalid-credential' ? 'Invalid email or password.' : err.message;
+      const msg = err.code === 'auth/invalid-credential' ? 'Invalid email/username or password.' : err.message;
       setError(msg);
     } finally {
       setLoading(false);
@@ -259,12 +309,12 @@ const AuthScreen: React.FC = () => {
   const renderLoginForm = () => (
     <>
       <div className="space-y-1">
-        <label className="block text-sm font-medium text-white/70">Email</label>
+        <label className="block text-sm font-medium text-white/70">Email or Username</label>
         <input 
-          type="email" 
+          type="text" 
           value={email} 
           onChange={(e) => setEmail(e.target.value)} 
-          placeholder="your@email.com" 
+          placeholder="your@email.com or username" 
           className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 px-4 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
         />
       </div>
@@ -304,19 +354,19 @@ const AuthScreen: React.FC = () => {
       {/* Role selector */}
       <div className="space-y-2">
         <label className="block text-sm font-medium text-white/70">I am a...</label>
-        <div className="grid grid-cols-3 gap-2 p-1 bg-white/5 rounded-xl border border-white/10">
-          {(['Parent', 'Coach', 'Fan'] as SignUpRole[]).map(role => (
+        <div className="grid grid-cols-4 gap-2 p-1 bg-white/5 rounded-xl border border-white/10">
+          {(['Parent', 'Coach', 'Fan', 'Player'] as SignUpRole[]).map(role => (
             <button 
               key={role} 
               type="button" 
               onClick={() => setSignUpRole(role)} 
-              className={`py-2.5 px-3 rounded-lg text-sm font-bold transition-all duration-200 ${
+              className={`py-2.5 px-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-200 ${
                 signUpRole === role 
                   ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg' 
                   : 'text-white/50 hover:text-white/80 hover:bg-white/5'
               }`}
             >
-              {role === 'Parent' && '👨‍👩‍👧 '}{role === 'Coach' && '🏈 '}{role === 'Fan' && '📣 '}{role}
+              {role === 'Parent' && '👨‍👩‍👧 '}{role === 'Coach' && '🏈 '}{role === 'Fan' && '📣 '}{role === 'Player' && '🏃 '}{role}
             </button>
           ))}
         </div>
@@ -338,6 +388,27 @@ const AuthScreen: React.FC = () => {
         </div>
         {signUpRole === 'Fan' && (
           <p className="text-xs text-purple-400 mt-2">🎉 Follow athletes, give kudos, and engage with the community!</p>
+        )}
+        {signUpRole === 'Player' && (
+          <>
+            <p className="text-xs text-purple-400 mt-2 mb-3">🏃 Sign up as an independent athlete (18+ only). Manage your own profile!</p>
+            
+            {/* Birthday field for age verification */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-white/70">Birthday (must be 18+)</label>
+              <input
+                type="date"
+                value={playerBirthday}
+                onChange={(e) => setPlayerBirthday(e.target.value)}
+                max={new Date(new Date().setFullYear(new Date().getFullYear() - 18)).toISOString().split('T')[0]}
+                className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 px-4 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                required
+              />
+              <p className="text-xs text-white/50">
+                👉 You must be 18 or older to sign up as a player. Under 18? Ask your parent to add you as an athlete.
+              </p>
+            </div>
+          </>
         )}
         {signUpRole === 'Commissioner' && (
           <>

@@ -1,6 +1,6 @@
 # 📊 OSYS - Master Progress Tracker
 
-**Last Updated:** December 9, 2025 (Evening - Draft Lottery + Mobile Optimization!)  
+**Last Updated:** December 10, 2025 (Draft Pool System + Athlete Onboarding!)  
 **Vision:** The Operating System for Youth Sports  
 **Status:** 🎉 PILOT CONFIRMED - Building Feature Roadmap 🚀
 
@@ -124,6 +124,14 @@ TOTAL PROGRESS     ████████████████░░░░�
 - [x] Flier editor
 - [x] Attendee management
 - [x] Refund handling
+- [x] **NEW: Simple Registration System** (Dec 10, 2025)
+  - Jersey number selection with sport-specific validation
+  - Position preferences
+  - Medical info (allergies, conditions, medications)
+  - Waiver acknowledgment with timestamp
+  - Automatic draft pool integration
+  - Real-time jersey availability check
+  - Multi-step form with progress indicator
 
 #### Private Messaging ✅
 - [x] Coach-to-parent DMs
@@ -191,13 +199,27 @@ TOTAL PROGRESS     ████████████████░░░░�
 
 ---
 
+## ⚠️ KNOWN TESTING WORKAROUNDS (MUST FIX FOR PROD)
+
+> Items bypassed for testing that **MUST** be addressed before production.
+
+| Issue | Workaround | Production Fix | Reference |
+|-------|------------|----------------|-----------|
+| Player email change blocked by Firebase | Store `contactEmail` in Firestore, keep `@player.osys.team` for auth | Use Firebase Admin SDK or Cloud Function to change email without verification | 📁 `components/ReleasedPlayerSetup.tsx` |
+| **Pricing tier tracking bypassed** | Registration uses flat rate from `event.registrationFee`, skips tier update | Create default pricing tier document on event creation, re-enable STEP 3 in `createRegistrationOrder` | 📁 `services/eventService.ts` |
+| **Promo code tracking bypassed** | Promo code `currentUses` not incrementing on registration | Re-enable STEP 4 in `createRegistrationOrder` after promo system tested | 📁 `services/eventService.ts` |
+
+**See:** `PRODUCTION_CHECKLIST.md` → "Player Account Email Change" section for full details.
+
+---
+
 ## 🐛 BUG FIX HISTORY (100+ Fixes!)
 
 > **This section tracks all bug fixes made since project start. Shows the depth of polish and attention to detail.**
 
 ### Summary Stats
 ```
-Total Bug Fixes:     100+ ✅
+Total Bug Fixes:     105+ ✅
 Categories:          15 areas
 Avg Fixes/Month:     ~20-25
 Platform Stability:  ██████████████████░░ 90%
@@ -205,9 +227,15 @@ Platform Stability:  ██████████████████░�
 
 ### By Category
 
-#### 🔐 Authentication & Permissions (12 fixes)
+#### 🔐 Authentication & Permissions (16 fixes)
 | Date | Fix | Impact |
 |------|-----|--------|
+| Dec 10 | **Registration System Rebuilt** - New `simpleRegistrations` collection with clean Firestore rules | Registration finally works! |
+| Dec 10 | Firestore rules allow auth users to increment registration counters | Registration completes! |
+| Dec 10 | Draft Pool waitlist Firestore rules for team registration | Secure draft system |
+| Dec 10 | Added 'Athlete' to UserRole type for independent athletes | Type safety |
+| Dec 10 | Player (18+) direct signup with birthday verification | Adults can sign up directly |
+| Dec 10 | Released player email stored in Firestore, bypasses Firebase verification | Player account setup works |
 | Dec 9 | Public read access for coach/league/program collections | Public profiles work |
 | Dec 9 | Public read for game/playerStats and filmRoom subcollections | Athlete stats visible |
 | Dec 9 | Allow public read access for athlete/coach/team profiles | Public pages accessible |
@@ -235,9 +263,19 @@ Platform Stability:  ██████████████████░�
 | Oct | Stats leaders query - remove orderBy (index issue) | Leaders display |
 | Oct | Calendar timezone issues + 12-hour AM/PM format | Correct times |
 
-#### 🎨 UI/UX & Visibility (15 fixes)
+#### 🎨 UI/UX & Visibility (22 fixes)
 | Date | Fix | Impact |
 |------|-----|--------|
+| Dec 10 | **V2 Premium Athlete Profile Rebuild** - Complete redesign with yellow jersey card, tabs, stats grid, sidebar, animated background | WORLD CLASS design restored! |
+| Dec 10 | **Premium Design Restored** - Fixed missing CSS classes (osys-bg-gradient, osys-bg-mesh) and added animated orbs to public profiles | World-class design back! |
+| Dec 10 | Independent athlete "Join a Team" onboarding screen | Clear path to registration |
+| Dec 10 | DraftPool component on team dashboard for waitlist | Players/coaches see pool |
+| Dec 10 | Quick Actions shows Go Live & Fundraise for coaches + independent athletes | Role-based features |
+| Dec 10 | Design Studio header mobile scrollable, zoom controls hidden | Mobile tools accessible |
+| Dec 10 | Design Studio My Designs moved to end, fullscreen icon-only | Cleaner header UI |
+| Dec 10 | Parent badge on parent-created team designs | Attribution visible |
+| Dec 10 | Add Athlete button navigates to Profile with auto-open modal | Correct navigation |
+| Dec 10 | Public athlete profile null teamId crash (PublicChat, AthletePosts) | Public pages load |
 | Dec 9 | Dashboard visibility for light mode | Light mode usable |
 | Dec 9 | Landing page text visibility (CRITICAL) | Text readable |
 | Dec 9 | Light mode text on NIL Wallet and Fundraising | Pages visible |
@@ -308,9 +346,13 @@ Platform Stability:  ██████████████████░�
 | Oct | Add headCoachId to Team type (build errors) | Types correct |
 | Oct | Teams page crash - invalid query undefined limit | No crash |
 
-#### 🎨 Design Studio (10 fixes)
+#### 🎨 Design Studio (14 fixes)
 | Date | Fix | Impact |
 |------|-----|--------|
+| Dec 10 | Parents can save designs to team folder with Parent badge | Parent contribution |
+| Dec 10 | Coaches can delete any parent-created team designs | Coach moderation |
+| Dec 10 | Design Studio accessible to parents in sidebar | Parent access |
+| Dec 10 | Sidebar reordered: Design Studio in CREATE, Marketing in ENGAGE | Better organization |
 | Dec 8 | Stop credit migration loop | No infinite loop |
 | Dec 8 | Reduce AI generation to 1 image (timeout) | Reliable generation |
 | Dec 8 | Show AI errors instead of silent fallback | Debug friendly |
@@ -1952,10 +1994,126 @@ Match players to roster → Confirm → Done!
 
 ---
 
+## 🔐 TEAM MANAGER SUB-ACCOUNTS PLAN
+
+**Status:** 🔄 IN PROGRESS (Phase 1)  
+**Priority:** HIGH - Commissioner delegation feature
+
+### Overview
+Allow Team Commissioners to create sub-accounts (managers) to help manage their team without cluttering the main signup flow.
+
+### Phase 1: MVP ✅ MOSTLY COMPLETE
+- [x] `TeamManager` type in types.ts
+- [x] `teamManagerService.ts` for CRUD operations
+- [x] Manager login flow (check teamManagers collection)
+- [x] Manager management UI in commissioner dashboard
+- [x] Add manager with name/email/password
+- [x] Edit/delete manager
+- [x] Pause/unpause manager login
+- [x] TeamManagersPanel integrated into CommissionerTeamDetail
+- [ ] Manager sees commissioner dashboard (needs view logic)
+- [ ] Chat/announcements show manager name (attribution)
+- [ ] Manager can change own password/name
+
+### Phase 2: Permissions & Audit ⬜ NOT STARTED
+- [ ] Granular permissions per manager:
+  - Roster Management
+  - Schedule Management
+  - Team Chat
+  - Announcements
+  - Push Notifications
+  - Registration Management
+  - View Stats
+  - Design Studio Access
+  - Film Room Upload
+- [ ] Activity log / audit trail
+- [ ] Email invite option
+- [ ] Session management
+- [ ] Force logout capability
+
+### Phase 3: Monetization ⬜ NOT STARTED
+- [ ] Per-manager fee or tier-based limits
+- [ ] Manager limits by subscription tier
+- [ ] Analytics on manager usage
+- [ ] Usage caps for free tier
+
+### Data Model
+```typescript
+interface TeamManager {
+  id: string;
+  name: string;
+  email: string;
+  teamId: string;
+  commissionerId: string;
+  status: 'active' | 'paused' | 'invited' | 'suspended';
+  permissions: {
+    roster: boolean;
+    schedule: boolean;
+    chat: boolean;
+    announcements: boolean;
+    notifications: boolean;
+    registrations: boolean;
+    stats: boolean;
+    designStudio: boolean;
+    filmRoom: boolean;
+  };
+  lastLogin?: Timestamp;
+  lastActivity?: Timestamp;
+  loginCount: number;
+  createdAt: Timestamp;
+  createdBy: string;
+  updatedAt?: Timestamp;
+}
+```
+
+---
+
 ## Change Log
 
 | Date | Change |
 |------|--------|
+| Dec 10, 2025 | **V2 Athlete Profile Rebuild** - Created PublicAthleteProfileV2.tsx with premium design (yellow jersey card, animated background, stats bar, tabs) + real Firebase data |
+| Dec 10, 2025 | App.tsx import updated to use PublicAthleteProfileV2 component |
+| Dec 10, 2025 | Fixed osys-bg-gradient and osys-bg-mesh CSS classes in osys-design-system.css |
+| Dec 10, 2025 | Updated AnimatedBackground component variants (cyber, mesh, gradient, sparkle) |
+| Dec 11, 2025 | **Season/Program System Complete** - Full commissioner flow: Programs → Seasons → Registration → Teams → Draft |
+| Dec 11, 2025 | **types/season.ts** - Program, Season, AgeGroup, DraftPoolPlayer, GeneratedTeam interfaces |
+| Dec 11, 2025 | **services/seasonService.ts** - Full CRUD: createProgram, createSeason, openRegistration, closeRegistration, registerForSeason, generateTeamsForAgeGroup, draftPlayer |
+| Dec 11, 2025 | **ProgramManager.tsx** - Commissioner UI for creating/managing sports programs with age groups |
+| Dec 11, 2025 | **SeasonManager.tsx** - Season creation, registration open/close, view counts by age group |
+| Dec 11, 2025 | **TeamGenerator.tsx** - Generate teams after registration closes with configurable count, naming (A/B/C or 1/2/3), roster sizes |
+| Dec 11, 2025 | **SeasonRegistrationPage.tsx** - 4-step parent registration: age group selection, athlete info, contact/medical, waiver |
+| Dec 11, 2025 | **Firestore Rules** - programs, seasons, seasons/{seasonId}/draftPool collections with proper security |
+| Dec 11, 2025 | **Firestore Indexes** - Added indexes for programs, seasons, draftPool queries |
+| Dec 11, 2025 | **sportConfig.ts** - Added getPositionsForSport(), getJerseyNumberRules(), validateJerseyNumber() functions |
+| Dec 11, 2025 | **App.tsx Routes** - /commissioner/programs, /register/:seasonId |
+| Dec 10, 2025 | **AthleteSelector Fix** - Now loads parent's athletes from AuthContext (includes unassigned players) instead of only querying team subcollection |
+| Dec 10, 2025 | **Firestore Rules: teamManagers** - Added security rules for teamManagers collection |
+| Dec 10, 2025 | **Team Manager Sub-Accounts Phase 1** - teamManagerService.ts, TeamManagersPanel.tsx, AuthContext manager login support |
+| Dec 10, 2025 | **TeamManager Type** - Added comprehensive TeamManager interface with permissions, status, login tracking |
+| Dec 10, 2025 | **TeamManagersPanel Integration** - Added to CommissionerTeamDetail for per-team manager management |
+| Dec 10, 2025 | **League Season Control** - Teams in active leagues can no longer create/start/end seasons - league controls that |
+| Dec 10, 2025 | **SeasonManager League Props** - Added leagueId, leagueStatus, leagueName props for league awareness |
+| Dec 10, 2025 | **Waiting for League UI** - Teams in leagues see "Waiting for League" message instead of create season buttons |
+| Dec 10, 2025 | **Team Interface Update** - Added leagueName field to Team interface |
+| Dec 10, 2025 | **Registration Link Sharing** - Coaches can now copy shareable registration link directly from Season Manager |
+| Dec 10, 2025 | **Event Visibility Fix** - SeasonManager now creates events in BOTH team subcollection AND top-level events collection for public discoverability |
+| Dec 10, 2025 | **Season Type Update** - Added publicEventId field to Season interface |
+| Dec 10, 2025 | **EventsPage Rewrite** - Team-less users see public events browse for registration |
+| Dec 10, 2025 | **NoAthleteBlock Parent Fix** - Now handles parents WITH athletes but not yet on teams |
+| Dec 10, 2025 | **MarketingHub wrapped** with NoAthleteBlock for team-less users |
+| Dec 10, 2025 | **NoAthleteBlock Update** - Now handles both Parents AND Athletes without teams |
+| Dec 10, 2025 | **Film Room Fix** - Fixed infinite spinner when no teamData (set loading false) |
+| Dec 10, 2025 | **PlayerStatsCard** - New inline stats view for Athletes/Parents |
+| Dec 10, 2025 | **Stats Page Update** - Shows "My Stats" with individual player data for Athletes/Parents |
+| Dec 10, 2025 | **Playbook/Roster/Stats wrapped** with NoAthleteBlock for team-less users |
+| Dec 10, 2025 | **Draft Pool System** - Complete waitlist/draft system for team registration |
+| Dec 10, 2025 | DraftPoolEntry type with payment status, emergency contact, medical info |
+| Dec 10, 2025 | draftPoolService.ts - Full CRUD with auto-draft for single teams |
+| Dec 10, 2025 | DraftPool.tsx component on team dashboard - coaches can draft to roster |
+| Dec 10, 2025 | Registration flow now adds athletes to draft pool on completion |
+| Dec 10, 2025 | Independent athlete "Join a Team" onboarding screen |
+| Dec 10, 2025 | Added ownerId/ownerName to Team interface for commissioner tracking |
 | Dec 6, 2025 | Initial comprehensive progress tracker created |
 | Dec 6, 2025 | Added full roadmap through Phase 7 |
 | Dec 6, 2025 | Added completed achievements section |

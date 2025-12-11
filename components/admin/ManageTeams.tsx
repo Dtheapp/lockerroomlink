@@ -366,8 +366,39 @@ const ManageTeams: React.FC = () => {
             await userBatch.commit();
             console.log(`Unlinked ${usersSnapshot.size} users from team ${teamId}.`);
 
-            // 2. Perform Cascading Delete on subcollections (Players, Posts, Messages, Stats)
-            const subCollections = ['players', 'bulletin', 'messages', 'playerStats'];
+            // 2. PRESERVE PLAYERS - Move them to top-level 'players' collection instead of deleting
+            const playersQuery = query(collection(db, 'teams', teamId, 'players'));
+            const playersSnapshot = await getDocs(playersQuery);
+            
+            if (!playersSnapshot.empty) {
+                const playerBatch = writeBatch(db);
+                let preservedCount = 0;
+                
+                for (const playerDoc of playersSnapshot.docs) {
+                    const playerData = playerDoc.data();
+                    
+                    // Move to top-level players collection with teamId cleared
+                    const newPlayerRef = doc(db, 'players', playerDoc.id);
+                    playerBatch.set(newPlayerRef, {
+                        ...playerData,
+                        teamId: null, // Clear team association
+                        previousTeamId: teamId, // Keep reference to old team
+                        previousTeamName: selectedTeam.name,
+                        removedFromTeamAt: serverTimestamp(),
+                        status: 'unassigned' // Mark as unassigned/free agent
+                    });
+                    
+                    // Delete from old location
+                    playerBatch.delete(doc(db, 'teams', teamId, 'players', playerDoc.id));
+                    preservedCount++;
+                }
+                
+                await playerBatch.commit();
+                console.log(`Preserved ${preservedCount} players by moving to top-level collection.`);
+            }
+
+            // 3. Delete other subcollections (NOT players - they're preserved)
+            const subCollections = ['bulletin', 'messages', 'playerStats'];
             
             for (const subCol of subCollections) {
                 const subColQuery = query(collection(db, 'teams', teamId, subCol));
@@ -383,11 +414,11 @@ const ManageTeams: React.FC = () => {
                 console.log(`Deleted ${subColSnapshot.size} documents from subcollection: ${subCol}.`);
             }
 
-            // 3. Delete the main team document
+            // 4. Delete the main team document
             await deleteDoc(doc(db, 'teams', teamId));
             
             // Log activity
-            await logActivity('DELETE', 'team', teamId, `Deleted team "${selectedTeam.name}" (unlinked ${usersSnapshot.size} users, deleted subcollections)`);
+            await logActivity('DELETE', 'team', teamId, `Deleted team "${selectedTeam.name}" (unlinked ${usersSnapshot.size} users, preserved ${playersSnapshot.size} players)`);
             
             setDeleteTeamModalOpen(false);
             setSelectedTeam(null);

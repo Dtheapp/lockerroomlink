@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp, deleteDoc, doc, updateDoc, where, getDocs, getDoc } from 'firebase/firestore';
 import { uploadFile, deleteFile } from '../services/storage';
 import { db } from '../services/firebase';
@@ -35,6 +35,7 @@ const formatTime12Hour = (time24: string) => {
 
 const Dashboard: React.FC = () => {
   const { userData, teamData, players, selectedPlayer } = useAuth();
+  const navigate = useNavigate();
   const currentYear = new Date().getFullYear();
   
   const [posts, setPosts] = useState<BulletinPost[]>([]);
@@ -559,12 +560,62 @@ const Dashboard: React.FC = () => {
             </ol>
           </div>
           
-          <a 
-            href="#/profile" 
+          <button 
+            onClick={() => navigate('/profile', { state: { openAddAthlete: true } })}
             className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-bold transition-colors"
           >
             <Plus className="w-5 h-5" />
             Add Your First Athlete
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show "Join Team" prompt for parents with players but no team assigned
+  if (userData?.role === 'Parent' && players.length > 0 && !teamData) {
+    const unassignedPlayer = selectedPlayer || players[0];
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="max-w-2xl w-full bg-white dark:bg-zinc-950 rounded-2xl p-8 border border-zinc-200 dark:border-zinc-800 shadow-2xl text-center">
+          <div className="mb-6">
+            <div className="w-20 h-20 bg-sky-100 dark:bg-sky-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Users className="w-10 h-10 text-sky-600 dark:text-sky-400" />
+            </div>
+            <h1 className="text-3xl font-black text-zinc-900 dark:text-white mb-2">Join a Team!</h1>
+            <p className="text-zinc-600 dark:text-zinc-400 text-lg">
+              <strong>{unassignedPlayer?.name || 'Your athlete'}</strong> needs to be assigned to a team
+            </p>
+          </div>
+          
+          <div className="bg-slate-50 dark:bg-black p-6 rounded-lg border border-zinc-200 dark:border-zinc-800 mb-6">
+            <h3 className="font-bold text-zinc-900 dark:text-white mb-3 text-left">How to join a team:</h3>
+            <ol className="text-left space-y-2 text-zinc-700 dark:text-zinc-300">
+              <li className="flex items-start gap-2">
+                <span className="font-bold text-sky-600 dark:text-sky-400 flex-shrink-0">1.</span>
+                <span>Get the <strong>Team ID</strong> from your coach or team admin</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold text-sky-600 dark:text-sky-400 flex-shrink-0">2.</span>
+                <span>Go to your <strong>Profile</strong> page</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold text-sky-600 dark:text-sky-400 flex-shrink-0">3.</span>
+                <span>Click <strong>"(change)"</strong> next to your athlete's team</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold text-sky-600 dark:text-sky-400 flex-shrink-0">4.</span>
+                <span>Select the team to join</span>
+              </li>
+            </ol>
+          </div>
+          
+          <a 
+            href="#/profile" 
+            className="inline-flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white px-8 py-3 rounded-lg font-bold transition-colors"
+          >
+            <Users className="w-5 h-5" />
+            Go to Profile to Join Team
           </a>
         </div>
       </div>
@@ -1242,6 +1293,9 @@ const Dashboard: React.FC = () => {
               teamName={teamData.name}
               sport={teamData.sport || 'football'}
               currentSeasonId={teamData.currentSeasonId}
+              leagueId={teamData.leagueId}
+              leagueStatus={teamData.leagueStatus}
+              leagueName={teamData.leagueName}
             />
           </div>
         </div>
