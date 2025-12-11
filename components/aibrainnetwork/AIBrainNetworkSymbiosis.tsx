@@ -254,7 +254,7 @@ const AIBrainNetworkSymbiosis: React.FC = () => {
     
     <div class="nav-buttons">
         <a href="#/aibrainnetwork" class="nav-btn">📊 Pitch Deck</a>
-        <a href="https://github.com/fegrox/lockerroomlink/commits/dev" target="_blank" class="nav-btn proof">📜 Git Proof</a>
+        <a href="https://github.com/Dtheapp/lockerroomlink/commits/dev" target="_blank" class="nav-btn proof">📜 Git Proof</a>
     </div>
 
     <section class="hero">
@@ -357,7 +357,7 @@ const AIBrainNetworkSymbiosis: React.FC = () => {
                 <span style="color: var(--gold);">3c29c33</span> - Session started
             </p>
             <p style="margin-top: 1rem;">
-                <a href="https://github.com/fegrox/lockerroomlink/commits/dev" target="_blank" style="color: #22c55e;">
+                <a href="https://github.com/Dtheapp/lockerroomlink/commits/dev" target="_blank" style="color: #22c55e;">
                     📜 View Full Git History →
                 </a>
             </p>

@@ -282,7 +282,7 @@ const AIBrainNetworkPitch: React.FC = () => {
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
           <a href="#pitch" className="nav-link">📊 Pitch Deck</a>
           <a href="#aibrainnetwork/symbiosis" className="nav-link proof-link">🧬 Birth of Symbiosis</a>
-          <a href="https://github.com/fegrox/lockerroomlink/commits/dev" target="_blank" rel="noopener noreferrer" className="nav-link proof-link">📜 Git Proof</a>
+          <a href="https://github.com/Dtheapp/lockerroomlink/commits/dev" target="_blank" rel="noopener noreferrer" className="nav-link proof-link">📜 Git Proof</a>
         </div>
       </div>
 
