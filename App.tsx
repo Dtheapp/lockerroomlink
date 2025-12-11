@@ -87,6 +87,10 @@ const ProgressPage = lazyWithRetry(() => import('./components/ProgressPage'));
 // AI Session Log Page
 const AILogPage = lazyWithRetry(() => import('./components/AILogPage'));
 
+// AI Brain Network Pages (Public - Pitch Deck & Symbiosis)
+const AIBrainNetworkPitch = lazyWithRetry(() => import('./components/aibrainnetwork/AIBrainNetworkPitch'));
+const AIBrainNetworkSymbiosis = lazyWithRetry(() => import('./components/aibrainnetwork/AIBrainNetworkSymbiosis'));
+
 // Draft Day Showcase
 const DraftDayShowcase = lazyWithRetry(() => import('./components/DraftDayShowcase'));
 
@@ -280,6 +284,10 @@ const AppContent: React.FC = () => {
           <Route path="/ailog" element={<AILogPage />} />
           <Route path="/draft" element={<DraftDayShowcase />} />
           <Route path="/compare" element={<ComparisonPage />} />
+          
+          {/* AI Brain Network - Public Pitch Pages */}
+          <Route path="/aibrainnetwork" element={<AIBrainNetworkPitch />} />
+          <Route path="/aibrainnetwork/symbiosis" element={<AIBrainNetworkSymbiosis />} />
           
           {!user ? (
             <>
