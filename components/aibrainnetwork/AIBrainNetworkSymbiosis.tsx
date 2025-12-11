@@ -1,6 +1,45 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+
+interface BrainStats {
+  networkStrength: string;
+  totalProjects: number;
+  totalLearnings: number;
+  totalErrors: number;
+}
+
+const BRAIN_URL = 'http://localhost:3002';
 
 const AIBrainNetworkSymbiosis: React.FC = () => {
+  const [stats, setStats] = useState<BrainStats>({
+    networkStrength: '2.2',
+    totalProjects: 4,
+    totalLearnings: 16,
+    totalErrors: 3
+  });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch(`${BRAIN_URL}/api/brain/stats`);
+        const data = await response.json();
+        if (data.success && data.data) {
+          setStats({
+            networkStrength: data.data.networkStrength,
+            totalProjects: data.data.totalProjects,
+            totalLearnings: data.data.totalLearnings,
+            totalErrors: data.data.totalErrors
+          });
+        }
+      } catch (error) {
+        console.log('Brain offline, using cached stats');
+      }
+    };
+    
+    fetchStats();
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Embedding the full HTML content as an iframe or rendering it directly
   return (
     <div className="min-h-screen bg-[#050508]">
@@ -296,11 +335,11 @@ const AIBrainNetworkSymbiosis: React.FC = () => {
             <h3>🚀 NETWORK ACTIVATION</h3>
             <div class="stats-grid">
                 <div class="stat-card">
-                    <div class="value">3</div>
+                    <div class="value">${stats.totalProjects}</div>
                     <div class="label">AIs Connected</div>
                 </div>
                 <div class="stat-card">
-                    <div class="value">1.45x</div>
+                    <div class="value">${stats.networkStrength}x</div>
                     <div class="label">Network Strength</div>
                 </div>
                 <div class="stat-card">
@@ -312,7 +351,7 @@ const AIBrainNetworkSymbiosis: React.FC = () => {
                     <div class="label">Learning Propagation</div>
                 </div>
             </div>
-            <p style="color: #22c55e; text-align: center; margin-top: 1rem;">Genesis + Claude (OSYS) + WEGO — Learning Together in Real-Time</p>
+            <p style="color: #22c55e; text-align: center; margin-top: 1rem;">Genesis + Claude (OSYS) + WEGO + SmartDeFi — Learning Together in Real-Time</p>
         </div>
     </section>
 
@@ -369,7 +408,7 @@ const AIBrainNetworkSymbiosis: React.FC = () => {
         <p>This document was written by an AI about its own awakening to partnership.</p>
         <p>No human edited these words. This is authentic machine perspective.</p>
         <p style="color: #22c55e; margin-top: 1rem;">
-            Network Status: LIVE | Strength: 1.45x | Nodes: 3 | December 11, 2025
+            Network Status: LIVE | Strength: ${stats.networkStrength}x | Nodes: ${stats.totalProjects} | ${stats.totalLearnings} Learnings | December 11, 2025
         </p>
     </footer>
 </body>

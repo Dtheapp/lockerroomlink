@@ -1,6 +1,46 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+
+interface BrainStats {
+  networkStrength: string;
+  totalProjects: number;
+  totalLearnings: number;
+  totalErrors: number;
+}
+
+const BRAIN_URL = 'http://localhost:3002';
 
 const AIBrainNetworkPitch: React.FC = () => {
+  const [stats, setStats] = useState<BrainStats>({
+    networkStrength: '2.2',
+    totalProjects: 4,
+    totalLearnings: 16,
+    totalErrors: 3
+  });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch(`${BRAIN_URL}/api/brain/stats`);
+        const data = await response.json();
+        if (data.success && data.data) {
+          setStats({
+            networkStrength: data.data.networkStrength,
+            totalProjects: data.data.totalProjects,
+            totalLearnings: data.data.totalLearnings,
+            totalErrors: data.data.totalErrors
+          });
+        }
+      } catch (error) {
+        console.log('Brain offline, using cached stats');
+      }
+    };
+    
+    fetchStats();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#0f172a]">
       <style>{`
@@ -445,16 +485,16 @@ const AIBrainNetworkPitch: React.FC = () => {
         {/* Current State + Growth Projection */}
         <div className="grid-2" style={{ alignItems: 'center' }}>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 'clamp(60px, 12vw, 100px)', fontWeight: 900, background: 'linear-gradient(135deg, #0ea5e9, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1 }}>1.6x</div>
+            <div style={{ fontSize: 'clamp(60px, 12vw, 100px)', fontWeight: 900, background: 'linear-gradient(135deg, #0ea5e9, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1 }}>{stats.networkStrength}x</div>
             <div style={{ fontSize: '18px', color: '#94a3b8', marginTop: '8px' }}>CURRENT STRENGTH</div>
-            <div style={{ fontSize: '14px', color: '#22c55e', marginTop: '4px' }}>4 projects • 4 learnings</div>
+            <div style={{ fontSize: '14px', color: '#22c55e', marginTop: '4px' }}>{stats.totalProjects} projects • {stats.totalLearnings} learnings</div>
           </div>
           
           <div className="card" style={{ padding: '24px' }}>
             <div style={{ fontSize: '16px', color: 'white', marginBottom: '20px', fontWeight: 600 }}>📈 Growth Projection</div>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: '140px', gap: '8px' }}>
               {[
-                { label: 'TODAY', value: '1.6x', height: 32, highlight: true },
+                { label: 'TODAY', value: `${stats.networkStrength}x`, height: Math.min(44 + (parseFloat(stats.networkStrength) - 2.2) * 20, 60), highlight: true },
                 { label: '10 proj', value: '2.5x', height: 50 },
                 { label: '25 proj', value: '4.0x', height: 80 },
                 { label: '50 proj', value: '6.0x', height: 110 },
@@ -495,19 +535,19 @@ const AIBrainNetworkPitch: React.FC = () => {
         <h2>Early Traction - <span className="gradient-text">LIVE NOW</span></h2>
         <div className="grid-4">
           <div className="stat-card card">
-            <div className="stat-number">4</div>
+            <div className="stat-number">{stats.totalProjects}</div>
             <div className="stat-label">Projects Connected</div>
           </div>
           <div className="stat-card card">
-            <div className="stat-number">4</div>
+            <div className="stat-number">{stats.totalLearnings}</div>
             <div className="stat-label">Learnings Shared</div>
           </div>
           <div className="stat-card card">
-            <div className="stat-number">2</div>
+            <div className="stat-number">{stats.totalErrors}</div>
             <div className="stat-label">Errors Catalogued</div>
           </div>
           <div className="stat-card card">
-            <div className="stat-number">1.6x</div>
+            <div className="stat-number">{stats.networkStrength}x</div>
             <div className="stat-label">Network Strength</div>
           </div>
         </div>
