@@ -1,18 +1,64 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../services/firebase';
+import { useAuth } from '../../contexts/AuthContext';
 import EventDetails from './EventDetails';
 import { Event, PricingTier } from '../../types/events';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 
 /**
  * PublicEventPage - Wrapper for public event view (no auth required)
+ * If user is logged in and event is a registration type, can auto-navigate to registration
  */
 const PublicEventPage: React.FC = () => {
   const navigate = useNavigate();
   const { eventId, shareableLink } = useParams<{ eventId?: string; shareableLink?: string }>();
+  const { user } = useAuth();
+  const [checkingEvent, setCheckingEvent] = useState(true);
 
   // Determine the event ID from URL params
   const resolvedEventId = eventId || shareableLink;
+
+  // Check if event is registration type and auto-redirect if user is logged in
+  useEffect(() => {
+    const checkEventAndRedirect = async () => {
+      if (!resolvedEventId) {
+        setCheckingEvent(false);
+        return;
+      }
+      
+      // If user is logged in, check if this is a registration event
+      if (user) {
+        try {
+          const eventDoc = await getDoc(doc(db, 'events', resolvedEventId));
+          if (eventDoc.exists()) {
+            const eventData = eventDoc.data();
+            // If it's a registration event, go straight to registration
+            if (eventData.type === 'registration') {
+              navigate(`/dashboard/events/${resolvedEventId}/register`, { replace: true });
+              return;
+            }
+          }
+        } catch (err) {
+          console.error('Error checking event:', err);
+        }
+      }
+      
+      setCheckingEvent(false);
+    };
+    
+    checkEventAndRedirect();
+  }, [resolvedEventId, user, navigate]);
+
+  // Show loading while checking
+  if (checkingEvent) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+      </div>
+    );
+  }
 
   // No event ID in URL
   if (!resolvedEventId) {
@@ -32,7 +78,13 @@ const PublicEventPage: React.FC = () => {
   }
 
   const handleRegister = (event: Event, pricingTiers: PricingTier[]) => {
-    navigate(`/events/${resolvedEventId}/register`);
+    // Navigate to the auth-required registration page
+    if (user) {
+      navigate(`/dashboard/events/${resolvedEventId}/register`);
+    } else {
+      // Redirect to login with return URL
+      navigate(`/login`, { state: { returnTo: `/event/${resolvedEventId}` } });
+    }
   };
 
   return (

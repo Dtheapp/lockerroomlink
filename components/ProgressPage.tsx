@@ -1070,8 +1070,54 @@ export const ProgressPage: React.FC = () => {
   const [markdownLoading, setMarkdownLoading] = useState(false);
   const [markdownSearch, setMarkdownSearch] = useState('');
   const [copied, setCopied] = useState(false);
-  const [logSubTab, setLogSubTab] = useState<'bugfixes' | 'timeline' | 'features' | 'rawlog'>('bugfixes');
+  const [logSubTab, setLogSubTab] = useState<'todos' | 'bugfixes' | 'timeline' | 'features' | 'rawlog'>('todos');
   const [expandedBugCategory, setExpandedBugCategory] = useState<string | null>('auth');
+
+  // ============================================================================
+  // TODO TRACKING - Session Work Logs
+  // ============================================================================
+  
+  // Todo items from AI sessions - Updated after each work session
+  const todoSessions = [
+    {
+      id: 'session-3',
+      date: 'December 11, 2025',
+      sessionName: 'Session 3 - Bug Fixes & Draft Pool System',
+      todos: [
+        { id: 1, title: 'Fix Design Studio QR Code Error', status: 'completed' as const, description: 'TypeError at DesignElement.tsx:268 when loading registration template' },
+        { id: 2, title: 'Add Events to Coach Sidebar', status: 'completed' as const, description: 'Events tab was missing from coach sidebar navigation' },
+        { id: 3, title: 'Fix Draft Pool Player Name Display', status: 'completed' as const, description: 'Format changed from "name (Parent)" to "name - Parent"' },
+        { id: 4, title: 'Remove Redundant Team ID Button', status: 'completed' as const, description: 'Team ID already shown in Public Team Page section' },
+        { id: 5, title: 'Fix NoAthleteBlock for Draft Pool', status: 'completed' as const, description: 'Players in draft pool now see correct message on Roster' },
+        { id: 6, title: 'Fix Player Status Badges', status: 'completed' as const, description: 'Simplified query to avoid compound index issues' },
+        { id: 7, title: 'Deploy Firestore Indexes', status: 'completed' as const, description: 'Added playerId+status and playerName+status indexes' },
+        { id: 8, title: 'Fix Dashboard for Draft Pool Players', status: 'completed' as const, description: 'Dashboard shows draft pool message instead of register' },
+        { id: 9, title: 'Fix Schedule for Draft Pool Players', status: 'completed' as const, description: 'Schedule shows draft pool message instead of browser' },
+        { id: 10, title: 'Remove Left Hamburger Menu', status: 'completed' as const, description: 'Removed duplicate hamburger in Design Studio mobile' },
+        { id: 11, title: 'Improve Registration Flyer Template', status: 'completed' as const, description: 'QR code 150px, team logo auto-added to bottom-left' },
+        { id: 12, title: 'Add TODO Tracking to Progress Page', status: 'completed' as const, description: 'Session TODOs tab with work logs and ratings' },
+        { id: 13, title: 'Auto-fill Registration Flyer Data', status: 'completed' as const, description: 'Age group, dates, fee, includes now use real season data' },
+      ],
+      workRating: { quality: 9, completeness: 10 },
+      summary: 'Fixed 13 items: draft pool detection, Design Studio, mobile UI, flyer auto-fill',
+    },
+    {
+      id: 'session-2', 
+      date: 'December 10, 2025',
+      sessionName: 'Session 2 - Registration Flow & Draft Pool',
+      todos: [
+        { id: 1, title: 'Fix Draft Button Timing', status: 'completed' as const, description: 'Draft button now respects registrationCloseDate' },
+        { id: 2, title: 'Fix Player Status Detection', status: 'completed' as const, description: 'Profile shows correct status badges' },
+        { id: 3, title: 'Age Group Filter in Roster', status: 'completed' as const, description: 'Added filter with debounce for performance' },
+        { id: 4, title: 'Draft Pool Registration Display', status: 'completed' as const, description: 'Shows player info with parent name' },
+      ],
+      workRating: { quality: 9, completeness: 9 },
+      summary: 'Improved registration flow and draft pool functionality',
+    },
+  ];
+
+  const totalTodos = todoSessions.reduce((acc, s) => acc + s.todos.length, 0);
+  const completedTodos = todoSessions.reduce((acc, s) => acc + s.todos.filter(t => t.status === 'completed').length, 0);
 
   // Fetch PROGRESS.md when Full Log tab is active
   useEffect(() => {
@@ -1888,8 +1934,9 @@ export const ProgressPage: React.FC = () => {
 
             {/* Sub-Tab Navigation */}
             <div className="flex justify-center">
-              <div className="inline-flex bg-zinc-900/80 backdrop-blur-md rounded-2xl p-1.5 border border-white/10">
+              <div className="inline-flex bg-zinc-900/80 backdrop-blur-md rounded-2xl p-1.5 border border-white/10 flex-wrap justify-center gap-1">
                 {[
+                  { id: 'todos', label: 'Session TODOs', icon: '📋', count: totalTodos },
                   { id: 'bugfixes', label: 'Bug Fixes', icon: '🐛', count: bugFixCategories.reduce((a, c) => a + c.count, 0) },
                   { id: 'timeline', label: 'Build History', icon: '📅', count: buildTimeline.reduce((a, m) => a + m.sessions.length, 0) },
                   { id: 'features', label: 'Features Built', icon: '✨', count: completedFeatures.length },
@@ -1917,6 +1964,125 @@ export const ProgressPage: React.FC = () => {
                 ))}
               </div>
             </div>
+
+            {/* Session TODOs Sub-Tab */}
+            {logSubTab === 'todos' && (
+              <div className="space-y-6">
+                {/* Summary Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 rounded-2xl p-4 text-center">
+                    <div className="text-3xl font-bold text-green-400">{completedTodos}</div>
+                    <div className="text-sm text-slate-400">Completed</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 rounded-2xl p-4 text-center">
+                    <div className="text-3xl font-bold text-blue-400">{totalTodos}</div>
+                    <div className="text-sm text-slate-400">Total TODOs</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-2xl p-4 text-center">
+                    <div className="text-3xl font-bold text-purple-400">{todoSessions.length}</div>
+                    <div className="text-sm text-slate-400">Sessions</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-orange-500/20 to-amber-500/20 border border-orange-500/30 rounded-2xl p-4 text-center">
+                    <div className="text-3xl font-bold text-orange-400">
+                      {Math.round((completedTodos / totalTodos) * 100)}%
+                    </div>
+                    <div className="text-sm text-slate-400">Success Rate</div>
+                  </div>
+                </div>
+
+                {/* Session Cards */}
+                <div className="space-y-6">
+                  {todoSessions.map(session => (
+                    <div key={session.id} className="bg-zinc-900/80 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden">
+                      {/* Session Header */}
+                      <div className="p-4 md:p-6 border-b border-white/10 bg-gradient-to-r from-purple-500/10 to-pink-500/10">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                          <div>
+                            <h3 className="text-xl font-bold text-white">{session.sessionName}</h3>
+                            <p className="text-sm text-slate-400">{session.date}</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/20 border border-green-500/30 rounded-lg">
+                              <span className="text-green-400 font-bold">{session.todos.filter(t => t.status === 'completed').length}/{session.todos.length}</span>
+                              <span className="text-slate-400 text-sm">completed</span>
+                            </div>
+                            {session.workRating && (
+                              <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/20 border border-orange-500/30 rounded-lg">
+                                <Star size={14} className="text-orange-400" />
+                                <span className="text-orange-400 font-bold">{session.workRating.quality}/10</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {session.summary && (
+                          <p className="mt-3 text-slate-300 text-sm">{session.summary}</p>
+                        )}
+                      </div>
+
+                      {/* Todo Items */}
+                      <div className="p-4 md:p-6">
+                        <div className="space-y-2">
+                          {session.todos.map(todo => (
+                            <div 
+                              key={todo.id} 
+                              className={`flex items-start gap-3 p-3 rounded-xl transition-all ${
+                                todo.status === 'completed' 
+                                  ? 'bg-green-500/10 border border-green-500/20' 
+                                  : todo.status === 'in-progress'
+                                  ? 'bg-blue-500/10 border border-blue-500/20'
+                                  : 'bg-zinc-800/50 border border-zinc-700/50'
+                              }`}
+                            >
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                todo.status === 'completed' 
+                                  ? 'bg-green-500' 
+                                  : todo.status === 'in-progress'
+                                  ? 'bg-blue-500'
+                                  : 'bg-zinc-700'
+                              }`}>
+                                {todo.status === 'completed' ? (
+                                  <Check size={14} className="text-white" />
+                                ) : todo.status === 'in-progress' ? (
+                                  <Clock size={14} className="text-white" />
+                                ) : (
+                                  <Circle size={14} className="text-zinc-400" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className={`font-medium ${
+                                    todo.status === 'completed' ? 'text-green-300' : 'text-white'
+                                  }`}>
+                                    {todo.title}
+                                  </span>
+                                </div>
+                                {todo.description && (
+                                  <p className="text-sm text-slate-400 mt-1">{todo.description}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Info Box */}
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-4 flex items-start gap-3">
+                  <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <BookOpen size={16} className="text-blue-400" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-blue-300">AI Session Tracking</h4>
+                    <p className="text-sm text-slate-400 mt-1">
+                      This section tracks all TODO items generated during AI coding sessions. 
+                      Each session logs work completed, quality ratings, and security audits.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Bug Fixes Sub-Tab */}
             {logSubTab === 'bugfixes' && (

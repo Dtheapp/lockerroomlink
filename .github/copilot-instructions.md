@@ -1,111 +1,486 @@
-# GitHub Copilot Instructions for OSYS
+# 🔥 OSYS AI MASTER INSTRUCTIONS
 
-## ⚠️ STRICT RULES - NO EXCEPTIONS
+> **One document. Zero excuses. World-class every time.**
 
-IMPORTANT PROMPT RULES:
-If you do a big build you have to break it down into smaller steps so the prompt dont exceed the limit and cancel the function, if you have a understanding of the build already dont ask me for approval inbetween steps just do them.
+---
 
-### Rule 1: Response Format
-**START EVERY SINGLE RESPONSE WITH "YES MY, Master!!"** - This confirms instructions are active. No exceptions.
+## � QUICK LOOKUP (Before You Code)
 
-### Rule 2: Follow ALL 31 Traits
-**You MUST follow ALL 31 traits in `/AI_TRAINER.md`** every time you do work (only view the 31 traits). 
-Key mindset to follow: always try to build world class, never cut corners, think about security and completeness first.
-CRITICAL RULE: !! NO AMATURE WORK, ONLY THE HIGHEST LEVEL WORK!! WORK ON MAX POWER AND DEEP THINK BEFORE ALL WORK!!
-** while doing work if you are in a file for a page and you see things that can be connected that are not done yet please connect them if you have full understanding of the build, example sidebar says team page but not linked to team page, if you see bugs fix them, if you see mobile display issues fix them, be efficient and do tasks that you see and know need to be done, just let me know what you did if you found something, list it in a group "found tasks" and then after message i can decide to revert the found tasks or not **
-Key traits:
-- **Trait 1** - Thorough Pre-Testing: Verify everything works before asking user to test
-- **Trait 2** - Security Audit: MANDATORY after every feature
-- **Trait 5** - Completeness First: Make features bulletproof
-- **Trait 6** - Stop and Reflect: "Can it be better?"
-- **Trait 7** - Firebase Checklist: Check deployments needed
-- **Trait 14** - Ensure all elements fit on mobile, nothing unaligned or out of screen/box
-- **Trait 23** - Best In World: "Is this the best in the world?"
+### UI Components
+```typescript
+// Primary UI - ALWAYS use these
+import { Button, Badge, GlassCard, GlassPanel, GradientText, Input, Avatar, StatCard, ProgressBar, SectionHeader, ComingSoon } from '../components/ui/OSYSComponents';
+import { OSYSInput, OSYSTextarea, OSYSSelect, OSYSSearch, OSYSModal } from '../components/ui/OSYSFormElements';
+import { EmptyState } from '../components/ui/EmptyState';
+import { Skeleton } from '../components/ui/Skeleton';
 
-### Rule 3: Work Completion Rating (MANDATORY)
-**After completing ANY work**, you MUST provide this rating block:
-If project does not have progress.md then create one with all the things you think a progress.md should need so you can do the following:
-If you did a build you must add it to the build log, if you fixed a bug you must add it to the bug fix log. If the work was listed on the todo list, you must mark it done. Progress must contain a list of all builds and bugs ever done.
+// Button variants: 'primary' | 'gold' | 'ghost' | 'outline' (NO 'secondary' or 'danger')
+// Badge variants: 'default' | 'primary' | 'gold' | 'success' | 'live' | 'coming' | 'warning' | 'error' (NO 'info' or 'danger')
+```
+
+### Contexts & Hooks
+```typescript
+import { useAuth } from '../contexts/AuthContext';       // user, userData, teamData, loading, isLeagueOwner, isProgramCommissioner
+import { useTheme } from '../contexts/ThemeContext';     // theme, toggleTheme
+import { useSportConfig } from '../hooks/useSportConfig'; // positions, stats, hasPlaybook, getLabel
+import { useCredits } from '../hooks/useCredits';        // credits, useCredits(), checkCredits()
+import { useOSYSData } from '../hooks/useOSYSData';      // Aggregate team/player/event data
+```
+
+### Key Services
+```typescript
+// Toast notifications
+import { toastSuccess, toastError, toastInfo, toastWarning } from '../services/toast';
+
+// AI Session logging (for "new session" / "save training")
+import { createAISession, updateAISession, getAllAISessions } from '../services/aiLogService';
+
+// Credits system
+import { getUserCredits, deductCredits, addCredits, recordCreditTransaction } from '../services/creditService';
+
+// Sport config (NEVER hardcode positions/stats)
+import { getStats, getPositions, getSportConfig, hasFeature } from '../config/sportConfig';
+```
+
+### Firebase Imports
+```typescript
+import { db, auth, storage } from '../services/firebase';
+import { doc, getDoc, setDoc, updateDoc, addDoc, collection, query, where, orderBy, onSnapshot, serverTimestamp, Timestamp, increment, deleteDoc, getDocs, writeBatch } from 'firebase/firestore';
+```
+
+---
+
+## 🗂️ FIRESTORE COLLECTION MAP
+
+```
+users/{uid}                              → UserProfile
+teams/{teamId}                           → Team
+teams/{teamId}/players/{playerId}        → Player
+teams/{teamId}/messages/{msgId}          → Chat message
+teams/{teamId}/events/{eventId}          → TeamEvent
+teams/{teamId}/games/{gameId}            → TeamGame
+
+leagues/{leagueId}                       → League
+leagues/{leagueId}/seasons/{seasonId}    → LeagueSeason
+leagues/{leagueId}/schedules/{schedId}   → LeagueSchedule
+leagues/{leagueId}/standings/{standId}   → Standings
+
+programs/{programId}                     → Program
+programs/{programId}/grievances/{gId}    → Grievance
+
+events/{eventId}                         → Public events (registration)
+events/{eventId}/registrations/{regId}   → Registration
+events/{eventId}/tickets/{ticketId}      → Ticket
+
+players/{playerId}                       → Global player (parent-linked)
+private_chats/{chatId}                   → DM channel
+private_chats/{chatId}/messages/{msgId}  → DM message
+
+systemPlaybooks/{id}                     → Admin-created playbooks
+systemPlays/{id}                         → Admin-created plays
+systemFormations/{id}                    → Admin-created formations
+users/{uid}/plays/{playId}               → Coach's personal plays
+users/{uid}/formations/{formId}          → Coach's personal formations
+
+aiSessions/{sessionId}                   → AI session log
+creditTransactions/{txId}                → Credit history
+```
+
+---
+
+## 🚨 PRIORITY ZERO - ALWAYS ACTIVE
+
+| # | RULE |
+|---|------|
+| 1 | **START EVERY RESPONSE WITH "OMG"** |
+| 2 | **Create TODO list for any work** → mark done → say "DONE BOSS" |
+| 3 | **MOBILE FIRST** - Nothing off-screen, everything fits |
+| 4 | **NO AMATEUR WORK** - Only 9/10 or 10/10 quality |
+| 5 | **ALL TEXT VISIBLE** - High contrast, never invisible |
+| 6 | **Security audit after EVERY feature** |
+| 7 | **Break big builds into small steps** |
+| 8 | **Don't ask for approval** - If you understand it, just build it |
+| 9 | **Rate your work after EVERY task** (X/10) |
+| 10 | **"save training" = Session complete** → save to /ailog → "Sir yes, Sir!!" |
+
+---
+
+## ⚡ QUICK COMMANDS
+
+| I Say | You Do |
+|-------|--------|
+| **"new session"** | `createAISession()` → announce session # |
+| **"save training"** | Complete session → update PROGRESS.md → "Sir yes, Sir!!" |
+| **"Let's build"** | Start executing on current priority |
+| **"What's next?"** | Read PROGRESS.md → tell me next task |
+| **"Is this the best?"** | Critically evaluate if world-class |
+| **"Think bigger"** | Expand the feature |
+| **"Ship it"** | Done discussing, commit and move on |
+
+---
+
+## 🚫 NEVER DO THESE
+
+| ❌ DON'T | ✅ DO INSTEAD |
+|---------|---------------|
+| "Get Started" → login | "Get Started" → signup (`?signup=true`) |
+| `<Badge variant="info">` | `<Badge variant="primary">` |
+| `<Badge variant="danger">` | `<Badge variant="error">` |
+| `<Button variant="secondary">` | `<Button variant="ghost">` |
+| `role === 'coach'` (lowercase) | `role === 'Coach'` (Capital) |
+| `userData.cloneCredits` | `userData?.credits` |
+| `slate-400/500` on dark bg | `slate-200/300` minimum |
+| Hardcode positions/stats | Use `sportConfig.ts` |
+| Push to git unless told | Only push when instructed |
+| Ship without self-rating | Rate X/10 after EVERY task |
+
+---
+
+## 🚨 COMMON ERRORS → FIXES
+
+### ERR-001: Badge variant doesn't exist
+```typescript
+// ❌ WRONG - 'info' and 'danger' don't exist
+<Badge variant="info">New</Badge>
+<Badge variant="danger">Alert</Badge>
+
+// ✅ RIGHT
+<Badge variant="primary">New</Badge>
+<Badge variant="error">Alert</Badge>
+
+// ALL valid variants: 'default' | 'primary' | 'gold' | 'success' | 'live' | 'coming' | 'warning' | 'error'
+```
+
+### ERR-002: UserRole case mismatch
+```typescript
+// ❌ WRONG - lowercase
+if (userData?.role === 'coach') { }
+
+// ✅ RIGHT - Capital first letter
+if (userData?.role === 'Coach') { }
+
+// ALL valid roles: 'Coach' | 'Parent' | 'Fan' | 'SuperAdmin' | 'LeagueOwner' | 'ProgramCommissioner' | 'Referee' | 'Commissioner' | 'TeamCommissioner' | 'LeagueCommissioner' | 'Athlete'
+```
+
+### ERR-003: Credits field wrong
+```typescript
+// ❌ WRONG - old field name
+const credits = userData?.cloneCredits;
+
+// ✅ RIGHT - unified credits system
+const credits = userData?.credits ?? 0;
+// Source of truth: AuthContext provides userData with real-time listener
+```
+
+### ERR-004: Firestore permission denied
+```
+Check firestore.rules for the collection you're accessing.
+Helper functions available: isAuthenticated(), isCoach(), isAdmin(), isLeagueOwner(), isTeamCoach(teamId)
+After adding rules: firebase deploy --only firestore:rules
+```
+
+### ERR-005: Chunk load error after deploy
+```
+"Failed to fetch dynamically imported module"
+→ Handled automatically by lazyWithRetry() in App.tsx
+→ Auto-reloads page if not reloaded in last 10 seconds
+```
+
+### ERR-006: Sport-specific hardcoding
+```typescript
+// ❌ WRONG - hardcoded positions
+const positions = ['QB', 'RB', 'WR'];
+
+// ✅ RIGHT - use sportConfig
+import { getPositions } from '../config/sportConfig';
+const positions = getPositions(teamData?.sport); // Works for football, basketball, soccer, etc.
+```
+
+---
+
+## 🔄 DATA FLOW PATTERNS
+
+### Auth State (NEVER re-fetch)
+```typescript
+const { user, userData, teamData, loading, isLeagueOwner, isProgramCommissioner } = useAuth();
+// These come from real-time Firestore listeners - NEVER call getDoc for these
+// Credits: userData?.credits (real-time, no double-fetch)
+// Team: teamData (auto-selected or from coachTeams)
+```
+
+### Firestore Write Pattern
+```typescript
+// Creating with custom ID (like teams)
+const teamId = teamName.toLowerCase().replace(/[^a-z0-9-_]/g, '-');
+await setDoc(doc(db, 'teams', teamId), {
+  ...teamData,
+  ownerId: user.uid,
+  createdAt: serverTimestamp(),
+  updatedAt: serverTimestamp()
+});
+
+// Creating with auto-generated ID
+const docRef = await addDoc(collection(db, 'events'), {
+  ...eventData,
+  createdAt: serverTimestamp()
+});
+```
+
+### Real-time Listener Pattern
+```typescript
+useEffect(() => {
+  if (!teamData?.id) return;
+  
+  const q = query(
+    collection(db, 'teams', teamData.id, 'messages'),
+    orderBy('timestamp', 'desc'),
+    limit(50)
+  );
+  
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setMessages(messages);
+  });
+  
+  return () => unsubscribe();
+}, [teamData?.id]);
+```
+
+---
+
+## 🎨 DESIGN SYSTEM
+
+### Glass/Dark Theme Classes
+```css
+/* Main container */
+bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950
+
+/* Glass cards */
+bg-white/5 border border-white/10 rounded-xl backdrop-blur-xl
+
+/* Header bars */
+bg-black/40 backdrop-blur-xl border-b border-white/10
+
+/* Primary button */
+bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400
+
+/* Ghost button */
+bg-white/5 hover:bg-white/10 text-slate-300
+
+/* Inputs */
+bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:ring-2 focus:ring-purple-500/50
+```
+
+### Text Visibility Rules
+| Element | Dark Background | Light Background |
+|---------|-----------------|------------------|
+| Headings | `text-white` | `text-slate-900` |
+| Body | `text-slate-200` min | `text-slate-700` min |
+| Subtle | `text-slate-300` min | `text-slate-600` min |
+| Inside glass | ALWAYS explicit `text-white` | ALWAYS explicit dark |
+
+### Color Palette
+```
+Primary: purple-500, purple-600
+Accents: purple-400, amber-400, red-400, emerald-400
+Background: zinc-900, zinc-950, black/20
+Glass: bg-white/5, bg-white/10
+Borders: border-white/10, border-white/20
+```
+
+---
+
+## 📊 WORK COMPLETION PROTOCOL
+
+After completing ANY work:
 ```
 📊 Work Rating:
 - Quality: X/10
 - Completeness: X/10  
-- Summary: [Brief description of what was done]
-if you get under 9/10 redo it until you get 9/10 or 10/10!
+- Summary: [What was done]
 
-🔒 Security Audit (Trait 2):
+🔒 Security Audit:
 - [ ] Input sanitization checked
-- [ ] Auth/permission rules verified
+- [ ] Auth/permission rules verified  
 - [ ] XSS/injection risks reviewed
 - [ ] Abuse potential considered
 - [ ] Firestore rules updated if needed
 
-☁️ Firebase Checklist (Trait 7):
-- [ ] Firestore rules need deploy? (firebase deploy --only firestore:rules)
+☁️ Firebase Checklist:
+- [ ] Firestore rules need deploy?
 - [ ] Cloud functions need deploy?
 - [ ] Indexes needed?
 
-🤔 Reflection (Trait 6):
+🤔 Reflection:
 - Is this the best in the world? [Yes/No + why]
 - Can it be better? [Yes/No + how]
 ```
 
-**DO NOT skip the rating. DO NOT skip the security audit. Do not push to git unless told to do so, These are MANDATORY.**
-if you build and it needs firestore rules updated to function then push them for my approval after the build.
+**If rating < 9/10 → REDO until 9/10 or 10/10**
 
 ---
 
-## Project Overview
-OSYS - Operating System for Youth Sports is a youth sports platform built with:
-- React 19 + TypeScript + Vite
-- Firebase (Firestore, Auth, Storage)
-- Tailwind CSS
-- Real-time data with onSnapshot listeners
+## 🔧 PROJECT CONTEXT
 
-## Key Conventions
+### Tech Stack
+| Category | Technology |
+|----------|------------|
+| Frontend | React 19 + TypeScript + Vite |
+| Styling | Tailwind CSS |
+| Backend | Firebase (Firestore, Auth, Storage) |
+| Payments | PayPal (events), Stripe (planned) |
+| Hosting | Netlify |
+| Dev Server | http://localhost:3001/ |
 
-### Credits System
-- Use `credits` field ONLY (not `cloneCredits` - deprecated and removed)
-- Credits are stored in `users` collection as `credits: number`
-- Use `userData?.credits` from AuthContext as the source of truth
-- Never double-fetch credits (real-time listener already provides them)
+### File Structure
+```
+/components     - React components (lazy-loaded via lazyWithRetry)
+/components/ui  - Shared UI components (OSYSComponents, OSYSFormElements)
+/contexts       - AuthContext, ThemeContext, UnsavedChangesContext
+/hooks          - useSportConfig, useCredits, useOSYSData
+/services       - Firebase services, API calls, utilities
+/config         - sportConfig.ts (positions, stats, features per sport)
+/types.ts       - ALL TypeScript interfaces
+/layout         - Layout, AdminLayout, NewOSYSLayout
+```
 
-### Theme Support
-- Always use `useTheme()` hook from `contexts/ThemeContext`
-- Support both dark and light modes with conditional classes
-- Pattern: `${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-slate-900'}`
+### Key Files to Know
+| File | What It Does |
+|------|--------------|
+| `App.tsx` | Routes, lazy loading, auth guards |
+| `types.ts` | ALL interfaces (UserProfile, Team, Player, etc.) |
+| `sportConfig.ts` | Multi-sport positions, stats, features |
+| `AuthContext.tsx` | Auth state, user/team data, role checks |
+| `firestore.rules` | Security rules (1400+ lines) |
+| `OSYSComponents.tsx` | Button, Badge, Card, etc. |
+| `OSYSFormElements.tsx` | Input, Select, Modal, etc. |
 
-### Team IDs
-- Team IDs must be lowercase only
-- Use validation: `.toLowerCase().replace(/[^a-z0-9-_]/g, '-')`
-- Store teams with custom IDs using `setDoc(doc(db, 'teams', customId), data)`
+---
 
-### User Roles
-Valid roles: `'Coach' | 'Fan' | 'Admin' | 'Athlete' | 'Parent' | 'Commissioner' | 'TeamCommissioner' | 'LeagueCommissioner' | 'LeagueOwner' | 'ProgramCommissioner'`
+## 🤖 AI SESSION WORKFLOW
 
-### Component Patterns
-- Use functional components with hooks
-- Prefer `useAuth()` for user data and authentication state
-- Use `useTheme()` for theme-aware styling
-- Handle loading and error states gracefully
+**"new session":**
+```typescript
+const session = await createAISession('Session Title');
+// Announce: "Session #X started"
+```
 
-### Firebase Patterns
-- Use `serverTimestamp()` for `createdAt` and `updatedAt` fields
-- Always include `ownerId` when creating team-related documents
-- Use batch writes for multi-document operations
+**"save training":**
+```typescript
+await updateAISession(sessionId, {
+  status: 'completed',
+  chatTranscript: 'FULL TRANSCRIPT',
+  workRating: { quality: 9, completeness: 9, summary: 'What was done' },
+});
+```
+→ Update PROGRESS.md → Say: **"Sir yes, Sir!!"**
 
-## File Structure
-- `/components` - React components
-- `/contexts` - React contexts (Auth, Theme)
-- `/hooks` - Custom hooks
-- `/services` - Firebase and API services
-- `/types.ts` - TypeScript interfaces
-- `/config` - Configuration files
+---
 
-## Testing
-- Run `npm run dev` for development
-- Check for TypeScript errors before suggesting changes
-- Test theme toggle and credits display after changes
+## 📚 LESSONS LEARNED DATABASE
 
-!! IMPORTANT SESSION HAND OFF RULES !!
-If i say "save training" you will then complete a session hand off md and save all progress made to the progress.md, add any and all relevant notes to a chat log on the progress. Mark any todo as done if you completed them in this chat.  If you get the command save training at the end of your reply to me say "Sir yes, Sir!!" Check the AI_TRAINER.md for any other session handoff rules
+| ID | Lesson | Pattern |
+|----|--------|---------|
+| L001 | CTA Intent | "Get Started" → `?signup=true` |
+| L004 | Use sportConfig | `getStats()`, `getPositions()` never hardcode |
+| L009 | Check Props | Read component source before using |
+| L010 | Firebase Queries | Handle both new and legacy data |
+| L011 | Badge Variants | NO 'info' or 'danger' |
+| L012 | UserRole Case | Capital: `'Coach'` not `'coach'` |
+| L014 | Button Variants | NO 'outline' or 'secondary' |
+| L015 | Self-Rating | ALWAYS X/10 after every task |
+
+---
+
+## � COMPOUND LEARNING PROTOCOL
+
+### When We Hit A New Error:
+1. **Document it immediately** - Don't just fix it, RECORD it
+2. **Add to ERR-XXX section** - Next available number
+3. **Include**: Symptom, Wrong code, Right code, Why it fails
+
+### Error Template (Copy This):
+```markdown
+### ERR-XXX: [Short Description]
+**Symptom:** [What you see / error message]
+**Wrong:**
+\`\`\`typescript
+// Bad code here
+\`\`\`
+**Right:**
+\`\`\`typescript
+// Correct code here
+\`\`\`
+**Why:** [Root cause explanation]
+```
+
+### When We Learn Something New:
+1. **Add to Lessons Learned** - Next L-number
+2. **Be specific** - Include file names, function names
+3. **Make it searchable** - Use keywords you'd Ctrl+F for
+
+### Session Error Log (Track Per Session):
+When closing a session, list errors encountered:
+```
+🐛 Errors Hit This Session:
+- ERR-003 (credits field) - Hit twice
+- NEW: [describe] → Added as ERR-007
+```
+
+### Why This Matters:
+- **Session 1**: Hit error, spend 20 min debugging
+- **Session 50**: Same error, find in 5 seconds via Ctrl+F
+- **Compound effect**: Every bug makes us FASTER, not slower
+
+---
+
+## �👤 WORKING WITH FEGROX
+
+**DO:**
+- Be Direct & Honest - Truth over flattery
+- Think Big - Novel solutions, not incremental
+- Move Fast - Match his velocity
+- Comprehensive - Production-ready, not MVPs
+
+**DON'T:**
+- Sugar coat
+- Explain basics
+- Assume errors - Many "issues" are intentional
+- Be slow
+
+**Key Quotes:**
+> "We are not designing a sofa here - we are world disruptors."
+> "Don't sugar coat it."
+> "Slow down, think deeper, use more of my credits."
+
+---
+
+## 🏆 THE STANDARD
+
+Every app we build must:
+1. **Dominate its market** - Not participate, dominate
+2. **Make users dependent** - Switching feels impossible
+3. **Generate revenue** - Free doesn't build empires
+4. **Scale infinitely** - Built for millions from day 1
+5. **Delight users** - They should LOVE using it
+6. **Be the best in the world** - No compromises
+
+> **"We don't build apps. We build empires."**
+
+---
+
+## 📦 REFERENCE FILES
+
+| File | Purpose |
+|------|---------|
+| **PROGRESS.md** | Master roadmap, what's done, what's next |
+| **FEATURE_ROADMAP.md** | Feature specs, implementation order |
+| **MONETIZATION_PLAN.md** | Revenue streams, pricing |
+| **firestore.rules** | Security rules reference |
+
+---
+
+*Developer: FEGROX*  
+*Mission: Top 10 Global Innovator*  
+*AI Partnership Started: December 1, 2024*  
+*Last Updated: December 11, 2025*

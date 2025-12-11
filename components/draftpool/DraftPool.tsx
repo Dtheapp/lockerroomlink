@@ -10,6 +10,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { calculateAgeGroup } from '../../services/ageValidator';
 import { 
   subscribeToDraftPool, 
   draftToRoster, 
@@ -33,6 +34,8 @@ import {
   Banknote,
   Shield,
   Trophy,
+  AtSign,
+  ExternalLink,
 } from 'lucide-react';
 
 interface DraftPoolProps {
@@ -40,9 +43,10 @@ interface DraftPoolProps {
   teamOwnerId: string;
   sport: SportType;
   ageGroup: string;
+  registrationCloseDate?: Date | null; // If set, Draft is disabled until this date passes
 }
 
-const DraftPool: React.FC<DraftPoolProps> = ({ teamId, teamOwnerId, sport, ageGroup }) => {
+const DraftPool: React.FC<DraftPoolProps> = ({ teamId, teamOwnerId, sport, ageGroup, registrationCloseDate }) => {
   const { userData } = useAuth();
   const { theme } = useTheme();
   
@@ -65,6 +69,10 @@ const DraftPool: React.FC<DraftPoolProps> = ({ teamId, teamOwnerId, sport, ageGr
                          userData?.role === 'ProgramCommissioner' ||
                          userData?.role === 'SuperAdmin';
   const canDraft = isCoach || isCommissioner;
+  
+  // Check if registration is still open (Draft disabled until closed)
+  const registrationStillOpen = registrationCloseDate && new Date() < registrationCloseDate;
+  const canDraftNow = canDraft && !registrationStillOpen;
   const canSeePayment = canDraft;
   
   // Subscribe to draft pool updates
@@ -264,6 +272,38 @@ const DraftPool: React.FC<DraftPoolProps> = ({ teamId, teamOwnerId, sport, ageGr
                       <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
                         {entry.playerName}
                       </span>
+                      {/* Username - clickable to public profile */}
+                      {(entry as any).playerUsername && (
+                        <a
+                          href={`/#/athlete/${(entry as any).playerUsername}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full transition-colors ${
+                            theme === 'dark' 
+                              ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' 
+                              : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                          }`}
+                        >
+                          <AtSign className="w-3 h-3" />
+                          {(entry as any).playerUsername}
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                      {/* Age Group Badge */}
+                      {entry.playerDob && calculateAgeGroup(entry.playerDob) && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                          theme === 'dark' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {calculateAgeGroup(entry.playerDob)}
+                        </span>
+                      )}
+                      {entry.playerDob && !calculateAgeGroup(entry.playerDob) && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          theme === 'dark' ? 'bg-zinc-700 text-zinc-400' : 'bg-zinc-100 text-zinc-600'
+                        }`}>
+                          18+
+                        </span>
+                      )}
                       {entry.isIndependentAthlete && (
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
                           theme === 'dark' ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-700'
@@ -332,25 +372,32 @@ const DraftPool: React.FC<DraftPoolProps> = ({ teamId, teamOwnerId, sport, ageGr
                         </div>
                       ) : null}
                       
-                      {/* Draft Button */}
+                      {/* Draft Button - Disabled if registration still open */}
                       <button
                         onClick={() => availableTeams.length > 1 
                           ? handleShowTeamSelector(entry.id) 
                           : handleDraft(entry.id)
                         }
-                        disabled={actionLoading === entry.id}
+                        disabled={actionLoading === entry.id || registrationStillOpen}
+                        title={registrationStillOpen ? `Draft opens after registration closes (${registrationCloseDate?.toLocaleDateString()})` : 'Add player to roster'}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition ${
-                          theme === 'dark'
-                            ? 'bg-green-500/20 hover:bg-green-500/30 text-green-400'
-                            : 'bg-green-100 hover:bg-green-200 text-green-700'
+                          registrationStillOpen
+                            ? theme === 'dark'
+                              ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                              : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                            : theme === 'dark'
+                              ? 'bg-green-500/20 hover:bg-green-500/30 text-green-400'
+                              : 'bg-green-100 hover:bg-green-200 text-green-700'
                         } ${actionLoading === entry.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         {actionLoading === entry.id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : registrationStillOpen ? (
+                          <Clock className="w-4 h-4" />
                         ) : (
                           <UserPlus className="w-4 h-4" />
                         )}
-                        Draft
+                        {registrationStillOpen ? 'Pending' : 'Draft'}
                       </button>
                       
                       {/* Decline Button */}

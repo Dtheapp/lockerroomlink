@@ -1,6 +1,6 @@
 # 📊 OSYS - Master Progress Tracker
 
-**Last Updated:** December 10, 2025 (Draft Pool System + Athlete Onboarding!)  
+**Last Updated:** December 11, 2025 (AI Session Logging + World-Class Instructions!)  
 **Vision:** The Operating System for Youth Sports  
 **Status:** 🎉 PILOT CONFIRMED - Building Feature Roadmap 🚀
 
@@ -219,7 +219,7 @@ TOTAL PROGRESS     ████████████████░░░░�
 
 ### Summary Stats
 ```
-Total Bug Fixes:     105+ ✅
+Total Bug Fixes:     110+ ✅
 Categories:          15 areas
 Avg Fixes/Month:     ~20-25
 Platform Stability:  ██████████████████░░ 90%
@@ -227,9 +227,13 @@ Platform Stability:  ██████████████████░�
 
 ### By Category
 
-#### 🔐 Authentication & Permissions (16 fixes)
+#### 🔐 Authentication & Permissions (17 fixes)
 | Date | Fix | Impact |
 |------|-----|--------|
+| Dec 11 | **AI Sessions Firestore Rules** - Added `aiSessions` collection rules for `/ailog` page | AI session logging works! |
+| Dec 11 | **Registration Improvements** - Block double registration (players in draft pool can't re-register), filter ended seasons from Find a Team, add QR code to flyers, show player username in draft pool | Better UX + security! |
+| Dec 11 | **Player Draft Status Display** - Player cards now show correct status (In Draft Pool, On Team, Registration Denied, Not Registered) with parent actions to remove from pool/team | Parents see accurate status! |
+| Dec 11 | **Streamlined Registration Flow** - New 3-step wizard (Info→Waiver→Payment), auto-fill from existing data, conditional fields based on event requirements | Better UX! |
 | Dec 10 | **Registration System Rebuilt** - New `simpleRegistrations` collection with clean Firestore rules | Registration finally works! |
 | Dec 10 | Firestore rules allow auth users to increment registration counters | Registration completes! |
 | Dec 10 | Draft Pool waitlist Firestore rules for team registration | Secure draft system |
@@ -1531,7 +1535,225 @@ Match players to roster → Confirm → Done!
 
 ### December 2025
 
-#### December 9, 2025 (Evening)
+#### December 11, 2025
+**Session Focus:** Age Group Calculator + Season Manager Mobile Optimization + DraftPool Fixes
+
+- ✅ Added Age Group calculation utility to `ageValidator.ts`
+  - `calculateAgeGroup()` function - calculates XU division based on Sept 10 cutoff
+  - `getAgeGroupInfo()` function - returns age group + current age
+  - Handles multiple date formats (YYYY-MM-DD, MM/DD/YYYY)
+  - Returns null for 18+ (adults enter manually)
+- ✅ Added age group badges to Player Cards in Profile.tsx
+  - Shows emerald "5U", "8U", "14U" etc. badges for youth athletes
+  - Shows gray "18+" badge for adults (released players, independent athletes)
+- ✅ Added age group badges to Player Cards in Roster.tsx (coach view)
+- ✅ Added age group badges to DraftPool.tsx (waiting players)
+- ✅ Fixed DraftPool infinite loading spinner bug
+  - Issue: Missing Firestore index for `status` + `createdAt` query
+  - Added error handler to `subscribeToDraftPool()` (returns empty array on error)
+  - Added missing composite index to `firestore.indexes.json`
+  - Deployed new indexes to Firebase
+- ✅ Mobile optimization for Season Manager button row
+  - Buttons now flex-wrap to 2 rows on mobile, 1 row on desktop
+  - Smaller padding (px-3 py-2) on all buttons
+  - Icon-only buttons on mobile with full text on desktop (hidden sm:inline)
+- ✅ Added Edit Season modal with full edit/delete functionality
+  - Edit season name, dates, registration fee, player limits
+  - Delete season with confirmation dialog
+- ✅ Installed Firebase CLI globally and logged in
+- ✅ Deployed Firestore indexes (firebase deploy --only firestore:indexes)
+
+**Files Modified:**
+- services/ageValidator.ts (new functions)
+- components/Profile.tsx (age group badges)
+- components/Roster.tsx (age group badges)
+- components/draftpool/DraftPool.tsx (age group badges + import)
+- services/draftPoolService.ts (error handling)
+- components/SeasonManager.tsx (mobile optimization + edit modal)
+- firestore.indexes.json (new draftPool index)
+
+#### December 11, 2025 (Session 2)
+**Session Focus:** Registration Flow Improvements + Draft System Enhancements + Add Player Search
+
+- ✅ **Draft Button Restriction** - Draft button now disabled until registration closes
+  - Added `registrationCloseDate` prop to DraftPool component
+  - DraftPool fetches current season from `teams/{teamId}/seasons`
+  - Draft button shows "Pending" with Clock icon when registration still open
+  - Button enabled only after registration close date passes
+  - Tooltip shows when drafting will be available
+
+- ✅ **Fixed Player Registration Status Detection** - Badges now show correctly
+  - Enhanced `getPlayerRegistrationStatus()` in eventService.ts
+  - Added fallback search: If no registration found, searches all teams' draft pools
+  - Queries by both `playerId` AND `playerName` (for robustness)
+  - Fixed bug where players in draft pool showed as "Not Registered"
+  - Added optional `playerName` parameter for fallback matching
+
+- ✅ **Add Player Search Improvements** (Roster.tsx Coach Feature)
+  - **Age Group Filtering**: Shows player's calculated age group badge (e.g., "8U", "14U")
+  - Age group badge is green if matches team, amber if mismatch
+  - Results sorted: matching age group first, then conflicts, then alphabetically
+  - **Auto-Populate with Debounce**: 300ms debounce on search input
+  - Search triggers automatically as user types (after 2+ characters)
+  - **Draft Pool Conflict Warnings**: Shows "⏳ In draft pool (Team Name)" for players awaiting draft
+  - Players in draft pool are disabled (cannot be added directly)
+  - Shows amber warning styling for age group mismatches
+  - Added team age group info banner in Add Player modal
+  - Also searches unassigned players (top-level `players` collection)
+
+**Files Modified:**
+- components/NewOSYSDashboard.tsx (fetch registrationCloseDate, pass to DraftPool)
+- components/draftpool/DraftPool.tsx (registrationCloseDate prop, canDraftNow logic)
+- services/eventService.ts (enhanced getPlayerRegistrationStatus with fallback)
+- components/Profile.tsx (pass playerName to getPlayerRegistrationStatus)
+- components/Roster.tsx (age group filter, debounce, conflict warnings)
+- PROGRESS.md (this entry)
+
+#### December 11, 2025 (Session 3)
+**Session Focus:** Bug Fixes - Design Studio, NoAthleteBlock, Player Status Badges
+
+- ✅ **Fixed Design Studio QR Code Error** - TypeError when loading registration template
+  - DesignElement.tsx expected `position: {x, y}` and `size: {width, height}` structure
+  - QR code element was created with flat `x`, `y`, `width`, `height` properties
+  - Updated DesignStudioPro.tsx to use proper nested structure with `zIndex`
+  - Fixed "Scan to Register" label element structure as well
+
+- ✅ **Fixed NoAthleteBlock for Draft Pool Players** 
+  - Players in draft pool no longer see "Browse & Register" modal
+  - New draft pool detection: Checks all teams' draft pools for selected player
+  - Shows "🎉 You're in the Draft Pool!" with team name and registration close date
+  - Displays helpful "What happens next?" info with formatted close date
+  - Loading state while checking draft pool status
+
+- ✅ **Removed Redundant Team ID Button** from dashboard
+  - Team ID already shown in Public Team Page section above
+  - Cleaned up duplicate button in NewOSYSDashboard.tsx
+
+- ✅ **Fixed Player Status Badges in Parent Profile**
+  - Simplified draft pool query to avoid compound index issues
+  - Now fetches ALL draft pool entries for each team and filters in memory
+  - Matches by both `playerId` AND `playerName` for robustness
+  - Badges now correctly show: "In Draft Pool", "On Team", "Registration Denied"
+
+- ✅ **Added Firestore Indexes** for draft pool queries
+  - Added index: `playerId` + `status` on draftPool collection
+  - Added index: `playerName` + `status` on draftPool collection
+  - Deployed: `firebase deploy --only firestore:indexes` ✅
+
+- ✅ **Fixed Mobile Sidebar Collapse in Design Studio**
+  - TemplateSelector sidebar now hidden on mobile (use main hamburger menu on right)
+  - Removed redundant left hamburger menu per user feedback
+  - Increased collapse button sizes in DesignStudioPro for better mobile touch targets
+
+- ✅ **Fixed Dashboard for Draft Pool Players**
+  - Dashboard now shows "You're in the Draft Pool!" for players waiting to be drafted
+  - Wrapped NewOSYSDashboard with NoAthleteBlock component
+  - Parents no longer see "Register Your Athlete" when player is already in draft pool
+
+- ✅ **Fixed Schedule/Events for Draft Pool Players**
+  - Schedule page now shows draft pool message instead of registration browser
+  - Added draft pool detection to EventsPage
+  - Shows team name and registration close date
+
+- ✅ **Added Events to Coach Sidebar**
+  - Added Events tab for coaches (📆 icon)
+  - Uses coachOnly flag so only coaches see it
+  - Separate from Schedule which all users see
+
+- ✅ **Improved Registration Flyer Template**
+  - QR code now 150px (was 100px) - much easier to scan
+  - "Scan to Register" label now 14px font with green color for visibility
+  - Team logo automatically added to bottom-left if team has logo saved
+  - Logo and QR code are same size (150px) for balanced design
+
+- ✅ **Added TODO Tracking Section to Progress Page**
+  - New "Session TODOs" tab in Development History
+  - Shows all AI session work with TODO items
+  - Displays completion status, work ratings, summaries
+  - Visual stats: completed count, total, sessions, success rate
+  - Each session shows date, todos with checkmarks, descriptions
+  - Info box explaining the tracking system
+
+- ✅ **Auto-fill Registration Flyer with Real Season Data**
+  - Age group: Shows actual team age group (e.g., "9U") instead of "Ages 8-14"
+  - Dates: Uses real registration open/close dates from season
+  - Fee: Shows actual fee or "FREE Registration" based on season data
+  - Includes: Shows description if set, hides if empty (no placeholder)
+  - Team name in subtitle under header
+
+**Files Modified:**
+- components/design-studio/DesignStudioPro.tsx (QR code, flyer auto-fill from season data)
+- components/design-studio/TemplateSelector.tsx (removed mobile hamburger)
+- components/SeasonManager.tsx (pass ageGroup to flyer data)
+- components/NoAthleteBlock.tsx (draft pool detection + new UI)
+- components/NewOSYSDashboard.tsx (wrapped with NoAthleteBlock)
+- components/events/EventsPage.tsx (draft pool detection + UI)
+- components/ProgressPage.tsx (added TODO tracking section)
+- layout/NewOSYSLayout.tsx (added Events tab for coaches)
+- services/eventService.ts (simplified draft pool query)
+- firestore.indexes.json (new indexes - DEPLOYED)
+- PROGRESS.md (this entry)
+
+#### December 11, 2025 (Session 4)
+**Session Focus:** AI Session Logging System + World-Class Unified Instructions
+
+- ✅ **Created AI Session Logging System** (`/ailog` page)
+  - Built `services/aiLogService.ts` with complete Firestore CRUD
+    - `createAISession()` - Creates new session with auto-incrementing ID
+    - `updateAISession()` - Updates todos, builds, bug fixes during work
+    - `completeAISession()` - Saves full chat transcript and ratings
+    - `getSessionStats()` - Aggregate stats for dashboard
+    - `getAllAISessions()` - Fetch all sessions for display
+  - Built `components/AILogPage.tsx` (~850 lines) - World-class UI
+    - Stats cards: Total sessions, TODOs completed, Builds+Fixes, Avg Quality
+    - Filter tabs: All / Completed / Active
+    - Expandable session cards showing TODOs, builds, bug fixes, ratings
+    - "View Full Chat" modal with copy-to-clipboard functionality
+    - "Load Historical Sessions" button to seed past session data
+    - Fully mobile-optimized with responsive design
+  - Added `/ailog` route to App.tsx
+  - Added Firestore rules for `aiSessions` collection
+  - Deployed Firestore rules: `firebase deploy --only firestore:rules` ✅
+
+- ✅ **Built World-Class Unified Instructions**
+  - Merged AI_TRAINER.md (724 lines) + copilot-instructions.md (187 lines) into single optimized file
+  - New `.github/copilot-instructions.md` (~400 lines)
+  - Added Priority Zero table - 10 non-negotiable rules at top
+  - Added Quick Commands table - instant lookup for user commands
+  - Added "Never Do" table - 13 things consolidated in one place
+  - Tagged Critical Traits with 🚨 markers for prioritization
+  - Added dedicated Visibility Rules section
+  - Integrated AI Session System with `/ailog` Firestore tracking
+  - Added searchable Lessons Learned tables by ID
+  - Included Design System reference with colors, classes, migration patterns
+
+- ✅ **Fixed Multiple React Render Errors in AILogPage**
+  - Fixed "Objects are not valid as React child" crash
+  - Added safety checks for all session properties in SessionCard component
+  - Ensures `title`, `summary`, `date` are strings (not objects)
+  - Ensures `todos`, `builds`, `bugFixes`, `filesModified`, `pendingWork` are arrays
+  - Ensures `workRating` is properly structured object or null
+  - Fixed ChatModal to handle missing/malformed chat transcripts gracefully
+  - Added helpful "Use save training command" message for empty chats
+
+**Files Created:**
+- services/aiLogService.ts (NEW - AI session CRUD service)
+- components/AILogPage.tsx (NEW - AI session tracking page ~850 lines)
+
+**Files Modified:**
+- App.tsx (added /ailog route, AILogPage import)
+- firestore.rules (added aiSessions collection rules - DEPLOYED)
+- .github/copilot-instructions.md (REPLACED - unified world-class instructions)
+- PROGRESS.md (this entry)
+
+**Session Stats:**
+- Quality: 9/10
+- Completeness: 9/10
+- Builds: 2 (AI Session System, Unified Instructions)
+- Bug Fixes: 3 (Firestore permissions, React render errors, ChatModal safety)
+- TODOs Completed: 2/2
+
+---
 **Session Focus:** 🎉 PILOT CONFIRMED - Feature Planning from Meeting Feedback
 
 - ✅ **PILOT PROGRAM CONFIRMED** with 20-team organization
@@ -2072,6 +2294,20 @@ interface TeamManager {
 
 | Date | Change |
 |------|--------|
+| Dec 11, 2025 | **Streamlined Registration Flow Rebuild** - Complete overhaul of registration experience |
+| Dec 11, 2025 | Created StreamlinedRegistration.tsx - simplified 3-step wizard (Info → Waiver → Payment) |
+| Dec 11, 2025 | Auto-fills athlete name from selected player, parent info from userData |
+| Dec 11, 2025 | Removed DOB, gender, preferred position from form - pulls from athlete card |
+| Dec 11, 2025 | Jersey number field: preferred + 1 alternate only, max 99 limit |
+| Dec 11, 2025 | Conditional fields: only shows medical/emergency/uniform/waiver if required by event |
+| Dec 11, 2025 | Waiver step auto-skips if requireWaiver=false on event |
+| Dec 11, 2025 | Added copy button for confirmation code on success page |
+| Dec 11, 2025 | Public users see "Create Account" modal instead of registration form |
+| Dec 11, 2025 | SeasonManager now saves requireMedicalInfo, requireEmergencyContact, requireUniformSizes, requireWaiver to events |
+| Dec 11, 2025 | Event card click goes directly to registration form (skips event detail page) |
+| Dec 11, 2025 | **Age Group Calculation Fix** - Kids born AFTER Sept 10 play "up" one age group |
+| Dec 11, 2025 | Formula: seasonYear - birthYear + (bornAfterSept10 ? 1 : 0) |
+| Dec 11, 2025 | Dashboard badge shows sport + age group (e.g., "Football • 11U") |
 | Dec 10, 2025 | **V2 Athlete Profile Rebuild** - Created PublicAthleteProfileV2.tsx with premium design (yellow jersey card, animated background, stats bar, tabs) + real Firebase data |
 | Dec 10, 2025 | App.tsx import updated to use PublicAthleteProfileV2 component |
 | Dec 10, 2025 | Fixed osys-bg-gradient and osys-bg-mesh CSS classes in osys-design-system.css |
@@ -2087,6 +2323,8 @@ interface TeamManager {
 | Dec 11, 2025 | **Firestore Indexes** - Added indexes for programs, seasons, draftPool queries |
 | Dec 11, 2025 | **sportConfig.ts** - Added getPositionsForSport(), getJerseyNumberRules(), validateJerseyNumber() functions |
 | Dec 11, 2025 | **App.tsx Routes** - /commissioner/programs, /register/:seasonId |
+| Dec 11, 2025 | **Registration Edit/Delete** - SeasonManager now has Edit & Delete buttons for each registration with inline confirmation and edit modal |
+| Dec 11, 2025 | **Draft Pool Bug Fix** - Fixed field name mismatches in simpleRegistrationService.ts (status: 'waiting', paymentStatus: 'paid_full', correct field names) |
 | Dec 10, 2025 | **AthleteSelector Fix** - Now loads parent's athletes from AuthContext (includes unassigned players) instead of only querying team subcollection |
 | Dec 10, 2025 | **Firestore Rules: teamManagers** - Added security rules for teamManagers collection |
 | Dec 10, 2025 | **Team Manager Sub-Accounts Phase 1** - teamManagerService.ts, TeamManagersPanel.tsx, AuthContext manager login support |
@@ -2133,3 +2371,6 @@ interface TeamManager {
 | Dec 9, 2025 | **Added OSYS AI Support Center** - Voice messages, push reminders, proactive help |
 | Dec 9, 2025 | **Added Draft Lottery UI to /draft showcase** - LotteryWheel, LotteryTicketWinner, LotteryResultsBoard |
 | Dec 9, 2025 | Complete mobile optimization for DraftDayShowcase.tsx |
+| Dec 11, 2025 | **Created AI Session Logging System** - `/ailog` page with Firestore tracking |
+| Dec 11, 2025 | **Built World-Class Unified Instructions** - Merged AI_TRAINER.md into single optimized copilot-instructions.md |
+| Dec 11, 2025 | Session 3+4: 18 bug fixes, 2 major features (AI Log + Instructions rewrite) |

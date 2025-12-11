@@ -36,6 +36,7 @@ export interface AddToDraftPoolParams {
   // Player info
   playerId?: string;
   playerName: string;
+  playerUsername?: string;
   playerAge?: number;
   playerDob?: string;
   
@@ -223,6 +224,10 @@ export function subscribeToDraftPool(
       ...doc.data()
     } as DraftPoolEntry));
     callback(entries);
+  }, (error) => {
+    console.error('Error subscribing to draft pool:', error);
+    // Return empty array on error so component doesn't hang
+    callback([]);
   });
 }
 

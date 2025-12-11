@@ -59,9 +59,9 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({
     : templates;
 
   return (
-    <div className={`min-h-screen flex ${theme === 'dark' ? 'bg-zinc-950' : 'bg-slate-100'}`}>
-      {/* Left Sidebar - Categories */}
-      <div className={`w-64 border-r p-4 ${theme === 'dark' ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'}`}>
+    <div className={`min-h-screen flex relative ${theme === 'dark' ? 'bg-zinc-950' : 'bg-slate-100'}`}>
+      {/* Left Sidebar - Categories - Hidden on mobile, use main menu instead */}
+      <div className={`hidden md:block w-64 h-full border-r p-4 ${theme === 'dark' ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'}`}>
         <button
           onClick={onBack}
           className={`flex items-center gap-2 mb-6 transition-colors ${theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'}`}
@@ -127,7 +127,7 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({
       <div className="flex-1 p-6 overflow-y-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className={`text-3xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+          <h1 className={`text-2xl md:text-3xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
             {TEMPLATE_CATEGORIES.find(c => c.id === activeCategory)?.icon}{' '}
             {TEMPLATE_CATEGORIES.find(c => c.id === activeCategory)?.name || 'Templates'}
           </h1>

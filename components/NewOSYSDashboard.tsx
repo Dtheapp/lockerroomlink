@@ -4,6 +4,7 @@ import { collection, query, orderBy, limit, getDocs, onSnapshot, where, addDoc, 
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import NoAthleteBlock from './NoAthleteBlock';
 import { getStats, getSportConfig } from '../config/sportConfig';
 import { uploadFile, deleteFile } from '../services/storage';
 import {
@@ -119,6 +120,9 @@ const NewOSYSDashboard: React.FC = () => {
     const dismissed = localStorage.getItem(`osys_checklist_dismissed_${userData?.uid}`);
     return dismissed !== 'true';
   });
+
+  // Current season registration close date (for DraftPool)
+  const [registrationCloseDate, setRegistrationCloseDate] = useState<Date | null>(null);
 
   // Event management state
   const [showNewEventForm, setShowNewEventForm] = useState(false);
@@ -311,6 +315,50 @@ const NewOSYSDashboard: React.FC = () => {
 
     fetchCoaches();
   }, [teamData?.id, teamData?.headCoachId, teamData?.coachId, teamData?.offensiveCoordinatorId, teamData?.defensiveCoordinatorId, teamData?.specialTeamsCoordinatorId]);
+
+  // Fetch current season for registrationCloseDate
+  useEffect(() => {
+    if (!teamData?.id) return;
+    
+    const fetchCurrentSeason = async () => {
+      try {
+        const seasonsRef = collection(db, 'teams', teamData.id, 'seasons');
+        const seasonsSnap = await getDocs(seasonsRef);
+        
+        // Find active season (isActive = true or most recent)
+        let activeSeason: any = null;
+        seasonsSnap.forEach(docSnap => {
+          const data = docSnap.data();
+          if (data.isActive) {
+            activeSeason = { id: docSnap.id, ...data };
+          }
+        });
+        
+        // If no active season, find the most recent one
+        if (!activeSeason && !seasonsSnap.empty) {
+          const seasons = seasonsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          activeSeason = seasons.sort((a: any, b: any) => {
+            const aDate = a.registrationCloseDate || '';
+            const bDate = b.registrationCloseDate || '';
+            return bDate.localeCompare(aDate);
+          })[0];
+        }
+        
+        if (activeSeason?.registrationCloseDate) {
+          // registrationCloseDate is stored as YYYY-MM-DD string
+          const closeDate = new Date(activeSeason.registrationCloseDate + 'T23:59:59');
+          setRegistrationCloseDate(closeDate);
+        } else {
+          setRegistrationCloseDate(null);
+        }
+      } catch (error) {
+        console.error('Error fetching current season:', error);
+        setRegistrationCloseDate(null);
+      }
+    };
+    
+    fetchCurrentSeason();
+  }, [teamData?.id]);
 
   // Copy team ID
   const copyTeamId = () => {
@@ -711,6 +759,62 @@ const NewOSYSDashboard: React.FC = () => {
     );
   }
 
+  // Show onboarding for parents with players but NOT on a team yet
+  if (userData?.role === 'Parent' && players.length > 0 && !teamData?.id) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className={`rounded-2xl p-8 max-w-lg text-center border shadow-xl ${
+          theme === 'dark' 
+            ? 'bg-gradient-to-br from-zinc-900 to-zinc-950 border-purple-900/30' 
+            : 'bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200'
+        }`}>
+          <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg ${
+            theme === 'dark' ? 'bg-gradient-to-br from-purple-500 to-indigo-600 shadow-purple-500/30' : 'bg-gradient-to-br from-purple-500 to-indigo-600 shadow-purple-500/30'
+          }`}>
+            <span className="text-4xl">🏆</span>
+          </div>
+          
+          <h2 className={`text-2xl font-bold mb-3 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+            Register Your Athlete for a Team
+          </h2>
+          
+          <p className={`mb-6 text-lg ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-600'}`}>
+            To access <span className={`font-semibold ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`}>Dashboard</span>, your athlete needs to be registered for a team first.
+          </p>
+          
+          <div className={`rounded-xl p-5 mb-6 border ${
+            theme === 'dark' ? 'bg-zinc-900/50 border-purple-900/30' : 'bg-white border-purple-200'
+          }`}>
+            <div className="flex items-start gap-3 text-left">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                theme === 'dark' ? 'bg-purple-900/30' : 'bg-purple-100'
+              }`}>
+                <Calendar className={`w-5 h-5 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
+              </div>
+              <div>
+                <h4 className={`font-bold mb-1 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Find a Team</h4>
+                <p className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-600'}`}>
+                  Browse upcoming events and registration opportunities to register your athlete for a team in your area.
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <a 
+            href="#/events" 
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-8 py-4 rounded-xl font-bold transition-all shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50"
+          >
+            <Calendar className="w-5 h-5" /> Browse Events & Register
+          </a>
+          
+          <p className={`text-xs mt-4 ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
+            Dashboard will be available once your athlete joins a team
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // Show onboarding for parents without players
   if (userData?.role === 'Parent' && players.length === 0) {
     return (
@@ -1018,19 +1122,8 @@ const NewOSYSDashboard: React.FC = () => {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Badge variant="default" className={theme === 'dark' ? 'bg-purple-600/20 text-purple-400 border-purple-500/30' : 'bg-purple-100 text-purple-700 border-purple-200'}>
-            {sportConfig.name}
+            {sportConfig.name}{teamData?.ageGroup ? ` • ${teamData.ageGroup}` : ''}
           </Badge>
-          {/* Copy Team ID */}
-          <button
-            onClick={copyTeamId}
-            className={`text-xs px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
-              theme === 'dark'
-                ? 'bg-white/10 hover:bg-white/20 text-slate-300'
-                : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-            }`}
-          >
-            {isCopied ? '✓ Copied!' : '📋 Team ID'}
-          </button>
         </div>
       </div>
 
@@ -1092,6 +1185,7 @@ const NewOSYSDashboard: React.FC = () => {
           teamOwnerId={(teamData as any).ownerId || teamData.coachId || ''}
           sport={teamData.sport}
           ageGroup={teamData.ageGroup}
+          registrationCloseDate={registrationCloseDate}
         />
       )}
 
@@ -1117,6 +1211,7 @@ const NewOSYSDashboard: React.FC = () => {
             teamId={teamData.id}
             teamName={teamData.name}
             sport={teamData.sport || 'football'}
+            ageGroup={teamData.ageGroup}
             currentSeasonId={teamData.currentSeasonId}
             rosterCount={roster.length}
             leagueId={teamData.leagueId}
@@ -2048,4 +2143,13 @@ const NewOSYSDashboard: React.FC = () => {
   );
 };
 
-export default NewOSYSDashboard;
+// Wrap with NoAthleteBlock for parents/athletes without a team
+const WrappedNewOSYSDashboard: React.FC = () => {
+  return (
+    <NoAthleteBlock featureName="Dashboard">
+      <NewOSYSDashboard />
+    </NoAthleteBlock>
+  );
+};
+
+export default WrappedNewOSYSDashboard;

@@ -355,42 +355,64 @@ async function addToDraftPool(reg: SimpleRegistration): Promise<string | undefin
     else if (age <= 18) ageGroup = '18U';
     else ageGroup = 'Adult';
     
+    // Build draft pool entry matching DraftPoolEntry type
     const draftPoolEntry = {
       // Link to registration
       registrationId: reg.id,
-      eventId: reg.eventId,
-      teamId: reg.teamId,
       
-      // Athlete info for draft board
-      athleteFirstName: reg.athleteFirstName,
-      athleteLastName: reg.athleteLastName,
-      athleteFullName: `${reg.athleteFirstName} ${reg.athleteLastName}`,
-      athleteDOB: reg.athleteDOB,
-      athleteAge: age,
+      // Player info - using correct field names from DraftPoolEntry type
+      playerName: `${reg.athleteFirstName} ${reg.athleteLastName}`,
+      playerAge: age,
+      playerDob: reg.athleteDOB.toDate().toISOString().split('T')[0],
+      
+      // Age group targeting
       ageGroup: ageGroup,
-      athleteGender: reg.athleteGender,
+      sport: reg.sport || 'other',
+      
+      // Contact info (parent info)
+      contactName: reg.parentName,
+      contactEmail: reg.parentEmail,
+      contactPhone: reg.parentPhone,
+      
+      // Registration source
+      registeredByUserId: reg.parentUserId,
+      registeredByName: reg.parentName,
+      isIndependentAthlete: false,
+      
+      // Team targeting
+      teamId: reg.teamId,
+      ownerId: '', // Will be filled by team lookup if needed
       
       // Preferences
-      preferredJerseyNumber: reg.preferredJerseyNumber || null,
-      alternateJerseyNumbers: reg.alternateJerseyNumbers || [],
-      preferredPosition: reg.preferredPosition || null,
+      preferredPositions: reg.preferredPosition ? [reg.preferredPosition] : [],
       
-      // Parent contact (for draft notifications)
-      parentUserId: reg.parentUserId,
-      parentName: reg.parentName,
-      parentEmail: reg.parentEmail,
-      parentPhone: reg.parentPhone,
+      // Emergency contact
+      emergencyContact: {
+        name: reg.emergencyContactName,
+        phone: reg.emergencyContactPhone,
+        relationship: reg.emergencyRelationship,
+      },
       
-      // Draft status
-      status: 'available', // available, drafted, waitlisted
-      draftedToTeamId: null,
-      draftedAt: null,
-      draftOrder: null,
+      // Medical info
+      medicalInfo: {
+        allergies: reg.medicalAllergies || '',
+        conditions: reg.medicalConditions || '',
+        medications: reg.medicalMedications || '',
+      },
       
-      // Payment status (commissioners need to know)
-      paymentStatus: reg.amountPaid >= reg.amountDue ? 'paid' : 'pending',
-      amountDue: reg.amountDue,
+      // Waiver
+      waiverSigned: reg.waiverAccepted,
+      waiverSignedAt: reg.waiverAcceptedAt || null,
+      waiverSignedBy: reg.waiverAcceptedBy,
+      
+      // Payment status - map to DraftPoolPaymentStatus type
+      paymentStatus: reg.amountPaid >= reg.amountDue ? 'paid_full' : 'pending',
       amountPaid: reg.amountPaid,
+      totalAmount: reg.amountDue,
+      remainingBalance: Math.max(0, reg.amountDue - reg.amountPaid),
+      
+      // Draft status - MUST be 'waiting' to show in draft pool UI
+      status: 'waiting',
       
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),

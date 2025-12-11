@@ -59,6 +59,7 @@ interface RegistrationFlyerData {
   registrationCloseDate?: string;
   ageGroup?: string;
   description?: string;
+  registrationLink?: string; // URL to include in QR code
 }
 
 const DesignStudioPro: React.FC = () => {
@@ -208,53 +209,136 @@ const DesignStudioPro: React.FC = () => {
           if (el.type === 'text' && el.content) {
             const content = el.content.toLowerCase();
             
-            // Season name / title
-            if (content.includes('season 2025') || content.includes('join our team')) {
+            // Season name / subtitle under header
+            if (content.includes('season 2025')) {
+              newEl.content = data.teamName || data.seasonName || el.content;
+            }
+            // Main title
+            else if (content.includes('join our team')) {
               newEl.content = data.seasonName || el.content;
             }
-            // Team name in subtitle
-            else if (content.includes('ages') || content.includes('skill levels')) {
-              const parts = [];
-              if (data.ageGroup) parts.push(data.ageGroup);
-              if (data.description) parts.push(data.description);
-              if (parts.length > 0) {
-                newEl.content = parts.join(' • ');
+            // Age group line - show real age group or "All Ages Welcome"
+            else if (content.includes('ages 8-14') || content.includes('skill levels')) {
+              if (data.ageGroup) {
+                newEl.content = `${data.ageGroup} • All Skill Levels Welcome`;
+              } else {
+                newEl.content = 'All Ages • All Skill Levels Welcome';
               }
             }
-            // Date range
+            // Date range - use actual registration dates
             else if (content.includes('jan 15') || content.includes('feb 28') || el.content.includes('📅')) {
-              if (data.registrationOpenDate || data.registrationCloseDate) {
-                const formatDate = (dateStr: string) => {
-                  try {
-                    const date = new Date(dateStr);
-                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                  } catch {
-                    return dateStr;
-                  }
-                };
-                const open = data.registrationOpenDate ? formatDate(data.registrationOpenDate) : '';
-                const close = data.registrationCloseDate ? formatDate(data.registrationCloseDate) : '';
-                if (open && close) {
-                  newEl.content = `📅 ${open} - ${close}`;
-                } else if (close) {
-                  newEl.content = `📅 Closes ${close}`;
-                } else if (open) {
-                  newEl.content = `📅 Opens ${open}`;
+              const formatDate = (dateStr: string) => {
+                try {
+                  const date = new Date(dateStr + 'T12:00:00'); // Add time to avoid timezone issues
+                  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                } catch {
+                  return dateStr;
                 }
+              };
+              
+              if (data.registrationOpenDate && data.registrationCloseDate) {
+                const open = formatDate(data.registrationOpenDate);
+                const close = formatDate(data.registrationCloseDate);
+                newEl.content = `📅 ${open} - ${close}`;
+              } else if (data.registrationCloseDate) {
+                newEl.content = `📅 Closes ${formatDate(data.registrationCloseDate)}`;
+              } else if (data.registrationOpenDate) {
+                newEl.content = `📅 Opens ${formatDate(data.registrationOpenDate)}`;
               }
             }
-            // Registration fee
+            // Registration fee - use actual fee
             else if (content.includes('$150') || content.includes('registration fee')) {
               if (data.registrationFee !== undefined && data.registrationFee > 0) {
-                newEl.content = `$${data.registrationFee} Registration Fee`;
-              } else if (data.registrationFee === 0) {
+                newEl.content = `$${data.registrationFee} Registration`;
+              } else {
                 newEl.content = 'FREE Registration';
+              }
+            }
+            // What's included - use description or hide if empty
+            else if (content.includes('includes:') || content.includes('jersey')) {
+              if (data.description && data.description.trim()) {
+                newEl.content = `Includes: ${data.description}`;
+              } else {
+                // Hide this element if no description
+                newEl.visible = false;
+                newEl.opacity = 0;
               }
             }
           }
           
           return newEl;
         });
+        
+        // Add team logo to bottom-left if team has a logo
+        if ((teamData as any)?.logoUrl) {
+          const logoSize = 150;
+          const logoElement = {
+            id: generateId(),
+            type: 'logo' as const,
+            position: {
+              x: 30, // Bottom-left with 30px padding
+              y: registrationTemplate.canvas.height - logoSize - 30
+            },
+            size: { width: logoSize, height: logoSize },
+            rotation: 0,
+            opacity: 1,
+            locked: false,
+            visible: true,
+            zIndex: 100,
+            src: (teamData as any).logoUrl,
+          };
+          customizedElements.push(logoElement);
+        }
+        
+        // Add QR code with registration link if provided
+        if (data.registrationLink) {
+          const qrSize = 150; // Larger QR code for better scanning
+          const qrElement = {
+            id: generateId(),
+            type: 'qrcode' as const,
+            position: { 
+              x: registrationTemplate.canvas.width - qrSize - 30, // Bottom-right with 30px padding
+              y: registrationTemplate.canvas.height - qrSize - 50 // Leave room for label
+            },
+            size: { width: qrSize, height: qrSize },
+            rotation: 0,
+            opacity: 1,
+            locked: false,
+            visible: true,
+            zIndex: 100,
+            content: data.registrationLink,
+            qrColor: '#000000',
+            qrBackground: '#FFFFFF',
+          };
+          customizedElements.push(qrElement);
+          
+          // Add "Scan to Register" label below QR code
+          const labelElement = {
+            id: generateId(),
+            type: 'text' as const,
+            position: {
+              x: registrationTemplate.canvas.width - qrSize - 30,
+              y: registrationTemplate.canvas.height - 25
+            },
+            size: { width: qrSize, height: 20 },
+            rotation: 0,
+            opacity: 1,
+            locked: false,
+            visible: true,
+            zIndex: 101,
+            content: 'Scan to Register',
+            fontFamily: 'Inter',
+            fontSize: 14,
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            textDecoration: 'none',
+            textAlign: 'center' as const,
+            color: '#22C55E', // Green color to stand out
+            letterSpacing: 0,
+            lineHeight: 1.2,
+          };
+          customizedElements.push(labelElement);
+        }
         
         // Apply the customized template
         setCanvas({
@@ -1564,11 +1648,11 @@ const DesignStudioPro: React.FC = () => {
           {/* Collapse/Expand button for left panel - positioned on the right edge */}
           <button
             onClick={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
-            className={`absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 flex items-center justify-center rounded-r-md transition-colors ${
+            className={`absolute top-1/2 -translate-y-1/2 z-30 w-6 md:w-5 h-14 md:h-12 flex items-center justify-center rounded-r-md transition-colors ${
               theme === 'dark' 
                 ? 'bg-zinc-800 hover:bg-zinc-700 text-slate-400 hover:text-white border border-l-0 border-zinc-700' 
                 : 'bg-slate-200 hover:bg-slate-300 text-slate-600 hover:text-slate-900 border border-l-0 border-slate-300'
-            } right-0 translate-x-full`}
+            } ${leftPanelCollapsed ? 'left-0' : 'right-0 translate-x-full'}`}
             title={leftPanelCollapsed ? 'Show Quick Add' : 'Hide Quick Add'}
           >
             {leftPanelCollapsed ? '›' : '‹'}
@@ -1621,11 +1705,11 @@ const DesignStudioPro: React.FC = () => {
           {/* Collapse/Expand button for right panel */}
           <button
             onClick={() => setRightPanelCollapsed(!rightPanelCollapsed)}
-            className={`absolute top-1/2 -translate-y-1/2 z-20 w-5 h-12 flex items-center justify-center rounded-l-md transition-colors ${
+            className={`absolute top-1/2 -translate-y-1/2 z-20 w-6 md:w-5 h-14 md:h-12 flex items-center justify-center rounded-l-md transition-colors ${
               theme === 'dark' 
                 ? 'bg-zinc-800 hover:bg-zinc-700 text-slate-400 hover:text-white border border-r-0 border-zinc-700' 
                 : 'bg-slate-200 hover:bg-slate-300 text-slate-600 hover:text-slate-900 border border-r-0 border-slate-300'
-            } ${rightPanelCollapsed ? 'right-0' : '-left-5'}`}
+            } ${rightPanelCollapsed ? 'right-0' : '-left-6 md:-left-5'}`}
             title={rightPanelCollapsed ? 'Show Properties' : 'Hide Properties'}
           >
             {rightPanelCollapsed ? '‹' : '›'}

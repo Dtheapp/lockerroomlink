@@ -572,6 +572,7 @@ export interface DraftPoolEntry {
   // Player info
   playerId?: string;              // If existing player in system
   playerName: string;
+  playerUsername?: string;        // Athlete username for public profile link
   playerAge?: number;
   playerDob?: string;             // Date of birth (YYYY-MM-DD)
   

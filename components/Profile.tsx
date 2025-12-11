@@ -6,7 +6,9 @@ import { db, auth } from '../services/firebase';
 import { uploadFile, deleteFile } from '../services/storage';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye, Sword, User, Camera, Star, Crown, Ruler, Scale, Users, Trash2, AtSign, Link as LinkIcon, Copy, Check, ExternalLink, Film, Play, UserCheck, Key } from 'lucide-react';
+import { calculateAgeGroup } from '../services/ageValidator';
+import { getPlayerRegistrationStatus, removeFromDraftPool, removeFromTeamRoster, type PlayerRegistrationStatus } from '../services/eventService';
+import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye, Sword, User, Camera, Star, Crown, Ruler, Scale, Users, Trash2, AtSign, Link as LinkIcon, Copy, Check, ExternalLink, Film, Play, UserCheck, Key, Clock, XCircle, MinusCircle } from 'lucide-react';
 import type { Player, MedicalInfo, Team, PlayerFilmEntry } from '../types';
 import PlayerStatsModal from './stats/PlayerStatsModal';
 
@@ -117,6 +119,12 @@ const Profile: React.FC = () => {
   // Edit username validation state
   const [editUsernameError, setEditUsernameError] = useState<string | null>(null);
   const [checkingEditUsername, setCheckingEditUsername] = useState(false);
+
+  // Player registration/draft status (for each athlete)
+  const [playerStatuses, setPlayerStatuses] = useState<Record<string, PlayerRegistrationStatus>>({});
+  const [loadingStatuses, setLoadingStatuses] = useState(false);
+  const [removingFromPool, setRemovingFromPool] = useState<string | null>(null);
+  const [removingFromTeam, setRemovingFromTeam] = useState<string | null>(null);
 
   // Helper: Check if player is 18+ years old
   const isPlayerAdult = (dob: string | undefined): boolean => {
@@ -274,7 +282,35 @@ const Profile: React.FC = () => {
     }
   }, [userData?.role]);
 
-  // 4. Load film room entries for parent's athletes
+  // 4. Load registration/draft status for each athlete
+  useEffect(() => {
+    if (userData?.role !== 'Parent' || myAthletes.length === 0) return;
+    
+    const fetchPlayerStatuses = async () => {
+      setLoadingStatuses(true);
+      const statuses: Record<string, PlayerRegistrationStatus> = {};
+      
+      for (const athlete of myAthletes) {
+        if (!athlete.id) continue;
+        
+        try {
+          // Pass player name as fallback for draft pool search
+          const status = await getPlayerRegistrationStatus(athlete.id, athlete.teamId, athlete.name);
+          statuses[athlete.id] = status;
+        } catch (err) {
+          console.error(`Error fetching status for athlete ${athlete.id}:`, err);
+          statuses[athlete.id] = { status: 'not-registered' };
+        }
+      }
+      
+      setPlayerStatuses(statuses);
+      setLoadingStatuses(false);
+    };
+    
+    fetchPlayerStatuses();
+  }, [userData?.role, myAthletes]);
+
+  // 5. Load film room entries for parent's athletes
   useEffect(() => {
     if (userData?.role !== 'Parent' || myAthletes.length === 0) return;
     
@@ -1381,29 +1417,102 @@ const Profile: React.FC = () => {
                                             <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs px-2 py-1 rounded font-bold">#{player.number || '?'}</span>
                                             <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700">{player.position || 'TBD'}</span>
                                         </div>
-                                        {/* Team Badge */}
-                                        <div className="flex items-center gap-1 mt-1.5">
-                                          <Users className="w-3 h-3 text-sky-500" />
-                                          {playerTeam ? (
-                                            <>
-                                              <span className="text-xs text-sky-600 dark:text-sky-400 font-medium">{playerTeam.name}</span>
-                                              <button
-                                                onClick={(e) => { e.stopPropagation(); openEditModal(player); }}
-                                                className="ml-1 text-[10px] text-sky-500 hover:text-sky-700 dark:hover:text-sky-300 underline"
-                                              >
-                                                (change)
-                                              </button>
-                                            </>
-                                          ) : (
-                                            <button
-                                              onClick={(e) => { e.stopPropagation(); openEditModal(player); }}
-                                              className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded font-bold hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors"
-                                            >
-                                              ⚠️ No Team - Join Now!
-                                            </button>
+                                        {/* Team/Status Badge - Smart display based on registration status */}
+                                        <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                                          {(() => {
+                                            const playerStatus = playerStatuses[player.id];
+                                            const statusLoading = loadingStatuses;
+                                            
+                                            if (statusLoading) {
+                                              return (
+                                                <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                                  <Clock className="w-3 h-3 animate-spin" /> Loading...
+                                                </span>
+                                              );
+                                            }
+                                            
+                                            // On Team - Show team name
+                                            if (playerTeam || playerStatus?.status === 'on-team') {
+                                              return (
+                                                <>
+                                                  <Users className="w-3 h-3 text-sky-500" />
+                                                  <span className="text-xs text-sky-600 dark:text-sky-400 font-medium">
+                                                    {playerTeam?.name || playerStatus?.teamName || 'Unknown Team'}
+                                                  </span>
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); openEditModal(player); }}
+                                                    className="ml-1 text-[10px] text-sky-500 hover:text-sky-700 dark:hover:text-sky-300 underline"
+                                                  >
+                                                    (manage)
+                                                  </button>
+                                                </>
+                                              );
+                                            }
+                                            
+                                            // In Draft Pool - Show waiting status
+                                            if (playerStatus?.status === 'in-draft-pool') {
+                                              return (
+                                                <>
+                                                  <Clock className="w-3 h-3 text-amber-500" />
+                                                  <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded font-bold">
+                                                    🎯 In Draft Pool
+                                                  </span>
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); openEditModal(player); }}
+                                                    className="ml-1 text-[10px] text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 underline"
+                                                  >
+                                                    (manage)
+                                                  </button>
+                                                </>
+                                              );
+                                            }
+                                            
+                                            // Registration Denied
+                                            if (playerStatus?.status === 'registration-denied') {
+                                              return (
+                                                <>
+                                                  <XCircle className="w-3 h-3 text-red-500" />
+                                                  <span className="text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-2 py-0.5 rounded font-bold">
+                                                    ❌ Registration Denied
+                                                  </span>
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); openEditModal(player); }}
+                                                    className="ml-1 text-[10px] text-red-500 hover:text-red-700 dark:hover:text-red-300 underline"
+                                                  >
+                                                    (details)
+                                                  </button>
+                                                </>
+                                              );
+                                            }
+                                            
+                                            // Not Registered - Show join button
+                                            return (
+                                              <>
+                                                <Users className="w-3 h-3 text-orange-500" />
+                                                <button
+                                                  onClick={(e) => { e.stopPropagation(); openEditModal(player); }}
+                                                  className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded font-bold hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors"
+                                                >
+                                                  ⚠️ No Team - Join Now!
+                                                </button>
+                                              </>
+                                            );
+                                          })()}
+                                        </div>
+                                        {/* DOB and Age Group */}
+                                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                          <span className="text-xs text-slate-500">DOB: {player.dob || '--'}</span>
+                                          {player.dob && calculateAgeGroup(player.dob) && (
+                                            <span className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs px-2 py-0.5 rounded font-bold">
+                                              {calculateAgeGroup(player.dob)}
+                                            </span>
+                                          )}
+                                          {player.dob && !calculateAgeGroup(player.dob) && (
+                                            <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs px-2 py-0.5 rounded">
+                                              18+
+                                            </span>
                                           )}
                                         </div>
-                                        <p className="text-xs text-slate-500 mt-1">DOB: {player.dob || '--'}</p>
                                     </div>
                                 </div>
 
@@ -1721,25 +1830,157 @@ const Profile: React.FC = () => {
                         <p className="text-xs text-slate-500 mt-1">Used for tracking stats history. 3-20 characters, lowercase letters, numbers, and underscores only.</p>
                       </div>
 
-                      {/* Team Selection */}
+                      {/* Team/Registration Status & Actions */}
                       <div>
                         <p className="text-xs font-bold text-sky-600 dark:text-sky-400 mb-3 uppercase tracking-wider flex items-center gap-1">
-                          <Users className="w-3 h-3" /> Team Assignment
+                          <Users className="w-3 h-3" /> Team Status
                         </p>
-                        <select 
-                          value={editForm.teamId} 
-                          onChange={e => setEditForm({...editForm, teamId: e.target.value})} 
-                          className="w-full bg-white dark:bg-black border border-sky-300 dark:border-sky-700 rounded-lg p-3 text-slate-900 dark:text-white"
-                        >
-                          {allTeams.map(team => (
-                            <option key={team.id} value={team.id}>{team.name}</option>
-                          ))}
-                        </select>
-                        {editForm.teamId !== selectedAthlete?.teamId && (
-                          <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 bg-amber-50 dark:bg-amber-900/20 p-2 rounded">
-                            ⚠️ Changing teams will reset jersey number and position (coach will reassign)
-                          </p>
-                        )}
+                        
+                        {(() => {
+                          const playerStatus = selectedAthlete ? playerStatuses[selectedAthlete.id] : undefined;
+                          const playerTeam = selectedAthlete?.teamId ? allTeams.find(t => t.id === selectedAthlete.teamId) : undefined;
+                          
+                          // On Team
+                          if (playerTeam || playerStatus?.status === 'on-team') {
+                            return (
+                              <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg p-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <CheckCircle className="w-5 h-5 text-sky-500" />
+                                  <span className="font-bold text-sky-700 dark:text-sky-400">
+                                    {playerTeam?.name || playerStatus?.teamName || 'On Team'}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
+                                  This athlete is on the team roster.
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (!selectedAthlete?.teamId || !selectedAthlete?.id) return;
+                                    if (!confirm('Are you sure you want to remove this athlete from the team? They will need to re-register.')) return;
+                                    
+                                    setRemovingFromTeam(selectedAthlete.id);
+                                    const result = await removeFromTeamRoster(selectedAthlete.teamId, selectedAthlete.id);
+                                    setRemovingFromTeam(null);
+                                    
+                                    if (result.success) {
+                                      setStatusMsg({ type: 'success', text: 'Athlete removed from team' });
+                                      // Refresh statuses
+                                      const newStatus = await getPlayerRegistrationStatus(selectedAthlete.id, undefined, selectedAthlete.name);
+                                      setPlayerStatuses(prev => ({ ...prev, [selectedAthlete.id]: newStatus }));
+                                      setIsEditModalOpen(false);
+                                    } else {
+                                      setStatusMsg({ type: 'error', text: result.error || 'Failed to remove from team' });
+                                    }
+                                  }}
+                                  disabled={removingFromTeam === selectedAthlete?.id}
+                                  className="flex items-center gap-2 px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors text-sm font-medium disabled:opacity-50"
+                                >
+                                  {removingFromTeam === selectedAthlete?.id ? (
+                                    <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <MinusCircle className="w-4 h-4" />
+                                  )}
+                                  Remove from Team
+                                </button>
+                              </div>
+                            );
+                          }
+                          
+                          // In Draft Pool
+                          if (playerStatus?.status === 'in-draft-pool') {
+                            return (
+                              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <Clock className="w-5 h-5 text-amber-500" />
+                                  <span className="font-bold text-amber-700 dark:text-amber-400">
+                                    🎯 In Draft Pool
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
+                                  {playerStatus.eventName 
+                                    ? `Registered for "${playerStatus.eventName}" and waiting to be drafted by a team.`
+                                    : 'Waiting to be drafted by a team.'
+                                  }
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (!playerStatus.draftPoolTeamId || !playerStatus.draftPoolEntryId) return;
+                                    if (!confirm('Are you sure you want to withdraw from the draft pool? You may need to re-register.')) return;
+                                    
+                                    setRemovingFromPool(selectedAthlete?.id || null);
+                                    const result = await removeFromDraftPool(playerStatus.draftPoolTeamId, playerStatus.draftPoolEntryId);
+                                    setRemovingFromPool(null);
+                                    
+                                    if (result.success) {
+                                      setStatusMsg({ type: 'success', text: 'Withdrawn from draft pool' });
+                                      // Refresh statuses
+                                      if (selectedAthlete) {
+                                        const newStatus = await getPlayerRegistrationStatus(selectedAthlete.id, undefined, selectedAthlete.name);
+                                        setPlayerStatuses(prev => ({ ...prev, [selectedAthlete.id]: newStatus }));
+                                      }
+                                      setIsEditModalOpen(false);
+                                    } else {
+                                      setStatusMsg({ type: 'error', text: result.error || 'Failed to withdraw from draft pool' });
+                                    }
+                                  }}
+                                  disabled={removingFromPool === selectedAthlete?.id}
+                                  className="flex items-center gap-2 px-3 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors text-sm font-medium disabled:opacity-50"
+                                >
+                                  {removingFromPool === selectedAthlete?.id ? (
+                                    <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <MinusCircle className="w-4 h-4" />
+                                  )}
+                                  Withdraw from Draft Pool
+                                </button>
+                              </div>
+                            );
+                          }
+                          
+                          // Registration Denied
+                          if (playerStatus?.status === 'registration-denied') {
+                            return (
+                              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <XCircle className="w-5 h-5 text-red-500" />
+                                  <span className="font-bold text-red-700 dark:text-red-400">
+                                    ❌ Registration Denied
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
+                                  {playerStatus.deniedReason || 'The registration for this athlete was not approved.'}
+                                </p>
+                                <p className="text-xs text-slate-500 dark:text-slate-500">
+                                  Contact the league commissioner for more information or to re-apply.
+                                </p>
+                              </div>
+                            );
+                          }
+                          
+                          // Not Registered
+                          return (
+                            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
+                              <div className="flex items-center gap-2 mb-3">
+                                <AlertCircle className="w-5 h-5 text-orange-500" />
+                                <span className="font-bold text-orange-700 dark:text-orange-400">
+                                  ⚠️ Not Registered
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
+                                This athlete is not registered for any team or event. Register for a team event to join a team.
+                              </p>
+                              <a
+                                href="/#/events"
+                                className="inline-flex items-center gap-2 px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
+                              >
+                                <Plus className="w-4 h-4" />
+                                Find Events & Register
+                              </a>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Physical Info */}

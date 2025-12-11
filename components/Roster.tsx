@@ -5,6 +5,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc, getDocs, where, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { sanitizeText, sanitizeNumber, sanitizeDate } from '../services/sanitize';
+import { calculateAgeGroup } from '../services/ageValidator';
 import type { Player, UserProfile, Team, SportType } from '../types';
 import { getPositions } from '../config/sportConfig';
 import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link as LinkIcon, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera, UserPlus, ArrowRightLeft, BarChart3, Eye, AtSign, Copy, Check, ExternalLink, Zap } from 'lucide-react';
@@ -51,9 +52,16 @@ const Roster: React.FC = () => {
   
   // Add Player by search (Coach only) - search all players in system by username
   const [playerSearchQuery, setPlayerSearchQuery] = useState('');
-  const [playerSearchResults, setPlayerSearchResults] = useState<(Player & { teamName?: string })[]>([]);
+  const [playerSearchResults, setPlayerSearchResults] = useState<(Player & { 
+    teamName?: string;
+    calculatedAgeGroup?: string | null;
+    isInDraftPool?: boolean;
+    draftPoolTeamName?: string;
+    conflictWarning?: string;
+  })[]>([]);
   const [searchingPlayers, setSearchingPlayers] = useState(false);
   const [selectedPlayerToAdd, setSelectedPlayerToAdd] = useState<(Player & { teamName?: string }) | null>(null);
+  const [searchDebounceTimer, setSearchDebounceTimer] = useState<NodeJS.Timeout | null>(null);
   
   // Transfer Head Coach state
   const [transferHeadCoachTo, setTransferHeadCoachTo] = useState<{ id: string; name: string } | null>(null);
@@ -315,52 +323,206 @@ const Roster: React.FC = () => {
   };
 
   // Search for players by username across all teams (Coach only)
+  // Now includes: age group filtering, debounce, draft pool/team conflict warnings
   const handleSearchPlayers = async (searchTerm: string) => {
     setPlayerSearchQuery(searchTerm);
+    
+    // Clear previous debounce timer
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
     
     if (searchTerm.length < 2) {
       setPlayerSearchResults([]);
       return;
     }
     
-    setSearchingPlayers(true);
-    try {
-      const normalizedSearch = searchTerm.toLowerCase().replace(/^@/, '');
-      const foundPlayers: (Player & { teamName?: string })[] = [];
-      
-      // Search all teams for players with matching username
-      const teamsSnapshot = await getDocs(collection(db, 'teams'));
-      
-      for (const teamDoc of teamsSnapshot.docs) {
-        const teamName = teamDoc.data().name || 'Unknown Team';
-        const playersSnapshot = await getDocs(collection(db, 'teams', teamDoc.id, 'players'));
+    // Debounce: wait 300ms before searching
+    const timer = setTimeout(async () => {
+      setSearchingPlayers(true);
+      try {
+        const normalizedSearch = searchTerm.toLowerCase().replace(/^@/, '');
+        const foundPlayers: (Player & { 
+          teamName?: string;
+          calculatedAgeGroup?: string | null;
+          isInDraftPool?: boolean;
+          draftPoolTeamName?: string;
+          conflictWarning?: string;
+        })[] = [];
         
-        playersSnapshot.docs.forEach(playerDoc => {
-          const playerData = playerDoc.data();
-          const playerUsername = (playerData.username || '').toLowerCase();
-          const playerName = (playerData.name || '').toLowerCase();
-          
-          // Match username or name
-          if (playerUsername.includes(normalizedSearch) || playerName.includes(normalizedSearch)) {
-            // Don't show players already on this team
-            if (teamDoc.id !== teamData?.id) {
-              foundPlayers.push({
-                id: playerDoc.id,
-                teamId: teamDoc.id,
-                teamName,
-                ...playerData
-              } as Player & { teamName?: string });
-            }
-          }
+        // Get team's age group for filtering
+        const teamAgeGroup = teamData?.ageGroup;
+        
+        // Search all teams for players with matching username
+        const teamsSnapshot = await getDocs(collection(db, 'teams'));
+        
+        // Build a map of team info for quick lookups
+        const teamInfoMap = new Map<string, { name: string; ageGroup?: string }>();
+        teamsSnapshot.docs.forEach(teamDoc => {
+          const data = teamDoc.data();
+          teamInfoMap.set(teamDoc.id, { name: data.name || 'Unknown Team', ageGroup: data.ageGroup });
         });
+        
+        // Collect all draft pool entries for conflict checking
+        const draftPoolPlayers = new Map<string, { teamId: string; teamName: string }>();
+        for (const teamDoc of teamsSnapshot.docs) {
+          try {
+            const draftPoolQuery = query(
+              collection(db, 'teams', teamDoc.id, 'draftPool'),
+              where('status', '==', 'waiting')
+            );
+            const draftPoolSnap = await getDocs(draftPoolQuery);
+            draftPoolSnap.docs.forEach(dpDoc => {
+              const dpData = dpDoc.data();
+              // Key by playerId or playerName
+              if (dpData.playerId) {
+                draftPoolPlayers.set(dpData.playerId, {
+                  teamId: teamDoc.id,
+                  teamName: teamInfoMap.get(teamDoc.id)?.name || 'Unknown Team'
+                });
+              }
+              if (dpData.playerName) {
+                draftPoolPlayers.set(dpData.playerName.toLowerCase(), {
+                  teamId: teamDoc.id,
+                  teamName: teamInfoMap.get(teamDoc.id)?.name || 'Unknown Team'
+                });
+              }
+            });
+          } catch (e) {
+            // Skip teams with no draft pool
+          }
+        }
+        
+        for (const teamDoc of teamsSnapshot.docs) {
+          const teamInfo = teamInfoMap.get(teamDoc.id);
+          const playersSnapshot = await getDocs(collection(db, 'teams', teamDoc.id, 'players'));
+          
+          playersSnapshot.docs.forEach(playerDoc => {
+            const playerData = playerDoc.data();
+            const playerUsername = (playerData.username || '').toLowerCase();
+            const playerName = (playerData.name || '').toLowerCase();
+            
+            // Match username or name
+            if (playerUsername.includes(normalizedSearch) || playerName.includes(normalizedSearch)) {
+              // Don't show players already on this team
+              if (teamDoc.id !== teamData?.id) {
+                // Calculate player's age group
+                const playerAgeGroup = playerData.dob ? calculateAgeGroup(playerData.dob) : null;
+                
+                // Check for age group mismatch
+                const ageGroupMatches = !teamAgeGroup || !playerAgeGroup || teamAgeGroup === playerAgeGroup;
+                
+                // Check if player is in draft pool
+                const draftPoolEntry = draftPoolPlayers.get(playerDoc.id) || 
+                                       draftPoolPlayers.get(playerData.name?.toLowerCase() || '');
+                
+                // Determine conflict warning
+                let conflictWarning: string | undefined;
+                if (draftPoolEntry) {
+                  conflictWarning = `In draft pool for ${draftPoolEntry.teamName}`;
+                } else if (!ageGroupMatches) {
+                  conflictWarning = `Age group mismatch: ${playerAgeGroup || 'Unknown'} vs team's ${teamAgeGroup}`;
+                }
+                
+                // Only include players that match age group (unless no team age group set)
+                // But still show mismatches with warnings if they search directly
+                foundPlayers.push({
+                  id: playerDoc.id,
+                  teamId: teamDoc.id,
+                  teamName: teamInfo?.name,
+                  calculatedAgeGroup: playerAgeGroup,
+                  isInDraftPool: !!draftPoolEntry,
+                  draftPoolTeamName: draftPoolEntry?.teamName,
+                  conflictWarning,
+                  ...playerData
+                } as Player & { 
+                  teamName?: string;
+                  calculatedAgeGroup?: string | null;
+                  isInDraftPool?: boolean;
+                  draftPoolTeamName?: string;
+                  conflictWarning?: string;
+                });
+              }
+            }
+          });
+        }
+        
+        // Also search unassigned players (top-level players collection)
+        try {
+          const unassignedPlayersSnap = await getDocs(collection(db, 'players'));
+          unassignedPlayersSnap.docs.forEach(playerDoc => {
+            const playerData = playerDoc.data();
+            const playerUsername = (playerData.username || '').toLowerCase();
+            const playerName = (playerData.name || '').toLowerCase();
+            
+            if (playerUsername.includes(normalizedSearch) || playerName.includes(normalizedSearch)) {
+              // Calculate player's age group
+              const playerAgeGroup = playerData.dob ? calculateAgeGroup(playerData.dob) : null;
+              
+              // Check for age group mismatch
+              const ageGroupMatches = !teamAgeGroup || !playerAgeGroup || teamAgeGroup === playerAgeGroup;
+              
+              // Check if player is in draft pool
+              const draftPoolEntry = draftPoolPlayers.get(playerDoc.id) || 
+                                     draftPoolPlayers.get(playerData.name?.toLowerCase() || '');
+              
+              let conflictWarning: string | undefined;
+              if (draftPoolEntry) {
+                conflictWarning = `In draft pool for ${draftPoolEntry.teamName}`;
+              } else if (!ageGroupMatches) {
+                conflictWarning = `Age group mismatch: ${playerAgeGroup || 'Unknown'} vs team's ${teamAgeGroup}`;
+              }
+              
+              // Avoid duplicates (player might exist in both places)
+              if (!foundPlayers.find(p => p.id === playerDoc.id)) {
+                foundPlayers.push({
+                  id: playerDoc.id,
+                  teamId: undefined,
+                  teamName: undefined,
+                  calculatedAgeGroup: playerAgeGroup,
+                  isInDraftPool: !!draftPoolEntry,
+                  draftPoolTeamName: draftPoolEntry?.teamName,
+                  conflictWarning,
+                  ...playerData
+                } as Player & { 
+                  teamName?: string;
+                  calculatedAgeGroup?: string | null;
+                  isInDraftPool?: boolean;
+                  draftPoolTeamName?: string;
+                  conflictWarning?: string;
+                });
+              }
+            }
+          });
+        } catch (e) {
+          // Skip if players collection doesn't exist
+        }
+        
+        // Sort results: matching age group first, then by conflicts, then alphabetically
+        foundPlayers.sort((a, b) => {
+          // Players matching team age group come first
+          const aMatches = a.calculatedAgeGroup === teamAgeGroup;
+          const bMatches = b.calculatedAgeGroup === teamAgeGroup;
+          if (aMatches && !bMatches) return -1;
+          if (!aMatches && bMatches) return 1;
+          
+          // Then sort by conflict (no conflicts first)
+          if (!a.conflictWarning && b.conflictWarning) return -1;
+          if (a.conflictWarning && !b.conflictWarning) return 1;
+          
+          // Finally alphabetically
+          return (a.name || '').localeCompare(b.name || '');
+        });
+        
+        setPlayerSearchResults(foundPlayers);
+      } catch (error) {
+        console.error('Error searching players:', error);
+      } finally {
+        setSearchingPlayers(false);
       }
-      
-      setPlayerSearchResults(foundPlayers);
-    } catch (error) {
-      console.error('Error searching players:', error);
-    } finally {
-      setSearchingPlayers(false);
-    }
+    }, 300); // 300ms debounce
+    
+    setSearchDebounceTimer(timer);
   };
 
   // Add selected player to coach's team
@@ -1120,7 +1282,19 @@ const Roster: React.FC = () => {
                         <p className="text-orange-500 font-bold text-sm uppercase tracking-wide">
                           {player.photoUrl && <span>#{player.number} <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}>|</span> </span>}{player.position}
                         </p>
-                        <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}`}>DOB: {player.dob || '--'}</p>
+                        <div className={`flex items-center justify-center gap-2 mt-1 flex-wrap`}>
+                          <span className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}`}>DOB: {player.dob || '--'}</span>
+                          {player.dob && calculateAgeGroup(player.dob) && (
+                            <span className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs px-2 py-0.5 rounded font-bold">
+                              {calculateAgeGroup(player.dob)}
+                            </span>
+                          )}
+                          {player.dob && !calculateAgeGroup(player.dob) && (
+                            <span className="bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs px-2 py-0.5 rounded">
+                              18+
+                            </span>
+                          )}
+                        </div>
                     </div>
 
                     {/* Quick Stats with View Stats Button */}
@@ -1788,6 +1962,16 @@ const Roster: React.FC = () => {
                   Search for players by username or name. Players are created by their parents.
                 </p>
                 
+                {/* Team Age Group Info */}
+                {teamData?.ageGroup && (
+                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+                    theme === 'dark' ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'
+                  }`}>
+                    <Users className="w-4 h-4" />
+                    <span>Team Age Group: <strong>{teamData.ageGroup}</strong> - Only matching players shown first</span>
+                  </div>
+                )}
+                
                 {/* Search Input */}
                 <div className="relative">
                   <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`} />
@@ -1824,12 +2008,13 @@ const Roster: React.FC = () => {
                     {playerSearchResults.map(player => {
                       const isOnAnotherTeam = player.teamId && player.teamId !== teamData?.id;
                       const isAlreadyOnThisTeam = roster.some(p => p.username === player.username);
-                      const isDisabled = !!(isOnAnotherTeam || isAlreadyOnThisTeam);
+                      const hasConflict = !!player.conflictWarning || !!player.isInDraftPool;
+                      const isDisabled = !!(isOnAnotherTeam || isAlreadyOnThisTeam || player.isInDraftPool);
                       
                       return (
                         <button
                           type="button"
-                          key={`${player.teamId}-${player.id}`}
+                          key={`${player.teamId || 'unassigned'}-${player.id}`}
                           onClick={() => !isDisabled && setSelectedPlayerToAdd(player)}
                           disabled={isDisabled}
                           className={`w-full p-3 rounded-lg border text-left transition-all flex items-center gap-3 ${
@@ -1837,13 +2022,17 @@ const Roster: React.FC = () => {
                               ? theme === 'dark'
                                 ? 'bg-black/20 border-white/5 opacity-60 cursor-not-allowed'
                                 : 'bg-zinc-100 border-zinc-200 opacity-60 cursor-not-allowed'
-                              : selectedPlayerToAdd?.id === player.id && selectedPlayerToAdd?.teamId === player.teamId
+                              : hasConflict && !isDisabled
                                 ? theme === 'dark'
-                                  ? 'bg-orange-500/20 border-orange-500/50'
-                                  : 'bg-orange-50 border-orange-300'
-                                : theme === 'dark'
-                                  ? 'bg-black/30 border-white/10 hover:bg-white/5'
-                                  : 'bg-zinc-50 border-zinc-200 hover:bg-zinc-100'
+                                  ? 'bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20'
+                                  : 'bg-amber-50 border-amber-200 hover:bg-amber-100'
+                                : selectedPlayerToAdd?.id === player.id && selectedPlayerToAdd?.teamId === player.teamId
+                                  ? theme === 'dark'
+                                    ? 'bg-orange-500/20 border-orange-500/50'
+                                    : 'bg-orange-50 border-orange-300'
+                                  : theme === 'dark'
+                                    ? 'bg-black/30 border-white/10 hover:bg-white/5'
+                                    : 'bg-zinc-50 border-zinc-200 hover:bg-zinc-100'
                           }`}
                         >
                           {player.photoUrl ? (
@@ -1854,16 +2043,31 @@ const Roster: React.FC = () => {
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <div className={`font-medium truncate ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
-                              {player.name}
+                            <div className="flex items-center gap-2">
+                              <span className={`font-medium truncate ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                                {player.name}
+                              </span>
+                              {player.calculatedAgeGroup && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                  player.calculatedAgeGroup === teamData?.ageGroup
+                                    ? 'bg-green-500/20 text-green-400'
+                                    : 'bg-amber-500/20 text-amber-400'
+                                }`}>
+                                  {player.calculatedAgeGroup}
+                                </span>
+                              )}
                             </div>
                             <div className={`text-xs truncate ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
                               {player.username && <span className="text-orange-500">@{player.username}</span>}
-                              {player.username && player.teamName && ' • '}
-                              {isAlreadyOnThisTeam ? (
+                              {player.username && (player.teamName || player.conflictWarning) && ' • '}
+                              {player.isInDraftPool ? (
+                                <span className="text-amber-400">⏳ In draft pool ({player.draftPoolTeamName})</span>
+                              ) : isAlreadyOnThisTeam ? (
                                 <span className="text-green-500">Already on your team</span>
                               ) : isOnAnotherTeam ? (
                                 <span className="text-red-400">On another team ({player.teamName})</span>
+                              ) : player.conflictWarning ? (
+                                <span className="text-amber-400">⚠️ {player.conflictWarning}</span>
                               ) : player.teamName ? (
                                 <span>Currently on {player.teamName}</span>
                               ) : (

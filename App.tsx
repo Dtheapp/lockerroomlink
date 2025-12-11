@@ -71,7 +71,7 @@ const EventDetailsPage = lazyWithRetry(() => import('./components/events/EventDe
 const EventCreatorPage = lazyWithRetry(() => import('./components/events/EventCreatorPage'));
 const EventManagement = lazyWithRetry(() => import('./components/events/EventManagement'));
 const RegistrationFlow = lazyWithRetry(() => import('./components/events/registration/RegistrationFlow'));
-const SimpleRegistrationPage = lazyWithRetry(() => import('./components/events/SimpleRegistrationPage'));
+const StreamlinedRegistration = lazyWithRetry(() => import('./components/events/registration/StreamlinedRegistration'));
 const SeasonRegistrationPage = lazyWithRetry(() => import('./components/events/SeasonRegistrationPage'));
 const PublicEventPage = lazyWithRetry(() => import('./components/events/PublicEventPage'));
 
@@ -83,6 +83,9 @@ const MarketingHub = lazyWithRetry(() => import('./components/MarketingHub'));
 
 // Progress Tracking Page
 const ProgressPage = lazyWithRetry(() => import('./components/ProgressPage'));
+
+// AI Session Log Page
+const AILogPage = lazyWithRetry(() => import('./components/AILogPage'));
 
 // Draft Day Showcase
 const DraftDayShowcase = lazyWithRetry(() => import('./components/DraftDayShowcase'));
@@ -274,6 +277,7 @@ const AppContent: React.FC = () => {
           <Route path="/nil-wallet" element={<NILWalletDashboard />} />
           <Route path="/nil-marketplace" element={<NILMarketplace />} />
           <Route path="/progress" element={<ProgressPage />} />
+          <Route path="/ailog" element={<AILogPage />} />
           <Route path="/draft" element={<DraftDayShowcase />} />
           <Route path="/compare" element={<ComparisonPage />} />
           
@@ -315,7 +319,7 @@ const AppContent: React.FC = () => {
                 <Route path="dashboard" element={<FanDashboard />} />
                 <Route path="profile" element={<FanProfile />} />
                 <Route path="notifications" element={<NotificationsPage />} />
-                <Route path="events/:eventId/register" element={<SimpleRegistrationPage />} />
+                <Route path="events/:eventId/register" element={<StreamlinedRegistration />} />
               </Route>
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </>
@@ -400,7 +404,7 @@ const AppContent: React.FC = () => {
                 <Route path="events/:eventId" element={<EventDetailsPage />} />
                 <Route path="events/:eventId/edit" element={<EventCreatorPage />} />
                 <Route path="events/:eventId/manage" element={<EventManagement />} />
-                <Route path="events/:eventId/register" element={<SimpleRegistrationPage />} />
+                <Route path="events/:eventId/register" element={<StreamlinedRegistration />} />
                 {/* Design Studio */}
                 <Route path="design" element={<DesignStudio />} />
                 {/* Marketing Hub */}

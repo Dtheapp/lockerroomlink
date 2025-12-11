@@ -105,6 +105,19 @@ const FeatureTicker: React.FC = () => {
 const LandingPage: React.FC = () => {
   const { showToast, ToastComponent } = useDemoToast();
   
+  // Force light mode on landing page for best appearance
+  useEffect(() => {
+    const wasDark = document.documentElement.classList.contains('dark');
+    document.documentElement.classList.remove('dark');
+    
+    // Restore dark mode when leaving the page if it was active
+    return () => {
+      if (wasDark) {
+        document.documentElement.classList.add('dark');
+      }
+    };
+  }, []);
+  
   return (
     <div className="min-h-screen text-white">
       <AnimatedBackground />

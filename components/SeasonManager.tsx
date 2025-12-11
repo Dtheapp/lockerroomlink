@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, writeBatch, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import type { Season, SeasonRegistration, SeasonStatus, SportType } from '../types';
-import { Calendar, Users, DollarSign, Play, Square, CheckCircle, Clock, AlertCircle, ChevronRight, Plus, X, FileText, Palette, Trophy, UserPlus, Settings, CalendarDays, Info, Link2, Copy, Check } from 'lucide-react';
+import { Calendar, Users, DollarSign, Play, Square, CheckCircle, Clock, AlertCircle, ChevronRight, Plus, X, FileText, Palette, Trophy, UserPlus, Settings, CalendarDays, Info, Link2, Copy, Check, Trash2, Edit3 } from 'lucide-react';
 import { GlassCard } from './ui/OSYSComponents';
 import { GameScheduleManager } from './season/GameScheduleManager';
 
@@ -20,12 +20,14 @@ export interface RegistrationFlyerData {
   registrationCloseDate?: string;
   ageGroup?: string;
   description?: string;
+  registrationLink?: string; // URL to include in QR code
 }
 
 interface SeasonManagerProps {
   teamId: string;
   teamName: string;
   sport: SportType;
+  ageGroup?: string; // Team's age group (e.g., "9U", "10U")
   currentSeasonId?: string | null;
   rosterCount?: number; // Number of players currently on the roster
   // League membership info - if team is in active league, they cannot create seasons
@@ -42,6 +44,7 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
   teamId, 
   teamName, 
   sport, 
+  ageGroup,
   currentSeasonId,
   rosterCount = 0,
   leagueId,
@@ -65,8 +68,22 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [creatingLegacy, setCreatingLegacy] = useState(false);
   
+  // Edit Season Modal state
+  const [showEditSeasonModal, setShowEditSeasonModal] = useState(false);
+  const [editSeasonData, setEditSeasonData] = useState<Partial<Season>>({});
+  const [savingSeasonEdit, setSavingSeasonEdit] = useState(false);
+  const [showDeleteSeasonConfirm, setShowDeleteSeasonConfirm] = useState(false);
+  const [deletingSeason, setDeletingSeason] = useState(false);
+  
   // Payment details popup state
   const [selectedRegistrationForPayment, setSelectedRegistrationForPayment] = useState<SeasonRegistration | null>(null);
+  
+  // Edit/Delete registration state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null); // registration ID to delete
+  const [deletingRegistration, setDeletingRegistration] = useState(false);
+  const [editingRegistration, setEditingRegistration] = useState<SeasonRegistration | null>(null);
+  const [editFormData, setEditFormData] = useState<Partial<SeasonRegistration>>({});
+  const [savingEdit, setSavingEdit] = useState(false);
   
   // Form state for new season
   const [newSeason, setNewSeason] = useState({
@@ -222,6 +239,8 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
       const eventData = {
         teamId,
         teamName, // Include team name for public search
+        ageGroup: ageGroup || null, // Include team's age group for filtering
+        sport, // Include sport for filtering
         title: `${newSeason.name.trim()} Registration`,
         description: newSeason.description.trim() || `Registration for ${teamName} ${newSeason.name.trim()}`,
         type: 'registration',
@@ -235,6 +254,12 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
         seasonId: docRef.id, // Link to the season
         status: 'active', // Set to active so it appears in public search
         flyerNeeded: true, // Flag that flyer needs to be created
+        // Registration requirements - controls what fields are shown in form
+        requireMedicalInfo: newSeason.requireMedicalInfo,
+        requireEmergencyContact: newSeason.requireEmergencyContact,
+        requireUniformSizes: newSeason.requireUniformSizes,
+        requireWaiver: newSeason.requireWaiver,
+        waiverText: newSeason.waiverText?.trim() || '',
         createdAt: serverTimestamp(),
         createdBy: userData.uid,
       };
@@ -412,6 +437,177 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
     }
   };
   
+  // Delete registration
+  const handleDeleteRegistration = async (seasonId: string, registrationId: string) => {
+    if (deletingRegistration) return;
+    
+    setDeletingRegistration(true);
+    try {
+      // Delete the registration document
+      await deleteDoc(doc(db, 'teams', teamId, 'seasons', seasonId, 'registrations', registrationId));
+      
+      // Decrement player count if it was approved
+      const season = seasons.find(s => s.id === seasonId);
+      const reg = registrations[seasonId]?.find(r => r.id === registrationId);
+      if (season && reg?.status === 'approved') {
+        await updateDoc(doc(db, 'teams', teamId, 'seasons', seasonId), {
+          playerCount: Math.max(0, (season.playerCount || 1) - 1),
+        });
+      }
+      
+      setShowDeleteConfirm(null);
+    } catch (error) {
+      console.error('Error deleting registration:', error);
+      alert('Failed to delete registration');
+    } finally {
+      setDeletingRegistration(false);
+    }
+  };
+  
+  // Edit registration
+  const handleStartEdit = (reg: SeasonRegistration) => {
+    setEditingRegistration(reg);
+    setEditFormData({
+      playerName: reg.playerName,
+      parentName: reg.parentName,
+      parentEmail: reg.parentEmail,
+      status: reg.status,
+    });
+  };
+  
+  const handleSaveEdit = async () => {
+    if (!editingRegistration || !selectedSeason || savingEdit) return;
+    
+    setSavingEdit(true);
+    try {
+      await updateDoc(
+        doc(db, 'teams', teamId, 'seasons', selectedSeason.id, 'registrations', editingRegistration.id),
+        {
+          ...editFormData,
+          updatedAt: serverTimestamp(),
+        }
+      );
+      setEditingRegistration(null);
+      setEditFormData({});
+    } catch (error) {
+      console.error('Error updating registration:', error);
+      alert('Failed to update registration');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+  
+  // Edit Season - open modal with current season data
+  const handleStartEditSeason = () => {
+    if (!currentSeason) return;
+    setEditSeasonData({
+      name: currentSeason.name,
+      startDate: currentSeason.startDate,
+      registrationOpenDate: currentSeason.registrationOpenDate,
+      registrationCloseDate: currentSeason.registrationCloseDate,
+      registrationFee: currentSeason.registrationFee,
+      maxRosterSize: currentSeason.maxRosterSize,
+      description: currentSeason.description,
+    });
+    setShowEditSeasonModal(true);
+  };
+  
+  // Save Season Edit
+  const handleSaveSeasonEdit = async () => {
+    if (!currentSeason || savingSeasonEdit) return;
+    
+    setSavingSeasonEdit(true);
+    try {
+      await updateDoc(doc(db, 'teams', teamId, 'seasons', currentSeason.id), {
+        ...editSeasonData,
+        updatedAt: serverTimestamp(),
+      });
+      
+      // Also update the linked registration event if it exists
+      if (currentSeason.registrationEventId) {
+        await updateDoc(doc(db, 'teams', teamId, 'events', currentSeason.registrationEventId), {
+          title: `${editSeasonData.name} Registration`,
+          description: editSeasonData.description || '',
+          startDate: editSeasonData.registrationOpenDate,
+          endDate: editSeasonData.registrationCloseDate,
+          registrationFee: editSeasonData.registrationFee,
+          maxAttendees: editSeasonData.maxRosterSize || 0,
+          ageGroup: ageGroup || null,
+          sport: sport,
+          // Include requirement fields
+          requireMedicalInfo: editSeasonData.requireMedicalInfo ?? true,
+          requireEmergencyContact: editSeasonData.requireEmergencyContact ?? true,
+          requireUniformSizes: editSeasonData.requireUniformSizes ?? true,
+          requireWaiver: editSeasonData.requireWaiver ?? true,
+          waiverText: editSeasonData.waiverText || '',
+          updatedAt: serverTimestamp(),
+        });
+      }
+      
+      // Update public event too
+      if (currentSeason.publicEventId) {
+        await updateDoc(doc(db, 'events', currentSeason.publicEventId), {
+          title: `${editSeasonData.name} Registration`,
+          description: editSeasonData.description || '',
+          startDate: editSeasonData.registrationOpenDate,
+          endDate: editSeasonData.registrationCloseDate,
+          registrationFee: editSeasonData.registrationFee,
+          maxAttendees: editSeasonData.maxRosterSize || 0,
+          ageGroup: ageGroup || null,
+          sport: sport,
+          // Include requirement fields
+          requireMedicalInfo: editSeasonData.requireMedicalInfo ?? true,
+          requireEmergencyContact: editSeasonData.requireEmergencyContact ?? true,
+          requireUniformSizes: editSeasonData.requireUniformSizes ?? true,
+          requireWaiver: editSeasonData.requireWaiver ?? true,
+          waiverText: editSeasonData.waiverText || '',
+          updatedAt: serverTimestamp(),
+        });
+      }
+      
+      setShowEditSeasonModal(false);
+      setEditSeasonData({});
+    } catch (error) {
+      console.error('Error updating season:', error);
+      alert('Failed to update season');
+    } finally {
+      setSavingSeasonEdit(false);
+    }
+  };
+  
+  // Delete Season
+  const handleDeleteSeason = async () => {
+    if (!currentSeason || deletingSeason) return;
+    
+    setDeletingSeason(true);
+    try {
+      // Delete linked events
+      if (currentSeason.registrationEventId) {
+        await deleteDoc(doc(db, 'teams', teamId, 'events', currentSeason.registrationEventId));
+      }
+      if (currentSeason.publicEventId) {
+        await deleteDoc(doc(db, 'events', currentSeason.publicEventId));
+      }
+      
+      // Delete the season
+      await deleteDoc(doc(db, 'teams', teamId, 'seasons', currentSeason.id));
+      
+      // Clear current season from team
+      await updateDoc(doc(db, 'teams', teamId), {
+        currentSeasonId: null,
+      });
+      
+      onSeasonChange?.(null);
+      setShowDeleteSeasonConfirm(false);
+      setShowEditSeasonModal(false);
+    } catch (error) {
+      console.error('Error deleting season:', error);
+      alert('Failed to delete season');
+    } finally {
+      setDeletingSeason(false);
+    }
+  };
+  
   // Create legacy/activate current season (for teams with existing players but no season)
   const handleActivateCurrentSeason = async () => {
     if (!userData || creatingLegacy) return;
@@ -559,7 +755,7 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
               </div>
             </div>
           )}
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div>
               <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
                 {currentSeason.name}
@@ -572,15 +768,15 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
               </div>
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {/* Start Season - Only for non-league teams */}
               {currentSeason.status === 'registration' && !isInActiveLeague && (
                 <button
                   onClick={() => handleStartSeason(currentSeason)}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+                  className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors"
                 >
                   <Play className="w-4 h-4" />
-                  Start Season
+                  <span className="hidden xs:inline">Start</span> Season
                 </button>
               )}
               
@@ -591,10 +787,10 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                     setSelectedSeason(currentSeason);
                     setShowEndSeasonModal(true);
                   }}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors"
                 >
                   <Square className="w-4 h-4" />
-                  End Season
+                  <span className="hidden xs:inline">End</span> Season
                 </button>
               )}
               
@@ -604,10 +800,11 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                     setSelectedSeason(currentSeason);
                     setShowRegistrationsModal(true);
                   }}
-                  className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+                  className="px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors"
                 >
                   <Users className="w-4 h-4" />
-                  Registrations
+                  <span className="hidden sm:inline">Registrations</span>
+                  <span className="sm:hidden">Regs</span>
                 </button>
               )}
               
@@ -618,35 +815,50 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                     setSelectedSeason(currentSeason);
                     setShowScheduleModal(true);
                   }}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors"
                 >
                   <CalendarDays className="w-4 h-4" />
-                  Schedule
+                  <span className="hidden sm:inline">Schedule</span>
+                  <span className="sm:hidden">Sched</span>
                 </button>
               )}
               
-              {/* Share Registration Link Button */}
+              {/* Share Registration Link Button - Icon only on mobile */}
               {currentSeason.status === 'registration' && (
                 <button
                   onClick={() => handleCopyRegistrationLink(currentSeason)}
-                  className={`px-4 py-2 ${copiedLink === currentSeason.id 
+                  className={`px-3 py-2 ${copiedLink === currentSeason.id 
                     ? 'bg-green-600 hover:bg-green-700' 
-                    : 'bg-purple-600 hover:bg-purple-700'} text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors`}
+                    : 'bg-purple-600 hover:bg-purple-700'} text-white rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors`}
                   title="Copy shareable registration link"
                 >
                   {copiedLink === currentSeason.id ? (
                     <>
                       <Check className="w-4 h-4" />
-                      Copied!
+                      <span className="hidden sm:inline">Copied!</span>
                     </>
                   ) : (
                     <>
                       <Link2 className="w-4 h-4" />
-                      Share Link
+                      <span className="hidden sm:inline">Share</span>
                     </>
                   )}
                 </button>
               )}
+              
+              {/* Edit Season Button */}
+              <button
+                onClick={handleStartEditSeason}
+                className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                  theme === 'dark' 
+                    ? 'bg-zinc-700 hover:bg-zinc-600 text-white' 
+                    : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-700'
+                }`}
+                title="Edit season settings"
+              >
+                <Edit3 className="w-4 h-4" />
+                <span className="hidden sm:inline">Edit</span>
+              </button>
             </div>
           </div>
           
@@ -755,17 +967,26 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
           {/* Flyer Status */}
           {!currentSeason.flyerId && (
             <button
-              onClick={() => onNavigateToDesignStudio?.({
-                seasonId: currentSeason.id,
-                seasonName: currentSeason.name,
-                teamName,
-                sport,
-                registrationFee: currentSeason.registrationFee,
-                registrationOpenDate: currentSeason.registrationOpenDate,
-                registrationCloseDate: currentSeason.registrationCloseDate,
-                ageGroup: currentSeason.ageGroup,
-                description: currentSeason.description,
-              })}
+              onClick={() => {
+                // Build registration link
+                const baseUrl = window.location.origin;
+                const registrationLink = currentSeason.registrationEventId 
+                  ? `${baseUrl}/#/events/${currentSeason.registrationEventId}/register`
+                  : `${baseUrl}/#/register/${teamId}/${currentSeason.id}`;
+                
+                onNavigateToDesignStudio?.({
+                  seasonId: currentSeason.id,
+                  seasonName: currentSeason.name,
+                  teamName,
+                  sport,
+                  registrationFee: currentSeason.registrationFee,
+                  registrationOpenDate: currentSeason.registrationOpenDate,
+                  registrationCloseDate: currentSeason.registrationCloseDate,
+                  ageGroup: ageGroup, // Use team's ageGroup
+                  description: currentSeason.description,
+                  registrationLink,
+                });
+              }}
               className={`mt-4 p-3 rounded-lg border-2 border-dashed w-full text-left transition-all hover:scale-[1.01] ${
                 theme === 'dark' 
                   ? 'border-orange-500/30 bg-orange-500/5 hover:border-orange-500/50 hover:bg-orange-500/10' 
@@ -1489,8 +1710,66 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                                 Unpaid
                               </span>
                             ) : null}
+                            
+                            {/* Edit & Delete Buttons */}
+                            <button
+                              onClick={() => handleStartEdit(reg)}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                theme === 'dark' ? 'hover:bg-white/10 text-zinc-400 hover:text-blue-400' : 'hover:bg-zinc-200 text-zinc-500 hover:text-blue-600'
+                              }`}
+                              title="Edit registration"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setShowDeleteConfirm(reg.id)}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                theme === 'dark' ? 'hover:bg-white/10 text-zinc-400 hover:text-red-400' : 'hover:bg-zinc-200 text-zinc-500 hover:text-red-600'
+                              }`}
+                              title="Delete registration"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
+                        
+                        {/* Delete Confirmation Inline */}
+                        {showDeleteConfirm === reg.id && (
+                          <div className={`mt-3 p-3 rounded-lg border ${
+                            theme === 'dark' ? 'bg-red-900/20 border-red-500/30' : 'bg-red-50 border-red-200'
+                          }`}>
+                            <p className={`text-sm mb-2 ${theme === 'dark' ? 'text-red-300' : 'text-red-700'}`}>
+                              Delete registration for <strong>{reg.playerName}</strong>?
+                            </p>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleDeleteRegistration(selectedSeason.id, reg.id)}
+                                disabled={deletingRegistration}
+                                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium flex items-center gap-1 transition-colors"
+                              >
+                                {deletingRegistration ? (
+                                  <>
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    Deleting...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Trash2 className="w-4 h-4" />
+                                    Yes, Delete
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                onClick={() => setShowDeleteConfirm(null)}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                  theme === 'dark' ? 'bg-zinc-700 hover:bg-zinc-600 text-white' : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-700'
+                                }`}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
                         
                         {/* Show quick payment info if on payment plan */}
                         {hasPaymentPlan && !isPaidInFull && (
@@ -1506,6 +1785,144 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                   })}
                 </div>
               )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+      
+      {/* Edit Registration Modal */}
+      {editingRegistration && selectedSeason && createPortal(
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+          style={{ zIndex: 100000 }}
+        >
+          <div className={`w-full max-w-md rounded-2xl border shadow-2xl ${
+            theme === 'dark' ? 'bg-zinc-900/95 border-white/10' : 'bg-white border-zinc-200'
+          }`}>
+            <div className={`p-6 border-b ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
+              <div className="flex items-center justify-between">
+                <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                  Edit Registration
+                </h2>
+                <button
+                  onClick={() => {
+                    setEditingRegistration(null);
+                    setEditFormData({});
+                  }}
+                  className={`p-2 rounded-lg transition-colors ${
+                    theme === 'dark' ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600'
+                  }`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              {/* Player Name */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                  Player Name
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.playerName || ''}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, playerName: e.target.value }))}
+                  className={`w-full px-3 py-2 rounded-lg border ${
+                    theme === 'dark' 
+                      ? 'bg-zinc-800 border-white/10 text-white placeholder-zinc-500' 
+                      : 'bg-white border-zinc-300 text-zinc-900 placeholder-zinc-400'
+                  } focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all`}
+                />
+              </div>
+              
+              {/* Parent Name */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                  Parent Name
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.parentName || ''}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, parentName: e.target.value }))}
+                  className={`w-full px-3 py-2 rounded-lg border ${
+                    theme === 'dark' 
+                      ? 'bg-zinc-800 border-white/10 text-white placeholder-zinc-500' 
+                      : 'bg-white border-zinc-300 text-zinc-900 placeholder-zinc-400'
+                  } focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all`}
+                />
+              </div>
+              
+              {/* Parent Email */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                  Parent Email
+                </label>
+                <input
+                  type="email"
+                  value={editFormData.parentEmail || ''}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, parentEmail: e.target.value }))}
+                  className={`w-full px-3 py-2 rounded-lg border ${
+                    theme === 'dark' 
+                      ? 'bg-zinc-800 border-white/10 text-white placeholder-zinc-500' 
+                      : 'bg-white border-zinc-300 text-zinc-900 placeholder-zinc-400'
+                  } focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all`}
+                />
+              </div>
+              
+              {/* Status */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                  Status
+                </label>
+                <select
+                  value={editFormData.status || 'pending'}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, status: e.target.value as any }))}
+                  className={`w-full px-3 py-2 rounded-lg border ${
+                    theme === 'dark' 
+                      ? 'bg-zinc-800 border-white/10 text-white' 
+                      : 'bg-white border-zinc-300 text-zinc-900'
+                  } focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all`}
+                >
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="waitlist">Waitlist</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+              
+              {/* Actions */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setEditingRegistration(null);
+                    setEditFormData({});
+                  }}
+                  className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-colors ${
+                    theme === 'dark' ? 'bg-zinc-700 hover:bg-zinc-600 text-white' : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-700'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={savingEdit}
+                  className="flex-1 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+                >
+                  {savingEdit ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Save Changes
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>,
@@ -1689,6 +2106,242 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+      
+      {/* Edit Season Modal */}
+      {showEditSeasonModal && currentSeason && createPortal(
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+          style={{ zIndex: 100000 }}
+        >
+          <div className={`w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border shadow-2xl ${
+            theme === 'dark' ? 'bg-zinc-900/95 border-white/10' : 'bg-white border-zinc-200'
+          }`}>
+            <div className={`sticky top-0 p-6 border-b ${theme === 'dark' ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'}`}>
+              <div className="flex items-center justify-between">
+                <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                  Edit Season
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowEditSeasonModal(false);
+                    setEditSeasonData({});
+                    setShowDeleteSeasonConfirm(false);
+                  }}
+                  className={`p-2 rounded-lg transition-colors ${
+                    theme === 'dark' ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600'
+                  }`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              {/* Season Name */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                  Season Name
+                </label>
+                <input
+                  type="text"
+                  value={editSeasonData.name || ''}
+                  onChange={(e) => setEditSeasonData(prev => ({ ...prev, name: e.target.value }))}
+                  className={`w-full px-3 py-2 rounded-lg border ${
+                    theme === 'dark' 
+                      ? 'bg-zinc-800 border-white/10 text-white' 
+                      : 'bg-white border-zinc-300 text-zinc-900'
+                  }`}
+                />
+              </div>
+              
+              {/* Registration Dates */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                    Registration Opens
+                  </label>
+                  <input
+                    type="date"
+                    value={editSeasonData.registrationOpenDate || ''}
+                    onChange={(e) => setEditSeasonData(prev => ({ ...prev, registrationOpenDate: e.target.value }))}
+                    className={`w-full px-3 py-2 rounded-lg border ${
+                      theme === 'dark' 
+                        ? 'bg-zinc-800 border-white/10 text-white' 
+                        : 'bg-white border-zinc-300 text-zinc-900'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                    Registration Closes
+                  </label>
+                  <input
+                    type="date"
+                    value={editSeasonData.registrationCloseDate || ''}
+                    onChange={(e) => setEditSeasonData(prev => ({ ...prev, registrationCloseDate: e.target.value }))}
+                    className={`w-full px-3 py-2 rounded-lg border ${
+                      theme === 'dark' 
+                        ? 'bg-zinc-800 border-white/10 text-white' 
+                        : 'bg-white border-zinc-300 text-zinc-900'
+                    }`}
+                  />
+                </div>
+              </div>
+              
+              {/* Start Date */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                  Season Start Date
+                </label>
+                <input
+                  type="date"
+                  value={editSeasonData.startDate || ''}
+                  onChange={(e) => setEditSeasonData(prev => ({ ...prev, startDate: e.target.value }))}
+                  className={`w-full px-3 py-2 rounded-lg border ${
+                    theme === 'dark' 
+                      ? 'bg-zinc-800 border-white/10 text-white' 
+                      : 'bg-white border-zinc-300 text-zinc-900'
+                  }`}
+                />
+              </div>
+              
+              {/* Fee & Roster Size */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                    Registration Fee ($)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={((editSeasonData.registrationFee || 0) / 100).toFixed(2)}
+                    onChange={(e) => setEditSeasonData(prev => ({ ...prev, registrationFee: Math.round(parseFloat(e.target.value || '0') * 100) }))}
+                    className={`w-full px-3 py-2 rounded-lg border ${
+                      theme === 'dark' 
+                        ? 'bg-zinc-800 border-white/10 text-white' 
+                        : 'bg-white border-zinc-300 text-zinc-900'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                    Max Roster Size
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editSeasonData.maxRosterSize || ''}
+                    onChange={(e) => setEditSeasonData(prev => ({ ...prev, maxRosterSize: parseInt(e.target.value) || 0 }))}
+                    placeholder="0 = Unlimited"
+                    className={`w-full px-3 py-2 rounded-lg border ${
+                      theme === 'dark' 
+                        ? 'bg-zinc-800 border-white/10 text-white' 
+                        : 'bg-white border-zinc-300 text-zinc-900'
+                    }`}
+                  />
+                </div>
+              </div>
+              
+              {/* Description */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                  Description
+                </label>
+                <textarea
+                  value={editSeasonData.description || ''}
+                  onChange={(e) => setEditSeasonData(prev => ({ ...prev, description: e.target.value }))}
+                  rows={3}
+                  className={`w-full px-3 py-2 rounded-lg border resize-none ${
+                    theme === 'dark' 
+                      ? 'bg-zinc-800 border-white/10 text-white' 
+                      : 'bg-white border-zinc-300 text-zinc-900'
+                  }`}
+                />
+              </div>
+              
+              {/* Actions */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowEditSeasonModal(false);
+                    setEditSeasonData({});
+                  }}
+                  className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-colors ${
+                    theme === 'dark' ? 'bg-zinc-700 hover:bg-zinc-600 text-white' : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-700'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveSeasonEdit}
+                  disabled={savingSeasonEdit}
+                  className="flex-1 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+                >
+                  {savingSeasonEdit ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Save Changes
+                    </>
+                  )}
+                </button>
+              </div>
+              
+              {/* Delete Season Section */}
+              <div className={`mt-6 pt-6 border-t ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
+                {!showDeleteSeasonConfirm ? (
+                  <button
+                    onClick={() => setShowDeleteSeasonConfirm(true)}
+                    className="w-full px-4 py-2.5 bg-red-600/20 hover:bg-red-600/30 text-red-500 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Season
+                  </button>
+                ) : (
+                  <div className={`p-4 rounded-lg border ${theme === 'dark' ? 'bg-red-900/20 border-red-500/30' : 'bg-red-50 border-red-200'}`}>
+                    <p className={`text-sm mb-3 ${theme === 'dark' ? 'text-red-300' : 'text-red-700'}`}>
+                      <strong>Delete this season?</strong> This will also delete the linked registration event and cannot be undone.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleDeleteSeason}
+                        disabled={deletingSeason}
+                        className="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-1 transition-colors"
+                      >
+                        {deletingSeason ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="w-4 h-4" />
+                            Yes, Delete
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteSeasonConfirm(false)}
+                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          theme === 'dark' ? 'bg-zinc-700 hover:bg-zinc-600 text-white' : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-700'
+                        }`}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>,

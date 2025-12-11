@@ -90,8 +90,14 @@ export default function SeasonRegistrationPage() {
     if (userData) {
       setFormData(prev => ({
         ...prev,
+        // Parent info from profile
         parentName: userData.name || prev.parentName,
         parentEmail: userData.email || prev.parentEmail,
+        parentPhone: userData.phone || prev.parentPhone,
+        // Emergency contact from profile (if they have one saved)
+        emergencyContactName: userData.emergencyContact?.name || prev.emergencyContactName,
+        emergencyContactPhone: userData.emergencyContact?.phone || prev.emergencyContactPhone,
+        emergencyRelationship: userData.emergencyContact?.relationship || prev.emergencyRelationship,
       }));
     }
   }, [userData]);
@@ -610,11 +616,17 @@ export default function SeasonRegistrationPage() {
                 <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                   Parent/Guardian Information
                 </h2>
+                {(userData?.name || userData?.email || userData?.phone) && (
+                  <p className={`text-sm mt-1 ${isDark ? 'text-green-400' : 'text-green-600'}`}>
+                    ✓ Some fields pre-filled from your profile
+                  </p>
+                )}
                 
                 <div className="mt-4 space-y-4">
                   <div>
                     <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                       Full Name *
+                      {userData?.name && <span className={`ml-2 text-xs ${isDark ? 'text-green-400' : 'text-green-600'}`}>(from profile)</span>}
                     </label>
                     <input
                       type="text"
@@ -627,6 +639,7 @@ export default function SeasonRegistrationPage() {
                     <div>
                       <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                         Email *
+                        {userData?.email && <span className={`ml-2 text-xs ${isDark ? 'text-green-400' : 'text-green-600'}`}>(from profile)</span>}
                       </label>
                       <input
                         type="email"
@@ -638,6 +651,7 @@ export default function SeasonRegistrationPage() {
                     <div>
                       <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                         Phone *
+                        {userData?.phone && <span className={`ml-2 text-xs ${isDark ? 'text-green-400' : 'text-green-600'}`}>(from profile)</span>}
                       </label>
                       <input
                         type="tel"
@@ -654,6 +668,7 @@ export default function SeasonRegistrationPage() {
               <div>
                 <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                   Emergency Contact
+                  {userData?.emergencyContact?.name && <span className={`ml-2 text-xs font-normal ${isDark ? 'text-green-400' : 'text-green-600'}`}>(from profile)</span>}
                 </h3>
                 
                 <div className="mt-3 space-y-4">

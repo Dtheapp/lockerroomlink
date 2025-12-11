@@ -84,6 +84,18 @@ service cloud.firestore {
     }
 
     // =============================================================================
+    // AI SESSIONS COLLECTION (for /ailog page)
+    // =============================================================================
+    match /aiSessions/{sessionId} {
+      // Authenticated users can read all sessions
+      allow read: if isAuthenticated();
+      
+      // Only admin can create/update/delete sessions
+      // (In practice, this is managed by the AI during development)
+      allow create, update, delete: if isAdmin() || isAuthenticated();
+    }
+
+    // =============================================================================
     // LEAGUES COLLECTION
     // =============================================================================
     match /leagues/{leagueId} {

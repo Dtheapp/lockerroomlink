@@ -856,6 +856,285 @@ export async function canUserRegister(
   return { canRegister: true };
 }
 
+// =============================================================================
+// PLAYER REGISTRATION/DRAFT STATUS (For Parent Profile)
+// =============================================================================
+
+export type PlayerDraftStatus = 
+  | 'not-registered'      // Player hasn't registered for any events
+  | 'in-draft-pool'       // Registered and waiting in draft pool
+  | 'on-team'             // Drafted to a team  
+  | 'registration-denied'; // Registration was declined
+
+export interface PlayerRegistrationStatus {
+  status: PlayerDraftStatus;
+  teamName?: string;          // If on-team
+  teamId?: string;            // If on-team
+  draftPoolEntryId?: string;  // If in-draft-pool
+  draftPoolTeamId?: string;   // Team's draft pool they're in
+  registrationId?: string;    // Most recent registration
+  eventName?: string;         // Event they registered for
+  deniedReason?: string;      // If registration-denied
+}
+
+/**
+ * Get registration/draft status for a player
+ * This checks:
+ * 1. If player has a teamId, they're on a team
+ * 2. If player is in draft pool with status 'waiting', they're in draft pool
+ * 3. If player was declined (draft pool status 'declined'), they were denied
+ * 4. Otherwise, they haven't registered
+ */
+export async function getPlayerRegistrationStatus(
+  playerId: string,
+  currentTeamId?: string,
+  playerName?: string // Optional: for fallback search
+): Promise<PlayerRegistrationStatus> {
+  // If player already has a teamId, they're on a team
+  if (currentTeamId) {
+    const teamDoc = await getDoc(doc(db, 'teams', currentTeamId));
+    if (teamDoc.exists()) {
+      return {
+        status: 'on-team',
+        teamId: currentTeamId,
+        teamName: teamDoc.data().name || 'Unknown Team'
+      };
+    }
+  }
+  
+  // Check draft pool across all teams for this player
+  // Draft pool entries are stored under teams/{teamId}/draftPool
+  // We need to find entries where playerId matches
+  try {
+    // First get recent registrations for this player to find which teams to check
+    const registrationsQuery = query(
+      collection(db, REGISTRATIONS_COLLECTION),
+      where('athleteId', '==', playerId),
+      limit(5)
+    );
+    const regSnapshot = await getDocs(registrationsQuery);
+    
+    // If no registrations found, try to search draft pool directly via teams
+    if (regSnapshot.empty) {
+      // Fallback: Check all teams for draft pool entries with this playerId
+      const teamsSnapshot = await getDocs(collection(db, 'teams'));
+      
+      for (const teamDoc of teamsSnapshot.docs) {
+        // Get all draft pool entries for this team and filter in memory
+        // This avoids compound query index issues
+        const draftPoolRef = collection(db, 'teams', teamDoc.id, 'draftPool');
+        const allDraftSnap = await getDocs(draftPoolRef);
+        
+        for (const draftDoc of allDraftSnap.docs) {
+          const draftEntry = draftDoc.data();
+          const matchesById = draftEntry.playerId === playerId;
+          const matchesByName = playerName && draftEntry.playerName === playerName;
+          
+          if (matchesById || matchesByName) {
+            if (draftEntry.status === 'waiting') {
+              return {
+                status: 'in-draft-pool',
+                draftPoolEntryId: draftDoc.id,
+                draftPoolTeamId: teamDoc.id,
+                registrationId: draftEntry.registrationId
+              };
+            }
+            
+            if (draftEntry.status === 'declined') {
+              return {
+                status: 'registration-denied',
+                draftPoolEntryId: draftDoc.id,
+                draftPoolTeamId: teamDoc.id,
+                deniedReason: draftEntry.declinedReason || 'Registration was declined',
+                registrationId: draftEntry.registrationId
+              };
+            }
+            
+            if (draftEntry.status === 'drafted' && draftEntry.draftedToTeamId) {
+              const draftedTeamDoc = await getDoc(doc(db, 'teams', draftEntry.draftedToTeamId));
+              return {
+                status: 'on-team',
+                teamId: draftEntry.draftedToTeamId,
+                teamName: draftedTeamDoc.exists() ? draftedTeamDoc.data().name : 'Unknown Team'
+              };
+            }
+          }
+        }
+      }
+      
+      return { status: 'not-registered' };
+    }
+    
+    // Get the most recent registration
+    const registrations = regSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Registration));
+    registrations.sort((a, b) => {
+      const aTime = (a.createdAt as any)?.toMillis?.() || 0;
+      const bTime = (b.createdAt as any)?.toMillis?.() || 0;
+      return bTime - aTime;
+    });
+    
+    const latestReg = registrations[0];
+    const teamId = latestReg.teamId;
+    
+    // Check draft pool for this team
+    const draftPoolQuery = query(
+      collection(db, 'teams', teamId, 'draftPool'),
+      where('playerId', '==', playerId),
+      limit(1)
+    );
+    const draftSnapshot = await getDocs(draftPoolQuery);
+    
+    // Also check by registration ID since playerId might not be set
+    if (draftSnapshot.empty) {
+      const draftPoolByRegQuery = query(
+        collection(db, 'teams', teamId, 'draftPool'),
+        where('registrationId', '==', latestReg.id),
+        limit(1)
+      );
+      const draftByRegSnapshot = await getDocs(draftPoolByRegQuery);
+      
+      if (!draftByRegSnapshot.empty) {
+        const draftEntry = draftByRegSnapshot.docs[0].data();
+        
+        if (draftEntry.status === 'declined') {
+          return {
+            status: 'registration-denied',
+            draftPoolEntryId: draftByRegSnapshot.docs[0].id,
+            draftPoolTeamId: teamId,
+            deniedReason: draftEntry.declinedReason || 'Registration was declined',
+            registrationId: latestReg.id
+          };
+        }
+        
+        if (draftEntry.status === 'waiting') {
+          // Get event name
+          let eventName: string | undefined;
+          if (latestReg.eventId) {
+            const eventDoc = await getDoc(doc(db, EVENTS_COLLECTION, latestReg.eventId));
+            if (eventDoc.exists()) {
+              eventName = eventDoc.data().title;
+            }
+          }
+          
+          return {
+            status: 'in-draft-pool',
+            draftPoolEntryId: draftByRegSnapshot.docs[0].id,
+            draftPoolTeamId: teamId,
+            registrationId: latestReg.id,
+            eventName
+          };
+        }
+        
+        if (draftEntry.status === 'drafted' && draftEntry.draftedToTeamId) {
+          const draftedTeamDoc = await getDoc(doc(db, 'teams', draftEntry.draftedToTeamId));
+          return {
+            status: 'on-team',
+            teamId: draftEntry.draftedToTeamId,
+            teamName: draftedTeamDoc.exists() ? draftedTeamDoc.data().name : 'Unknown Team'
+          };
+        }
+      }
+    } else {
+      const draftEntry = draftSnapshot.docs[0].data();
+      
+      if (draftEntry.status === 'declined') {
+        return {
+          status: 'registration-denied',
+          draftPoolEntryId: draftSnapshot.docs[0].id,
+          draftPoolTeamId: teamId,
+          deniedReason: draftEntry.declinedReason || 'Registration was declined',
+          registrationId: latestReg.id
+        };
+      }
+      
+      if (draftEntry.status === 'waiting') {
+        let eventName: string | undefined;
+        if (latestReg.eventId) {
+          const eventDoc = await getDoc(doc(db, EVENTS_COLLECTION, latestReg.eventId));
+          if (eventDoc.exists()) {
+            eventName = eventDoc.data().title;
+          }
+        }
+        
+        return {
+          status: 'in-draft-pool',
+          draftPoolEntryId: draftSnapshot.docs[0].id,
+          draftPoolTeamId: teamId,
+          registrationId: latestReg.id,
+          eventName
+        };
+      }
+      
+      if (draftEntry.status === 'drafted' && draftEntry.draftedToTeamId) {
+        const draftedTeamDoc = await getDoc(doc(db, 'teams', draftEntry.draftedToTeamId));
+        return {
+          status: 'on-team',
+          teamId: draftEntry.draftedToTeamId,
+          teamName: draftedTeamDoc.exists() ? draftedTeamDoc.data().name : 'Unknown Team'
+        };
+      }
+    }
+    
+    // If we have a registration but no draft pool entry, check status
+    if (latestReg.status === 'waitlisted') {
+      return {
+        status: 'in-draft-pool',
+        registrationId: latestReg.id
+      };
+    }
+    
+    return { status: 'not-registered' };
+  } catch (error) {
+    console.error('Error getting player registration status:', error);
+    return { status: 'not-registered' };
+  }
+}
+
+/**
+ * Remove player from draft pool (parent action)
+ */
+export async function removeFromDraftPool(
+  teamId: string,
+  draftPoolEntryId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await deleteDoc(doc(db, 'teams', teamId, 'draftPool', draftPoolEntryId));
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error removing from draft pool:', error);
+    return { success: false, error: error.message || 'Failed to remove from draft pool' };
+  }
+}
+
+/**
+ * Remove player from team roster (parent action)
+ */
+export async function removeFromTeamRoster(
+  teamId: string,
+  playerId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Get player doc to update
+    const playerRef = doc(db, 'teams', teamId, 'players', playerId);
+    const playerSnap = await getDoc(playerRef);
+    
+    if (!playerSnap.exists()) {
+      return { success: false, error: 'Player not found on team roster' };
+    }
+    
+    // Option 1: Delete from team roster
+    await deleteDoc(playerRef);
+    
+    // Also update player's teamId if they're in parentPlayers
+    // This happens client-side in AuthContext
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error removing from team:', error);
+    return { success: false, error: error.message || 'Failed to remove from team' };
+  }
+}
+
 export default {
   // Events
   createEvent,
@@ -899,4 +1178,9 @@ export default {
   
   // Helpers
   canUserRegister,
+  
+  // Player Status
+  getPlayerRegistrationStatus,
+  removeFromDraftPool,
+  removeFromTeamRoster,
 };

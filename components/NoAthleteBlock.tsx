@@ -1,6 +1,14 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Users, Plus, AlertCircle, UserPlus, Calendar } from 'lucide-react';
+import { Users, Plus, AlertCircle, UserPlus, Calendar, Clock, Trophy, Loader2 } from 'lucide-react';
+import { collection, query, where, getDocs, collectionGroup } from 'firebase/firestore';
+import { db } from '../services/firebase';
+
+interface DraftPoolInfo {
+  isInDraftPool: boolean;
+  teamName?: string;
+  registrationCloseDate?: string;
+}
 
 interface NoAthleteBlockProps {
   featureName: string;
@@ -12,7 +20,65 @@ interface NoAthleteBlockProps {
  * until they have joined a team or added at least one athlete to a team.
  */
 const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children }) => {
-  const { userData, players, teamData } = useAuth();
+  const { userData, players, teamData, selectedPlayer } = useAuth();
+  const [draftPoolInfo, setDraftPoolInfo] = useState<DraftPoolInfo>({ isInDraftPool: false });
+  const [loading, setLoading] = useState(true);
+  
+  // Check if selected player is in draft pool
+  useEffect(() => {
+    const checkDraftPool = async () => {
+      if (!selectedPlayer?.id) {
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        // Search all teams' draft pools for this player
+        const teamsSnap = await getDocs(collection(db, 'teams'));
+        
+        for (const teamDoc of teamsSnap.docs) {
+          const draftPoolQuery = query(
+            collection(db, 'teams', teamDoc.id, 'draftPool'),
+            where('playerId', '==', selectedPlayer.id),
+            where('status', '==', 'waiting')
+          );
+          const draftSnap = await getDocs(draftPoolQuery);
+          
+          if (!draftSnap.empty) {
+            // Found in draft pool - get registration close date from season
+            const teamData = teamDoc.data();
+            let closeDate: string | undefined;
+            
+            // Try to get registration close date from active season
+            const seasonsSnap = await getDocs(collection(db, 'teams', teamDoc.id, 'seasons'));
+            seasonsSnap.forEach(seasonDoc => {
+              const sData = seasonDoc.data();
+              if (sData.isActive && sData.registrationCloseDate) {
+                closeDate = sData.registrationCloseDate;
+              }
+            });
+            
+            setDraftPoolInfo({
+              isInDraftPool: true,
+              teamName: teamData.name || 'the team',
+              registrationCloseDate: closeDate,
+            });
+            setLoading(false);
+            return;
+          }
+        }
+        
+        setDraftPoolInfo({ isInDraftPool: false });
+        setLoading(false);
+      } catch (err) {
+        console.error('Error checking draft pool:', err);
+        setDraftPoolInfo({ isInDraftPool: false });
+        setLoading(false);
+      }
+    };
+    
+    checkDraftPool();
+  }, [selectedPlayer?.id]);
   
   // Block for parents with no athletes at all
   const isParentWithNoAthlete = userData?.role === 'Parent' && players.length === 0;
@@ -28,6 +94,73 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children }
   // If no blocking conditions, show children
   if (!isParentWithNoAthlete && !isParentWithNoTeamedAthlete && !isAthleteWithNoTeam) {
     return <>{children}</>;
+  }
+  
+  // Show loading while checking draft pool
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-4" />
+          <p className="text-slate-600 dark:text-zinc-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // DRAFT POOL VIEW - Player is waiting to be drafted
+  if (draftPoolInfo.isInDraftPool && (isAthleteWithNoTeam || isParentWithNoTeamedAthlete)) {
+    const isParent = userData?.role === 'Parent';
+    const closeDateFormatted = draftPoolInfo.registrationCloseDate 
+      ? new Date(draftPoolInfo.registrationCloseDate + 'T23:59:59').toLocaleDateString('en-US', { 
+          month: 'long', 
+          day: 'numeric', 
+          year: 'numeric' 
+        })
+      : null;
+    
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-zinc-900 dark:to-zinc-950 rounded-2xl p-8 max-w-lg text-center border border-emerald-200 dark:border-emerald-900/30 shadow-xl">
+          <div className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-500/30">
+            <Trophy className="w-10 h-10 text-white" />
+          </div>
+          
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">
+            🎉 You're in the Draft Pool!
+          </h2>
+          
+          <p className="text-slate-600 dark:text-zinc-400 mb-6 text-lg">
+            {isParent ? 'Your athlete is' : "You're"} registered and waiting to be drafted to <span className="font-semibold text-emerald-600 dark:text-emerald-400">{draftPoolInfo.teamName}</span>.
+          </p>
+          
+          <div className="bg-white dark:bg-zinc-900/50 border border-emerald-200 dark:border-emerald-900/30 rounded-xl p-5 mb-6">
+            <div className="flex items-start gap-3 text-left">
+              <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Clock className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-900 dark:text-white mb-1">What happens next?</h4>
+                <p className="text-sm text-slate-600 dark:text-zinc-400">
+                  {closeDateFormatted ? (
+                    <>Registration closes on <span className="font-bold text-emerald-600 dark:text-emerald-400">{closeDateFormatted}</span>. After that, the coach will draft players to the roster.</>
+                  ) : (
+                    <>The coach will review registrations and draft players to the roster soon.</>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 rounded-xl p-4">
+            <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>Once {isParent ? 'your athlete is' : "you're"} drafted, the team dashboard will load here automatically.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
   
   // Athlete view OR Parent with athletes not on a team - needs to join/register for a team
