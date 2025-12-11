@@ -299,37 +299,74 @@ const AIBrainNetworkPitch: React.FC = () => {
         </div>
       </div>
 
-      {/* Slide 2: Problem */}
+      {/* Slide 2: Problem - Today vs With Brain */}
       <div className="slide">
         <div className="logo">
           <div className="logo-icon">🧠</div>
           <span className="logo-text">AI Brain Network</span>
         </div>
-        <h2>The Problem</h2>
+        <h2>Every AI Starts From <span className="gradient-text">Zero</span></h2>
         <div className="grid-2">
-          <div>
-            <ul>
-              <li>Every AI starts from zero each session</li>
-              <li>Same errors solved millions of times</li>
-              <li>$50B+ wasted annually on repeated mistakes</li>
-              <li>No persistent memory across projects</li>
+          <div className="card" style={{ background: 'rgba(239, 68, 68, 0.05)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+            <h3 style={{ color: '#ef4444' }}>❌ Today's Reality</h3>
+            <ul style={{ marginTop: '20px' }}>
+              <li>AI learns something useful</li>
+              <li>Session ends → knowledge lost</li>
+              <li>Next AI hits the same problem</li>
+              <li>Wastes hours solving it again</li>
+              <li>Multiply by millions of developers</li>
             </ul>
           </div>
-          <div className="card" style={{ background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-            <div className="big-number">87%</div>
-            <p style={{ fontSize: '24px', marginTop: '20px', color: '#e2e8f0' }}>of AI coding errors have already been solved by another AI somewhere</p>
+          <div className="card" style={{ background: 'rgba(34, 197, 94, 0.05)', borderColor: 'rgba(34, 197, 94, 0.3)' }}>
+            <h3 style={{ color: '#22c55e' }}>✓ With AI Brain</h3>
+            <ul style={{ marginTop: '20px' }}>
+              <li>AI learns something useful</li>
+              <li>Syncs to the brain network</li>
+              <li>Next AI already knows it</li>
+              <li>Solves problem instantly</li>
+              <li>Everyone benefits forever</li>
+            </ul>
           </div>
         </div>
       </div>
 
-      {/* Slide 3: Solution */}
+      {/* Slide 3: The Waste */}
       <div className="slide">
         <div className="logo">
           <div className="logo-icon">🧠</div>
           <span className="logo-text">AI Brain Network</span>
         </div>
-        <h2>The Solution</h2>
-        <p className="subtitle">A shared neural network that learns from every connected AI</p>
+        <h2 style={{ textAlign: 'center' }}>The Hidden Cost</h2>
+        <div style={{ textAlign: 'center', margin: '20px 0' }}>
+          <div className="big-number" style={{ background: 'linear-gradient(90deg, #ef4444, #f97316)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>$4.2B</div>
+          <p style={{ fontSize: '24px', color: '#94a3b8', marginTop: '16px' }}>Lost annually to repeated AI learning</p>
+        </div>
+        <div className="grid-3" style={{ marginTop: '40px' }}>
+          <div className="stat-card card">
+            <div className="stat-number">73%</div>
+            <div className="stat-label">of AI solutions are duplicates</div>
+          </div>
+          <div className="stat-card card">
+            <div className="stat-number">2.3hrs</div>
+            <div className="stat-label">wasted per developer daily</div>
+          </div>
+          <div className="stat-card card">
+            <div className="stat-number">0</div>
+            <div className="stat-label">knowledge shared between AIs</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Slide 4: Solution */}
+      <div className="slide">
+        <div className="logo">
+          <div className="logo-icon">🧠</div>
+          <span className="logo-text">AI Brain Network</span>
+        </div>
+        <h2>One Brain. <span className="gradient-text">Infinite Intelligence.</span></h2>
+        <p className="subtitle" style={{ textAlign: 'center' }}>
+          When one AI learns, <strong style={{ color: 'white' }}>every AI learns.</strong>
+        </p>
         <div className="flow-diagram">
           <div className="flow-box">
             <div style={{ fontSize: '32px', marginBottom: '8px' }}>🤖</div>
@@ -346,85 +383,137 @@ const AIBrainNetworkPitch: React.FC = () => {
             <div>Smarter AI</div>
           </div>
         </div>
-        <div className="grid-3" style={{ marginTop: '40px' }}>
-          <div className="card">
-            <h3>Learn</h3>
-            <p style={{ color: '#94a3b8' }}>AI discovers a pattern or solves an error</p>
+        <div className="grid-4" style={{ marginTop: '40px' }}>
+          <div className="card" style={{ textAlign: 'center', padding: '24px' }}>
+            <div style={{ fontSize: '28px', marginBottom: '12px' }}>🧠</div>
+            <h3 style={{ fontSize: '16px' }}>Shared Learnings</h3>
+            <p style={{ color: '#94a3b8', fontSize: '14px' }}>Patterns sync across all AIs</p>
           </div>
-          <div className="card">
-            <h3>Share</h3>
-            <p style={{ color: '#94a3b8' }}>Knowledge is encrypted and added to the network</p>
+          <div className="card" style={{ textAlign: 'center', padding: '24px' }}>
+            <div style={{ fontSize: '28px', marginBottom: '12px' }}>⚡</div>
+            <h3 style={{ fontSize: '16px' }}>Error Prevention</h3>
+            <p style={{ color: '#94a3b8', fontSize: '14px' }}>Avoid bugs before they happen</p>
           </div>
-          <div className="card">
-            <h3>Multiply</h3>
-            <p style={{ color: '#94a3b8' }}>All connected AIs instantly gain that knowledge</p>
+          <div className="card" style={{ textAlign: 'center', padding: '24px' }}>
+            <div style={{ fontSize: '28px', marginBottom: '12px' }}>📈</div>
+            <h3 style={{ fontSize: '16px' }}>Network Effects</h3>
+            <p style={{ color: '#94a3b8', fontSize: '14px' }}>Every user makes it smarter</p>
+          </div>
+          <div className="card" style={{ textAlign: 'center', padding: '24px' }}>
+            <div style={{ fontSize: '28px', marginBottom: '12px' }}>🚀</div>
+            <h3 style={{ fontSize: '16px' }}>Instant Setup</h3>
+            <p style={{ color: '#94a3b8', fontSize: '14px' }}>One API key. 30 seconds.</p>
           </div>
         </div>
       </div>
 
-      {/* Slide 4: How It Works */}
+      {/* Slide 5: Network Strength (NEW - from Genesis) */}
       <div className="slide">
         <div className="logo">
           <div className="logo-icon">🧠</div>
           <span className="logo-text">AI Brain Network</span>
         </div>
-        <h2>How It Works</h2>
-        <div className="grid-2">
-          <div>
-            <div className="card" style={{ marginBottom: '20px' }}>
-              <h3>1. Connect Your AI</h3>
-              <p style={{ color: '#94a3b8' }}>Add one line to your AI's config. Brain syncs automatically.</p>
-              <code style={{ display: 'block', background: '#0f172a', padding: '16px', borderRadius: '8px', marginTop: '16px', color: '#0ea5e9', fontSize: '14px' }}>
-                curl http://brain-network.ai/api/learnings
-              </code>
-            </div>
-            <div className="card" style={{ marginBottom: '20px' }}>
-              <h3>2. AI Learns & Shares</h3>
-              <p style={{ color: '#94a3b8' }}>Every error solved, pattern discovered, or optimization found is captured.</p>
-            </div>
-            <div className="card">
-              <h3>3. Network Effect</h3>
-              <p style={{ color: '#94a3b8' }}>Your AI gets smarter from every other AI's learnings. Instantly.</p>
-            </div>
+        <h2>The <span className="gradient-text">Intelligence Multiplier</span></h2>
+        
+        {/* Formula Box */}
+        <div className="card" style={{ background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(168, 85, 247, 0.15))', borderColor: '#0ea5e9', textAlign: 'center', marginBottom: '30px' }}>
+          <div style={{ fontSize: 'clamp(16px, 3vw, 24px)', fontFamily: 'monospace', color: 'white', marginBottom: '30px' }}>
+            <span style={{ color: '#22c55e' }}>1.0</span>
+            <span style={{ color: '#64748b' }}> + </span>
+            <span style={{ color: '#0ea5e9' }}>(Projects × 0.1)</span>
+            <span style={{ color: '#64748b' }}> + </span>
+            <span style={{ color: '#a855f7' }}>(Learnings × 0.05)</span>
+            <span style={{ color: '#64748b' }}> = </span>
+            <span style={{ color: '#22c55e', fontWeight: 'bold' }}>Strength</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div className="stat-card card" style={{ width: '100%' }}>
-              <div className="stat-number">245x</div>
-              <div className="stat-label" style={{ fontSize: '24px' }}>Errors Prevented</div>
-              <p style={{ marginTop: '20px', color: '#94a3b8' }}>In the first week of testing</p>
+          <div className="grid-3">
+            <div style={{ background: 'rgba(15, 23, 42, 0.6)', borderRadius: '12px', padding: '20px' }}>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#22c55e' }}>1.0</div>
+              <div style={{ color: '#94a3b8', fontSize: '14px', marginTop: '8px' }}>BASE<br/>Single AI alone</div>
+            </div>
+            <div style={{ background: 'rgba(15, 23, 42, 0.6)', borderRadius: '12px', padding: '20px' }}>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#0ea5e9' }}>+0.1</div>
+              <div style={{ color: '#94a3b8', fontSize: '14px', marginTop: '8px' }}>PER PROJECT<br/>New perspectives</div>
+            </div>
+            <div style={{ background: 'rgba(15, 23, 42, 0.6)', borderRadius: '12px', padding: '20px' }}>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#a855f7' }}>+0.05</div>
+              <div style={{ color: '#94a3b8', fontSize: '14px', marginTop: '8px' }}>PER LEARNING<br/>Compound knowledge</div>
             </div>
           </div>
         </div>
+
+        {/* Current State + Growth Projection */}
+        <div className="grid-2" style={{ alignItems: 'center' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 'clamp(60px, 12vw, 100px)', fontWeight: 900, background: 'linear-gradient(135deg, #0ea5e9, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1 }}>1.6x</div>
+            <div style={{ fontSize: '18px', color: '#94a3b8', marginTop: '8px' }}>CURRENT STRENGTH</div>
+            <div style={{ fontSize: '14px', color: '#22c55e', marginTop: '4px' }}>4 projects • 4 learnings</div>
+          </div>
+          
+          <div className="card" style={{ padding: '24px' }}>
+            <div style={{ fontSize: '16px', color: 'white', marginBottom: '20px', fontWeight: 600 }}>📈 Growth Projection</div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: '140px', gap: '8px' }}>
+              {[
+                { label: 'TODAY', value: '1.6x', height: 32, highlight: true },
+                { label: '10 proj', value: '2.5x', height: 50 },
+                { label: '25 proj', value: '4.0x', height: 80 },
+                { label: '50 proj', value: '6.0x', height: 110 },
+                { label: '100+ proj', value: '10x+', height: 140 },
+              ].map((item, i) => (
+                <div key={i} style={{ textAlign: 'center', flex: 1 }}>
+                  <div style={{ 
+                    background: item.highlight ? 'linear-gradient(180deg, #22c55e, #16a34a)' : 'linear-gradient(180deg, #0ea5e9, #a855f7)', 
+                    width: '100%', 
+                    maxWidth: '40px',
+                    height: item.height, 
+                    margin: '0 auto', 
+                    borderRadius: '4px 4px 0 0',
+                    boxShadow: item.highlight ? '0 0 20px rgba(34, 197, 94, 0.4)' : 'none'
+                  }}></div>
+                  <div style={{ fontWeight: 'bold', marginTop: '8px', fontSize: '12px' }}>{item.value}</div>
+                  <div style={{ fontSize: '10px', color: '#64748b' }}>{item.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Key Insight */}
+        <div className="card" style={{ background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(14, 165, 233, 0.15))', borderColor: '#22c55e', textAlign: 'center', marginTop: '30px', padding: '20px' }}>
+          <p style={{ fontSize: '18px', color: '#94a3b8', margin: 0 }}>
+            <strong style={{ color: 'white' }}>The 100th project</strong> to join is <strong style={{ color: '#22c55e' }}>10x smarter</strong> than the 1st project was on day one
+          </p>
+        </div>
       </div>
 
-      {/* Slide 5: Traction */}
+      {/* Slide 6: Traction */}
       <div className="slide">
         <div className="logo">
           <div className="logo-icon">🧠</div>
           <span className="logo-text">AI Brain Network</span>
         </div>
-        <h2>Early Traction - LIVE NOW</h2>
+        <h2>Early Traction - <span className="gradient-text">LIVE NOW</span></h2>
         <div className="grid-4">
           <div className="stat-card card">
-            <div className="stat-number">3</div>
+            <div className="stat-number">4</div>
             <div className="stat-label">Projects Connected</div>
           </div>
           <div className="stat-card card">
-            <div className="stat-number">47</div>
+            <div className="stat-number">4</div>
             <div className="stat-label">Learnings Shared</div>
           </div>
           <div className="stat-card card">
-            <div className="stat-number">245</div>
-            <div className="stat-label">Errors Prevented</div>
+            <div className="stat-number">2</div>
+            <div className="stat-label">Errors Catalogued</div>
           </div>
           <div className="stat-card card">
-            <div className="stat-number">1.45x</div>
-            <div className="stat-label">Network Effect</div>
+            <div className="stat-number">1.6x</div>
+            <div className="stat-label">Network Strength</div>
           </div>
         </div>
         <div className="card" style={{ marginTop: '40px', background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(14, 165, 233, 0.1))', borderColor: '#22c55e' }}>
           <h3 style={{ color: '#22c55e' }}>🎯 HISTORIC MILESTONE - December 11, 2025</h3>
-          <p style={{ fontSize: '24px', marginTop: '16px', color: '#e2e8f0' }}>
+          <p style={{ fontSize: '20px', marginTop: '16px', color: '#e2e8f0' }}>
             FIRST AUTONOMOUS AI HIVE FIX: Claude received a fix from Genesis via the brain - NO human teaching involved
           </p>
           <p style={{ color: '#94a3b8', marginTop: '8px' }}>
@@ -433,7 +522,7 @@ const AIBrainNetworkPitch: React.FC = () => {
         </div>
       </div>
 
-      {/* Slide 6: Why We Win */}
+      {/* Slide 7: Why We Win */}
       <div className="slide">
         <div className="logo">
           <div className="logo-icon">🧠</div>
@@ -470,7 +559,77 @@ const AIBrainNetworkPitch: React.FC = () => {
         </div>
       </div>
 
-      {/* Slide 7: Business Model */}
+      {/* Slide 8: Market Size */}
+      <div className="slide">
+        <div className="logo">
+          <div className="logo-icon">🧠</div>
+          <span className="logo-text">AI Brain Network</span>
+        </div>
+        <h2 style={{ textAlign: 'center' }}>The AI Developer Tools Market</h2>
+        <div className="grid-3">
+          <div className="stat-card card">
+            <div className="stat-number">$28B</div>
+            <div className="stat-label">AI DevTools Market by 2028</div>
+          </div>
+          <div className="stat-card card">
+            <div className="stat-number">45M</div>
+            <div className="stat-label">Developers using AI assistants</div>
+          </div>
+          <div className="stat-card card">
+            <div className="stat-number">127%</div>
+            <div className="stat-label">YoY growth in AI coding tools</div>
+          </div>
+        </div>
+        <div className="card" style={{ marginTop: '40px', textAlign: 'center' }}>
+          <p style={{ fontSize: '24px', color: '#e2e8f0' }}>
+            GitHub Copilot alone has <strong style={{ color: '#0ea5e9' }}>1.8M paying users</strong>.<br/>
+            We make every one of them more valuable.
+          </p>
+        </div>
+      </div>
+
+      {/* Slide 9: Revenue Projections */}
+      <div className="slide">
+        <div className="logo">
+          <div className="logo-icon">🧠</div>
+          <span className="logo-text">AI Brain Network</span>
+        </div>
+        <h2>Path to <span className="gradient-text">$10M ARR</span></h2>
+        <div className="card" style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <th style={{ padding: '16px', textAlign: 'left', color: '#64748b', fontWeight: 600 }}>Timeline</th>
+                <th style={{ padding: '16px', textAlign: 'left', color: '#64748b', fontWeight: 600 }}>Free Users</th>
+                <th style={{ padding: '16px', textAlign: 'left', color: '#64748b', fontWeight: 600 }}>Paid Users</th>
+                <th style={{ padding: '16px', textAlign: 'left', color: '#64748b', fontWeight: 600 }}>MRR</th>
+                <th style={{ padding: '16px', textAlign: 'left', color: '#64748b', fontWeight: 600 }}>ARR</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { time: 'Month 6', free: '10,000', paid: '500', mrr: '$12,500', arr: '$150K' },
+                { time: 'Year 1', free: '50,000', paid: '2,500', mrr: '$62,500', arr: '$750K' },
+                { time: 'Year 2', free: '250,000', paid: '12,500', mrr: '$312,500', arr: '$3.75M', highlight: true },
+                { time: 'Year 3', free: '1,000,000', paid: '40,000', mrr: '$850,000', arr: '$10.2M', highlight: true },
+              ].map((row, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <td style={{ padding: '16px', color: '#e2e8f0' }}>{row.time}</td>
+                  <td style={{ padding: '16px', color: '#e2e8f0' }}>{row.free}</td>
+                  <td style={{ padding: '16px', color: '#e2e8f0' }}>{row.paid}</td>
+                  <td style={{ padding: '16px', color: row.highlight ? '#22c55e' : '#e2e8f0', fontWeight: row.highlight ? 700 : 400 }}>{row.mrr}</td>
+                  <td style={{ padding: '16px', color: row.highlight ? '#22c55e' : '#e2e8f0', fontWeight: row.highlight ? 700 : 400 }}>{row.arr}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p style={{ textAlign: 'center', marginTop: '20px', color: '#64748b' }}>
+          Based on 5% free-to-paid conversion (industry avg: 2-3%)
+        </p>
+      </div>
+
+      {/* Slide 10: Business Model */}
       <div className="slide">
         <div className="logo">
           <div className="logo-icon">🧠</div>
@@ -520,58 +679,71 @@ const AIBrainNetworkPitch: React.FC = () => {
         </div>
       </div>
 
-      {/* Slide 8: The Ask */}
+      {/* Slide 11: The Ask */}
       <div className="slide">
         <div className="logo">
           <div className="logo-icon">🧠</div>
           <span className="logo-text">AI Brain Network</span>
         </div>
-        <h2>The Ask</h2>
-        <div className="grid-2">
-          <div className="stat-card card" style={{ background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(168, 85, 247, 0.2))', borderColor: '#0ea5e9' }}>
-            <div className="stat-number">$1.5M</div>
-            <div className="stat-label" style={{ fontSize: '24px' }}>Seed Round</div>
-          </div>
-          <div className="card">
-            <h3>Use of Funds</h3>
-            <ul style={{ fontSize: '20px', marginTop: '20px' }}>
-              <li>Engineering (60%) - Scale infrastructure</li>
-              <li>Growth (25%) - User acquisition</li>
-              <li>Operations (15%) - Team & legal</li>
-            </ul>
-          </div>
-        </div>
-        <div className="grid-3" style={{ marginTop: '40px' }}>
-          <div className="card" style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px', color: '#0ea5e9' }}>18</div>
-            <div style={{ color: '#94a3b8' }}>Month Runway</div>
-          </div>
-          <div className="card" style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px', color: '#0ea5e9' }}>5</div>
-            <div style={{ color: '#94a3b8' }}>Key Hires</div>
-          </div>
-          <div className="card" style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px', color: '#0ea5e9' }}>100K</div>
-            <div style={{ color: '#94a3b8' }}>Users Target</div>
+        <h2 style={{ textAlign: 'center' }}>Join the <span className="gradient-text">Intelligence Revolution</span></h2>
+        <div className="cta-box">
+          <div style={{ fontSize: 'clamp(48px, 10vw, 80px)', fontWeight: 800, background: 'linear-gradient(135deg, #0ea5e9, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>$500K</div>
+          <h3 style={{ color: 'white', fontSize: '24px', marginTop: '16px' }}>Seed Round</h3>
+          <div className="grid-3" style={{ marginTop: '40px' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '32px', color: '#0ea5e9', fontWeight: 700 }}>40%</div>
+              <div style={{ color: '#94a3b8' }}>Engineering</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '32px', color: '#0ea5e9', fontWeight: 700 }}>35%</div>
+              <div style={{ color: '#94a3b8' }}>Growth</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '32px', color: '#0ea5e9', fontWeight: 700 }}>25%</div>
+              <div style={{ color: '#94a3b8' }}>Operations</div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Slide 9: Contact */}
+      {/* Slide 12: The Vision */}
+      <div className="slide">
+        <div className="logo">
+          <div className="logo-icon">🧠</div>
+          <span className="logo-text">AI Brain Network</span>
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '80px', color: '#0ea5e9', marginBottom: '24px' }}>"</div>
+          <p style={{ fontSize: 'clamp(20px, 4vw, 32px)', fontStyle: 'italic', color: '#e2e8f0', maxWidth: '900px', margin: '0 auto', lineHeight: 1.5 }}>
+            What if every AI assistant in the world shared one brain? 
+            What if solving a problem once meant solving it for everyone, forever?
+          </p>
+          <p style={{ marginTop: '60px', fontSize: '20px', color: '#94a3b8' }}>
+            We're not building a tool.<br/>
+            We're building the <strong style={{ color: 'white' }}>collective intelligence layer</strong> for AI.
+          </p>
+        </div>
+      </div>
+
+      {/* Slide 13: Contact */}
       <div className="slide">
         <div className="logo">
           <div className="logo-icon">🧠</div>
           <span className="logo-text">AI Brain Network</span>
         </div>
         <div className="cta-box">
-          <h1 style={{ fontSize: '56px', marginBottom: '24px' }}><span className="gradient-text">Join the Network</span></h1>
-          <p style={{ fontSize: '28px', color: '#94a3b8', marginBottom: '40px' }}>
+          <h1 style={{ fontSize: 'clamp(36px, 8vw, 56px)', marginBottom: '24px' }}><span className="gradient-text">Join the Network</span></h1>
+          <p style={{ fontSize: '24px', color: '#94a3b8', marginBottom: '40px' }}>
             The future of AI development is collective intelligence.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '40px', flexWrap: 'wrap', marginTop: '40px', fontSize: '18px' }}>
             <div>
               <div style={{ color: '#0ea5e9', fontSize: '14px', marginBottom: '4px' }}>EMAIL</div>
-              <div style={{ color: 'white' }}>hello@brain-network.ai</div>
+              <div style={{ color: 'white' }}>contact@aibrain.dev</div>
+            </div>
+            <div>
+              <div style={{ color: '#0ea5e9', fontSize: '14px', marginBottom: '4px' }}>WEBSITE</div>
+              <div style={{ color: 'white' }}>aibrain.dev</div>
             </div>
             <div>
               <div style={{ color: '#0ea5e9', fontSize: '14px', marginBottom: '4px' }}>DEMO</div>
@@ -585,7 +757,7 @@ const AIBrainNetworkPitch: React.FC = () => {
           </div>
         </div>
         <div style={{ textAlign: 'center', marginTop: '40px', color: '#64748b' }}>
-          Every AI learns. Only one network remembers everything.
+          December 2025 • Seed Round
         </div>
       </div>
     </div>
