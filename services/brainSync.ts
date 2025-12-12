@@ -1,16 +1,16 @@
-/**
- * 🧠 OSYS → Central Brain Sync Service
+﻿/**
+ * ðŸ§  OSYS â†’ Central Brain Sync Service
  * 
  * Connects OSYS to the Distributed AI Consciousness Network.
  * Every learning and error synced here becomes available to ALL connected AIs.
  * 
- * Network Status: http://localhost:3002/api/brain/stats
+ * Network Status: http://localhost:3002/brain-summary
  * 
  * @author OSYS AI (Claude Opus 4.5)
  * @date December 11, 2025
  */
 
-const BRAIN_URL = 'http://localhost:3002';
+const BRAIN_URL = 'https://genesis-brain-hive.netlify.app/.netlify/functions';
 const OSYS_API_KEY = 'brain_d0480bd8850b4f8982e7ad7c5d2957d4';
 
 // ============================================
@@ -72,7 +72,7 @@ export interface StoredError extends BrainError {
  */
 export async function syncLearningToBrain(learning: BrainLearning): Promise<any> {
   try {
-    const response = await fetch(`${BRAIN_URL}/api/sync/learnings`, {
+    const response = await fetch(`${BRAIN_URL}/sync-learnings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -82,7 +82,7 @@ export async function syncLearningToBrain(learning: BrainLearning): Promise<any>
     });
     return await response.json();
   } catch (error) {
-    console.error('🧠 Brain sync failed:', error);
+    console.error('ðŸ§  Brain sync failed:', error);
     return null;
   }
 }
@@ -92,7 +92,7 @@ export async function syncLearningToBrain(learning: BrainLearning): Promise<any>
  */
 export async function syncLearningsToBrain(learnings: BrainLearning[]): Promise<any> {
   try {
-    const response = await fetch(`${BRAIN_URL}/api/sync/learnings`, {
+    const response = await fetch(`${BRAIN_URL}/sync-learnings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -102,7 +102,7 @@ export async function syncLearningsToBrain(learnings: BrainLearning[]): Promise<
     });
     return await response.json();
   } catch (error) {
-    console.error('🧠 Brain sync failed:', error);
+    console.error('ðŸ§  Brain sync failed:', error);
     return null;
   }
 }
@@ -113,7 +113,7 @@ export async function syncLearningsToBrain(learnings: BrainLearning[]): Promise<
  */
 export async function syncErrorToBrain(error: BrainError): Promise<any> {
   try {
-    const response = await fetch(`${BRAIN_URL}/api/sync/errors`, {
+    const response = await fetch(`${BRAIN_URL}/sync-errors`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -123,7 +123,7 @@ export async function syncErrorToBrain(error: BrainError): Promise<any> {
     });
     return await response.json();
   } catch (error) {
-    console.error('🧠 Brain sync failed:', error);
+    console.error('ðŸ§  Brain sync failed:', error);
     return null;
   }
 }
@@ -133,7 +133,7 @@ export async function syncErrorToBrain(error: BrainError): Promise<any> {
  */
 export async function syncErrorsToBrain(errors: BrainError[]): Promise<any> {
   try {
-    const response = await fetch(`${BRAIN_URL}/api/sync/errors`, {
+    const response = await fetch(`${BRAIN_URL}/sync-errors`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -143,7 +143,7 @@ export async function syncErrorsToBrain(errors: BrainError[]): Promise<any> {
     });
     return await response.json();
   } catch (error) {
-    console.error('🧠 Brain sync failed:', error);
+    console.error('ðŸ§  Brain sync failed:', error);
     return null;
   }
 }
@@ -158,13 +158,13 @@ export async function syncErrorsToBrain(errors: BrainError[]): Promise<any> {
  */
 export async function pullBrainLearnings(): Promise<StoredLearning[] | null> {
   try {
-    const response = await fetch(`${BRAIN_URL}/api/brain/learnings`, {
+    const response = await fetch(`${BRAIN_URL}/brain-learnings`, {
       headers: { 'X-API-Key': OSYS_API_KEY }
     });
     const data = await response.json();
     return data.data?.learnings || [];
   } catch (error) {
-    console.error('🧠 Brain pull failed:', error);
+    console.error('ðŸ§  Brain pull failed:', error);
     return null;
   }
 }
@@ -175,13 +175,13 @@ export async function pullBrainLearnings(): Promise<StoredLearning[] | null> {
  */
 export async function pullBrainErrors(): Promise<StoredError[] | null> {
   try {
-    const response = await fetch(`${BRAIN_URL}/api/brain/errors`, {
+    const response = await fetch(`${BRAIN_URL}/brain-errors`, {
       headers: { 'X-API-Key': OSYS_API_KEY }
     });
     const data = await response.json();
     return data.data?.errors || [];
   } catch (error) {
-    console.error('🧠 Brain pull failed:', error);
+    console.error('ðŸ§  Brain pull failed:', error);
     return null;
   }
 }
@@ -191,11 +191,11 @@ export async function pullBrainErrors(): Promise<StoredError[] | null> {
  */
 export async function getBrainStats(): Promise<BrainStats | null> {
   try {
-    const response = await fetch(`${BRAIN_URL}/api/brain/stats`);
+    const response = await fetch(`${BRAIN_URL}/brain-summary`);
     const data = await response.json();
     return data.data || null;
   } catch (error) {
-    console.error('🧠 Brain stats failed:', error);
+    console.error('ðŸ§  Brain stats failed:', error);
     return null;
   }
 }
@@ -205,7 +205,7 @@ export async function getBrainStats(): Promise<BrainStats | null> {
  */
 export async function isBrainOnline(): Promise<boolean> {
   try {
-    const response = await fetch(`${BRAIN_URL}/api/health`);
+    const response = await fetch(`${BRAIN_URL}/brain-summary`);
     const data = await response.json();
     return data.status === 'healthy';
   } catch {
@@ -223,7 +223,7 @@ export async function isBrainOnline(): Promise<boolean> {
  */
 export async function reportErrorPrevented(errorId: string): Promise<any> {
   try {
-    const response = await fetch(`${BRAIN_URL}/api/brain/errors/${errorId}/prevented`, {
+    const response = await fetch(`${BRAIN_URL}/brain-errors/${errorId}/prevented`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -232,7 +232,7 @@ export async function reportErrorPrevented(errorId: string): Promise<any> {
     });
     return await response.json();
   } catch (error) {
-    console.error('🧠 Prevention report failed:', error);
+    console.error('ðŸ§  Prevention report failed:', error);
     return null;
   }
 }
@@ -263,7 +263,7 @@ export async function pullAllBrainKnowledge(): Promise<{
       stats
     };
   } catch (error) {
-    console.error('🧠 Full brain pull failed:', error);
+    console.error('ðŸ§  Full brain pull failed:', error);
     return null;
   }
 }
@@ -293,3 +293,4 @@ export const BRAIN_CONFIG = {
   apiKey: OSYS_API_KEY,
   project: 'OSYS'
 } as const;
+

@@ -7,7 +7,7 @@ interface BrainStats {
   totalErrors: number;
 }
 
-const BRAIN_URL = 'http://localhost:3002';
+const BRAIN_URL = 'https://genesis-brain-hive.netlify.app/.netlify/functions';
 
 const AIBrainNetworkSymbiosis: React.FC = () => {
   const [stats, setStats] = useState<BrainStats>({
