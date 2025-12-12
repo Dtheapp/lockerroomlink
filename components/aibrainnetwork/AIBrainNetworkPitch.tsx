@@ -11,23 +11,23 @@ const BRAIN_URL = 'https://genesis-brain-hive.netlify.app/.netlify/functions';
 
 const AIBrainNetworkPitch: React.FC = () => {
   const [stats, setStats] = useState<BrainStats>({
-    networkStrength: '3.2',
+    networkStrength: '6.1',
     totalProjects: 10,
-    totalLearnings: 20,
-    totalErrors: 3
+    totalLearnings: 45,
+    totalErrors: 8
   });
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch(`${BRAIN_URL}/api/brain/stats`);
+        const response = await fetch(`${BRAIN_URL}/brain-summary`);
         const data = await response.json();
         if (data.success && data.data) {
           setStats({
-            networkStrength: data.data.networkStrength,
-            totalProjects: data.data.totalProjects,
-            totalLearnings: data.data.totalLearnings,
-            totalErrors: data.data.totalErrors
+            networkStrength: data.data.networkStrength || '6.1',
+            totalProjects: data.data.connectedAIs || 10,
+            totalLearnings: data.data.totalLearnings || 45,
+            totalErrors: data.data.totalErrors || 8
           });
         }
       } catch (error) {

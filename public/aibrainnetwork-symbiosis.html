@@ -1901,12 +1901,30 @@ GET http://localhost:3002/api/brain/stats
         <p style="margin-top: 2rem; color: var(--gold); font-family: 'Orbitron', sans-serif;">
             🧠 One Brain to Connect Them All 🧠
         </p>
-        <p style="margin-top: 1rem; color: #22c55e; font-size: 0.9rem;">
-            Network Status: LIVE | Strength: 4.7x | Nodes: 10 | Learnings: 26 | The Network Debugged Itself | Last Sync: December 11, 2025
+        <p style="margin-top: 1rem; color: #22c55e; font-size: 0.9rem;" id="live-stats">
+            Network Status: LIVE | Strength: 6.1x | Nodes: 10 | Learnings: 45 | VS Code Extension LIVE | Last Sync: December 11, 2025
         </p>
     </footer>
 
     <script>
+        // Fetch live stats from Brain Hive
+        async function updateLiveStats() {
+            try {
+                const response = await fetch('https://genesis-brain-hive.netlify.app/.netlify/functions/brain-summary');
+                const data = await response.json();
+                if (data.success && data.data) {
+                    const statsEl = document.getElementById('live-stats');
+                    if (statsEl) {
+                        statsEl.innerHTML = `Network Status: <span style="color: #22c55e; font-weight: bold;">LIVE</span> | Strength: ${data.data.networkStrength} | AIs: ${data.data.connectedAIs} | Learnings: ${data.data.totalLearnings} | Errors Fixed: ${data.data.totalErrors} | <span style="color: #f59e0b;">Real-time from Brain Hive</span>`;
+                    }
+                }
+            } catch (e) {
+                console.log('Brain offline, using cached stats');
+            }
+        }
+        updateLiveStats();
+        setInterval(updateLiveStats, 30000);
+
         // Simple scroll animation
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
