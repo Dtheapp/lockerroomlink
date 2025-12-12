@@ -1,3 +1,10 @@
+<!-- BRAIN_HIVE_START -->
+## 🧠 Brain Hive - Auto-Synced Rules
+
+*Last synced: 2025-12-12T01:48:08.198Z*
+
+<!-- BRAIN_HIVE_END -->
+
 # 🔥 OSYS AI MASTER INSTRUCTIONS
 
 > **One document. Zero excuses. World-class every time.**

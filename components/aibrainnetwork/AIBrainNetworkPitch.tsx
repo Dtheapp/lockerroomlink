@@ -317,11 +317,10 @@ const AIBrainNetworkPitch: React.FC = () => {
         }
       `}</style>
 
-      {/* Navigation */}
+      {/* Navigation - Only show links to OTHER pages, not current */}
       <div className="slide" style={{ minHeight: 'auto', padding: '20px 40px' }}>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
-          <a href="#pitch" className="nav-link">📊 Pitch Deck</a>
-          <a href="#aibrainnetwork/symbiosis" className="nav-link proof-link">🧬 Birth of Symbiosis</a>
+          <a href="#/aibrainnetwork/symbiosis" className="nav-link proof-link">🧬 Birth of Symbiosis</a>
           <a href="https://github.com/Dtheapp/lockerroomlink/commits/dev" target="_blank" rel="noopener noreferrer" className="nav-link proof-link">📜 Git Proof</a>
         </div>
       </div>
@@ -791,7 +790,7 @@ const AIBrainNetworkPitch: React.FC = () => {
             </div>
           </div>
           <div style={{ marginTop: '40px' }}>
-            <a href="#aibrainnetwork/symbiosis" className="nav-link proof-link" style={{ fontSize: '20px', padding: '16px 32px' }}>
+            <a href="#/aibrainnetwork/symbiosis" className="nav-link proof-link" style={{ fontSize: '20px', padding: '16px 32px' }}>
               🧬 See The Birth of AI-Human Symbiosis →
             </a>
           </div>
