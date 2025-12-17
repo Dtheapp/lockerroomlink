@@ -202,11 +202,64 @@ export async function createSeason(input: CreateSeasonInput): Promise<string> {
 }
 
 export async function getSeason(seasonId: string): Promise<Season | null> {
+  // First try the top-level seasons collection
   const docRef = doc(db, 'seasons', seasonId);
   const docSnap = await getDoc(docRef);
   
-  if (!docSnap.exists()) return null;
-  return { id: docSnap.id, ...docSnap.data() } as Season;
+  if (docSnap.exists()) {
+    return { id: docSnap.id, ...docSnap.data() } as Season;
+  }
+  
+  // If not found, try searching in programs/{programId}/seasons using collectionGroup
+  try {
+    const seasonsQuery = query(
+      collectionGroup(db, 'seasons'),
+      where('__name__', '==', seasonId)
+    );
+    
+    // Note: collectionGroup query by document ID doesn't work directly,
+    // so we need to iterate all programs and check each one
+    // For now, let's try a different approach - get all programs and check their seasons
+    const programsSnap = await getDocs(collection(db, 'programs'));
+    
+    for (const programDoc of programsSnap.docs) {
+      const seasonDocRef = doc(db, 'programs', programDoc.id, 'seasons', seasonId);
+      const seasonDocSnap = await getDoc(seasonDocRef);
+      
+      if (seasonDocSnap.exists()) {
+        return { 
+          id: seasonDocSnap.id, 
+          programId: programDoc.id,
+          ...seasonDocSnap.data() 
+        } as Season;
+      }
+    }
+  } catch (err) {
+    console.error('Error searching for season in programs:', err);
+  }
+  
+  return null;
+}
+
+// Direct lookup when we know the programId (faster)
+export async function getSeasonByProgramId(programId: string, seasonId: string): Promise<Season | null> {
+  try {
+    const docRef = doc(db, 'programs', programId, 'seasons', seasonId);
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      return { 
+        id: docSnap.id, 
+        programId,
+        ...docSnap.data() 
+      } as Season;
+    }
+  } catch (err) {
+    console.error('Error getting season by program ID:', err);
+  }
+  
+  // Fall back to general search
+  return getSeason(seasonId);
 }
 
 export async function updateSeason(seasonId: string, updates: Partial<Season>): Promise<void> {
@@ -351,6 +404,7 @@ export async function registerForSeason(input: SeasonRegistrationInput): Promise
     preferredJerseyNumber: input.preferredJerseyNumber || null,
     alternateJerseyNumbers: input.alternateJerseyNumbers || [],
     preferredPosition: input.preferredPosition || null,
+    coachNotes: input.coachNotes || null,
     
     // Parent info
     parentUserId: input.parentUserId,

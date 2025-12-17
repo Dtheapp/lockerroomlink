@@ -144,6 +144,10 @@ const CommissionerRoster = lazyWithRetry(() => import('./components/commissioner
 const CommissionerTeamChat = lazyWithRetry(() => import('./components/commissioner/CommissionerTeamChat'));
 const CommissionerAnnouncements = lazyWithRetry(() => import('./components/commissioner/CommissionerAnnouncements'));
 const ProgramManager = lazyWithRetry(() => import('./components/commissioner/ProgramManager'));
+const CommissionerProgramSetup = lazyWithRetry(() => import('./components/commissioner/CommissionerProgramSetup'));
+const CommissionerSeasonSetup = lazyWithRetry(() => import('./components/commissioner/CommissionerSeasonSetup'));
+const CommissionerPoolDashboard = lazyWithRetry(() => import('./components/commissioner/CommissionerPoolDashboard'));
+const AgeGroupsManager = lazyWithRetry(() => import('./components/commissioner/AgeGroupsManager'));
 
 // League Owner Pages
 const LeagueDashboard = lazyWithRetry(() => import('./components/league/LeagueDashboard'));
@@ -316,7 +320,9 @@ const AppContent: React.FC = () => {
                 <Route path="monetization" element={<MonetizationSettings />} />
                 <Route path="referee-verification" element={<AdminRefereeVerification />} />
                 <Route path="settings" element={<AppSettings />} />
+                <Route path="notifications" element={<NotificationsPage />} />
               </Route>
+              <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="*" element={<Navigate to="/admin" replace />} />
             </>
           ) : userData?.role === 'Fan' ? (
@@ -338,6 +344,11 @@ const AppContent: React.FC = () => {
                 <Route index element={<Navigate to="/commissioner" replace />} />
                 <Route path="commissioner" element={<CommissionerDashboard />} />
                 <Route path="commissioner/programs" element={<ProgramManager />} />
+                <Route path="commissioner/program-setup" element={<CommissionerProgramSetup />} />
+                <Route path="commissioner/program-setup/:programId" element={<CommissionerProgramSetup />} />
+                <Route path="commissioner/season-setup/:programId" element={<CommissionerSeasonSetup />} />
+                <Route path="commissioner/pools/:programId/:seasonId" element={<CommissionerPoolDashboard />} />
+                <Route path="commissioner/age-groups" element={<AgeGroupsManager />} />
                 <Route path="commissioner/teams" element={<CommissionerTeamList />} />
                 <Route path="commissioner/teams/create" element={<CommissionerCreateTeam />} />
                 <Route path="commissioner/teams/:teamId" element={<CommissionerTeamDetail />} />
@@ -415,8 +426,10 @@ const AppContent: React.FC = () => {
                 <Route path="events/:eventId/register" element={<StreamlinedRegistration />} />
                 {/* Design Studio */}
                 <Route path="design" element={<DesignStudio />} />
-                {/* Marketing Hub */}
+                {/* My Designs (user's personal designs folder) */}
                 <Route path="marketing" element={<MarketingHub />} />
+                {/* Team Marketing (team-shared marketing materials) */}
+                <Route path="team-marketing" element={<MarketingHub isTeamMode />} />
                 {/* Commissioner Signup for users who want to become commissioners */}
                 <Route path="commissioner/signup" element={<CommissionerSignup />} />
                 {/* League Signup for users who want to create a league */}

@@ -13,7 +13,7 @@ import type { Player, MedicalInfo, Team, PlayerFilmEntry } from '../types';
 import PlayerStatsModal from './stats/PlayerStatsModal';
 
 const Profile: React.FC = () => {
-  const { user, userData, players: contextPlayers, teamData } = useAuth();
+  const { user, userData, players: contextPlayers, teamData, selectedSportContext } = useAuth();
   const { theme } = useTheme();
   const location = useLocation();
   
@@ -42,7 +42,10 @@ const Profile: React.FC = () => {
   const [isAddAthleteModalOpen, setIsAddAthleteModalOpen] = useState(false);
   const [addingAthlete, setAddingAthlete] = useState(false);
   const [newAthleteForm, setNewAthleteForm] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
+    nickname: '',
+    gender: '' as 'male' | 'female' | 'other' | '',
     username: '',
     dob: '',
     heightFt: '',
@@ -79,15 +82,26 @@ const Profile: React.FC = () => {
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
   const [deleteFilmConfirm, setDeleteFilmConfirm] = useState<{ playerId: string; film: PlayerFilmEntry } | null>(null);
   const [deletingFilm, setDeletingFilm] = useState(false);
+  const [filmSportFilter, setFilmSportFilter] = useState<string | null>(null); // Filter films by sport
   
   // Add film state for parents
   const [showAddFilmForPlayer, setShowAddFilmForPlayer] = useState<Player | null>(null);
-  const [newFilmForm, setNewFilmForm] = useState({ title: '', url: '', category: 'Game Film' as 'Game Film' | 'Highlights', description: '' });
+  const [newFilmForm, setNewFilmForm] = useState({ 
+    title: '', 
+    url: '', 
+    category: 'Game Film' as 'Game Film' | 'Highlights', 
+    description: '',
+    sport: 'football' as 'football' | 'basketball' | 'cheer' | 'soccer' | 'baseball' | 'volleyball' | 'other'
+  });
   const [addingFilm, setAddingFilm] = useState(false);
   const [addFilmError, setAddFilmError] = useState('');
 
   // Full Edit Form State (including medical)
   const [editForm, setEditForm] = useState({
+    firstName: '',
+    lastName: '',
+    nickname: '',
+    gender: '' as 'male' | 'female' | 'other' | '',
     name: '',
     username: '',
     dob: '',
@@ -416,6 +430,7 @@ const Profile: React.FC = () => {
         category: newFilmForm.category,
         teamId: athlete.teamId,
         teamName,
+        sport: newFilmForm.sport, // Sport tag for multi-sport support
         taggedAt: new Date() as any, // Will be converted to Timestamp by Firestore
         taggedBy: user.uid
       };
@@ -433,7 +448,7 @@ const Profile: React.FC = () => {
       }));
       
       // Reset form and close modal
-      setNewFilmForm({ title: '', url: '', category: 'Game Film', description: '' });
+      setNewFilmForm({ title: '', url: '', category: 'Game Film', description: '', sport: 'football' });
       setShowAddFilmForPlayer(null);
     } catch (err) {
       console.error('Error adding film entry:', err);
@@ -595,6 +610,10 @@ const Profile: React.FC = () => {
   const openEditModal = (player: Player) => {
       setSelectedAthlete(player);
       setEditForm({
+        firstName: player.firstName || player.name?.split(' ')[0] || '',
+        lastName: player.lastName || player.name?.split(' ').slice(1).join(' ') || '',
+        nickname: player.nickname || '',
+        gender: player.gender || '',
         name: player.name || '',
         username: player.username || '',
         dob: player.dob || '',
@@ -652,7 +671,11 @@ const Profile: React.FC = () => {
           if (isAssigningToTeam) {
             // Player had no team, now assigning to a team
             const newPlayerData = {
-              name: editForm.name,
+              firstName: editForm.firstName,
+              lastName: editForm.lastName,
+              nickname: editForm.nickname || undefined,
+              gender: editForm.gender || undefined,
+              name: `${editForm.firstName} ${editForm.lastName}`.trim() || editForm.name,
               username: formatUsername(editForm.username),
               dob: editForm.dob,
               height: editForm.height,
@@ -682,7 +705,11 @@ const Profile: React.FC = () => {
             // Move player to new team
             // 1. Create player in new team
             const newPlayerData = {
-              name: editForm.name,
+              firstName: editForm.firstName,
+              lastName: editForm.lastName,
+              nickname: editForm.nickname || undefined,
+              gender: editForm.gender || undefined,
+              name: `${editForm.firstName} ${editForm.lastName}`.trim() || editForm.name,
               username: formatUsername(editForm.username),
               dob: editForm.dob,
               height: editForm.height,
@@ -710,7 +737,11 @@ const Profile: React.FC = () => {
             // Same team - just update
             const playerRef = doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id);
             await updateDoc(playerRef, { 
-              name: editForm.name,
+              firstName: editForm.firstName,
+              lastName: editForm.lastName,
+              nickname: editForm.nickname || '',
+              gender: editForm.gender || '',
+              name: `${editForm.firstName} ${editForm.lastName}`.trim() || editForm.name,
               username: formatUsername(editForm.username),
               dob: editForm.dob,
               height: editForm.height,
@@ -724,7 +755,11 @@ const Profile: React.FC = () => {
             // No team and not assigning to one - update top-level player
             const playerRef = doc(db, 'players', selectedAthlete.id);
             await updateDoc(playerRef, { 
-              name: editForm.name,
+              firstName: editForm.firstName,
+              lastName: editForm.lastName,
+              nickname: editForm.nickname || '',
+              gender: editForm.gender || '',
+              name: `${editForm.firstName} ${editForm.lastName}`.trim() || editForm.name,
               username: formatUsername(editForm.username),
               dob: editForm.dob,
               height: editForm.height,
@@ -752,13 +787,18 @@ const Profile: React.FC = () => {
     if (addingAthlete || !user) return;
     
     // Validate required fields
-    if (!newAthleteForm.name?.trim()) {
-      alert('Please enter the athlete\'s name');
+    if (!newAthleteForm.firstName?.trim() || !newAthleteForm.lastName?.trim()) {
+      alert('Please enter the athlete\'s first and last name');
       return;
     }
     
     if (!newAthleteForm.dob) {
       alert('Please enter the athlete\'s date of birth');
+      return;
+    }
+    
+    if (!newAthleteForm.gender) {
+      alert('Please select the athlete\'s gender');
       return;
     }
     
@@ -784,8 +824,16 @@ const Profile: React.FC = () => {
         ? `${newAthleteForm.heightFt || 0} ft ${newAthleteForm.heightIn || 0} in`
         : '';
       
+      // Calculate age group from DOB using Sept 10 cutoff
+      const calculatedAgeGroup = calculateAgeGroup(newAthleteForm.dob);
+      
       const playerData = {
-        name: newAthleteForm.name,
+        firstName: newAthleteForm.firstName.trim(),
+        lastName: newAthleteForm.lastName.trim(),
+        nickname: newAthleteForm.nickname?.trim() || undefined,
+        name: `${newAthleteForm.firstName.trim()} ${newAthleteForm.lastName.trim()}`,
+        gender: newAthleteForm.gender,
+        ageGroup: calculatedAgeGroup || undefined, // e.g., "9U", "10U"
         username: formatUsername(newAthleteForm.username),
         dob: newAthleteForm.dob,
         teamId: null, // Players start unassigned - they register to teams separately
@@ -806,7 +854,7 @@ const Profile: React.FC = () => {
       await addDoc(collection(db, 'players'), playerData);
       
       // Reset form and close modal
-      setNewAthleteForm({ name: '', username: '', dob: '', heightFt: '', heightIn: '', weight: '', shirtSize: '', pantSize: '' });
+      setNewAthleteForm({ firstName: '', lastName: '', nickname: '', gender: '', username: '', dob: '', heightFt: '', heightIn: '', weight: '', shirtSize: '', pantSize: '' });
       setUsernameError(null);
       setIsAddAthleteModalOpen(false);
       
@@ -1417,17 +1465,50 @@ const Profile: React.FC = () => {
                                             <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs px-2 py-1 rounded font-bold">#{player.number || '?'}</span>
                                             <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700">{player.position || 'TBD'}</span>
                                         </div>
-                                        {/* Team/Status Badge - Smart display based on registration status */}
+                                        {/* Team/Status Badge - Smart display based on registration status AND selected sport */}
                                         <div className="flex items-center gap-1 mt-1.5 flex-wrap">
                                           {(() => {
                                             const playerStatus = playerStatuses[player.id];
                                             const statusLoading = loadingStatuses;
+                                            
+                                            // Get the selected sport for filtering
+                                            const selectedSport = selectedSportContext?.sport;
+                                            
+                                            // Check if the player's status matches the selected sport
+                                            // If a sport is selected and the player's status is for a different sport, show "Not Registered"
+                                            const statusMatchesSport = !selectedSport || 
+                                              (playerStatus?.sport === selectedSport) ||
+                                              (playerStatus?.status === 'on-team' && !selectedSport) ||
+                                              (playerStatus?.status === 'not-registered');
                                             
                                             if (statusLoading) {
                                               return (
                                                 <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
                                                   <Clock className="w-3 h-3 animate-spin" /> Loading...
                                                 </span>
+                                              );
+                                            }
+                                            
+                                            // If sport context is selected and status doesn't match, show not registered for that sport
+                                            if (selectedSport && playerStatus?.status === 'in-draft-pool' && playerStatus?.sport !== selectedSport) {
+                                              const sportEmoji = {
+                                                football: '🏈',
+                                                basketball: '🏀',
+                                                cheer: '📣',
+                                                soccer: '⚽',
+                                                baseball: '⚾',
+                                                volleyball: '🏐',
+                                                other: '🎯',
+                                              }[selectedSport] || '🎯';
+                                              
+                                              return (
+                                                <>
+                                                  <Users className="w-3 h-3 text-orange-500" />
+                                                  <span className="text-xs text-orange-600 dark:text-orange-400 font-medium flex items-center gap-1">
+                                                    ⚠️ No {selectedSport.charAt(0).toUpperCase() + selectedSport.slice(1)} Team - 
+                                                    <a href="#/events" className="underline hover:text-orange-700">Register!</a>
+                                                  </span>
+                                                </>
                                               );
                                             }
                                             
@@ -1449,19 +1530,32 @@ const Profile: React.FC = () => {
                                               );
                                             }
                                             
-                                            // In Draft Pool - Show waiting status
+                                            // In Draft Pool - Show waiting status with sport and team
                                             if (playerStatus?.status === 'in-draft-pool') {
+                                              const sportEmoji = {
+                                                football: '🏈',
+                                                basketball: '🏀',
+                                                cheer: '📣',
+                                                soccer: '⚽',
+                                                baseball: '⚾',
+                                                volleyball: '🏐',
+                                                other: '🎯',
+                                              }[playerStatus.sport || 'other'] || '🎯';
+                                              
                                               return (
                                                 <>
                                                   <Clock className="w-3 h-3 text-amber-500" />
                                                   <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded font-bold">
-                                                    🎯 In Draft Pool
+                                                    {sportEmoji} In Draft Pool
+                                                    {playerStatus.draftPoolTeamName && (
+                                                      <span className="font-normal"> - {playerStatus.draftPoolTeamName}</span>
+                                                    )}
                                                   </span>
                                                   <button
                                                     onClick={(e) => { e.stopPropagation(); openEditModal(player); }}
                                                     className="ml-1 text-[10px] text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 underline"
                                                   >
-                                                    (manage)
+                                                    /manage
                                                   </button>
                                                 </>
                                               );
@@ -1485,16 +1579,21 @@ const Profile: React.FC = () => {
                                               );
                                             }
                                             
-                                            // Not Registered - Show join button
+                                            // Not Registered - Show join button with sport context
+                                            const noTeamSportName = selectedSport 
+                                              ? selectedSport.charAt(0).toUpperCase() + selectedSport.slice(1) + ' '
+                                              : '';
+                                            
                                             return (
                                               <>
                                                 <Users className="w-3 h-3 text-orange-500" />
-                                                <button
-                                                  onClick={(e) => { e.stopPropagation(); openEditModal(player); }}
+                                                <a
+                                                  href="#/events"
+                                                  onClick={(e) => e.stopPropagation()}
                                                   className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded font-bold hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors"
                                                 >
-                                                  ⚠️ No Team - Join Now!
-                                                </button>
+                                                  ⚠️ No {noTeamSportName}Team - Join Now!
+                                                </a>
                                               </>
                                             );
                                           })()}
@@ -1776,16 +1875,44 @@ const Profile: React.FC = () => {
                       <div>
                         <p className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-3 uppercase tracking-wider">Basic Information</p>
                         <div className="space-y-3">
-                          <div>
-                              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Full Name</label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">First Name *</label>
                               <input 
-                                value={editForm.name} 
-                                onChange={e => setEditForm({...editForm, name: e.target.value})} 
+                                value={editForm.firstName} 
+                                onChange={e => {
+                                  const firstName = e.target.value;
+                                  setEditForm({...editForm, firstName, name: `${firstName} ${editForm.lastName}`.trim()});
+                                }} 
                                 className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
                                 required
                               />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Last Name *</label>
+                              <input 
+                                value={editForm.lastName} 
+                                onChange={e => {
+                                  const lastName = e.target.value;
+                                  setEditForm({...editForm, lastName, name: `${editForm.firstName} ${lastName}`.trim()});
+                                }} 
+                                className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
+                                required
+                              />
+                            </div>
                           </div>
                           <div>
+                            <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Nickname (optional)</label>
+                            <input 
+                              value={editForm.nickname} 
+                              onChange={e => setEditForm({...editForm, nickname: e.target.value})} 
+                              placeholder='e.g., "Flash", "Tank"'
+                              className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white placeholder-slate-400" 
+                            />
+                            <p className="text-[10px] text-slate-500 mt-1">Shows on player card if set</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
                               <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Date of Birth</label>
                               <input 
                                 type="date"
@@ -1793,6 +1920,20 @@ const Profile: React.FC = () => {
                                 onChange={e => setEditForm({...editForm, dob: e.target.value})} 
                                 className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
                               />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Gender</label>
+                              <select 
+                                value={editForm.gender} 
+                                onChange={e => setEditForm({...editForm, gender: e.target.value as 'male' | 'female' | 'other' | ''})} 
+                                className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white"
+                              >
+                                <option value="">Select...</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                                <option value="other">Other</option>
+                              </select>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1889,18 +2030,31 @@ const Profile: React.FC = () => {
                           
                           // In Draft Pool
                           if (playerStatus?.status === 'in-draft-pool') {
+                            const sportEmoji = {
+                              football: '🏈',
+                              basketball: '🏀',
+                              cheer: '📣',
+                              soccer: '⚽',
+                              baseball: '⚾',
+                              volleyball: '🏐',
+                              other: '🎯',
+                            }[playerStatus.sport || 'other'] || '🎯';
+                            
                             return (
                               <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
                                 <div className="flex items-center gap-2 mb-3">
                                   <Clock className="w-5 h-5 text-amber-500" />
                                   <span className="font-bold text-amber-700 dark:text-amber-400">
-                                    🎯 In Draft Pool
+                                    {sportEmoji} In Draft Pool - {playerStatus.draftPoolTeamName || 'Unknown Team'}
                                   </span>
                                 </div>
                                 <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
+                                  {playerStatus.sport && (
+                                    <span className="capitalize">{playerStatus.sport} • </span>
+                                  )}
                                   {playerStatus.eventName 
-                                    ? `Registered for "${playerStatus.eventName}" and waiting to be drafted by a team.`
-                                    : 'Waiting to be drafted by a team.'
+                                    ? `Registered for "${playerStatus.eventName}" and waiting to be drafted.`
+                                    : 'Waiting to be drafted by the coach.'
                                   }
                                 </p>
                                 <button
@@ -2168,26 +2322,75 @@ const Profile: React.FC = () => {
             
             <form onSubmit={handleAddAthlete} className="p-6 space-y-4">
               {/* Basic Info */}
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Athlete's Full Name *</label>
-                <input 
-                  value={newAthleteForm.name} 
-                  onChange={e => setNewAthleteForm({...newAthleteForm, name: e.target.value})} 
-                  placeholder="John Smith"
-                  className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
-                  required
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">First Name *</label>
+                  <input 
+                    value={newAthleteForm.firstName} 
+                    onChange={e => setNewAthleteForm({...newAthleteForm, firstName: e.target.value})} 
+                    placeholder="John"
+                    className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Last Name *</label>
+                  <input 
+                    value={newAthleteForm.lastName} 
+                    onChange={e => setNewAthleteForm({...newAthleteForm, lastName: e.target.value})} 
+                    placeholder="Smith"
+                    className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
+                    required
+                  />
+                </div>
               </div>
               
+              {/* Nickname */}
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Date of Birth *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Nickname (optional)</label>
                 <input 
-                  type="date"
-                  value={newAthleteForm.dob} 
-                  onChange={e => setNewAthleteForm({...newAthleteForm, dob: e.target.value})} 
+                  value={newAthleteForm.nickname} 
+                  onChange={e => setNewAthleteForm({...newAthleteForm, nickname: e.target.value})} 
+                  placeholder='e.g., "Flash", "Tank"'
                   className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
-                  required
                 />
+                <p className="text-[10px] text-slate-500 mt-1">Shows on player card if set</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Date of Birth *</label>
+                  <input 
+                    type="date"
+                    value={newAthleteForm.dob} 
+                    onChange={e => setNewAthleteForm({...newAthleteForm, dob: e.target.value})} 
+                    className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
+                    required
+                  />
+                  {/* Show calculated age group */}
+                  {newAthleteForm.dob && calculateAgeGroup(newAthleteForm.dob) && (
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs px-2 py-0.5 rounded font-bold">
+                        {calculateAgeGroup(newAthleteForm.dob)}
+                      </span>
+                      <span className="text-[10px] text-slate-500">Age Group</span>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Gender *</label>
+                  <select 
+                    value={newAthleteForm.gender} 
+                    onChange={e => setNewAthleteForm({...newAthleteForm, gender: e.target.value as 'male' | 'female' | 'other'})} 
+                    className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white"
+                    required
+                  >
+                    <option value="">Select...</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
               </div>
 
               {/* Username */}
@@ -2545,7 +2748,26 @@ const Profile: React.FC = () => {
       )}
 
       {/* Film Room Modal for Parent */}
-      {showFilmRoomForPlayer && (
+      {showFilmRoomForPlayer && (() => {
+        const allVideos = athleteFilmRooms[showFilmRoomForPlayer.id] || [];
+        const filteredVideos = filmSportFilter 
+          ? allVideos.filter(v => v.sport === filmSportFilter)
+          : allVideos;
+        
+        // Get unique sports from videos for filter buttons
+        const sportsInFilm = [...new Set(allVideos.map(v => v.sport).filter(Boolean))];
+        
+        const sportEmojis: Record<string, string> = {
+          football: '🏈',
+          basketball: '🏀',
+          cheer: '📣',
+          soccer: '⚽',
+          baseball: '⚾',
+          volleyball: '🏐',
+          other: '🎯',
+        };
+        
+        return (
         <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto">
           <div className="min-h-full p-4 md:p-8">
             {/* Header */}
@@ -2558,22 +2780,54 @@ const Profile: React.FC = () => {
                   <div>
                     <h2 className="text-2xl font-bold text-white">{showFilmRoomForPlayer.name}'s Film Room</h2>
                     <p className="text-zinc-400">
-                      {athleteFilmRooms[showFilmRoomForPlayer.id]?.length || 0} {(athleteFilmRooms[showFilmRoomForPlayer.id]?.length || 0) === 1 ? 'video' : 'videos'}
+                      {filteredVideos.length} of {allVideos.length} {allVideos.length === 1 ? 'video' : 'videos'}
+                      {filmSportFilter && <span className="ml-1">({filmSportFilter})</span>}
                     </p>
                   </div>
                 </div>
                 <button
-                  onClick={() => setShowFilmRoomForPlayer(null)}
+                  onClick={() => { setShowFilmRoomForPlayer(null); setFilmSportFilter(null); }}
                   className="p-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full transition-colors"
                 >
                   <X className="w-6 h-6" />
                 </button>
               </div>
+              
+              {/* Sport Filter Tabs */}
+              {sportsInFilm.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setFilmSportFilter(null)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      !filmSportFilter 
+                        ? 'bg-purple-500 text-white' 
+                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                    }`}
+                  >
+                    All Sports
+                  </button>
+                  {sportsInFilm.map(sport => (
+                    <button
+                      key={sport}
+                      onClick={() => setFilmSportFilter(sport || null)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                        filmSportFilter === sport 
+                          ? 'bg-purple-500 text-white' 
+                          : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                      }`}
+                    >
+                      <span>{sportEmojis[sport || 'other'] || '🎯'}</span>
+                      <span className="capitalize">{sport}</span>
+                      <span className="text-xs opacity-70">({allVideos.filter(v => v.sport === sport).length})</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Video Grid */}
             <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {athleteFilmRooms[showFilmRoomForPlayer.id]?.map((video) => (
+              {filteredVideos.map((video) => (
                 <div 
                   key={video.id}
                   className="group bg-zinc-900 rounded-xl border border-zinc-700 overflow-hidden hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/10 transition-all"
@@ -2599,6 +2853,12 @@ const Profile: React.FC = () => {
                     } text-white`}>
                       {video.category}
                     </div>
+                    {/* Sport Badge */}
+                    {video.sport && (
+                      <div className="absolute top-2 right-2 px-2 py-1 rounded text-xs font-bold bg-black/70 text-white backdrop-blur-sm">
+                        {sportEmojis[video.sport] || '🎯'} {video.sport.charAt(0).toUpperCase() + video.sport.slice(1)}
+                      </div>
+                    )}
                   </div>
                   {/* Info */}
                   <div className="p-4">
@@ -2624,7 +2884,8 @@ const Profile: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Video Player Modal */}
       {playingVideoId && (
@@ -2710,7 +2971,7 @@ const Profile: React.FC = () => {
                 </div>
               </div>
               <button 
-                onClick={() => { setShowAddFilmForPlayer(null); setAddFilmError(''); setNewFilmForm({ title: '', url: '', category: 'Game Film', description: '' }); }}
+                onClick={() => { setShowAddFilmForPlayer(null); setAddFilmError(''); setNewFilmForm({ title: '', url: '', category: 'Game Film', description: '', sport: 'football' }); }}
                 className="text-zinc-400 hover:text-white p-1"
               >
                 <X className="w-5 h-5" />
@@ -2776,6 +3037,34 @@ const Profile: React.FC = () => {
                   >
                     ⭐ Highlights
                   </button>
+                </div>
+              </div>
+              
+              {/* Sport Tag */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">Sport</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { sport: 'football', emoji: '🏈', label: 'Football' },
+                    { sport: 'basketball', emoji: '🏀', label: 'Basketball' },
+                    { sport: 'cheer', emoji: '📣', label: 'Cheer' },
+                    { sport: 'soccer', emoji: '⚽', label: 'Soccer' },
+                    { sport: 'baseball', emoji: '⚾', label: 'Baseball' },
+                    { sport: 'volleyball', emoji: '🏐', label: 'Volleyball' },
+                  ].map(({ sport, emoji, label }) => (
+                    <button
+                      key={sport}
+                      type="button"
+                      onClick={() => setNewFilmForm(prev => ({ ...prev, sport: sport as any }))}
+                      className={`py-2 px-2 rounded-lg font-medium text-xs transition-colors ${
+                        newFilmForm.sport === sport 
+                          ? 'bg-purple-500 text-white ring-2 ring-purple-400' 
+                          : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                      }`}
+                    >
+                      {emoji} {label}
+                    </button>
+                  ))}
                 </div>
               </div>
               

@@ -16,7 +16,9 @@ import {
   where, 
   updateDoc,
   deleteDoc,
-  serverTimestamp 
+  serverTimestamp,
+  arrayRemove,
+  setDoc
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import type { Team, Player, UserProfile } from '../../types';
@@ -36,7 +38,9 @@ import {
   Link2,
   AlertTriangle,
   CheckCircle2,
-  X
+  X,
+  UserMinus,
+  Crown
 } from 'lucide-react';
 
 export const CommissionerTeamDetail: React.FC = () => {
@@ -55,6 +59,20 @@ export const CommissionerTeamDetail: React.FC = () => {
   const [linkedCheerTeam, setLinkedCheerTeam] = useState<Team | null>(null);
   const [availableCheerTeams, setAvailableCheerTeams] = useState<Team[]>([]);
   const [linkingCheerTeam, setLinkingCheerTeam] = useState(false);
+  const [settingHeadCoach, setSettingHeadCoach] = useState<string | null>(null);
+  const [confirmHeadCoach, setConfirmHeadCoach] = useState<{ id: string; name: string } | null>(null);
+  const [removeCoachConfirm, setRemoveCoachConfirm] = useState<{ id: string; name: string; isHeadCoach: boolean } | null>(null);
+  const [removingCoach, setRemovingCoach] = useState(false);
+  const [newHeadCoachAfterRemove, setNewHeadCoachAfterRemove] = useState<string | null>(null);
+  
+  // Edit modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editTeamId, setEditTeamId] = useState('');
+  const [editAgeGroup, setEditAgeGroup] = useState('');
+  const [editError, setEditError] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [programData, setProgramData] = useState<any>(null);
 
   useEffect(() => {
     if (!teamId) {
@@ -113,6 +131,14 @@ export const CommissionerTeamDetail: React.FC = () => {
           setAvailableCheerTeams(cheerTeams);
         }
         
+        // Load program data for edit modal age groups
+        if (teamData.programId) {
+          const programDoc = await getDoc(doc(db, 'programs', teamData.programId));
+          if (programDoc.exists()) {
+            setProgramData({ id: programDoc.id, ...programDoc.data() });
+          }
+        }
+        
       } catch (error) {
         console.error('Error loading team data:', error);
       } finally {
@@ -135,6 +161,157 @@ export const CommissionerTeamDetail: React.FC = () => {
       alert('Failed to delete team. Please try again.');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  // Open edit modal
+  const handleOpenEdit = () => {
+    if (!team) return;
+    setEditName(team.name || '');
+    setEditTeamId(team.id || '');
+    setEditAgeGroup(team.ageGroup || '');
+    setEditError('');
+    setShowEditModal(true);
+  };
+
+  // Save edited team
+  const handleSaveEdit = async () => {
+    if (!team || !teamId) return;
+    
+    if (!editName.trim()) {
+      setEditError('Team name is required');
+      return;
+    }
+    
+    if (!editAgeGroup) {
+      setEditError('Please select an age group');
+      return;
+    }
+    
+    setEditing(true);
+    setEditError('');
+    
+    try {
+      const newTeamId = editTeamId.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '-');
+      const teamIdChanged = newTeamId && newTeamId !== team.id;
+      
+      if (teamIdChanged) {
+        // Check if new team ID already exists
+        const existingTeam = await getDoc(doc(db, 'teams', newTeamId));
+        if (existingTeam.exists()) {
+          setEditError(`Team ID "${newTeamId}" is already taken.`);
+          setEditing(false);
+          return;
+        }
+      }
+      
+      const updateData: Record<string, any> = {
+        name: editName.trim(),
+        ageGroup: editAgeGroup,
+        ageGroups: [editAgeGroup],
+        updatedAt: serverTimestamp(),
+      };
+      
+      if (teamIdChanged) {
+        // Copy to new ID
+        const oldTeamDoc = await getDoc(doc(db, 'teams', team.id!));
+        const oldData = oldTeamDoc.data();
+        await setDoc(doc(db, 'teams', newTeamId), { ...oldData, ...updateData });
+        
+        // Copy subcollections
+        const subcollections = ['players', 'plays', 'events', 'assignedPlays'];
+        for (const subcol of subcollections) {
+          const subcolSnap = await getDocs(collection(db, 'teams', team.id!, subcol));
+          for (const subDoc of subcolSnap.docs) {
+            await setDoc(doc(db, 'teams', newTeamId, subcol, subDoc.id), subDoc.data());
+          }
+        }
+        
+        // Delete old
+        for (const subcol of subcollections) {
+          const subcolSnap = await getDocs(collection(db, 'teams', team.id!, subcol));
+          for (const subDoc of subcolSnap.docs) {
+            await deleteDoc(doc(db, 'teams', team.id!, subcol, subDoc.id));
+          }
+        }
+        await deleteDoc(doc(db, 'teams', team.id!));
+        
+        // Navigate to new team detail
+        navigate(`/commissioner/teams/${newTeamId}`);
+      } else {
+        await updateDoc(doc(db, 'teams', team.id!), updateData);
+        setTeam(prev => prev ? { ...prev, name: editName.trim(), ageGroup: editAgeGroup } : null);
+      }
+      
+      setShowEditModal(false);
+    } catch (err: any) {
+      setEditError(err.message || 'Failed to update team');
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  const handleSetHeadCoach = async (coachId: string) => {
+    if (!teamId || !team) return;
+    setSettingHeadCoach(coachId);
+    setConfirmHeadCoach(null);
+    
+    try {
+      await updateDoc(doc(db, 'teams', teamId), {
+        headCoachId: coachId,
+        updatedAt: serverTimestamp()
+      });
+      
+      // Update local state
+      setTeam(prev => prev ? { ...prev, headCoachId: coachId } : null);
+    } catch (error) {
+      console.error('Error setting head coach:', error);
+      alert('Failed to set head coach. Please try again.');
+    } finally {
+      setSettingHeadCoach(null);
+    }
+  };
+
+  const handleRemoveCoach = async () => {
+    if (!teamId || !removeCoachConfirm) return;
+    setRemovingCoach(true);
+    
+    try {
+      const coachId = removeCoachConfirm.id;
+      const isHeadCoach = removeCoachConfirm.isHeadCoach;
+      
+      // Remove team from coach's teamIds
+      await updateDoc(doc(db, 'users', coachId), {
+        teamIds: arrayRemove(teamId),
+        updatedAt: serverTimestamp()
+      });
+      
+      // If this was the head coach and we have a new head coach selected, update it
+      if (isHeadCoach && newHeadCoachAfterRemove) {
+        await updateDoc(doc(db, 'teams', teamId), {
+          headCoachId: newHeadCoachAfterRemove,
+          updatedAt: serverTimestamp()
+        });
+        setTeam(prev => prev ? { ...prev, headCoachId: newHeadCoachAfterRemove } : null);
+      } else if (isHeadCoach) {
+        // Clear head coach if no new one selected
+        await updateDoc(doc(db, 'teams', teamId), {
+          headCoachId: null,
+          updatedAt: serverTimestamp()
+        });
+        setTeam(prev => prev ? { ...prev, headCoachId: undefined } : null);
+      }
+      
+      // Update local state - remove coach from list
+      setCoaches(prev => prev.filter(c => c.uid !== coachId));
+      setRemoveCoachConfirm(null);
+      setNewHeadCoachAfterRemove(null);
+      
+    } catch (error) {
+      console.error('Error removing coach:', error);
+      alert('Failed to remove coach. Please try again.');
+    } finally {
+      setRemovingCoach(false);
     }
   };
 
@@ -212,12 +389,12 @@ export const CommissionerTeamDetail: React.FC = () => {
               <h1 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{team.name}</h1>
             </div>
             <div className="flex items-center gap-2">
-              <Link
-                to={`/commissioner/teams/${teamId}/edit`}
+              <button
+                onClick={handleOpenEdit}
                 className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
               >
                 <Edit2 className={`w-5 h-5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
-              </Link>
+              </button>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-red-600/20' : 'bg-gray-100 hover:bg-red-50'}`}
@@ -330,29 +507,65 @@ export const CommissionerTeamDetail: React.FC = () => {
               </div>
             ) : (
               <div className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
-                {coaches.map((coach) => (
-                  <div key={coach.uid} className="px-4 py-3 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
-                        <User className="w-5 h-5 text-green-400" />
+                {coaches.map((coach) => {
+                  const isHeadCoach = team?.headCoachId === coach.uid;
+                  return (
+                    <div key={coach.uid} className="px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 ${isHeadCoach ? 'bg-amber-500/20' : 'bg-green-500/20'} rounded-full flex items-center justify-center`}>
+                          {isHeadCoach ? (
+                            <Crown className="w-5 h-5 text-amber-400" />
+                          ) : (
+                            <User className="w-5 h-5 text-green-400" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{coach.name}</p>
+                            {isHeadCoach && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs font-medium rounded-full">
+                                👑 Head Coach
+                              </span>
+                            )}
+                          </div>
+                          <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{coach.email}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{coach.name}</p>
-                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{coach.email}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {coach.phone && (
-                        <a href={`tel:${coach.phone}`} className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}>
-                          <Phone className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
+                      <div className="flex items-center gap-2">
+                        {!isHeadCoach && (
+                          <button
+                            onClick={() => setConfirmHeadCoach({ id: coach.uid, name: coach.name || 'Unknown' })}
+                            disabled={settingHeadCoach === coach.uid}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                              settingHeadCoach === coach.uid
+                                ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                : theme === 'dark'
+                                  ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
+                                  : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                            }`}
+                          >
+                            {settingHeadCoach === coach.uid ? 'Setting...' : 'Set as Head Coach'}
+                          </button>
+                        )}
+                        {coach.phone && (
+                          <a href={`tel:${coach.phone}`} className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}>
+                            <Phone className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
+                          </a>
+                        )}
+                        <a href={`mailto:${coach.email}`} className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}>
+                          <Mail className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
                         </a>
-                      )}
-                      <a href={`mailto:${coach.email}`} className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}>
-                        <Mail className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
-                      </a>
+                        <button
+                          onClick={() => setRemoveCoachConfirm({ id: coach.uid, name: coach.name || 'Unknown', isHeadCoach })}
+                          className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400' : 'bg-red-50 hover:bg-red-100 text-red-600'}`}
+                          title="Remove coach from team"
+                        >
+                          <UserMinus className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -413,6 +626,121 @@ export const CommissionerTeamDetail: React.FC = () => {
           <TeamManagersPanel teamId={teamId} teamName={team.name} />
         )}
       </div>
+
+      {/* Edit Team Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className={`rounded-2xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
+            <div className={`p-4 border-b flex items-center justify-between flex-shrink-0 ${theme === 'dark' ? 'border-gray-700' : 'border-slate-200'}`}>
+              <h2 className={`text-xl font-bold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                <Edit2 className="w-5 h-5 text-blue-400" />
+                Edit Team
+              </h2>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className={theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-slate-400 hover:text-slate-900'}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
+              {editError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-500 text-sm">
+                  {editError}
+                </div>
+              )}
+              
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
+                  Team Name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Enter team name"
+                  className={`w-full border rounded-lg py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`}
+                />
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
+                  Team ID <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editTeamId}
+                  onChange={(e) => setEditTeamId(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, '-'))}
+                  placeholder="unique-team-id"
+                  className={`w-full border rounded-lg py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`}
+                />
+                <p className="text-xs text-yellow-500 mt-1">⚠️ Changing Team ID will migrate all data to new ID</p>
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
+                  Age Group <span className="text-red-400">*</span>
+                </label>
+                {(() => {
+                  const programAgeGroups = programData?.ageGroups || [];
+                  return (
+                    <div>
+                      <div className={`w-full border rounded-lg py-2.5 px-3 mb-2 ${theme === 'dark' ? 'bg-purple-500/10 border-purple-500/30 text-purple-300' : 'bg-purple-50 border-purple-200 text-purple-700'}`}>
+                        Selected: {editAgeGroup || 'None'}
+                      </div>
+                      {programAgeGroups.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {programAgeGroups.map((ag: string) => (
+                            <button
+                              key={ag}
+                              type="button"
+                              onClick={() => setEditAgeGroup(ag)}
+                              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                editAgeGroup === ag
+                                  ? 'bg-purple-600 text-white'
+                                  : theme === 'dark'
+                                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                              }`}
+                            >
+                              {ag}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-500'}`}>
+                          No age groups configured. Go to Age Groups to add some.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+            
+            <div className={`p-4 border-t flex gap-3 flex-shrink-0 ${theme === 'dark' ? 'border-gray-700' : 'border-slate-200'}`}>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className={`flex-1 py-2.5 rounded-lg font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-900'}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={editing || !editName.trim()}
+                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {editing ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  'Save Changes'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
@@ -524,6 +852,150 @@ export const CommissionerTeamDetail: React.FC = () => {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Set Head Coach Modal */}
+      {confirmHeadCoach && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className={`max-w-md w-full rounded-2xl shadow-xl p-6 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center">
+                <Crown className="w-6 h-6 text-amber-400" />
+              </div>
+              <div>
+                <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Confirm Head Coach</h3>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>This action will change team leadership</p>
+              </div>
+            </div>
+            
+            <p className={`mb-6 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+              Are you sure you want to set <strong>{confirmHeadCoach.name}</strong> as the Head Coach for {team?.name}?
+              {team?.headCoachId && (
+                <span className="block mt-2 text-sm text-amber-500">
+                  This will replace the current head coach.
+                </span>
+              )}
+            </p>
+            
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmHeadCoach(null)}
+                className={`px-4 py-2 rounded-lg transition-colors ${theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleSetHeadCoach(confirmHeadCoach.id)}
+                disabled={settingHeadCoach === confirmHeadCoach.id}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg flex items-center gap-2 disabled:opacity-50"
+              >
+                {settingHeadCoach === confirmHeadCoach.id ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Setting...
+                  </>
+                ) : (
+                  <>
+                    <Crown className="w-4 h-4" />
+                    Confirm
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remove Coach Confirmation Modal */}
+      {removeCoachConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className={`max-w-md w-full rounded-2xl shadow-xl p-6 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-500/20 rounded-xl flex items-center justify-center">
+                <UserMinus className="w-6 h-6 text-red-400" />
+              </div>
+              <div>
+                <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Remove Coach</h3>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {removeCoachConfirm.isHeadCoach ? 'This coach is the Head Coach' : 'Remove from team roster'}
+                </p>
+              </div>
+            </div>
+            
+            <p className={`mb-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+              Are you sure you want to remove <strong>{removeCoachConfirm.name}</strong> from {team?.name}?
+            </p>
+            
+            {removeCoachConfirm.isHeadCoach && coaches.length > 1 && (
+              <div className={`mb-4 p-4 rounded-lg ${theme === 'dark' ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-amber-50 border border-amber-200'}`}>
+                <p className={`text-sm mb-3 flex items-center gap-2 ${theme === 'dark' ? 'text-amber-400' : 'text-amber-700'}`}>
+                  <AlertTriangle className="w-4 h-4" />
+                  Select a new Head Coach:
+                </p>
+                <div className="space-y-2">
+                  {coaches.filter(c => c.uid !== removeCoachConfirm.id).map((coach) => (
+                    <label
+                      key={coach.uid}
+                      className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${
+                        newHeadCoachAfterRemove === coach.uid
+                          ? theme === 'dark' ? 'bg-amber-500/20' : 'bg-amber-100'
+                          : theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="newHeadCoach"
+                        value={coach.uid}
+                        checked={newHeadCoachAfterRemove === coach.uid}
+                        onChange={() => setNewHeadCoachAfterRemove(coach.uid)}
+                        className="text-amber-500 focus:ring-amber-500"
+                      />
+                      <span className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>{coach.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {removeCoachConfirm.isHeadCoach && coaches.length === 1 && (
+              <div className={`mb-4 p-4 rounded-lg ${theme === 'dark' ? 'bg-red-500/10 border border-red-500/30' : 'bg-red-50 border border-red-200'}`}>
+                <p className={`text-sm flex items-center gap-2 ${theme === 'dark' ? 'text-red-400' : 'text-red-700'}`}>
+                  <AlertTriangle className="w-4 h-4" />
+                  This is the only coach. The team will have no Head Coach after removal.
+                </p>
+              </div>
+            )}
+            
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setRemoveCoachConfirm(null);
+                  setNewHeadCoachAfterRemove(null);
+                }}
+                className={`px-4 py-2 rounded-lg transition-colors ${theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRemoveCoach}
+                disabled={removingCoach || (removeCoachConfirm.isHeadCoach && coaches.length > 1 && !newHeadCoachAfterRemove)}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center gap-2 disabled:opacity-50"
+              >
+                {removingCoach ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Removing...
+                  </>
+                ) : (
+                  <>
+                    <UserMinus className="w-4 h-4" />
+                    Remove Coach
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

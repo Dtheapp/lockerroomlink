@@ -8,6 +8,7 @@ import { Player } from '../../../types';
 import * as eventService from '../../../services/eventService';
 import { getPlayerRegistrationStatus } from '../../../services/eventService';
 import { addToDraftPool } from '../../../services/draftPoolService';
+import { createNotification } from '../../../services/notificationService';
 import type { DraftPoolPaymentStatus, SportType } from '../../../types';
 import { WaiverAcceptance } from './WaiverAcceptance';
 import { PayPalCheckout } from './PayPalCheckout';
@@ -68,6 +69,9 @@ interface RegistrationFormData {
   // Uniform sizes (only if required)
   shirtSize: string;
   pantSize: string;
+  
+  // Parent suggestions (coach/position preferences)
+  parentSuggestions: string;
 }
 
 /**
@@ -109,6 +113,7 @@ const StreamlinedRegistration: React.FC = () => {
     medicalNotes: '',
     shirtSize: '',
     pantSize: '',
+    parentSuggestions: '',
   });
 
   // Waiver
@@ -219,9 +224,10 @@ const StreamlinedRegistration: React.FC = () => {
     }
   }, [userData, user]);
 
-  // Check if player is already in draft pool (prevent double registration)
+  // Check if player is already in draft pool for the SAME SPORT (prevent double registration)
+  // Players CAN register for different sports simultaneously
   useEffect(() => {
-    if (!selectedPlayer?.id) {
+    if (!selectedPlayer?.id || !event) {
       setPlayerAlreadyRegistered(null);
       return;
     }
@@ -229,14 +235,61 @@ const StreamlinedRegistration: React.FC = () => {
     const checkStatus = async () => {
       setCheckingStatus(true);
       try {
-        const status = await getPlayerRegistrationStatus(selectedPlayer.id, selectedPlayer.teamId);
-        if (status.status === 'in-draft-pool') {
-          setPlayerAlreadyRegistered(`${selectedPlayer.name} is already registered and waiting in the draft pool.`);
-        } else if (status.status === 'on-team') {
-          setPlayerAlreadyRegistered(`${selectedPlayer.name} is already on team ${status.teamName || 'a team'}.`);
-        } else {
-          setPlayerAlreadyRegistered(null);
+        const eventSport = (event as any).sport || 'football';
+        
+        // Check if player is already on a team for THIS sport
+        if (selectedPlayer.teamId) {
+          const teamDoc = await getDoc(doc(db, 'teams', selectedPlayer.teamId));
+          if (teamDoc.exists()) {
+            const teamSport = teamDoc.data().sport || 'football';
+            if (teamSport === eventSport) {
+              setPlayerAlreadyRegistered(`${selectedPlayer.name} is already on a ${eventSport} team (${teamDoc.data().name || 'Unknown Team'}).`);
+              setCheckingStatus(false);
+              return;
+            }
+          }
         }
+        
+        // Check if player is in draft pool for THIS sport
+        const playerDoc = await getDoc(doc(db, 'players', selectedPlayer.id));
+        if (playerDoc.exists()) {
+          const playerData = playerDoc.data();
+          if (playerData.draftPoolStatus === 'waiting' && playerData.draftPoolTeamId) {
+            // Check if the draft pool team is for the same sport
+            const draftTeamDoc = await getDoc(doc(db, 'teams', playerData.draftPoolTeamId));
+            if (draftTeamDoc.exists()) {
+              const draftTeamSport = draftTeamDoc.data().sport || 'football';
+              if (draftTeamSport === eventSport) {
+                setPlayerAlreadyRegistered(`${selectedPlayer.name} is already registered for ${eventSport} and waiting in the draft pool for ${draftTeamDoc.data().name || 'a team'}.`);
+                setCheckingStatus(false);
+                return;
+              }
+            }
+          }
+        }
+        
+        // Also search draft pool entries directly (fallback)
+        const teamsSnap = await getDocs(collection(db, 'teams'));
+        for (const teamDoc of teamsSnap.docs) {
+          const teamSport = teamDoc.data().sport || 'football';
+          if (teamSport !== eventSport) continue; // Skip different sports
+          
+          const draftPoolQuery = query(
+            collection(db, 'teams', teamDoc.id, 'draftPool'),
+            where('playerId', '==', selectedPlayer.id),
+            where('status', '==', 'waiting')
+          );
+          const draftSnap = await getDocs(draftPoolQuery);
+          
+          if (!draftSnap.empty) {
+            setPlayerAlreadyRegistered(`${selectedPlayer.name} is already registered for ${eventSport} and waiting in the draft pool for ${teamDoc.data().name || 'a team'}.`);
+            setCheckingStatus(false);
+            return;
+          }
+        }
+        
+        // Not registered for this sport - allow registration
+        setPlayerAlreadyRegistered(null);
       } catch (err) {
         console.error('Error checking player status:', err);
         setPlayerAlreadyRegistered(null);
@@ -246,7 +299,7 @@ const StreamlinedRegistration: React.FC = () => {
     };
 
     checkStatus();
-  }, [selectedPlayer?.id, selectedPlayer?.teamId, selectedPlayer?.name]);
+  }, [selectedPlayer?.id, selectedPlayer?.teamId, selectedPlayer?.name, event]);
 
   // Validate age for selected athlete
   const ageValidation = useMemo(() => {
@@ -458,10 +511,103 @@ const StreamlinedRegistration: React.FC = () => {
                 shorts: formData.pantSize,
               }
             } : {}),
+            // Parent suggestions for coach/position preferences
+            ...(formData.parentSuggestions.trim() ? {
+              notes: formData.parentSuggestions.trim(),
+            } : {}),
           });
         }
       } catch (draftPoolError) {
         console.error('Failed to add to draft pool:', draftPoolError);
+      }
+
+      // Send notification to parent confirming registration
+      try {
+        await createNotification(
+          user.uid,
+          'registration_confirmed',
+          '🎉 Registration Successful!',
+          `${formData.athleteName} has been registered for ${event.title} and added to the draft pool. The coaching staff will review registrations and assign players to teams soon.`,
+          {
+            link: '/dashboard',
+            metadata: {
+              eventId: event.id,
+              eventTitle: event.title,
+              athleteName: formData.athleteName,
+              confirmationCode: code,
+            },
+            priority: 'normal',
+            category: 'registration',
+          }
+        );
+      } catch (notifError) {
+        console.error('Failed to send notification:', notifError);
+        // Don't fail registration if notification fails
+      }
+
+      // Also notify the team owner/coach about new registration
+      try {
+        const coachesToNotify: string[] = [];
+        
+        // Check team document for coach/owner IDs
+        if (event.teamId) {
+          const teamRef = doc(db, 'teams', event.teamId);
+          const teamSnap = await getDoc(teamRef);
+          console.log('[Registration] Team lookup:', event.teamId, 'exists:', teamSnap.exists());
+          
+          if (teamSnap.exists()) {
+            const teamData = teamSnap.data();
+            console.log('[Registration] Team fields:', Object.keys(teamData));
+            
+            // Check all possible coach/owner field names
+            const possibleCoachFields = ['ownerId', 'coachId', 'headCoachId', 'userId', 'createdBy', 'managerId'];
+            for (const field of possibleCoachFields) {
+              const coachId = teamData[field];
+              if (coachId && coachId !== user.uid && !coachesToNotify.includes(coachId)) {
+                console.log(`[Registration] Found coach from team.${field}:`, coachId);
+                coachesToNotify.push(coachId);
+              }
+            }
+          }
+        }
+        
+        // Fallback: Check event creator
+        const eventCreatorFields = ['createdBy', 'creatorId', 'ownerId', 'userId'];
+        for (const field of eventCreatorFields) {
+          const creatorId = (event as any)[field];
+          if (creatorId && creatorId !== user.uid && !coachesToNotify.includes(creatorId)) {
+            console.log(`[Registration] Found creator from event.${field}:`, creatorId);
+            coachesToNotify.push(creatorId);
+          }
+        }
+        
+        console.log('[Registration] Final coaches to notify:', coachesToNotify);
+        
+        for (const coachId of coachesToNotify) {
+          await createNotification(
+            coachId,
+            'roster_update',
+            '📋 New Player Registered',
+            `${formData.athleteName} has registered for ${event.title} and is now in your draft pool.${formData.parentSuggestions ? ' Parent included suggestions.' : ''}`,
+            {
+              link: '/dashboard',
+              metadata: {
+                eventId: event.id,
+                athleteName: formData.athleteName,
+                parentSuggestions: formData.parentSuggestions || null,
+              },
+              priority: 'normal',
+              category: 'team',
+            }
+          );
+          console.log('[Registration] ✅ Notification sent to coach:', coachId);
+        }
+        
+        if (coachesToNotify.length === 0) {
+          console.log('[Registration] ⚠️ No coaches found to notify. Event:', event.id, 'Team:', event.teamId);
+        }
+      } catch (coachNotifError) {
+        console.error('[Registration] Failed to notify coach:', coachNotifError);
       }
 
       setConfirmationCode(code);
@@ -623,7 +769,7 @@ const StreamlinedRegistration: React.FC = () => {
                 {playerAlreadyRegistered}
               </p>
               <p className="text-amber-600 dark:text-amber-400 text-xs mt-2">
-                Players can only have one active registration at a time. If their registration was denied, they can register again.
+                Players can only have one active registration per sport. They CAN register for multiple different sports at the same time.
               </p>
             </div>
           </div>
@@ -877,6 +1023,27 @@ const StreamlinedRegistration: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Parent Suggestions - Coach/Position Preferences */}
+      <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
+        <h3 className="font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
+          💬 Parent Suggestions <span className="text-sm font-normal text-zinc-500">(Optional)</span>
+        </h3>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
+          Share any preferences or suggestions with the coaching staff. For example: preferred coach, position interests, scheduling conflicts, or other relevant information.
+        </p>
+        <textarea
+          value={formData.parentSuggestions}
+          onChange={(e) => setFormData(prev => ({ ...prev, parentSuggestions: e.target.value }))}
+          placeholder="e.g., Would love to play on Coach Smith's team, interested in playing QB or WR, has practice conflict on Tuesdays..."
+          rows={4}
+          maxLength={500}
+          className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:ring-2 focus:ring-purple-500 resize-none"
+        />
+        <p className="text-xs text-zinc-400 mt-2 text-right">
+          {formData.parentSuggestions.length}/500 characters
+        </p>
+      </div>
     </div>
   );
 

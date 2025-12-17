@@ -21,11 +21,15 @@ interface GameWithStats {
 interface PlayerStatsModalProps {
   player: Player;
   teamName?: string;
+  sport?: string; // Optional sport override (for multi-sport support)
   onClose: () => void;
 }
 
-const PlayerStatsModal: React.FC<PlayerStatsModalProps> = ({ player, teamName, onClose }) => {
-  const { teamData } = useAuth();
+const PlayerStatsModal: React.FC<PlayerStatsModalProps> = ({ player, teamName, sport, onClose }) => {
+  const { teamData, selectedSportContext } = useAuth();
+  
+  // Use sport prop, then selectedSportContext, then teamData as fallback
+  const activeSport = sport || selectedSportContext?.sport || teamData?.sport;
   const [seasonStats, setSeasonStats] = useState<PlayerSeasonStats[]>([]);
   const [gameStats, setGameStats] = useState<GameWithStats[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,9 +38,9 @@ const PlayerStatsModal: React.FC<PlayerStatsModalProps> = ({ player, teamName, o
 
   const currentYear = new Date().getFullYear();
   
-  // Sport-specific config
-  const sportStats = useMemo(() => getStats(teamData?.sport), [teamData?.sport]);
-  const sportConfig = useMemo(() => getSportConfig(teamData?.sport), [teamData?.sport]);
+  // Sport-specific config - use activeSport which respects multi-sport context
+  const sportStats = useMemo(() => getStats(activeSport), [activeSport]);
+  const sportConfig = useMemo(() => getSportConfig(activeSport), [activeSport]);
   
   // Get key stats for career totals (first 6 excluding gamesPlayed)
   const careerStatKeys = useMemo(() => {

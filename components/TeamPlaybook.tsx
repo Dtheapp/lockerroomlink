@@ -4,7 +4,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { collection, doc, onSnapshot, deleteDoc, serverTimestamp, query, orderBy, addDoc, getDoc, getDocs, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import type { CoachPlay, PlayElement, PlayRoute, TeamPlayAssignment, Team, OffensePlayType, DefensePlayType, Formation, DrawingLine, PlayShape, LineType, Player, PositionAssignment } from '../types';
-import { BookOpen, Eye, X, Plus, Trash2, Shield, Sword, Zap, Users, AlertCircle, ChevronDown, ChevronUp, FolderOpen, Search, Layers, UserPlus, Check, User, Save } from 'lucide-react';
+import { BookOpen, Eye, X, Plus, Trash2, Shield, Sword, Zap, Users, AlertCircle, ChevronDown, ChevronUp, FolderOpen, Search, Layers, UserPlus, Check, User, Save, Clock } from 'lucide-react';
 import { AnimatedBackground, GlassCard } from './ui/OSYSComponents';
 import NoAthleteBlock from './NoAthleteBlock';
 
@@ -15,12 +15,25 @@ const ROUTE_COLORS = [
 // Field aspect ratio (width:height) - standard football field proportions
 const FIELD_ASPECT_RATIO = 16 / 9;
 
+// Sport labels for Coming Soon
+const SPORT_LABELS: Record<string, { name: string; emoji: string }> = {
+  basketball: { name: 'Basketball', emoji: '🏀' },
+  cheer: { name: 'Cheer', emoji: '📣' },
+  soccer: { name: 'Soccer', emoji: '⚽' },
+  baseball: { name: 'Baseball', emoji: '⚾' },
+  volleyball: { name: 'Volleyball', emoji: '🏐' },
+  other: { name: 'Other Sports', emoji: '🏆' },
+};
+
 const TeamPlaybook: React.FC = () => {
-  const { teamData, userData, user } = useAuth();
+  const { teamData, userData, user, selectedCoachSport } = useAuth();
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
 
-  // Play type selection - REQUIRED before viewing
+  // Determine the current sport - selectedCoachSport takes priority
+  const currentSport = selectedCoachSport || teamData?.sport?.toLowerCase() || 'football';
+
+  // Play type selection - REQUIRED before viewing (MUST be before early return - React hooks rule)
   const [selectedPlayType, setSelectedPlayType] = useState<'Offense' | 'Defense' | 'Special Teams' | null>(null);
   const [filterOffenseType, setFilterOffenseType] = useState<'All' | 'Run' | 'Pass'>('All');
   const [filterDefenseType, setFilterDefenseType] = useState<'All' | 'Normal' | 'Blitz'>('All');
@@ -265,6 +278,65 @@ const TeamPlaybook: React.FC = () => {
     (!selectedPlayType || f.category === selectedPlayType) &&
     (!formationSearch || f.name.toLowerCase().includes(formationSearch.toLowerCase()))
   );
+
+  // Show Coming Soon for non-football sports (after all hooks)
+  if (currentSport !== 'football') {
+    const sportInfo = SPORT_LABELS[currentSport] || { name: 'This Sport', emoji: '🏆' };
+
+    return (
+      <div className={`min-h-screen ${isDarkMode ? 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950' : 'bg-slate-100'}`}>
+        {isDarkMode && <AnimatedBackground />}
+        <div className="relative z-10 p-4 sm:p-6">
+          <div className="max-w-2xl mx-auto">
+            {/* Header */}
+            <div className={`rounded-2xl border p-6 mb-6 ${
+              isDarkMode 
+                ? 'bg-white/5 backdrop-blur-xl border-white/10' 
+                : 'bg-white border-slate-200'
+            }`}>
+              <div className="flex items-center gap-4">
+                <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-white/10' : 'bg-slate-100'}`}>
+                  <span className="text-3xl">{sportInfo.emoji}</span>
+                </div>
+                <div>
+                  <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                    {sportInfo.name} Playbook
+                  </h1>
+                  <p className={`${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                    Team plays and formations
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Coming Soon Card */}
+            <div className={`rounded-2xl border p-8 text-center ${
+              isDarkMode 
+                ? 'bg-white/5 backdrop-blur-xl border-white/10' 
+                : 'bg-white border-slate-200'
+            }`}>
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center">
+                  <Clock className="w-10 h-10 text-amber-400" />
+                </div>
+                <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                  {sportInfo.name} Plays Coming Soon!
+                </h2>
+                <p className={`max-w-md ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                  We're building out the playbook for {sportInfo.name.toLowerCase()}. 
+                  Right now, play design is available for Football. Check back soon!
+                </p>
+                <div className="mt-4 px-4 py-2 rounded-full bg-amber-500/20 text-amber-300 text-sm font-medium inline-flex items-center gap-2">
+                  <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
+                  In Development
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Get selected formation name
   const selectedFormationName = filterFormationId 
@@ -844,8 +916,24 @@ const TeamPlaybook: React.FC = () => {
                 <p className="text-purple-100 dark:text-orange-100">View plays assigned to your team</p>
               </div>
             </div>
-            <div className="bg-white/20 rounded-lg px-4 py-2">
-              <p className="text-white text-sm font-medium">{loadedPlays.size} plays loaded</p>
+            <div className="flex items-center gap-3">
+              {/* Add Play Button - Always visible for coaches */}
+              {isCoach && (
+                <button
+                  onClick={() => {
+                    // Default to Offense if no play type selected
+                    setAddPlayCategory(selectedPlayType || 'Offense');
+                    setShowAddPlayModal(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-medium text-white transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Play
+                </button>
+              )}
+              <div className="bg-white/20 rounded-lg px-4 py-2">
+                <p className="text-white text-sm font-medium">{loadedPlays.size} plays loaded</p>
+              </div>
             </div>
           </div>
         </div>

@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { 
@@ -27,7 +28,9 @@ import {
   X,
   Loader2,
   AlertCircle,
-  Trophy
+  Trophy,
+  Sparkles,
+  Layers
 } from 'lucide-react';
 import SeasonManager from './SeasonManager';
 
@@ -70,6 +73,7 @@ const DEFAULT_FORM: ProgramFormData = {
 export default function ProgramManager() {
   const { user, userData } = useAuth();
   const { theme } = useTheme();
+  const navigate = useNavigate();
   const isDark = theme === 'dark';
   
   // State
@@ -328,8 +332,17 @@ export default function ProgramManager() {
                     <button
                       onClick={() => openEditModal(program)}
                       className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
+                      title="Edit Program"
                     >
                       <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => navigate(`/commissioner/season-setup/${program.id}`)}
+                      className="flex items-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                      title="Create a new season with registration pools"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      New Season
                     </button>
                     <button
                       onClick={() => {
@@ -339,7 +352,7 @@ export default function ProgramManager() {
                       className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                     >
                       <Calendar className="w-4 h-4" />
-                      Manage Seasons
+                      Seasons
                       <ChevronRight className="w-4 h-4" />
                     </button>
                   </div>

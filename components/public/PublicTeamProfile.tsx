@@ -372,7 +372,7 @@ const PublicTeamProfile: React.FC = () => {
                 
                 <h1 className="text-4xl lg:text-5xl font-black text-white mb-2 tracking-tight">{team.name}</h1>
                 <p className="text-slate-400 text-lg mb-6">
-                  {team.sport || 'Football'} • {team.location || 'Location TBD'} • {currentYear} Season
+                  {team.sport || 'Football'} • {typeof team.location === 'object' ? `${(team.location as any)?.city || ''}, ${(team.location as any)?.state || ''}`.replace(/^, |, $/g, '') || 'Location TBD' : team.location || 'Location TBD'} • {currentYear} Season
                 </p>
                 
                 {/* Action Buttons */}

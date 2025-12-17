@@ -3,6 +3,7 @@
 // =============================================================================
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Search, Sparkles, FolderOpen, AlertTriangle, FileWarning, Wand2, Crown, Shirt } from 'lucide-react';
 import { TEMPLATE_CATEGORIES, DESIGN_TEMPLATES, getTemplatesByCategory } from './templates';
 import { FLYER_SIZES, FlyerSize } from './types';
@@ -41,6 +42,7 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   onReminderClick,
 }) => {
   const { theme } = useTheme();
+  const navigate = useNavigate();
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSize, setSelectedSize] = useState<FlyerSize>('instagram');
@@ -93,16 +95,14 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({
 
         {/* Categories */}
         <div className="space-y-1">
-          {/* My Designs Button */}
-          {onOpenGallery && (
-            <button
-              onClick={onOpenGallery}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors mb-2 bg-violet-600/20 text-violet-400 border border-violet-500/30 hover:bg-violet-600/30"
-            >
-              <FolderOpen className="w-5 h-5" />
-              <span className="text-sm font-medium">My Designs</span>
-            </button>
-          )}
+          {/* My Designs Button - Navigate to full page */}
+          <button
+            onClick={() => navigate('/marketing')}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors mb-2 bg-violet-600/20 text-violet-400 border border-violet-500/30 hover:bg-violet-600/30"
+          >
+            <FolderOpen className="w-5 h-5" />
+            <span className="text-sm font-medium">My Designs</span>
+          </button>
           
           {TEMPLATE_CATEGORIES.map(cat => (
             <button

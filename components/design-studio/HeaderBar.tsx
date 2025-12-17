@@ -3,6 +3,7 @@
 // =============================================================================
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft,
   Download,
@@ -75,6 +76,7 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
   onFitToScreen,
 }) => {
   const { theme } = useTheme();
+  const navigate = useNavigate();
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showSizeMenu, setShowSizeMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -407,21 +409,19 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
           )}
         </div>
 
-        {/* My Designs - At the end */}
-        {onOpenGallery && (
-          <button
-            onClick={onOpenGallery}
-            className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg text-sm transition-colors ${
-              theme === 'dark' 
-                ? 'bg-zinc-800 hover:bg-zinc-700 text-white' 
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-900'
-            }`}
-            title="My Designs"
-          >
-            <FolderOpen className="w-4 h-4" />
-            <span className="hidden sm:inline">My Designs</span>
-          </button>
-        )}
+        {/* My Designs - Navigate to full page */}
+        <button
+          onClick={() => navigate('/marketing')}
+          className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg text-sm transition-colors ${
+            theme === 'dark' 
+              ? 'bg-zinc-800 hover:bg-zinc-700 text-white' 
+              : 'bg-slate-100 hover:bg-slate-200 text-slate-900'
+          }`}
+          title="My Designs"
+        >
+          <FolderOpen className="w-4 h-4" />
+          <span className="hidden sm:inline">My Designs</span>
+        </button>
       </div>
     </div>
   );

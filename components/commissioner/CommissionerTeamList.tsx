@@ -65,12 +65,29 @@ export const CommissionerTeamList: React.FC = () => {
         
         // Load player/coach counts for each team
         const stats: Record<string, { players: number; coaches: number }> = {};
+        
+        // Get all coaches in one query for efficiency
+        const coachesQuery = query(collection(db, 'users'), where('role', '==', 'Coach'));
+        const allCoachesSnap = await getDocs(coachesQuery);
+        const coachesByTeam: Record<string, number> = {};
+        
+        allCoachesSnap.docs.forEach(doc => {
+          const coachData = doc.data();
+          const teamIds = coachData.teamIds || [];
+          if (coachData.teamId && !teamIds.includes(coachData.teamId)) {
+            teamIds.push(coachData.teamId);
+          }
+          teamIds.forEach((tid: string) => {
+            coachesByTeam[tid] = (coachesByTeam[tid] || 0) + 1;
+          });
+        });
+        
+        // Get player counts from subcollection
         for (const team of teamsData) {
           const playersSnap = await getDocs(collection(db, 'teams', team.id!, 'players'));
-          const coachesSnap = await getDocs(collection(db, 'teams', team.id!, 'coaches'));
           stats[team.id!] = {
             players: playersSnap.size,
-            coaches: coachesSnap.size,
+            coaches: coachesByTeam[team.id!] || 0,
           };
         }
         setTeamStats(stats);

@@ -142,6 +142,12 @@ export default function SeasonManager({ program, onBack }: SeasonManagerProps) {
       return;
     }
 
+    // Safety check - ensure we have age groups to save
+    if (!program.ageGroups || program.ageGroups.length === 0) {
+      setError('No age groups found in program. Please set up age groups first.');
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
@@ -149,6 +155,8 @@ export default function SeasonManager({ program, onBack }: SeasonManagerProps) {
       const selectedAgeGroups = program.ageGroups.filter(ag => 
         formData.selectedAgeGroups.includes(ag.id)
       );
+
+      console.log('[SeasonManager] Creating season with activeAgeGroups:', selectedAgeGroups);
 
       await createSeason({
         programId: program.id,

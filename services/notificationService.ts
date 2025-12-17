@@ -60,6 +60,9 @@ export type NotificationType =
   | 'game_day'
   | 'roster_update'
   | 'playbook_update'
+  | 'team_invite'
+  | 'team_invite_accepted'
+  | 'team_invite_declined'
   // Infraction system
   | 'infraction_filed'
   | 'infraction_update'
@@ -68,6 +71,8 @@ export type NotificationType =
   // Registration & Payment
   | 'registration_open'
   | 'registration_confirmed'
+  | 'registration_cancelled'
+  | 'season_cancelled'
   | 'payment_due'
   | 'payment_reminder'
   | 'payment_received_parent'

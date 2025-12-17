@@ -1,5 +1,5 @@
 // =============================================================================
-// MARKETING HUB - Team promo materials & social sharing
+// MARKETING HUB - Personal designs & Team marketing materials
 // =============================================================================
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -24,7 +24,8 @@ import {
   X,
   Pencil,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  Upload
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -33,7 +34,11 @@ import type { PromoItem } from './design-studio/promoTypes';
 import SocialShareModal from './ui/SocialShareModal';
 import NoAthleteBlock from './NoAthleteBlock';
 
-const MarketingHub: React.FC = () => {
+interface MarketingHubProps {
+  isTeamMode?: boolean;
+}
+
+const MarketingHub: React.FC<MarketingHubProps> = ({ isTeamMode = false }) => {
   const navigate = useNavigate();
   const { userData, teamData } = useAuth();
   const { theme } = useTheme();
@@ -48,27 +53,39 @@ const MarketingHub: React.FC = () => {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [viewPromo, setViewPromo] = useState<PromoItem | null>(null);
   
-  // Load promo items
+  // Page title and description based on mode
+  const pageTitle = isTeamMode ? 'Team Marketing' : 'My Designs';
+  const pageIcon = isTeamMode ? '📢' : '📁';
+  const pageDescription = isTeamMode 
+    ? `Shared marketing materials for ${teamData?.name || 'your team'}`
+    : 'Your saved designs from the Design Studio. Create flyers, posters, and more!';
+  
+  // Load promo items based on mode
   useEffect(() => {
     const loadPromos = async () => {
-      if (!userData?.uid || !teamData?.id) {
+      if (!userData?.uid) {
+        setLoading(false);
+        return;
+      }
+      
+      // Team mode requires a team
+      if (isTeamMode && !teamData?.id) {
         setLoading(false);
         return;
       }
       
       try {
         setLoading(true);
-        // Load team promos (accessible to all team members)
-        const teamPromos = await loadTeamPromoItems(teamData.id);
-        // Load user's personal promos
-        const userPromos = await loadUserPromoItems(userData.uid);
         
-        // Combine and sort by date
-        const allPromos = [...teamPromos, ...userPromos]
-          .filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i) // Remove duplicates
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        
-        setPromos(allPromos);
+        if (isTeamMode) {
+          // Team mode: Only load team-shared promos
+          const teamPromos = await loadTeamPromoItems(teamData!.id);
+          setPromos(teamPromos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+        } else {
+          // Personal mode: Load user's personal promos
+          const userPromos = await loadUserPromoItems(userData.uid);
+          setPromos(userPromos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+        }
       } catch (err) {
         console.error('Error loading promos:', err);
       } finally {
@@ -77,7 +94,7 @@ const MarketingHub: React.FC = () => {
     };
     
     loadPromos();
-  }, [userData?.uid, teamData?.id]);
+  }, [userData?.uid, teamData?.id, isTeamMode]);
   
   // Filter promos
   const filteredPromos = promos.filter(promo => {
@@ -108,7 +125,7 @@ const MarketingHub: React.FC = () => {
   const categories = ['all', 'flyer', 'poster', 'social', 'banner', 'story'];
 
   return (
-    <NoAthleteBlock featureName="Marketing Hub">
+    <NoAthleteBlock featureName={pageTitle}>
     <div className={`min-h-screen ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-100'}`}>
       {/* Header */}
       <div className={`border-b ${theme === 'dark' ? 'border-white/10 bg-slate-900/50' : 'border-slate-200 bg-white/50'} backdrop-blur-xl sticky top-0 z-10`}>
@@ -116,26 +133,28 @@ const MarketingHub: React.FC = () => {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className={`text-2xl font-bold flex items-center gap-3 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-                <span className="text-3xl">📢</span>
-                Marketing Hub
+                <span className="text-3xl">{pageIcon}</span>
+                {pageTitle}
               </h1>
               <p className={`mt-1 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-                Share your team's promotional materials with fans and sponsors
+                {pageDescription}
               </p>
             </div>
             
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => navigate('/profile', { state: { openTab: 'social' } })}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
-                  theme === 'dark'
-                    ? 'bg-white/5 hover:bg-white/10 text-slate-300'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                }`}
-              >
-                <Settings className="w-4 h-4" />
-                <span className="hidden sm:inline">Connected Accounts</span>
-              </button>
+              {!isTeamMode && (
+                <button
+                  onClick={() => navigate('/profile', { state: { openTab: 'social' } })}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
+                    theme === 'dark'
+                      ? 'bg-white/5 hover:bg-white/10 text-slate-300'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  <Settings className="w-4 h-4" />
+                  <span className="hidden sm:inline">Connected Accounts</span>
+                </button>
+              )}
               
               <button
                 onClick={() => navigate('/design')}
@@ -220,9 +239,14 @@ const MarketingHub: React.FC = () => {
           <div className={`text-center py-20 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>
             <FolderOpen className="w-16 h-16 mx-auto mb-4 opacity-50" />
             <h3 className={`text-lg font-medium mb-2 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
-              No marketing materials yet
+              {isTeamMode ? 'No team marketing materials yet' : 'No designs yet'}
             </h3>
-            <p className="mb-6">Create your first design to share with your team and fans</p>
+            <p className="mb-6">
+              {isTeamMode 
+                ? 'Share designs from My Designs to your team\'s marketing folder'
+                : 'Create your first design to share with your team and fans'
+              }
+            </p>
             <button
               onClick={() => navigate('/design')}
               className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium rounded-lg transition"
@@ -628,14 +652,15 @@ const FullscreenViewModal: React.FC<FullscreenViewModalProps> = ({ promo, onClos
           className="shadow-2xl"
           style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}
         >
-          {promo.thumbnailUrl ? (
+          {/* Prefer highResUrl, then thumbnailUrl, then fallback to canvas rendering */}
+          {(promo.highResUrl || promo.thumbnailUrl) ? (
             <img 
-              src={promo.thumbnailUrl} 
+              src={promo.highResUrl || promo.thumbnailUrl} 
               alt={promo.name}
               className="max-w-none"
               style={{ 
-                width: promo.canvas.width,
-                height: promo.canvas.height,
+                maxWidth: '80vw',
+                maxHeight: '70vh',
                 objectFit: 'contain'
               }}
             />

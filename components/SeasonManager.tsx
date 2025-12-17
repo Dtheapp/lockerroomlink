@@ -166,10 +166,10 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
   
   // Copy registration link to clipboard
   const handleCopyRegistrationLink = async (season: Season) => {
-    // Use the public event ID if available, otherwise use team ID and season ID
+    // Use the public event ID if available, otherwise use season ID
     const registrationUrl = season.publicEventId 
-      ? `${window.location.origin}/event/${season.publicEventId}`
-      : `${window.location.origin}/team/${teamId}/register?season=${season.id}`;
+      ? `${window.location.origin}/#/event/${season.publicEventId}`
+      : `${window.location.origin}/#/register/${season.id}`;
     
     try {
       await navigator.clipboard.writeText(registrationUrl);
@@ -581,6 +581,76 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
     
     setDeletingSeason(true);
     try {
+      // CLEANUP: Decline all draft pool entries for this season
+      const draftPoolRef = collection(db, 'teams', teamId, 'draftPool');
+      const draftPoolSnap = await getDocs(draftPoolRef);
+      
+      const batch = writeBatch(db);
+      const athletesToUpdate: string[] = [];
+      
+      for (const draftDoc of draftPoolSnap.docs) {
+        const entry = draftDoc.data();
+        // Only decline entries for this season that are still waiting
+        if (entry.seasonId === currentSeason.id && entry.status === 'waiting') {
+          batch.update(draftDoc.ref, {
+            status: 'declined',
+            declinedReason: 'Season was cancelled/deleted',
+            declinedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          
+          // Track athlete IDs to update
+          if (entry.playerId) {
+            athletesToUpdate.push(entry.playerId);
+          }
+          
+          // Notify the parent if they have a userId
+          if (entry.registeredByUserId) {
+            try {
+              const { createNotification } = await import('../services/notificationService');
+              await createNotification(
+                entry.registeredByUserId,
+                'season_cancelled',
+                '📅 Season Cancelled',
+                `The season "${currentSeason.name}" has been cancelled. ${entry.playerName}'s registration is no longer active. Please check for upcoming registration opportunities.`,
+                {
+                  link: '/events',
+                  metadata: {
+                    teamId,
+                    seasonId: currentSeason.id,
+                    seasonName: currentSeason.name,
+                    playerName: entry.playerName,
+                  },
+                  priority: 'high',
+                  category: 'registration',
+                }
+              );
+            } catch (notifErr) {
+              console.error('Failed to notify parent of season cancellation:', notifErr);
+            }
+          }
+        }
+      }
+      
+      // Commit all draft pool updates
+      await batch.commit();
+      console.log('[SeasonManager] Declined', athletesToUpdate.length, 'draft pool entries');
+      
+      // Update player documents to clear draft pool status
+      // Players are stored in top-level 'players' collection (unassigned athletes)
+      for (const athleteId of athletesToUpdate) {
+        try {
+          await updateDoc(doc(db, 'players', athleteId), {
+            draftPoolStatus: 'declined',
+            draftPoolDeclinedReason: 'Season was cancelled/deleted',
+            draftPoolUpdatedAt: serverTimestamp(),
+          });
+          console.log('[SeasonManager] Updated player document:', athleteId);
+        } catch (err) {
+          console.error('Failed to update player document:', err);
+        }
+      }
+      
       // Delete linked events
       if (currentSeason.registrationEventId) {
         await deleteDoc(doc(db, 'teams', teamId, 'events', currentSeason.registrationEventId));
@@ -932,8 +1002,8 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                   type="text"
                   readOnly
                   value={currentSeason.publicEventId 
-                    ? `${window.location.origin}/event/${currentSeason.publicEventId}`
-                    : `${window.location.origin}/team/${teamId}/register?season=${currentSeason.id}`}
+                    ? `${window.location.origin}/#/event/${currentSeason.publicEventId}`
+                    : `${window.location.origin}/#/register/${currentSeason.id}`}
                   className={`flex-1 text-sm truncate bg-transparent border-none outline-none ${
                     theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'
                   }`}

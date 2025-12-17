@@ -10,7 +10,9 @@ import { useUnreadMessages } from '../hooks/useUnreadMessages';
 import { useSportConfig } from '../hooks/useSportConfig';
 import { useCredits } from '../hooks/useCredits';
 import TeamSelector from '../components/TeamSelector';
-import PlayerSelector from '../components/PlayerSelector';
+import PlayerSportSelector from '../components/PlayerSportSelector';
+import CoachTeamSelector from '../components/CoachTeamSelector';
+import CommissionerSportSelector from '../components/CommissionerSportSelector';
 import { AnimatedBackground, Avatar } from '../components/ui/OSYSComponents';
 import { Menu, X, LogOut, Sun, Moon, ChevronDown, ChevronLeft, ChevronRight, Coins, ShoppingBag } from 'lucide-react';
 import WelcomeModal from '../components/WelcomeModal';
@@ -35,7 +37,6 @@ const NewOSYSLayout: React.FC = () => {
     const saved = localStorage.getItem('osys_sidebar_collapsed');
     return saved === 'true';
   });
-  const [showTeamSelector, setShowTeamSelector] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [pendingNavPath, setPendingNavPath] = useState<string | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -161,29 +162,41 @@ const NewOSYSLayout: React.FC = () => {
     }
     
     const items = [
+      // === ALWAYS SHOWN (Dashboard special case - shown but may have no data) ===
       { icon: '📊', label: 'Dashboard', path: '/dashboard', section: 'Main' },
-      { icon: '📋', label: 'Playbook', path: '/playbook', section: 'Main', configKey: 'playbookEnabled', hideForParent: true },
-      { icon: '👥', label: 'Roster', path: '/roster', section: 'Main' },
-      { icon: '📅', label: 'Schedule', path: '/events', section: 'Main' },
-      { icon: '📆', label: 'Events', path: '/events', section: 'Main', coachOnly: true },
+      
+      // === USER-SPECIFIC (Always shown regardless of team/sport) ===
       { icon: '🎨', label: 'Design Studio', path: '/design', section: 'Create' },
-      { icon: '💬', label: 'Messages', path: '/messenger', section: 'Engage', configKey: 'messengerEnabled', unreadKey: 'messenger' },
-      { icon: '🗨️', label: 'Team Chat', path: '/chat', section: 'Engage', configKey: 'chatEnabled', unreadKey: 'teamChat' },
-      { icon: '🛡️', label: 'Strategy', path: '/strategies', section: 'Engage', configKey: 'chatEnabled', coachOnly: true, unreadKey: 'strategy' },
-      { icon: '📺', label: 'Film Room', path: '/videos', section: 'Engage', configKey: 'videoLibraryEnabled' },
-      { icon: '📢', label: 'Marketing', path: '/marketing', section: 'Engage' },
-      { icon: '📈', label: 'Stats', path: '/stats', section: 'Analyze', configKey: 'statsEnabled' },
-      { icon: '📓', label: 'My Plays', path: '/coaching', section: 'Analyze', configKey: 'playbookEnabled', coachOnly: true },
+      { icon: '�', label: 'My Designs', path: '/marketing', section: 'Create' },
+      { icon: '💬', label: 'Messenger', path: '/messenger', section: 'Engage', configKey: 'messengerEnabled', unreadKey: 'messenger' },
+      
+      // === SPORT-SPECIFIC (Shown when sport is selected, doesn't require team) ===
+      { icon: '📓', label: 'My Plays', path: '/coaching', section: 'Analyze', configKey: 'playbookEnabled', coachOnly: true, sportSpecific: true },
+      
+      // === TEAM-SPECIFIC (Only shown when team is selected) ===
+      { icon: '📋', label: 'Playbook', path: '/playbook', section: 'Main', configKey: 'playbookEnabled', hideForParent: true, teamRequired: true },
+      { icon: '👥', label: 'Roster', path: '/roster', section: 'Main', teamRequired: true },
+      { icon: '📅', label: 'Schedule', path: '/events', section: 'Main', teamRequired: true },
+      { icon: '📆', label: 'Events', path: '/events', section: 'Main', coachOnly: true, teamRequired: true },
+      { icon: '🗨️', label: 'Team Chat', path: '/chat', section: 'Engage', configKey: 'chatEnabled', unreadKey: 'teamChat', teamRequired: true },
+      { icon: '🛡️', label: 'Strategy', path: '/strategies', section: 'Engage', configKey: 'chatEnabled', coachOnly: true, unreadKey: 'strategy', teamRequired: true },
+      { icon: '📺', label: 'Film Room', path: '/videos', section: 'Engage', configKey: 'videoLibraryEnabled', teamRequired: true },
+      { icon: '📢', label: 'Marketing', path: '/team-marketing', section: 'Engage', teamRequired: true },
+      { icon: '📈', label: 'Stats', path: '/stats', section: 'Analyze', configKey: 'statsEnabled', teamRequired: true },
+      
+      // === OTHER ===
       { icon: '🛒', label: 'Marketplace', path: '#marketplace', section: 'Shop', comingSoon: true },
     ];
 
-    // Filter by config and role
+    // Filter by config, role, and team requirement
     return items.filter(item => {
       if (item.configKey && !config[item.configKey as keyof typeof config]) return false;
       // Check sport-specific playbook feature
       if (item.configKey === 'playbookEnabled' && !hasPlaybook) return false;
       if (item.coachOnly && userData?.role !== 'Coach') return false;
       if (item.hideForParent && userData?.role === 'Parent') return false;
+      // Team-required items only show when a team is selected
+      if ((item as any).teamRequired && !teamData) return false;
       return true;
     });
   };
@@ -294,39 +307,18 @@ const NewOSYSLayout: React.FC = () => {
           </button>
         </div>
 
-        {/* Team Selector (for Coaches) or Player Selector (for Parents) */}
+        {/* Team Selector (for Coaches) or Player/Sport Selector (for Parents) or Sport Selector (for Commissioners) */}
         <div className={`p-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'} ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
-          {userData?.role === 'Parent' ? (
-            // Player Selector for Parents
-            <PlayerSelector />
-          ) : (
-            // Team Selector for Coaches
-            <>
-              <button 
-                onClick={() => setShowTeamSelector(!showTeamSelector)}
-                className={`w-full p-3 rounded-xl border transition flex items-center gap-3 ${
-                  theme === 'dark'
-                    ? 'bg-white/5 hover:bg-white/10 border-white/10'
-                    : 'bg-slate-100 hover:bg-slate-200 border-slate-200'
-                }`}
-              >
-                <Avatar name={teamData?.name || 'Team'} size="sm" />
-                <div className="flex-1 text-left min-w-0">
-                  <div className="font-medium truncate">{teamData?.name || 'Select Team'}</div>
-                  <div className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>{userData?.role || 'Coach'}</div>
-                </div>
-                <ChevronDown className={`w-4 h-4 transition ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
-                } ${showTeamSelector ? 'rotate-180' : ''}`} />
-              </button>
-              
-              {showTeamSelector && (
-                <div className="mt-2">
-                  <TeamSelector />
-                </div>
-              )}
-            </>
-          )}
+          {['Commissioner', 'TeamCommissioner', 'LeagueCommissioner', 'ProgramCommissioner'].includes(userData?.role || '') ? (
+            // Sport Selector for Commissioners
+            <CommissionerSportSelector />
+          ) : userData?.role === 'Parent' ? (
+            // Unified Player + Sport Selector for Parents
+            <PlayerSportSelector />
+          ) : (userData?.role === 'Coach' || userData?.role === 'SuperAdmin') ? (
+            // Enhanced Team Selector for Coaches - grouped by sport
+            <CoachTeamSelector />
+          ) : null}
         </div>
 
         {/* Credits Display - Top Priority */}

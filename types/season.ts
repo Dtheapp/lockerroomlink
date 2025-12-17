@@ -245,6 +245,7 @@ export interface SeasonRegistrationInput {
   preferredJerseyNumber?: number;
   alternateJerseyNumbers?: number[];
   preferredPosition?: string;
+  coachNotes?: string;              // Schedule conflicts, coach preferences, notes
   
   // Parent info
   parentName: string;

@@ -137,6 +137,38 @@ export async function addToDraftPool(params: AddToDraftPoolParams): Promise<stri
   const draftPoolRef = collection(db, 'teams', teamId, 'draftPool');
   const docRef = await addDoc(draftPoolRef, entryData);
   
+  // Update the player document with draft pool status (so parents can see it without permission issues)
+  // Players are stored in either:
+  // 1. Top-level 'players' collection (unassigned athletes)
+  // 2. 'teams/{teamId}/players' subcollection (team-assigned players)
+  if (rest.playerId) {
+    try {
+      // First try top-level players collection (unassigned athletes go here)
+      let playerRef = doc(db, 'players', rest.playerId);
+      let playerSnap = await getDoc(playerRef);
+      
+      if (!playerSnap.exists()) {
+        // Try team subcollection if we know they might be on a team already
+        // For new registrations, they're usually in the top-level collection
+        console.log('[DraftPool] Player not found in top-level players, checking teams...');
+        
+        // The player might not exist yet in any collection - that's okay for new registrations
+        // Just update the top-level players collection where unassigned players live
+      }
+      
+      await updateDoc(playerRef, {
+        draftPoolStatus: 'waiting',
+        draftPoolTeamId: teamId,
+        draftPoolEntryId: docRef.id,
+        draftPoolUpdatedAt: serverTimestamp(),
+      });
+      console.log('[DraftPool] Updated player document with draft pool status in:', playerRef.path);
+    } catch (err) {
+      console.error('[DraftPool] Failed to update player document:', err);
+      // Don't fail the whole operation if this update fails
+    }
+  }
+  
   // If eligible for auto-draft and paid in full, auto-draft immediately
   if (eligibleForAutoDraft && paymentStatus === 'paid_full') {
     await autoDraftToRoster(teamId, docRef.id);
@@ -332,6 +364,22 @@ export async function draftToRoster(
       updatedAt: serverTimestamp(),
     });
     
+    // Update the original player document with team info and clear draft pool status
+    // Players are stored in top-level 'players' collection (unassigned athletes)
+    if (entry.playerId) {
+      try {
+        const playerRef = doc(db, 'players', entry.playerId);
+        await updateDoc(playerRef, {
+          teamId: finalTeamId,
+          draftPoolStatus: 'drafted',
+          draftPoolUpdatedAt: serverTimestamp(),
+        });
+        console.log('[DraftPool] Updated player document with team assignment in:', playerRef.path);
+      } catch (err) {
+        console.error('[DraftPool] Failed to update player document on draft:', err);
+      }
+    }
+    
     // If independent athlete, update their user profile with teamId
     if (entry.isIndependentAthlete && entry.registeredByUserId) {
       const userRef = doc(db, 'users', entry.registeredByUserId);
@@ -339,6 +387,58 @@ export async function draftToRoster(
         selectedTeamId: finalTeamId,
         updatedAt: serverTimestamp(),
       });
+    }
+    
+    // Send notifications
+    const { createNotification } = await import('./notificationService');
+    
+    // Notify the parent that their player was added to the team
+    if (entry.registeredByUserId) {
+      try {
+        await createNotification(
+          entry.registeredByUserId,
+          'player_drafted',
+          '🎉 Welcome to the Team!',
+          `Great news! ${entry.playerName} has been added to ${teamData.name}. Check the roster for details and upcoming events.`,
+          {
+            link: '/roster',
+            metadata: {
+              teamId: finalTeamId,
+              teamName: teamData.name,
+              playerName: entry.playerName,
+              playerId: playerDocRef.id,
+            },
+            priority: 'high',
+            category: 'team',
+          }
+        );
+      } catch (notifErr) {
+        console.error('Failed to notify parent of draft:', notifErr);
+      }
+    }
+    
+    // Notify the coach/commissioner who drafted (confirmation)
+    if (draftedBy) {
+      try {
+        await createNotification(
+          draftedBy,
+          'player_drafted',
+          '🎉 Player Added to Roster',
+          `${entry.playerName} has been added to ${teamData.name}'s roster. ${entry.registeredByUserId ? 'The parent has been notified.' : ''}`,
+          {
+            link: '/roster',
+            metadata: {
+              teamId: finalTeamId,
+              playerName: entry.playerName,
+              playerId: playerDocRef.id,
+            },
+            priority: 'low',
+            category: 'team',
+          }
+        );
+      } catch (notifErr) {
+        console.error('Failed to send draft confirmation:', notifErr);
+      }
     }
     
     return { success: true, playerId: playerDocRef.id };
@@ -370,16 +470,103 @@ async function autoDraftToRoster(teamId: string, entryId: string): Promise<void>
 export async function declineDraftEntry(
   teamId: string,
   entryId: string,
-  reason?: string
+  reason?: string,
+  declinedBy?: string,
+  declinedByName?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const entryRef = doc(db, 'teams', teamId, 'draftPool', entryId);
+    const entrySnap = await getDoc(entryRef);
     
+    if (!entrySnap.exists()) {
+      return { success: false, error: 'Draft pool entry not found' };
+    }
+    
+    const entry = { id: entrySnap.id, ...entrySnap.data() } as DraftPoolEntry;
+    
+    // Get team data for notification
+    const teamRef = doc(db, 'teams', teamId);
+    const teamSnap = await getDoc(teamRef);
+    const teamData = teamSnap.exists() ? teamSnap.data() : null;
+    const teamName = teamData?.name || 'the team';
+    
+    // Update the entry as declined
     await updateDoc(entryRef, {
       status: 'declined',
       declinedReason: reason || 'Declined by team',
+      declinedBy: declinedBy || null,
+      declinedByName: declinedByName || null,
+      declinedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+    
+    // Update the player document with declined status
+    // Players are stored in top-level 'players' collection (unassigned athletes)
+    if (entry.playerId) {
+      try {
+        const playerRef = doc(db, 'players', entry.playerId);
+        await updateDoc(playerRef, {
+          draftPoolStatus: 'declined',
+          draftPoolDeclinedReason: reason || 'Declined by team',
+          draftPoolUpdatedAt: serverTimestamp(),
+        });
+        console.log('[DraftPool] Updated player document with declined status in:', playerRef.path);
+      } catch (err) {
+        console.error('[DraftPool] Failed to update player document on decline:', err);
+      }
+    }
+    
+    // Import notification service dynamically to avoid circular deps
+    const { createNotification } = await import('./notificationService');
+    
+    // Notify the parent that their player was declined
+    if (entry.registeredByUserId) {
+      try {
+        await createNotification(
+          entry.registeredByUserId,
+          'player_declined',
+          '❌ Registration Declined',
+          `${entry.playerName}'s registration for ${teamName} was not accepted. ${reason ? `Reason: ${reason}` : 'Please contact the team for more information.'}`,
+          {
+            link: '/dashboard',
+            metadata: {
+              teamId,
+              teamName,
+              playerName: entry.playerName,
+              reason: reason || 'Not specified',
+            },
+            priority: 'high',
+            category: 'registration',
+          }
+        );
+      } catch (notifErr) {
+        console.error('Failed to notify parent of decline:', notifErr);
+      }
+    }
+    
+    // Notify the coach/commissioner who declined (confirmation)
+    if (declinedBy) {
+      try {
+        await createNotification(
+          declinedBy,
+          'player_declined',
+          '❌ Player Declined',
+          `You declined ${entry.playerName}'s registration. ${entry.registeredByUserId ? 'The parent has been notified.' : ''}`,
+          {
+            link: '/dashboard',
+            metadata: {
+              teamId,
+              playerName: entry.playerName,
+              reason: reason || 'Not specified',
+            },
+            priority: 'low',
+            category: 'team',
+          }
+        );
+      } catch (notifErr) {
+        console.error('Failed to send decline confirmation:', notifErr);
+      }
+    }
     
     return { success: true };
   } catch (error: any) {

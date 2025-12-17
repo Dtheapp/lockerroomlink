@@ -31,7 +31,8 @@ import {
   Search,
   AlertCircle,
   CheckCircle2,
-  Mail
+  Mail,
+  Crown
 } from 'lucide-react';
 
 export const CommissionerAssignCoach: React.FC = () => {
@@ -49,6 +50,7 @@ export const CommissionerAssignCoach: React.FC = () => {
   const [removing, setRemoving] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [settingHeadCoach, setSettingHeadCoach] = useState<string | null>(null);
 
   useEffect(() => {
     if (!teamId) {
@@ -106,7 +108,7 @@ export const CommissionerAssignCoach: React.FC = () => {
     loadData();
   }, [teamId, userData?.programId, navigate]);
 
-  const handleAssignCoach = async (coach: UserProfile) => {
+  const handleAssignCoach = async (coach: UserProfile, setAsHeadCoach: boolean = false) => {
     if (!teamId || assigning) return;
     setAssigning(coach.uid);
     setError(null);
@@ -119,11 +121,22 @@ export const CommissionerAssignCoach: React.FC = () => {
         updatedAt: serverTimestamp(),
       });
       
+      // If this is the first coach OR setAsHeadCoach is true, set as head coach
+      const isFirstCoach = assignedCoaches.length === 0;
+      if (isFirstCoach || setAsHeadCoach) {
+        await updateDoc(doc(db, 'teams', teamId), {
+          headCoachId: coach.uid,
+          updatedAt: serverTimestamp(),
+        });
+        setTeam(prev => prev ? { ...prev, headCoachId: coach.uid } : null);
+      }
+      
       // Move from available to assigned
       setAvailableCoaches(prev => prev.filter(c => c.uid !== coach.uid));
       setAssignedCoaches(prev => [...prev, coach]);
       
-      setSuccess(`${coach.name} has been assigned to ${team?.name}`);
+      const headCoachMessage = (isFirstCoach || setAsHeadCoach) ? ' as Head Coach' : '';
+      setSuccess(`${coach.name} has been assigned to ${team?.name}${headCoachMessage}`);
       setTimeout(() => setSuccess(null), 3000);
       
     } catch (err: any) {
@@ -159,6 +172,28 @@ export const CommissionerAssignCoach: React.FC = () => {
       setError(err.message || 'Failed to remove coach');
     } finally {
       setRemoving(null);
+    }
+  };
+
+  const handleSetHeadCoach = async (coach: UserProfile) => {
+    if (!teamId || settingHeadCoach) return;
+    setSettingHeadCoach(coach.uid);
+    setError(null);
+    setSuccess(null);
+    
+    try {
+      await updateDoc(doc(db, 'teams', teamId), {
+        headCoachId: coach.uid,
+        updatedAt: serverTimestamp(),
+      });
+      setTeam(prev => prev ? { ...prev, headCoachId: coach.uid } : null);
+      setSuccess(`${coach.name} is now the Head Coach`);
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      console.error('Error setting head coach:', err);
+      setError(err.message || 'Failed to set head coach');
+    } finally {
+      setSettingHeadCoach(null);
     }
   };
 
@@ -227,34 +262,66 @@ export const CommissionerAssignCoach: React.FC = () => {
           {assignedCoaches.length === 0 ? (
             <div className="p-6 text-center">
               <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>No coaches assigned to this team yet</p>
+              <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>The first coach assigned will automatically become Head Coach</p>
             </div>
           ) : (
             <div className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
-              {assignedCoaches.map((coach) => (
-                <div key={coach.uid} className="px-4 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
-                      <User className="w-5 h-5 text-green-500" />
+              {assignedCoaches.map((coach) => {
+                const isHeadCoach = team?.headCoachId === coach.uid;
+                return (
+                  <div key={coach.uid} className="px-4 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 ${isHeadCoach ? 'bg-amber-500/20' : 'bg-green-500/20'} rounded-full flex items-center justify-center`}>
+                        {isHeadCoach ? (
+                          <Crown className="w-5 h-5 text-amber-400" />
+                        ) : (
+                          <User className="w-5 h-5 text-green-500" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{coach.name}</p>
+                          {isHeadCoach && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs font-medium rounded-full">
+                              👑 Head Coach
+                            </span>
+                          )}
+                        </div>
+                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{coach.email}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{coach.name}</p>
-                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{coach.email}</p>
+                    <div className="flex items-center gap-2">
+                      {!isHeadCoach && (
+                        <button
+                          onClick={() => handleSetHeadCoach(coach)}
+                          disabled={settingHeadCoach === coach.uid}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                            settingHeadCoach === coach.uid
+                              ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                              : theme === 'dark'
+                                ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
+                                : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                          }`}
+                        >
+                          {settingHeadCoach === coach.uid ? 'Setting...' : 'Set as Head Coach'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleRemoveCoach(coach)}
+                        disabled={removing === coach.uid}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors text-sm"
+                      >
+                        {removing === coach.uid ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <UserMinus className="w-4 h-4" />
+                        )}
+                        Remove
+                      </button>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleRemoveCoach(coach)}
-                    disabled={removing === coach.uid}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors text-sm"
-                  >
-                    {removing === coach.uid ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <UserMinus className="w-4 h-4" />
-                    )}
-                    Remove
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

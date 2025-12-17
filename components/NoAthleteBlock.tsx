@@ -1,14 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Users, Plus, AlertCircle, UserPlus, Calendar, Clock, Trophy, Loader2 } from 'lucide-react';
-import { collection, query, where, getDocs, collectionGroup } from 'firebase/firestore';
+import { Users, Plus, AlertCircle, UserPlus, Calendar, Clock, Trophy, Loader2, ExternalLink } from 'lucide-react';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
-
-interface DraftPoolInfo {
-  isInDraftPool: boolean;
-  teamName?: string;
-  registrationCloseDate?: string;
-}
 
 interface NoAthleteBlockProps {
   featureName: string;
@@ -18,86 +12,65 @@ interface NoAthleteBlockProps {
 /**
  * A wrapper component that blocks parent/athlete access to team features
  * until they have joined a team or added at least one athlete to a team.
+ * 
+ * Now respects the multi-sport context:
+ * - If selectedSportContext.status === 'active' → Show children (full access)
+ * - If selectedSportContext.status === 'draft_pool' → Show draft pool modal
+ * - If no context → Show registration browser
  */
 const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children }) => {
-  const { userData, players, teamData, selectedPlayer } = useAuth();
-  const [draftPoolInfo, setDraftPoolInfo] = useState<DraftPoolInfo>({ isInDraftPool: false });
+  const { userData, players, teamData, selectedPlayer, selectedSportContext, sportContexts } = useAuth();
+  const [draftPoolCount, setDraftPoolCount] = useState<number>(0);
+  const [registrationCloseDate, setRegistrationCloseDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // Check if selected player is in draft pool
+  // Load additional draft pool info when in draft pool context
   useEffect(() => {
-    const checkDraftPool = async () => {
-      if (!selectedPlayer?.id) {
+    const loadDraftPoolInfo = async () => {
+      if (selectedSportContext?.status !== 'draft_pool' || !selectedSportContext.draftPoolTeamId) {
         setLoading(false);
         return;
       }
       
       try {
-        // Search all teams' draft pools for this player
-        const teamsSnap = await getDocs(collection(db, 'teams'));
+        // Get draft pool count
+        const draftPoolQuery = query(
+          collection(db, 'teams', selectedSportContext.draftPoolTeamId, 'draftPool'),
+          where('status', '==', 'waiting')
+        );
+        const draftSnap = await getDocs(draftPoolQuery);
+        setDraftPoolCount(draftSnap.size);
         
-        for (const teamDoc of teamsSnap.docs) {
-          const draftPoolQuery = query(
-            collection(db, 'teams', teamDoc.id, 'draftPool'),
-            where('playerId', '==', selectedPlayer.id),
-            where('status', '==', 'waiting')
-          );
-          const draftSnap = await getDocs(draftPoolQuery);
-          
-          if (!draftSnap.empty) {
-            // Found in draft pool - get registration close date from season
-            const teamData = teamDoc.data();
-            let closeDate: string | undefined;
-            
-            // Try to get registration close date from active season
-            const seasonsSnap = await getDocs(collection(db, 'teams', teamDoc.id, 'seasons'));
-            seasonsSnap.forEach(seasonDoc => {
-              const sData = seasonDoc.data();
-              if (sData.isActive && sData.registrationCloseDate) {
-                closeDate = sData.registrationCloseDate;
-              }
-            });
-            
-            setDraftPoolInfo({
-              isInDraftPool: true,
-              teamName: teamData.name || 'the team',
-              registrationCloseDate: closeDate,
-            });
-            setLoading(false);
-            return;
+        // Get registration close date from season
+        const seasonsSnap = await getDocs(collection(db, 'teams', selectedSportContext.draftPoolTeamId, 'seasons'));
+        let closeDate: string | null = null;
+        seasonsSnap.forEach(seasonDoc => {
+          const sData = seasonDoc.data();
+          if (sData.isActive && sData.registrationCloseDate) {
+            closeDate = sData.registrationCloseDate;
           }
-        }
-        
-        setDraftPoolInfo({ isInDraftPool: false });
-        setLoading(false);
+        });
+        setRegistrationCloseDate(closeDate);
       } catch (err) {
-        console.error('Error checking draft pool:', err);
-        setDraftPoolInfo({ isInDraftPool: false });
+        console.error('Error loading draft pool info:', err);
+      } finally {
         setLoading(false);
       }
     };
     
-    checkDraftPool();
-  }, [selectedPlayer?.id]);
+    loadDraftPoolInfo();
+  }, [selectedSportContext]);
   
   // Block for parents with no athletes at all
   const isParentWithNoAthlete = userData?.role === 'Parent' && players.length === 0;
   
-  // Block for parents who have athletes but NONE are on a team yet
-  const isParentWithNoTeamedAthlete = userData?.role === 'Parent' && 
-    players.length > 0 && 
-    !teamData?.id;  // No team data means no athletes are on a team
-  
-  // Block for athletes without a team
-  const isAthleteWithNoTeam = userData?.role === 'Athlete' && !teamData?.id;
-  
-  // If no blocking conditions, show children
-  if (!isParentWithNoAthlete && !isParentWithNoTeamedAthlete && !isAthleteWithNoTeam) {
+  // If user is not a parent/athlete, show children
+  if (userData?.role !== 'Parent' && userData?.role !== 'Athlete') {
     return <>{children}</>;
   }
   
-  // Show loading while checking draft pool
-  if (loading) {
+  // Show loading while sport contexts are being computed
+  if (loading && !selectedSportContext) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
@@ -108,16 +81,31 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children }
     );
   }
   
-  // DRAFT POOL VIEW - Player is waiting to be drafted
-  if (draftPoolInfo.isInDraftPool && (isAthleteWithNoTeam || isParentWithNoTeamedAthlete)) {
+  // ACTIVE SPORT CONTEXT - Player is on a team for this sport
+  if (selectedSportContext?.status === 'active') {
+    return <>{children}</>;
+  }
+  
+  // DRAFT POOL CONTEXT - Player is waiting to be drafted for this sport
+  if (selectedSportContext?.status === 'draft_pool') {
     const isParent = userData?.role === 'Parent';
-    const closeDateFormatted = draftPoolInfo.registrationCloseDate 
-      ? new Date(draftPoolInfo.registrationCloseDate + 'T23:59:59').toLocaleDateString('en-US', { 
+    const closeDateFormatted = registrationCloseDate 
+      ? new Date(registrationCloseDate + 'T23:59:59').toLocaleDateString('en-US', { 
           month: 'long', 
           day: 'numeric', 
           year: 'numeric' 
         })
       : null;
+    
+    const sportEmoji = {
+      football: '🏈',
+      basketball: '🏀',
+      cheer: '📣',
+      soccer: '⚽',
+      baseball: '⚾',
+      volleyball: '🏐',
+      other: '🎯',
+    }[selectedSportContext.sport] || '🎯';
     
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -130,9 +118,28 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children }
             🎉 You're in the Draft Pool!
           </h2>
           
-          <p className="text-slate-600 dark:text-zinc-400 mb-6 text-lg">
-            {isParent ? 'Your athlete is' : "You're"} registered and waiting to be drafted to <span className="font-semibold text-emerald-600 dark:text-emerald-400">{draftPoolInfo.teamName}</span>.
+          <p className="text-slate-600 dark:text-zinc-400 mb-4 text-lg">
+            {isParent ? 'Your athlete is' : "You're"} registered for {sportEmoji} {selectedSportContext.sport.charAt(0).toUpperCase() + selectedSportContext.sport.slice(1)} and waiting to be drafted to{' '}
+            {selectedSportContext.draftPoolTeamId ? (
+              <a 
+                href={`#/team/${selectedSportContext.draftPoolTeamId}`}
+                className="font-semibold text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1"
+              >
+                {selectedSportContext.draftPoolTeamName}
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            ) : (
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">{selectedSportContext.draftPoolTeamName}</span>
+            )}.
           </p>
+          
+          {/* Draft Pool Count Badge */}
+          {draftPoolCount > 0 && (
+            <div className="inline-flex items-center gap-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-4 py-2 rounded-full text-sm font-medium mb-6">
+              <Users className="w-4 h-4" />
+              {draftPoolCount} player{draftPoolCount !== 1 ? 's' : ''} in draft pool
+            </div>
+          )}
           
           <div className="bg-white dark:bg-zinc-900/50 border border-emerald-200 dark:border-emerald-900/30 rounded-xl p-5 mb-6">
             <div className="flex items-start gap-3 text-left">
@@ -152,6 +159,27 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children }
             </div>
           </div>
           
+          {/* View Team Page Button */}
+          {selectedSportContext.draftPoolTeamId && (
+            <a 
+              href={`#/team/${selectedSportContext.draftPoolTeamId}`}
+              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold transition-colors shadow-lg shadow-emerald-500/30 mb-4"
+            >
+              <Users className="w-5 h-5" />
+              View Team Page
+            </a>
+          )}
+          
+          {/* Info about other sports */}
+          {sportContexts.filter(c => c.status === 'active').length > 0 && (
+            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-900/30 rounded-xl p-4 mb-4">
+              <div className="flex items-center gap-2 text-purple-700 dark:text-purple-400 text-sm">
+                <Trophy className="w-4 h-4 flex-shrink-0" />
+                <span>You're on a team for another sport. Use the sport selector above to switch.</span>
+              </div>
+            </div>
+          )}
+          
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 rounded-xl p-4">
             <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-sm">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -163,8 +191,39 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children }
     );
   }
   
+  // NO CONTEXT OR NONE - Show registration browser prompt
+  // But first check if they have ANY active team they could switch to
+  const hasActiveTeam = sportContexts.some(c => c.status === 'active');
+  
+  if (hasActiveTeam) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-zinc-900 dark:to-zinc-950 rounded-2xl p-8 max-w-lg text-center border border-purple-200 dark:border-purple-900/30 shadow-xl">
+          <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-purple-500/30">
+            <Trophy className="w-10 h-10 text-white" />
+          </div>
+          
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">
+            Select a Sport
+          </h2>
+          
+          <p className="text-slate-600 dark:text-zinc-400 mb-6 text-lg">
+            Use the <span className="font-semibold text-purple-600 dark:text-purple-400">sport selector</span> above to switch to one of your active teams, or browse events to register for a new sport.
+          </p>
+          
+          <a 
+            href="#/events" 
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-8 py-4 rounded-xl font-bold transition-all shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50"
+          >
+            <Calendar className="w-5 h-5" /> Browse Events & Register
+          </a>
+        </div>
+      </div>
+    );
+  }
+  
   // Athlete view OR Parent with athletes not on a team - needs to join/register for a team
-  if (isAthleteWithNoTeam || isParentWithNoTeamedAthlete) {
+  if (!isParentWithNoAthlete) {
     const isParent = userData?.role === 'Parent';
     return (
       <div className="flex items-center justify-center min-h-[60vh]">

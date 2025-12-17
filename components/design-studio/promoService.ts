@@ -21,40 +21,55 @@ import { db, storage } from '../../services/firebase';
 import type { PromoItem, SavePromoOptions } from './promoTypes';
 import type { DesignElement, CanvasState, FlyerSize } from './types';
 
-// Generate a thumbnail from the canvas
+// Generate a thumbnail from the canvas - uses full render
 export async function generateThumbnail(
   canvas: CanvasState,
-  elements: DesignElement[]
+  elements: DesignElement[],
+  size: FlyerSize = 'instagram'
 ): Promise<Blob | null> {
   try {
-    const thumbCanvas = document.createElement('canvas');
-    const scale = 300 / Math.max(canvas.width, canvas.height);
-    thumbCanvas.width = canvas.width * scale;
-    thumbCanvas.height = canvas.height * scale;
-    const ctx = thumbCanvas.getContext('2d');
-    if (!ctx) return null;
+    // Use the full export function to render the actual design
+    const { exportToImage } = await import('./ExportUtils');
     
-    // Draw background
-    ctx.fillStyle = canvas.backgroundColor;
-    ctx.fillRect(0, 0, thumbCanvas.width, thumbCanvas.height);
+    // Generate at a lower scale for thumbnail (standard quality)
+    const fullBlob = await exportToImage(elements, size, 'png', 1, canvas.backgroundColor, 'standard');
     
-    // Draw simple rectangles for elements (thumbnail preview)
-    ctx.globalAlpha = 0.6;
-    for (const element of elements) {
-      if (!element.visible) continue;
+    if (fullBlob) {
+      // Resize to thumbnail size
+      const img = new Image();
+      const blobUrl = URL.createObjectURL(fullBlob);
       
-      ctx.fillStyle = element.backgroundColor || element.color || '#8b5cf6';
-      ctx.fillRect(
-        element.position.x * scale,
-        element.position.y * scale,
-        element.size.width * scale,
-        element.size.height * scale
-      );
+      return new Promise((resolve) => {
+        img.onload = () => {
+          URL.revokeObjectURL(blobUrl);
+          
+          const thumbCanvas = document.createElement('canvas');
+          const maxSize = 400;
+          const scale = maxSize / Math.max(img.width, img.height);
+          thumbCanvas.width = img.width * scale;
+          thumbCanvas.height = img.height * scale;
+          
+          const ctx = thumbCanvas.getContext('2d');
+          if (!ctx) {
+            resolve(null);
+            return;
+          }
+          
+          ctx.drawImage(img, 0, 0, thumbCanvas.width, thumbCanvas.height);
+          
+          thumbCanvas.toBlob((blob) => resolve(blob), 'image/png', 0.9);
+        };
+        
+        img.onerror = () => {
+          URL.revokeObjectURL(blobUrl);
+          resolve(null);
+        };
+        
+        img.src = blobUrl;
+      });
     }
     
-    return new Promise((resolve) => {
-      thumbCanvas.toBlob((blob) => resolve(blob), 'image/png', 0.8);
-    });
+    return null;
   } catch (error) {
     console.error('Error generating thumbnail:', error);
     return null;
@@ -93,8 +108,8 @@ export async function savePromoItem(
   // Determine if this is a parent saving to team (for parent tag)
   const isParentSavingToTeam = userRole === 'Parent' && options.location === 'team';
   
-  // Generate thumbnail
-  const thumbnailBlob = await generateThumbnail(canvas, elements);
+  // Generate thumbnail using full render
+  const thumbnailBlob = await generateThumbnail(canvas, elements, size);
   let thumbnailUrl = '';
   let thumbnailPath = '';
   

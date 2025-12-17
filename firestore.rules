@@ -65,9 +65,11 @@ service cloud.firestore {
     }
     
     function isTeamCoach(teamId) {
+      let userData = getUserData();
       return isCoach() && (
-        getUserData().teamId == teamId ||
-        (getUserData().teamIds != null && teamId in getUserData().teamIds)
+        userData.teamId == teamId ||
+        (userData.teamIds != null && teamId in userData.teamIds) ||
+        (userData.teamIds != null && userData.teamIds.hasAny([teamId]))
       );
     }
     
@@ -155,14 +157,19 @@ service cloud.firestore {
       // Allow public read for public pages
       allow read: if true;
       
-      // Only SuperAdmin can create programs initially
-      allow create: if isAdmin();
+      // Commissioners and admins can create programs
+      // A commissioner creating their first program, or admin
+      allow create: if isAuthenticated() && (
+        isAdmin() || 
+        isCommissioner() ||
+        request.resource.data.commissionerId == request.auth.uid
+      );
       
       // Commissioner of the program or admin can update
       allow update: if canManageProgram(programId);
       
-      // Only admin can delete programs
-      allow delete: if isAdmin();
+      // Commissioner of the program or admin can delete
+      allow delete: if canManageProgram(programId) || isAdmin();
       
       // Grievances subcollection
       match /grievances/{grievanceId} {
@@ -171,6 +178,82 @@ service cloud.firestore {
                       isAdmin();
         allow create: if isAuthenticated();
         allow update: if canManageProgram(programId) || isAdmin();
+        allow delete: if isAdmin();
+      }
+      
+      // =============================================================================
+      // PROGRAM SEASONS - Created by Commissioner
+      // =============================================================================
+      match /seasons/{seasonId} {
+        // Public can read seasons (for registration discovery)
+        allow read: if true;
+        
+        // Commissioner or admin can create seasons
+        allow create: if canManageProgram(programId) || isAdmin();
+        
+        // Commissioner or admin can update
+        allow update: if canManageProgram(programId) || isAdmin();
+        
+        // Commissioner or admin can delete
+        allow delete: if canManageProgram(programId) || isAdmin();
+        
+        // =============================================================================
+        // REGISTRATION POOLS - Auto-created per Sport + Age Group
+        // =============================================================================
+        match /pools/{poolId} {
+          // Public can read pools (for registration discovery)
+          allow read: if true;
+          
+          // Commissioner or admin can create/update pools
+          allow create: if canManageProgram(programId) || isAdmin();
+          allow update: if canManageProgram(programId) || isAdmin();
+          allow delete: if canManageProgram(programId) || isAdmin();
+          
+          // =============================================================================
+          // POOL PLAYERS - Players registered in this pool
+          // =============================================================================
+          match /players/{playerId} {
+            // Commissioner can read all players in pool
+            // Parents can read their own child's record
+            allow read: if canManageProgram(programId) || 
+                          isAdmin() ||
+                          resource.data.parentId == request.auth.uid;
+            
+            // Anyone authenticated can register (create player in pool)
+            allow create: if isAuthenticated();
+            
+            // Commissioner or admin can update (for draft assignment, notes)
+            // Parent can update their own child's record (limited fields)
+            allow update: if canManageProgram(programId) || 
+                            isAdmin() ||
+                            (resource.data.parentId == request.auth.uid && 
+                             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'assignedTeamId', 'draftRound', 'draftPick', 'commissionerNotes']));
+            
+            // Only commissioner or admin can delete
+            allow delete: if canManageProgram(programId) || isAdmin();
+          }
+        }
+      }
+      
+      // =============================================================================
+      // DRAFT EVENTS - Scheduled drafts for pools
+      // =============================================================================
+      match /drafts/{draftId} {
+        // Coaches of teams in draft and commissioner can read
+        allow read: if canManageProgram(programId) || 
+                      isAdmin() ||
+                      request.auth.uid in resource.data.coachIds;
+        
+        // Commissioner or admin can create
+        allow create: if canManageProgram(programId) || isAdmin();
+        
+        // Commissioner, admin, or coaches (during their pick) can update
+        allow update: if canManageProgram(programId) || 
+                        isAdmin() ||
+                        (request.auth.uid in resource.data.coachIds && 
+                         resource.data.status == 'in_progress');
+        
+        // Only admin can delete
         allow delete: if isAdmin();
       }
     }
@@ -358,6 +441,40 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && (
         isAdmin() ||
         resource.data.userId == request.auth.uid
+      );
+    }
+
+    // =============================================================================
+    // TEAM INVITATIONS COLLECTION
+    // =============================================================================
+    match /teamInvitations/{invitationId} {
+      // Allow read for:
+      // - Invited coach can see their own invitations
+      // - Inviter can see invitations they sent
+      // - Coaches can query to check for existing pending invites
+      // - Admin can see all
+      allow read: if isAuthenticated() && (
+        isCoach() ||
+        isCommissioner() ||
+        isAdmin()
+      );
+      
+      // Head coaches (any coach) can create invitations
+      allow create: if isCoach() || isCommissioner() || isAdmin();
+      
+      // Invited coach can accept/decline (update status), inviter can cancel
+      allow update: if isAuthenticated() && (
+        (resource.data.invitedCoachId == request.auth.uid && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'respondedAt'])) ||
+        (resource.data.invitedByUserId == request.auth.uid && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'respondedAt'])) ||
+        isAdmin()
+      );
+      
+      // Inviter or admin can delete
+      allow delete: if isAuthenticated() && (
+        resource.data.invitedByUserId == request.auth.uid ||
+        isAdmin()
       );
     }
 
@@ -687,10 +804,11 @@ service cloud.firestore {
       // Users can update their own profile, but NOT credit-related fields
       // Credit fields can only be updated by SuperAdmin or server-side functions
       // teamsCreated is allowed so users can track their team creation count
-      // Commissioners can update coach teamIds to assign/unassign coaches
+      // Commissioners and Head Coaches can update coach teamIds to assign/unassign coaches
       allow update: if (isUser(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['credits', 'lifetimeCreditsEarned', 'lifetimeCreditsSpent', 'lifetimeCreditsGifted', 'lifetimeCreditsReceived', 'pilotProgramId', 'pilotExpiresAt'])) 
                     || isAdmin()
-                    || (isCommissioner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['teamIds', 'updatedAt']));
+                    || (isCommissioner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['teamIds', 'updatedAt']))
+                    || (isCoach() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['teamIds', 'teamId', 'updatedAt']));
       
       // Only SuperAdmin can delete users
       allow delete: if isAdmin();
@@ -899,12 +1017,12 @@ service cloud.firestore {
       match /players/{playerId} {
         // Allow public read for public athlete profiles
         allow read: if true;
-        allow write: if isTeamCoach(teamId) || isTeamOwner(teamId) || isAdmin();
+        allow write: if isTeamCoach(teamId) || isTeamOwner(teamId) || isCommissioner() || isAdmin();
         
         // Player's film room (public for athlete profile viewing)
         match /filmRoom/{filmId} {
           allow read: if true;
-          allow write: if isTeamCoach(teamId) || isTeamOwner(teamId) || isAdmin();
+          allow write: if isTeamCoach(teamId) || isTeamOwner(teamId) || isCommissioner() || isAdmin();
         }
         
         // Player's followers (fans)
@@ -1400,6 +1518,18 @@ service cloud.firestore {
         // Only admin can delete
         allow delete: if isAdmin();
       }
+    }
+    
+    // Admin Activity Log - for tracking important actions
+    match /adminActivityLog/{logId} {
+      // Only admins can read logs
+      allow read: if isAdmin();
+      
+      // Any coach, commissioner, or admin can create log entries
+      allow create: if isAuthenticated() && (isCoach() || isCommissioner() || isAdmin());
+      
+      // No updates or deletes (logs are immutable)
+      allow update, delete: if false;
     }
   }
 }

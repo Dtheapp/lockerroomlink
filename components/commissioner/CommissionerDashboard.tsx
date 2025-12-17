@@ -17,7 +17,7 @@ import {
 } from '../../services/leagueService';
 import { collection, query, where, getDocs, onSnapshot, doc, addDoc, setDoc, getDoc, serverTimestamp, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import type { Team, Grievance, Program, UserProfile } from '../../types';
+import type { Team, Grievance, Program, UserProfile, ProgramSeason } from '../../types';
 import { 
   Users, 
   Shield, 
@@ -47,6 +47,7 @@ import {
 import { RulesModal } from '../RulesModal';
 import { AgeGroupSelector } from '../AgeGroupSelector';
 import { StateSelector, isValidUSState } from '../StateSelector';
+import { toastError } from '../../services/toast';
 
 export const CommissionerDashboard: React.FC = () => {
   const { user, userData, programData, leagueData } = useAuth();
@@ -58,6 +59,61 @@ export const CommissionerDashboard: React.FC = () => {
   const [grievances, setGrievances] = useState<Grievance[]>([]);
   const [coachRequests, setCoachRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seasons, setSeasons] = useState<ProgramSeason[]>([]);
+  
+  // Sport selector - persisted to localStorage
+  const [selectedSport, setSelectedSport] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('commissioner_selected_sport') || '';
+    }
+    return '';
+  });
+  
+  // Get available sports from program
+  const availableSports = programData?.sportsOffered?.map((s: any) => s.sport) 
+    || programData?.sportConfigs?.map((s: any) => s.sport)
+    || (programData?.sport ? [programData.sport] : [])
+    || [];
+  
+  // Auto-select first sport if none selected
+  useEffect(() => {
+    if (!selectedSport && availableSports.length > 0) {
+      const firstSport = availableSports[0];
+      setSelectedSport(firstSport);
+      localStorage.setItem('commissioner_selected_sport', firstSport);
+    }
+  }, [availableSports, selectedSport]);
+  
+  // Listen for sport changes from sidebar selector
+  useEffect(() => {
+    const handleSportChange = (e: CustomEvent) => {
+      setSelectedSport(e.detail);
+    };
+    window.addEventListener('commissioner-sport-changed', handleSportChange as EventListener);
+    return () => {
+      window.removeEventListener('commissioner-sport-changed', handleSportChange as EventListener);
+    };
+  }, []);
+  
+  // Handle sport change
+  const handleSportChange = (sport: string) => {
+    setSelectedSport(sport);
+    localStorage.setItem('commissioner_selected_sport', sport);
+  };
+  
+  // Filter teams by selected sport
+  const filteredTeams = selectedSport 
+    ? teams.filter(t => t.sport?.toLowerCase() === selectedSport.toLowerCase())
+    : teams;
+  
+  // Filter seasons by selected sport
+  const filteredSeasons = selectedSport
+    ? seasons.filter(s => 
+        s.sportsOffered?.some((so: any) => so.sport?.toLowerCase() === selectedSport.toLowerCase()) ||
+        (s as any).sport?.toLowerCase() === selectedSport.toLowerCase()
+      )
+    : seasons;
+  
   const [stats, setStats] = useState({
     totalTeams: 0,
     totalPlayers: 0,
@@ -112,14 +168,27 @@ export const CommissionerDashboard: React.FC = () => {
   const [deletingTeam, setDeletingTeam] = useState<Team | null>(null);
   const [deleting, setDeleting] = useState(false);
   
+  // Delete program confirmation
+  const [showDeleteProgramConfirm, setShowDeleteProgramConfirm] = useState(false);
+  const [deletingProgram, setDeletingProgram] = useState(false);
+  
+  // Delete season confirmation
+  const [deleteSeasonConfirm, setDeleteSeasonConfirm] = useState<ProgramSeason | null>(null);
+  const [deletingSeason, setDeletingSeason] = useState(false);
+  
   // Get commissioner type from userData
-  // Check role first (TeamCommissioner/LeagueCommissioner), then fall back to commissionerType field
+  // Check role first (TeamCommissioner/LeagueCommissioner/ProgramCommissioner), then fall back to commissionerType field
   const isTeamCommissioner = userData?.role === 'TeamCommissioner' || 
+                              userData?.role === 'ProgramCommissioner' ||
+                              userData?.role === 'Commissioner' ||
                               (userData?.commissionerType === 'team') ||
                               (!userData?.commissionerType && !['LeagueCommissioner', 'LeagueOwner'].includes(userData?.role || ''));
   const isLeagueCommissioner = userData?.role === 'LeagueCommissioner' || 
                                 userData?.role === 'LeagueOwner' ||
                                 userData?.commissionerType === 'league';
+  
+  // Check if user has a program
+  const hasProgram = !!programData || !!userData?.programId;
 
   useEffect(() => {
     if (!userData) {
@@ -127,92 +196,119 @@ export const CommissionerDashboard: React.FC = () => {
       return;
     }
 
-    const loadDashboardData = async () => {
-      try {
-        if (isTeamCommissioner) {
-          // Load teams owned by this commissioner
-          const teamsQuery = query(
-            collection(db, 'teams'),
-            where('ownerId', '==', user?.uid)
-          );
-          const teamsSnap = await getDocs(teamsQuery);
-          const teamsData = teamsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
-          setTeams(teamsData);
-          
-          // Calculate player count
-          let totalPlayers = 0;
-          for (const team of teamsData) {
-            const playersSnap = await getDocs(collection(db, 'teams', team.id!, 'players'));
-            totalPlayers += playersSnap.size;
-          }
-          
-          setStats(prev => ({
-            ...prev,
-            totalTeams: teamsData.length,
-            totalPlayers,
-          }));
-        } else {
-          // League commissioner - load leagues owned by this commissioner
-          const leaguesQuery = query(
-            collection(db, 'leagues'),
-            where('ownerId', '==', user?.uid)
-          );
-          const leaguesSnap = await getDocs(leaguesQuery);
-          const leaguesData = leaguesSnap.docs.map(doc => {
-            const data = doc.data();
-            return { 
-              id: doc.id, 
-              name: data.name || 'Unnamed League',
-              sport: data.sport,
-              teamIds: data.teamIds || []
-            };
-          });
-          setLeagues(leaguesData);
-          
-          // Get total teams across all leagues
-          let totalTeams = 0;
-          let totalPlayers = 0;
-          for (const league of leaguesData) {
-            const leagueTeamIds = league.teamIds || [];
-            totalTeams += leagueTeamIds.length;
-            
-            for (const teamId of leagueTeamIds) {
-              const playersSnap = await getDocs(collection(db, 'teams', teamId, 'players'));
-              totalPlayers += playersSnap.size;
-            }
-          }
-          
-          setStats(prev => ({
-            ...prev,
-            totalLeagues: leaguesData.length,
-            totalTeams,
-            totalPlayers,
-          }));
+    // Use real-time listeners for instant updates
+    const unsubscribers: (() => void)[] = [];
+
+    if (isTeamCommissioner) {
+      // Real-time listener for teams owned by this commissioner
+      const teamsQuery = query(
+        collection(db, 'teams'),
+        where('ownerId', '==', user?.uid)
+      );
+      
+      const unsubscribeTeams = onSnapshot(teamsQuery, async (snapshot) => {
+        const teamsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
+        setTeams(teamsData);
+        
+        // Calculate player count
+        let totalPlayers = 0;
+        for (const team of teamsData) {
+          const playersSnap = await getDocs(collection(db, 'teams', team.id!, 'players'));
+          totalPlayers += playersSnap.size;
         }
         
-      } catch (error) {
-        console.error('Error loading dashboard data:', error);
-      } finally {
+        setStats(prev => ({
+          ...prev,
+          totalTeams: teamsData.length,
+          totalPlayers,
+        }));
         setLoading(false);
-      }
-    };
+      }, (error) => {
+        console.error('Error loading teams:', error);
+        setLoading(false);
+      });
+      
+      unsubscribers.push(unsubscribeTeams);
+    } else {
+      // League commissioner - real-time listener for leagues
+      const leaguesQuery = query(
+        collection(db, 'leagues'),
+        where('ownerId', '==', user?.uid)
+      );
+      
+      const unsubscribeLeagues = onSnapshot(leaguesQuery, async (snapshot) => {
+        const leaguesData = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return { 
+            id: doc.id, 
+            name: data.name || 'Unnamed League',
+            sport: data.sport,
+            teamIds: data.teamIds || []
+          };
+        });
+        setLeagues(leaguesData);
+        
+        // Get total teams across all leagues
+        let totalTeams = 0;
+        let totalPlayers = 0;
+        for (const league of leaguesData) {
+          const leagueTeamIds = league.teamIds || [];
+          totalTeams += leagueTeamIds.length;
+          
+          for (const teamId of leagueTeamIds) {
+            const playersSnap = await getDocs(collection(db, 'teams', teamId, 'players'));
+            totalPlayers += playersSnap.size;
+          }
+        }
+        
+        setStats(prev => ({
+          ...prev,
+          totalLeagues: leaguesData.length,
+          totalTeams,
+          totalPlayers,
+        }));
+        setLoading(false);
+      }, (error) => {
+        console.error('Error loading leagues:', error);
+        setLoading(false);
+      });
+      
+      unsubscribers.push(unsubscribeLeagues);
+    }
 
-    loadDashboardData();
+    // Cleanup all listeners
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
+    };
   }, [userData, user?.uid, isTeamCommissioner]);
+
+  // Real-time listener for seasons
+  useEffect(() => {
+    const programId = programData?.id || userData?.programId;
+    if (!programId) {
+      setSeasons([]);
+      return;
+    }
+
+    const seasonsRef = collection(db, 'programs', programId, 'seasons');
+    const q = query(seasonsRef);
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const seasonsData = snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      } as ProgramSeason));
+      setSeasons(seasonsData);
+    }, (error) => {
+      console.error('Error loading seasons:', error);
+    });
+
+    return () => unsubscribe();
+  }, [programData?.id, userData?.programId]);
 
   const handleCreate = async () => {
     if (!createName.trim()) {
       setCreateError('Name is required');
-      return;
-    }
-    
-    // Validate city/state
-    if (!createCity.trim()) {
-      setCreateError('City is required');
-      return;
-    }
-    if (!createState.trim()) {
-      setCreateError('State is required');
       return;
     }
     
@@ -229,6 +325,18 @@ export const CommissionerDashboard: React.FC = () => {
         setCreateError('Please select an age group');
         return;
       }
+    }
+    
+    // Get sport from sidebar selection
+    const currentSport = selectedSport || localStorage.getItem('commissioner_selected_sport') || 'Football';
+    
+    // Get city/state from program or fallback to form
+    const teamCity = programData?.city || createCity || '';
+    const teamState = programData?.state || createState || '';
+    
+    if (!teamCity || !teamState) {
+      setCreateError('Program city/state not set. Please update your program first.');
+      return;
     }
     
     setCreating(true);
@@ -252,20 +360,32 @@ export const CommissionerDashboard: React.FC = () => {
         const primaryAgeGroup = Array.isArray(createAgeGroup) ? createAgeGroup[0] : createAgeGroup;
         const ageGroupsArray = Array.isArray(createAgeGroup) ? createAgeGroup : [createAgeGroup];
         
-        // Team data
-        const teamData = {
+        // Team data - include programId if commissioner has a program
+        const teamData: any = {
           name: createName.trim(),
-          sport: createSport,
+          sport: currentSport,
           ageGroup: primaryAgeGroup,
           ageGroups: ageGroupsArray,
           ageGroupType: createAgeGroupType,
-          city: createCity,
-          state: createState,
+          city: teamCity,
+          state: teamState,
+          location: {
+            city: teamCity,
+            state: teamState,
+          },
           ownerId: user?.uid,
           ownerName: userData?.name,
-          color: '#f97316',
+          color: programData?.primaryColor || '#f97316',
+          primaryColor: programData?.primaryColor || '#f97316',
+          secondaryColor: programData?.secondaryColor || '#1e293b',
           createdAt: serverTimestamp(),
         };
+        
+        // Link to program if exists
+        if (programData?.id || userData?.programId) {
+          teamData.programId = programData?.id || userData?.programId;
+          teamData.programName = programData?.name || '';
+        }
         
         // Create team with custom ID or auto-generated ID
         let teamId: string;
@@ -280,9 +400,9 @@ export const CommissionerDashboard: React.FC = () => {
         setTeams(prev => [...prev, { 
           id: teamId, 
           name: createName.trim(),
-          sport: createSport as any,
+          sport: currentSport as any,
           coachId: null,
-          location: { city: createCity, state: createState },
+          location: { city: teamCity, state: teamState },
         } as Team]);
         
         setStats(prev => ({ ...prev, totalTeams: prev.totalTeams + 1 }));
@@ -290,9 +410,9 @@ export const CommissionerDashboard: React.FC = () => {
         // Create a new league
         const leagueRef = await addDoc(collection(db, 'leagues'), {
           name: createName.trim(),
-          sport: createSport,
-          city: createCity,
-          state: createState,
+          sport: currentSport,
+          city: teamCity,
+          state: teamState,
           ownerId: user?.uid,
           ownerName: userData?.name,
           teamIds: [],
@@ -303,7 +423,7 @@ export const CommissionerDashboard: React.FC = () => {
         setLeagues(prev => [...prev, { 
           id: leagueRef.id, 
           name: createName.trim(),
-          sport: createSport,
+          sport: currentSport,
         }]);
         
         setStats(prev => ({ ...prev, totalLeagues: prev.totalLeagues + 1 }));
@@ -403,14 +523,6 @@ export const CommissionerDashboard: React.FC = () => {
       setEditError('Team name is required');
       return;
     }
-    if (!editCity.trim()) {
-      setEditError('City is required');
-      return;
-    }
-    if (!editState.trim()) {
-      setEditError('State is required');
-      return;
-    }
     
     const hasAgeGroup = Array.isArray(editAgeGroup) ? editAgeGroup.length > 0 : !!editAgeGroup;
     if (!hasAgeGroup) {
@@ -439,55 +551,14 @@ export const CommissionerDashboard: React.FC = () => {
       const primaryAgeGroup = Array.isArray(editAgeGroup) ? editAgeGroup[0] : editAgeGroup;
       const ageGroupsArray = Array.isArray(editAgeGroup) ? editAgeGroup : [editAgeGroup];
       
+      // Only update name, teamId, and ageGroup - other fields stay from program
       const updateData: Record<string, any> = {
         name: editName.trim(),
-        sport: editSport,
         ageGroup: primaryAgeGroup,
         ageGroups: ageGroupsArray,
         ageGroupType: editAgeGroupType,
-        city: editCity.trim(),
-        state: editState.trim(),
-        location: { city: editCity.trim(), state: editState.trim() },
-        color: editPrimaryColor,
-        primaryColor: editPrimaryColor,
-        secondaryColor: editSecondaryColor,
-        isCheerTeam: editIsCheerTeam,
-        maxRosterSize: editMaxRosterSize,
         updatedAt: serverTimestamp(),
       };
-      
-      // Only update linkedCheerTeamId for non-cheer teams
-      if (!editIsCheerTeam) {
-        updateData.linkedCheerTeamId = editLinkedCheerTeamId || null;
-      }
-      
-      // For cheer teams - update linked sport team
-      if (editIsCheerTeam) {
-        updateData.linkedToTeamId = editLinkedToTeamId || null;
-        updateData.linkedToTeamName = editLinkedToTeamName || null;
-        
-        // Update the sport team with bi-directional link
-        if (editLinkedToTeamId && editLinkedToTeamId !== editingTeam?.linkedToTeamId) {
-          // Remove link from old sport team if existed
-          if (editingTeam?.linkedToTeamId) {
-            await updateDoc(doc(db, 'teams', editingTeam.linkedToTeamId), {
-              linkedCheerTeamId: null,
-              updatedAt: serverTimestamp()
-            });
-          }
-          // Add link to new sport team
-          await updateDoc(doc(db, 'teams', editLinkedToTeamId), {
-            linkedCheerTeamId: editingTeam?.id,
-            updatedAt: serverTimestamp()
-          });
-        } else if (!editLinkedToTeamId && editingTeam?.linkedToTeamId) {
-          // Removed link - clear from old sport team
-          await updateDoc(doc(db, 'teams', editingTeam.linkedToTeamId), {
-            linkedCheerTeamId: null,
-            updatedAt: serverTimestamp()
-          });
-        }
-      }
       
       if (teamIdChanged) {
         // Create new document with new ID, copy all data
@@ -609,6 +680,100 @@ export const CommissionerDashboard: React.FC = () => {
     }
   };
 
+  // Delete program handler
+  const handleDeleteProgram = async () => {
+    const programIdToDelete = programData?.id || userData?.programId;
+    if (!programIdToDelete) return;
+    
+    setDeletingProgram(true);
+    
+    try {
+      const batch = writeBatch(db);
+      
+      // Delete all seasons under this program
+      const seasonsSnap = await getDocs(collection(db, 'programs', programIdToDelete, 'seasons'));
+      for (const seasonDoc of seasonsSnap.docs) {
+        // Delete all pools under each season
+        const poolsSnap = await getDocs(collection(db, 'programs', programIdToDelete, 'seasons', seasonDoc.id, 'pools'));
+        for (const poolDoc of poolsSnap.docs) {
+          // Delete all players in pool
+          const playersSnap = await getDocs(collection(db, 'programs', programIdToDelete, 'seasons', seasonDoc.id, 'pools', poolDoc.id, 'players'));
+          for (const playerDoc of playersSnap.docs) {
+            batch.delete(playerDoc.ref);
+          }
+          batch.delete(poolDoc.ref);
+        }
+        batch.delete(seasonDoc.ref);
+      }
+      
+      // Delete the program document itself
+      batch.delete(doc(db, 'programs', programIdToDelete));
+      
+      // Remove programId from user profile
+      if (user?.uid) {
+        batch.update(doc(db, 'users', user.uid), {
+          programId: null,
+          role: 'Commissioner', // Reset role back to Commissioner
+          updatedAt: serverTimestamp()
+        });
+      }
+      
+      await batch.commit();
+      
+      setShowDeleteProgramConfirm(false);
+      
+      // Redirect to fresh start
+      window.location.reload();
+    } catch (err: any) {
+      console.error('Error deleting program:', err);
+      alert('Failed to delete program: ' + err.message);
+    } finally {
+      setDeletingProgram(false);
+    }
+  };
+
+  // Handle delete season
+  const handleDeleteSeason = async () => {
+    if (!deleteSeasonConfirm) return;
+    
+    const programId = programData?.id || userData?.programId;
+    if (!programId) return;
+    
+    setDeletingSeason(true);
+    
+    try {
+      const batch = writeBatch(db);
+      const seasonId = deleteSeasonConfirm.id;
+      
+      // Delete all pools under this season
+      const poolsSnap = await getDocs(collection(db, 'programs', programId, 'seasons', seasonId, 'pools'));
+      for (const poolDoc of poolsSnap.docs) {
+        // Delete all players in pool
+        const playersSnap = await getDocs(collection(db, 'programs', programId, 'seasons', seasonId, 'pools', poolDoc.id, 'players'));
+        for (const playerDoc of playersSnap.docs) {
+          batch.delete(playerDoc.ref);
+        }
+        batch.delete(poolDoc.ref);
+      }
+      
+      // Delete the season document
+      batch.delete(doc(db, 'programs', programId, 'seasons', seasonId));
+      
+      await batch.commit();
+      
+      // Remove from local state
+      setSeasons(prev => prev.filter(s => s.id !== seasonId));
+      setDeleteSeasonConfirm(null);
+      
+      console.log('✅ Season deleted:', seasonId);
+    } catch (err: any) {
+      console.error('Error deleting season:', err);
+      alert('Failed to delete season: ' + err.message);
+    } finally {
+      setDeletingSeason(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-gray-900' : 'bg-slate-100'}`}>
@@ -655,25 +820,50 @@ export const CommissionerDashboard: React.FC = () => {
                 )}
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-bold text-white">
-                    {isLeagueCommissioner ? 'League Commissioner' : 'Team Commissioner'}
-                  </h1>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium bg-white/20 text-white border border-white/30`}>
-                    {isLeagueCommissioner ? '🏆 League' : '🏈 Team'}
-                  </span>
-                </div>
+                <h1 className="text-2xl font-bold text-white">
+                  {isLeagueCommissioner ? 'League Commissioner' : 'Team Commissioner'}
+                </h1>
                 <p className="text-white/80 text-sm">
                   {userData?.name} • {isLeagueCommissioner ? 'Manage leagues and tournaments' : 'Manage teams and rosters'}
                 </p>
               </div>
             </div>
-            <Link
-              to="/profile"
-              className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-            >
-              <Settings className="w-5 h-5 text-white" />
-            </Link>
+            
+            {/* Sport Badge - Always visible on right */}
+            <div className="flex items-center gap-3">
+              {/* Sport Badge with Icon */}
+              {(() => {
+                const sport = selectedSport || localStorage.getItem('commissioner_selected_sport') || 'Football';
+                const sportEmoji: Record<string, string> = {
+                  'Football': '🏈',
+                  'Basketball': '🏀',
+                  'Soccer': '⚽',
+                  'Baseball': '⚾',
+                  'Softball': '🥎',
+                  'Volleyball': '🏐',
+                  'Cheer': '📣',
+                  'Track': '🏃',
+                  'Wrestling': '🤼',
+                  'Hockey': '🏒',
+                  'Lacrosse': '🥍',
+                  'Tennis': '🎾',
+                  'Golf': '⛳',
+                  'Swimming': '🏊',
+                };
+                return (
+                  <div className="flex items-center gap-2 bg-white/20 px-3 py-2 rounded-lg border border-white/30">
+                    <span className="text-lg">{sportEmoji[sport] || '🏆'}</span>
+                    <span className="text-white font-medium text-sm">{sport}</span>
+                  </div>
+                );
+              })()}
+              <Link
+                to="/profile"
+                className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+              >
+                <Settings className="w-5 h-5 text-white" />
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -681,7 +871,7 @@ export const CommissionerDashboard: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         
         {/* Hero Alert: No Teams Yet */}
-        {isTeamCommissioner && teams.length === 0 && (
+        {isTeamCommissioner && teams.length === 0 && !hasProgram && (
           <div className="relative overflow-hidden bg-gradient-to-br from-orange-600 via-orange-500 to-amber-500 rounded-2xl p-8 text-white shadow-2xl">
             {/* Decorative elements */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
@@ -699,20 +889,20 @@ export const CommissionerDashboard: React.FC = () => {
                   🎉 Welcome to OSYS, Commissioner!
                 </h2>
                 <p className="text-white/90 text-lg mb-1">
-                  You're ready to build your program. Let's create your first team!
+                  You're ready to build your program. Let's set it up!
                 </p>
                 <p className="text-white/70 text-sm">
-                  Set up your team with name, sport, age group, and colors. Then add coaches and players.
+                  Configure your sports and age groups. Then open registration and create teams from your player pool.
                 </p>
               </div>
               
               <div className="flex-shrink-0">
                 <button
-                  onClick={() => navigate('/commissioner/teams/create')}
+                  onClick={() => navigate('/commissioner/program-setup')}
                   className="px-6 py-3 bg-white text-orange-600 font-bold rounded-xl hover:bg-orange-50 transition-all shadow-lg hover:shadow-xl hover:scale-105 flex items-center gap-2"
                 >
-                  <Plus className="w-5 h-5" />
-                  Create Your First Team
+                  <Building2 className="w-5 h-5" />
+                  Setup Your Program
                 </button>
               </div>
             </div>
@@ -784,39 +974,101 @@ export const CommissionerDashboard: React.FC = () => {
             </>
           ) : (
             <>
-              <div className={`rounded-xl p-4 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-slate-200'}`}>
+              {/* Teams - Clickable (redirect to age groups if none) */}
+              <button
+                onClick={() => {
+                  const ageGroupCount = (programData as any)?.ageGroups?.length || 0;
+                  if (!hasProgram) {
+                    toastError('Set up your program first');
+                    navigate('/commissioner/program-setup');
+                  } else if (ageGroupCount === 0) {
+                    toastError('Create age groups first');
+                    navigate('/commissioner/age-groups');
+                  } else {
+                    navigate('/commissioner/teams');
+                  }
+                }}
+                className={`rounded-xl p-4 text-left transition-all hover:scale-[1.02] ${
+                  theme === 'dark' 
+                    ? 'bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-orange-500/50' 
+                    : 'bg-white border border-slate-200 hover:border-orange-400 hover:shadow-lg'
+                }`}
+              >
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center">
                     <Trophy className="w-5 h-5 text-orange-400" />
                   </div>
-                  <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>Teams</span>
+                  <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                    Teams
+                  </span>
                 </div>
-                <p className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{stats.totalTeams}</p>
-              </div>
+                <p className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  {filteredTeams.length}
+                </p>
+                <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-500'}`}>
+                  Click to manage →
+                </p>
+              </button>
               
-              <div className={`rounded-xl p-4 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-slate-200'}`}>
+              {/* Age Groups - Clickable */}
+              <button
+                onClick={() => navigate('/commissioner/age-groups')}
+                className={`rounded-xl p-4 text-left transition-all hover:scale-[1.02] ${
+                  theme === 'dark' 
+                    ? 'bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-purple-500/50' 
+                    : 'bg-white border border-slate-200 hover:border-purple-400 hover:shadow-lg'
+                }`}
+              >
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
-                    <Activity className="w-5 h-5 text-green-400" />
+                  <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                    <Layers className="w-5 h-5 text-purple-400" />
                   </div>
-                  <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>Players</span>
+                  <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                    Age Groups
+                  </span>
                 </div>
-                <p className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{stats.totalPlayers}</p>
-              </div>
+                <p className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  {(programData as any)?.ageGroups?.length || 0}
+                </p>
+                <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-500'}`}>
+                  Click to manage →
+                </p>
+              </button>
             </>
           )}
           
-          <div className={`rounded-xl p-4 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-slate-200'}`}>
+          {/* Seasons */}
+          <button
+            onClick={() => navigate(`/commissioner/season-setup/${programData?.id || userData?.programId}`)}
+            className={`rounded-xl p-4 text-left transition-all hover:scale-[1.02] ${
+              theme === 'dark' 
+                ? 'bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-blue-500/50' 
+                : 'bg-white border border-slate-200 hover:border-blue-400 hover:shadow-lg'
+            }`}
+          >
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
-                <Activity className="w-5 h-5 text-green-400" />
+              <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-blue-400" />
               </div>
-              <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>Players</span>
+              <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>Seasons</span>
             </div>
-            <p className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{stats.totalPlayers}</p>
-          </div>
+            <p className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+              {filteredSeasons.length}
+            </p>
+            <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-500'}`}>
+              Click to manage →
+            </p>
+          </button>
           
-          <div className={`rounded-xl p-4 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-slate-200'}`}>
+          {/* Grievances */}
+          <Link
+            to="/commissioner/grievances"
+            className={`rounded-xl p-4 text-left transition-all hover:scale-[1.02] ${
+              theme === 'dark' 
+                ? 'bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-yellow-500/50' 
+                : 'bg-white border border-slate-200 hover:border-yellow-400 hover:shadow-lg'
+            }`}
+          >
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 bg-yellow-500/20 rounded-lg flex items-center justify-center">
                 <AlertTriangle className="w-5 h-5 text-yellow-400" />
@@ -824,86 +1076,90 @@ export const CommissionerDashboard: React.FC = () => {
               <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>Grievances</span>
             </div>
             <p className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{stats.activeGrievances}</p>
+          </Link>
+        </div>
+
+        {/* No Program Yet - Setup Prompt */}
+        {!hasProgram && isTeamCommissioner && (
+          <div className={`rounded-xl p-6 ${
+            theme === 'dark' ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-slate-200'
+          }`}>
+            <div className="text-center">
+              <Building2 className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-slate-400'}`} />
+              <p className={`mb-2 font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>No program yet</p>
+              <p className={`mb-4 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                Set up your program to start creating age groups and teams.
+              </p>
+              <button
+                onClick={() => navigate('/commissioner/program-setup')}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+              >
+                <Building2 className="w-4 h-4" />
+                Setup Your Program
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <button
-            onClick={() => isLeagueCommissioner ? setShowCreateModal(true) : navigate('/commissioner/teams/create')}
-            className={`rounded-xl p-4 flex flex-col items-center gap-2 transition-all group ${
-              theme === 'dark' 
-                ? `bg-gray-800 hover:bg-gray-750 border border-gray-700 ${isLeagueCommissioner ? 'hover:border-purple-500/50' : 'hover:border-orange-500/50'}`
-                : `bg-white hover:bg-slate-50 border border-slate-200 ${isLeagueCommissioner ? 'hover:border-purple-400' : 'hover:border-orange-400'}`
-            }`}
-          >
-            <div className={`w-12 h-12 ${isLeagueCommissioner ? 'bg-purple-500/20 group-hover:bg-purple-500/30' : 'bg-orange-500/20 group-hover:bg-orange-500/30'} rounded-xl flex items-center justify-center transition-colors`}>
-              <Plus className={`w-6 h-6 ${isLeagueCommissioner ? 'text-purple-400' : 'text-orange-400'}`} />
-            </div>
-            <span className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-              {isLeagueCommissioner ? 'Create League' : 'Create Team'}
-            </span>
-          </button>
-          
-          <Link
-            to={isLeagueCommissioner ? "/commissioner/leagues" : "/commissioner/teams"}
-            className={`rounded-xl p-4 flex flex-col items-center gap-2 transition-all group ${
-              theme === 'dark' 
-                ? 'bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-blue-500/50'
-                : 'bg-white hover:bg-slate-50 border border-slate-200 hover:border-blue-400'
-            }`}
-          >
-            <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center group-hover:bg-blue-500/30 transition-colors">
-              {isLeagueCommissioner ? (
-                <Layers className="w-6 h-6 text-blue-400" />
+        {/* Program Name Banner (if has program) */}
+        {hasProgram && programData && (
+          <div className={`rounded-xl p-4 flex items-center justify-between ${
+            theme === 'dark' ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-slate-200'
+          }`}>
+            <div className="flex items-center gap-3">
+              {/* Logo or Initial */}
+              {(programData as any).logoUrl ? (
+                <img 
+                  src={(programData as any).logoUrl} 
+                  alt={programData.name || 'Logo'}
+                  className="w-12 h-12 rounded-xl object-cover"
+                />
               ) : (
-                <Users className="w-6 h-6 text-blue-400" />
+                <div 
+                  className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-xl font-bold"
+                  style={{ 
+                    background: programData.primaryColor && programData.secondaryColor
+                      ? `linear-gradient(135deg, ${programData.primaryColor}, ${programData.secondaryColor})`
+                      : 'linear-gradient(135deg, #7c3aed, #ec4899)'
+                  }}
+                >
+                  {programData.name?.charAt(0) || 'P'}
+                </div>
               )}
+              <div>
+                <h3 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  {programData.name}
+                </h3>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                  {programData.city}, {programData.state}
+                </p>
+              </div>
             </div>
-            <span className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-              {isLeagueCommissioner ? 'Manage Leagues' : 'Manage Teams'}
-            </span>
-          </Link>
-          
-          <Link
-            to="/commissioner/grievances"
-            className={`rounded-xl p-4 flex flex-col items-center gap-2 transition-all group relative ${
-              theme === 'dark' 
-                ? 'bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-yellow-500/50'
-                : 'bg-white hover:bg-slate-50 border border-slate-200 hover:border-yellow-400'
-            }`}
-          >
-            <div className="w-12 h-12 bg-yellow-500/20 rounded-xl flex items-center justify-center group-hover:bg-yellow-500/30 transition-colors">
-              <AlertTriangle className="w-6 h-6 text-yellow-400" />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate(`/commissioner/program-setup/${programData?.id || userData?.programId}?mode=info`)}
+                className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'text-gray-400 hover:text-blue-400 hover:bg-blue-500/10' : 'text-slate-400 hover:text-blue-500 hover:bg-blue-50'}`}
+                title="Edit Program"
+              >
+                <Edit2 className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setShowDeleteProgramConfirm(true)}
+                className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'text-gray-400 hover:text-red-400 hover:bg-red-500/10' : 'text-slate-400 hover:text-red-500 hover:bg-red-50'}`}
+                title="Delete Program"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
             </div>
-            <span className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Grievances</span>
-            {pendingGrievances.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                {pendingGrievances.length}
-              </span>
-            )}
-          </Link>
-          
-          <Link
-            to="/commissioner/schedule"
-            className={`rounded-xl p-4 flex flex-col items-center gap-2 transition-all group ${
-              theme === 'dark' 
-                ? 'bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-green-500/50'
-                : 'bg-white hover:bg-slate-50 border border-slate-200 hover:border-green-400'
-            }`}
-          >
-            <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center group-hover:bg-green-500/30 transition-colors">
-              <Calendar className="w-6 h-6 text-green-400" />
-            </div>
-            <span className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Schedule</span>
-          </Link>
-        </div>
+          </div>
+        )}
 
-        {/* Teams or Leagues List */}
+        {/* Teams or Leagues List - Only show if program exists for team commissioners */}
+        {(isLeagueCommissioner || hasProgram) && (
         <div className={`rounded-xl overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-slate-200'}`}>
           <div className={`px-4 py-3 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-slate-200'}`}>
             <h2 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-              {isLeagueCommissioner ? 'Your Leagues' : 'Your Teams'}
+              {isLeagueCommissioner ? 'Your Leagues' : 'Season Manager'}
             </h2>
             <Link
               to={isLeagueCommissioner ? "/commissioner/leagues" : "/commissioner/teams"}
@@ -950,23 +1206,58 @@ export const CommissionerDashboard: React.FC = () => {
               </div>
             )
           ) : (
-            // Team Commissioner - show teams
-            teams.length === 0 ? (
+            // Team Commissioner - show teams list (simplified)
+            !hasProgram ? (
+              // No program set up yet
               <div className="p-8 text-center">
-                <Users className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-slate-400'}`} />
-                <p className={`mb-2 font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>🎉 Create your first team for FREE!</p>
-                <p className={`mb-4 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>Get started by creating your first team - it's on us.</p>
+                <Building2 className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-slate-400'}`} />
+                <p className={`mb-2 font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>Setup your program first</p>
+                <p className={`mb-4 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                  Create your program to start managing teams and seasons.
+                </p>
                 <button
-                  onClick={() => navigate('/commissioner/teams/create')}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                  onClick={() => navigate('/commissioner/program-setup')}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                >
+                  <Building2 className="w-4 h-4" />
+                  Setup Your Program
+                </button>
+              </div>
+            ) : ((programData as any)?.ageGroups?.length || 0) === 0 ? (
+              // No age groups yet
+              <div className="p-8 text-center">
+                <Layers className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-slate-400'}`} />
+                <p className={`mb-2 font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>No age groups yet</p>
+                <p className={`mb-4 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                  Create age groups first, then create teams and assign age groups to each team.
+                </p>
+                <button
+                  onClick={() => navigate('/commissioner/age-groups')}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                >
+                  <Layers className="w-4 h-4" />
+                  Create Age Groups
+                </button>
+              </div>
+            ) : filteredTeams.length === 0 ? (
+              // Has age groups but no teams
+              <div className="p-8 text-center">
+                <Trophy className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-slate-400'}`} />
+                <p className={`mb-2 font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>No teams yet</p>
+                <p className={`mb-4 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                  You have {(programData as any)?.ageGroups?.length || 0} age group(s). Now create teams and assign them to age groups.
+                </p>
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
                 >
                   <Plus className="w-4 h-4" />
-                  Create First Team Free
+                  Create Team
                 </button>
               </div>
             ) : (
               <div className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-slate-200'}`}>
-                {teams.slice(0, 5).map((team) => (
+                {filteredTeams.slice(0, 5).map((team) => (
                   <div
                     key={team.id}
                     className={`flex items-center justify-between px-4 py-3 transition-colors ${theme === 'dark' ? 'hover:bg-gray-750' : 'hover:bg-slate-50'}`}
@@ -1010,11 +1301,20 @@ export const CommissionerDashboard: React.FC = () => {
             )
           )}
         </div>
+        )}
 
         {/* Getting Started Tips */}
         {((isLeagueCommissioner && leagues.length === 0) || (isTeamCommissioner && teams.length === 0)) && (
-          <div className={`${isLeagueCommissioner ? 'bg-purple-500/10 border-purple-500/20' : 'bg-orange-500/10 border-orange-500/20'} border rounded-xl p-6`}>
-            <h3 className={`font-bold ${isLeagueCommissioner ? 'text-purple-300' : 'text-orange-300'} mb-4 flex items-center gap-2`}>
+          <div className={`border rounded-xl p-6 ${
+            theme === 'dark' 
+              ? isLeagueCommissioner ? 'bg-purple-500/10 border-purple-500/20' : 'bg-orange-500/10 border-orange-500/20'
+              : isLeagueCommissioner ? 'bg-purple-50 border-purple-200' : 'bg-orange-50 border-orange-200'
+          }`}>
+            <h3 className={`font-bold mb-4 flex items-center gap-2 ${
+              theme === 'dark'
+                ? isLeagueCommissioner ? 'text-purple-300' : 'text-orange-300'
+                : isLeagueCommissioner ? 'text-purple-700' : 'text-orange-700'
+            }`}>
               <Target className="w-5 h-5" />
               Getting Started
             </h3>
@@ -1022,48 +1322,48 @@ export const CommissionerDashboard: React.FC = () => {
               {isLeagueCommissioner ? (
                 <>
                   <div className="flex items-start gap-3">
-                    <span className="w-6 h-6 bg-purple-500/20 rounded-full flex items-center justify-center text-purple-300 text-sm font-bold">1</span>
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold ${theme === 'dark' ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>1</span>
                     <div>
-                      <p className="text-white font-medium">Create Your First League</p>
-                      <p className="text-sm text-gray-400">Set up your league with name, sport, and location</p>
+                      <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Create Your First League</p>
+                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>Set up your league with name, sport, and location</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <span className="w-6 h-6 bg-purple-500/20 rounded-full flex items-center justify-center text-purple-300 text-sm font-bold">2</span>
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold ${theme === 'dark' ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>2</span>
                     <div>
-                      <p className="text-white font-medium">Invite Teams to Join</p>
-                      <p className="text-sm text-gray-400">Share your league code so team commissioners can register</p>
+                      <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Invite Teams to Join</p>
+                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>Share your league code so team commissioners can register</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <span className="w-6 h-6 bg-purple-500/20 rounded-full flex items-center justify-center text-purple-300 text-sm font-bold">3</span>
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold ${theme === 'dark' ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>3</span>
                     <div>
-                      <p className="text-white font-medium">Create Schedules & Manage Games</p>
-                      <p className="text-sm text-gray-400">Build season schedules and assign referees</p>
+                      <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Create Schedules & Manage Games</p>
+                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>Build season schedules and assign referees</p>
                     </div>
                   </div>
                 </>
               ) : (
                 <>
                   <div className="flex items-start gap-3">
-                    <span className="w-6 h-6 bg-orange-500/20 rounded-full flex items-center justify-center text-orange-300 text-sm font-bold">1</span>
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold ${theme === 'dark' ? 'bg-orange-500/20 text-orange-300' : 'bg-orange-100 text-orange-700'}`}>1</span>
                     <div>
-                      <p className="text-white font-medium">Create Your First Team</p>
-                      <p className="text-sm text-gray-400">Set up your team with name, sport, and colors</p>
+                      <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Setup Your Program</p>
+                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>Configure sports and age groups for your organization</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <span className="w-6 h-6 bg-orange-500/20 rounded-full flex items-center justify-center text-orange-300 text-sm font-bold">2</span>
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold ${theme === 'dark' ? 'bg-orange-500/20 text-orange-300' : 'bg-orange-100 text-orange-700'}`}>2</span>
                     <div>
-                      <p className="text-white font-medium">Add Players & Coaches</p>
-                      <p className="text-sm text-gray-400">Build your roster and assign coaching staff</p>
+                      <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Create a Season & Open Registration</p>
+                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>Players register into age group pools</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <span className="w-6 h-6 bg-orange-500/20 rounded-full flex items-center justify-center text-orange-300 text-sm font-bold">3</span>
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold ${theme === 'dark' ? 'bg-orange-500/20 text-orange-300' : 'bg-orange-100 text-orange-700'}`}>3</span>
                     <div>
-                      <p className="text-white font-medium">Join a League (Optional)</p>
-                      <p className="text-sm text-gray-400">Connect with a league to participate in organized play</p>
+                      <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Create Teams & Draft Players</p>
+                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>Build teams from your registration pools</p>
                     </div>
                   </div>
                 </>
@@ -1073,143 +1373,108 @@ export const CommissionerDashboard: React.FC = () => {
         )}
       </div>
       
-      {/* Create Modal */}
+      {/* Create Modal - Simplified */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
-          <div className="bg-gray-800 rounded-2xl w-full max-w-md border border-gray-700 my-8 flex flex-col max-h-[calc(100vh-4rem)]">
-            <div className={`p-4 border-b border-gray-700 flex-shrink-0 ${isLeagueCommissioner ? 'bg-purple-900/20' : 'bg-orange-900/20'} rounded-t-2xl`}>
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                {isLeagueCommissioner ? (
-                  <>
-                    <Crown className="w-5 h-5 text-purple-400" />
-                    Create New League
-                  </>
-                ) : (
-                  <>
-                    <Trophy className="w-5 h-5 text-orange-400" />
-                    Create New Team
-                  </>
-                )}
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`rounded-2xl w-full max-w-md border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
+            <div className={`p-4 border-b rounded-t-2xl ${theme === 'dark' ? 'border-gray-700 bg-purple-900/20' : 'border-slate-200 bg-purple-50'}`}>
+              <h3 className={`text-lg font-bold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                <Trophy className="w-5 h-5 text-purple-500" />
+                Create Team
               </h3>
             </div>
             
-            <div className="p-4 space-y-4 overflow-y-auto flex-1">
+            <div className="p-4 space-y-4">
               {createError && (
                 <div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
                   {createError}
                 </div>
               )}
               
+              {/* Team Name */}
               <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-300">
-                  {isLeagueCommissioner ? 'League Name' : 'Team Name'} <span className="text-red-400">*</span>
+                <label className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
+                  Team Name <span className="text-red-400">*</span>
                 </label>
                 <input
                   type="text"
                   value={createName}
                   onChange={(e) => setCreateName(e.target.value)}
-                  placeholder={isLeagueCommissioner ? "Atlanta Youth Football League" : "Eastside Eagles"}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2.5 px-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="e.g., Tigers, Eagles, Panthers"
+                  className={`w-full rounded-lg py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-purple-500 ${theme === 'dark' ? 'bg-gray-700 border border-gray-600 text-white placeholder-gray-400' : 'bg-white border border-slate-300 text-slate-900 placeholder-slate-400'}`}
                 />
               </div>
               
-              {/* Custom Team ID */}
-              {isTeamCommissioner && (
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-300">
-                    Team ID <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={createTeamId}
-                    onChange={(e) => setCreateTeamId(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, '-'))}
-                    placeholder="eastside-eagles-9u"
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2.5 px-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm"
-                  />
-                  <p className="text-xs text-gray-500">
-                    URL-friendly ID for your team. Only lowercase letters, numbers, and dashes.
-                  </p>
-                </div>
-              )}
-              
+              {/* Team ID */}
               <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-300">Sport</label>
-                <select
-                  value={createSport}
-                  onChange={(e) => setCreateSport(e.target.value)}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2.5 px-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                >
-                  <option value="Football">🏈 Football</option>
-                  <option value="Basketball">🏀 Basketball</option>
-                  <option value="Baseball">⚾ Baseball</option>
-                  <option value="Soccer">⚽ Soccer</option>
-                  <option value="Cheerleading">📣 Cheerleading</option>
-                  <option value="Volleyball">🏐 Volleyball</option>
-                </select>
+                <label className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
+                  Team ID <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={createTeamId}
+                  onChange={(e) => setCreateTeamId(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, '-'))}
+                  placeholder="e.g., tigers-6u"
+                  className={`w-full rounded-lg py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm ${theme === 'dark' ? 'bg-gray-700 border border-gray-600 text-white placeholder-gray-400' : 'bg-white border border-slate-300 text-slate-900 placeholder-slate-400'}`}
+                />
+                <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-slate-500'}`}>
+                  URL-friendly ID. Only lowercase letters, numbers, and dashes.
+                </p>
               </div>
               
-              {/* Age Group Selection (Teams only) */}
-              {isTeamCommissioner && (
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-300">Age Group *</label>
-                  <AgeGroupSelector
-                    value={createAgeGroup}
-                    onChange={(value, type) => {
-                      setCreateAgeGroup(value);
-                      setCreateAgeGroupType(type);
-                    }}
-                    mode="auto"
-                    required
-                  />
-                </div>
-              )}
-              
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-300">City <span className="text-red-400">*</span></label>
-                  <input
-                    type="text"
-                    value={createCity}
-                    onChange={(e) => setCreateCity(e.target.value)}
-                    placeholder="Atlanta"
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2.5 px-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-300">State <span className="text-red-400">*</span></label>
-                  <input
-                    type="text"
-                    value={createState}
-                    onChange={(e) => setCreateState(e.target.value)}
-                    placeholder="GA"
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2.5 px-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
+              {/* Age Group - Simple dropdown from program's age groups */}
+              <div className="space-y-1">
+                <label className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
+                  Age Group <span className="text-red-400">*</span>
+                </label>
+                {((programData as any)?.ageGroups?.length > 0) ? (
+                  <select
+                    value={typeof createAgeGroup === 'string' ? createAgeGroup : ''}
+                    onChange={(e) => setCreateAgeGroup(e.target.value)}
+                    className={`w-full rounded-lg py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-purple-500 ${theme === 'dark' ? 'bg-gray-700 border border-gray-600 text-white' : 'bg-white border border-slate-300 text-slate-900'}`}
+                  >
+                    <option value="">Select age group...</option>
+                    {((programData as any)?.ageGroups || []).map((ag: string) => (
+                      <option key={ag} value={ag}>{ag}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className={`p-3 rounded-lg text-center ${theme === 'dark' ? 'bg-yellow-500/10 border border-yellow-500/20' : 'bg-yellow-50 border border-yellow-200'}`}>
+                    <p className={`text-sm ${theme === 'dark' ? 'text-yellow-300' : 'text-yellow-700'}`}>
+                      No age groups created yet.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setShowCreateModal(false);
+                        navigate('/commissioner/age-groups');
+                      }}
+                      className="mt-2 text-sm text-purple-500 hover:text-purple-400 font-medium"
+                    >
+                      Create Age Groups →
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             
-            <div className="p-4 border-t border-gray-700 flex gap-3 flex-shrink-0 rounded-b-2xl">
+            <div className={`p-4 border-t flex gap-3 rounded-b-2xl ${theme === 'dark' ? 'border-gray-700' : 'border-slate-200'}`}>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="flex-1 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+                className={`flex-1 py-2.5 rounded-lg font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-900'}`}
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreate}
-                disabled={creating || !createName.trim() || !createCity.trim() || !createState.trim() || !createTeamId.trim()}
-                className={`flex-1 py-2.5 ${
-                  isLeagueCommissioner 
-                    ? 'bg-purple-600 hover:bg-purple-700' 
-                    : 'bg-orange-600 hover:bg-orange-700'
-                } text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
+                disabled={creating || !createName.trim() || !createTeamId.trim() || !createAgeGroup}
+                className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {creating ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
                     <Plus className="w-5 h-5" />
-                    Create
+                    Create Team
                   </>
                 )}
               </button>
@@ -1273,217 +1538,45 @@ export const CommissionerDashboard: React.FC = () => {
                 <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
                   Age Group <span className="text-red-400">*</span>
                 </label>
-                <AgeGroupSelector
-                  value={editAgeGroup}
-                  onChange={(val, type) => {
-                    setEditAgeGroup(val);
-                    setEditAgeGroupType(type);
-                  }}
-                  mode={editAgeGroupType}
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
-                    City <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={editCity}
-                    onChange={(e) => setEditCity(e.target.value)}
-                    placeholder="City"
-                    className={`w-full border rounded-lg py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`}
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
-                    State <span className="text-red-400">*</span>
-                  </label>
-                  <StateSelector
-                    value={editState}
-                    onChange={setEditState}
-                    required
-                    placeholder="State"
-                    className="[&_input]:py-2.5 [&_input]:px-3"
-                  />
-                </div>
-              </div>
-              
-              {/* Sport Selection */}
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>Sport</label>
-                <select
-                  value={editSport}
-                  onChange={(e) => setEditSport(e.target.value)}
-                  className={`w-full border rounded-lg py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-slate-300 text-slate-900'}`}
-                >
-                  <option value="Football">🏈 Football</option>
-                  <option value="Basketball">🏀 Basketball</option>
-                  <option value="Baseball">⚾ Baseball</option>
-                  <option value="Soccer">⚽ Soccer</option>
-                  <option value="Cheerleading">📣 Cheerleading</option>
-                  <option value="Volleyball">🏐 Volleyball</option>
-                </select>
-              </div>
-              
-              {/* Colors */}
-              <div className="space-y-3">
-                <TeamColorPicker
-                  label="Primary Color:"
-                  value={editPrimaryColor}
-                  onChange={setEditPrimaryColor}
-                  showHexInput={false}
-                />
-                <TeamColorPicker
-                  label="Secondary Color:"
-                  value={editSecondaryColor}
-                  onChange={setEditSecondaryColor}
-                  showHexInput={false}
-                />
-                <TeamColorPreview
-                  primaryColor={editPrimaryColor}
-                  secondaryColor={editSecondaryColor}
-                  teamName={editName}
-                />
-              </div>
-              
-              {/* Max Roster Size */}
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>Max Roster Size</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={editMaxRosterSize}
-                  onChange={(e) => setEditMaxRosterSize(parseInt(e.target.value) || 25)}
-                  className={`w-full border rounded-lg py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-slate-300 text-slate-900'}`}
-                />
-              </div>
-              
-              {/* Cheer Team Toggle */}
-              <div className="flex items-center justify-between">
-                <label className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
-                  📣 This is a Cheer Team
-                </label>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editIsCheerTeam}
-                    onChange={(e) => {
-                      setEditIsCheerTeam(e.target.checked);
-                      if (!e.target.checked) {
-                        setEditLinkedToTeamId('');
-                        setEditLinkedToTeamName('');
-                        setEditSportTeamSearch('');
-                        setEditSportTeamResults([]);
-                      }
-                    }}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-600 peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-              
-              {/* Link to Sport Team (only show for cheer teams) */}
-              {editIsCheerTeam && (
-                <div className={`rounded-lg p-3 border-2 border-dashed ${theme === 'dark' ? 'border-pink-500/30 bg-pink-500/5' : 'border-pink-300 bg-pink-50'}`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Link2 className="w-4 h-4 text-pink-500" />
-                    <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                      Link to Sport Team
-                    </p>
-                  </div>
-                  <p className={`text-xs mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Search for a sport team this cheer squad supports.
-                  </p>
-                  
-                  {editLinkedToTeamId ? (
-                    <div className={`flex items-center justify-between p-2 rounded-lg ${theme === 'dark' ? 'bg-green-500/20 border border-green-500/30' : 'bg-green-100 border border-green-300'}`}>
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-green-500" />
-                        <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                          {editLinkedToTeamName}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => { setEditLinkedToTeamId(''); setEditLinkedToTeamName(''); }}
-                        className="p-1 hover:bg-red-500/20 rounded transition-colors"
-                      >
-                        <X className="w-4 h-4 text-red-400" />
-                      </button>
-                    </div>
-                  ) : (
+                {/* Show dropdown with program's saved age groups */}
+                {(() => {
+                  const programAgeGroups = (programData as any)?.ageGroups || [];
+                  const currentAgeGroup = Array.isArray(editAgeGroup) ? editAgeGroup[0] : editAgeGroup;
+                  return (
                     <div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={editSportTeamSearch}
-                          onChange={(e) => setEditSportTeamSearch(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleEditSearchSportTeams())}
-                          placeholder="Search sport teams..."
-                          className={`flex-1 px-2 py-1.5 text-sm rounded border ${
-                            theme === 'dark' 
-                              ? 'bg-gray-700 border-gray-600 text-white placeholder:text-gray-500' 
-                              : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400'
-                          }`}
-                        />
-                        <button
-                          type="button"
-                          onClick={handleEditSearchSportTeams}
-                          disabled={searchingSportTeams || !editSportTeamSearch.trim()}
-                          className="px-3 py-1.5 bg-pink-600 hover:bg-pink-500 disabled:bg-gray-600 text-white rounded text-sm transition-colors flex items-center gap-1"
-                        >
-                          {searchingSportTeams ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
-                        </button>
+                      <div className={`w-full border rounded-lg py-2.5 px-3 mb-2 ${theme === 'dark' ? 'bg-purple-500/10 border-purple-500/30 text-purple-300' : 'bg-purple-50 border-purple-200 text-purple-700'}`}>
+                        Selected: {currentAgeGroup || 'None'}
                       </div>
-                      
-                      {editSportTeamResults.length > 0 && (
-                        <div className={`mt-2 max-h-32 overflow-y-auto rounded border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-                          {editSportTeamResults.map((team) => (
+                      {programAgeGroups.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {programAgeGroups.map((ag: string) => (
                             <button
-                              key={team.id}
+                              key={ag}
                               type="button"
                               onClick={() => {
-                                setEditLinkedToTeamId(team.id);
-                                setEditLinkedToTeamName(team.name);
-                                setEditSportTeamSearch('');
-                                setEditSportTeamResults([]);
+                                setEditAgeGroup(ag);
+                                setEditAgeGroupType('single');
                               }}
-                              className={`w-full px-2 py-1.5 text-left text-sm hover:bg-purple-500/20 transition-colors border-b last:border-b-0 ${theme === 'dark' ? 'border-gray-700 text-white' : 'border-gray-100 text-gray-900'}`}
+                              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                currentAgeGroup === ag
+                                  ? 'bg-purple-600 text-white'
+                                  : theme === 'dark'
+                                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                              }`}
                             >
-                              <span className="font-medium">{team.name}</span>
-                              <span className={`ml-2 text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>({team.sport})</span>
+                              {ag}
                             </button>
                           ))}
                         </div>
+                      ) : (
+                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-500'}`}>
+                          No age groups configured. Go to Age Groups to add some.
+                        </p>
                       )}
                     </div>
-                  )}
-                </div>
-              )}
-              
-              {/* Linked Cheer Team (only show for non-cheer teams) */}
-              {!editIsCheerTeam && availableCheerTeams.length > 0 && (
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
-                    🔗 Linked Cheer Team
-                  </label>
-                  <select
-                    value={editLinkedCheerTeamId}
-                    onChange={(e) => setEditLinkedCheerTeamId(e.target.value)}
-                    className={`w-full border rounded-lg py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-slate-300 text-slate-900'}`}
-                  >
-                    <option value="">No linked cheer team</option>
-                    {availableCheerTeams.map((ct) => (
-                      <option key={ct.id} value={ct.id}>{ct.name}</option>
-                    ))}
-                  </select>
-                  <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-slate-500'}`}>
-                    Link a cheer team to display them together on team pages
-                  </p>
-                </div>
+                  );
+                })()}
               )}
             </div>
             
@@ -1496,7 +1589,7 @@ export const CommissionerDashboard: React.FC = () => {
               </button>
               <button
                 onClick={handleSaveEdit}
-                disabled={editing || !editName.trim() || !editCity.trim() || !editState.trim()}
+                disabled={editing || !editName.trim()}
                 className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {editing ? (
@@ -1510,7 +1603,7 @@ export const CommissionerDashboard: React.FC = () => {
         </div>
       )}
       
-      {/* Delete Confirmation Modal */}
+      {/* Delete Team Confirmation Modal */}
       {showDeleteConfirm && deletingTeam && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className={`rounded-2xl w-full max-w-md border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
@@ -1547,6 +1640,92 @@ export const CommissionerDashboard: React.FC = () => {
                     <>
                       <Trash2 className="w-4 h-4" />
                       Delete Team
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Delete Program Confirmation Modal */}
+      {showDeleteProgramConfirm && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className={`rounded-2xl w-full max-w-md border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-8 h-8 text-red-500" />
+              </div>
+              <h2 className={`text-xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Delete Program?</h2>
+              <p className={`mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                Are you sure you want to delete <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>"{programData?.name || 'this program'}"</span>?
+              </p>
+              <p className="text-red-500 text-sm mb-6">
+                ⚠️ This will delete ALL seasons, player pools, and registrations. You will need to set up everything from scratch.
+              </p>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteProgramConfirm(false)}
+                  className={`flex-1 py-2.5 rounded-lg font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-900'}`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteProgram}
+                  disabled={deletingProgram}
+                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {deletingProgram ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Delete Program
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Delete Season Confirmation Modal */}
+      {deleteSeasonConfirm && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className={`rounded-2xl w-full max-w-md border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-8 h-8 text-red-500" />
+              </div>
+              <h2 className={`text-xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Delete Season?</h2>
+              <p className={`mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                Are you sure you want to delete <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>"{deleteSeasonConfirm.name}"</span>?
+              </p>
+              <p className="text-red-500 text-sm mb-6">
+                ⚠️ This will delete all player pools and registrations for this season.
+              </p>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteSeasonConfirm(null)}
+                  className={`flex-1 py-2.5 rounded-lg font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-900'}`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteSeason}
+                  disabled={deletingSeason}
+                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {deletingSeason ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Delete Season
                     </>
                   )}
                 </button>

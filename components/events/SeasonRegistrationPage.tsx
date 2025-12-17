@@ -5,11 +5,12 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { getSeason, getProgram, registerForSeason } from '../../services/seasonService';
+import { getSeason, getProgram, registerForSeason, getSeasonByProgramId } from '../../services/seasonService';
 import { getPositionsForSport, getJerseyNumberRules, validateJerseyNumber } from '../../config/sportConfig';
+import { calculateAgeGroup } from '../../services/ageValidator';
 import type { Season, Program, AgeGroup, SeasonRegistrationInput } from '../../types/season';
 import { 
   Loader2, 
@@ -17,6 +18,7 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Check,
+  CheckCircle,
   Users,
   Calendar,
   Trophy,
@@ -27,8 +29,10 @@ import {
 
 export default function SeasonRegistrationPage() {
   const { seasonId } = useParams<{ seasonId: string }>();
+  const [searchParams] = useSearchParams();
+  const programIdFromQuery = searchParams.get('program');
   const navigate = useNavigate();
-  const { user, userData } = useAuth();
+  const { user, userData, selectedPlayer, players } = useAuth();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   
@@ -38,11 +42,21 @@ export default function SeasonRegistrationPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Form state
+  // Form state - start at step 2 if we can auto-select age group
   const [step, setStep] = useState(1);
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<AgeGroup | null>(null);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [autoSelectedAgeGroup, setAutoSelectedAgeGroup] = useState(false);
+  
+  // Get athlete to register - use selected player or first player
+  const athleteToRegister = selectedPlayer || players?.[0];
+  
+  // Get athlete's age group - prefer stored ageGroup on player, fallback to calculate from DOB
+  const athleteAgeGroup = athleteToRegister?.ageGroup 
+    || (athleteToRegister?.dob 
+      ? calculateAgeGroup(typeof athleteToRegister.dob === 'string' ? athleteToRegister.dob : athleteToRegister.dob?.toDate?.()?.toISOString())
+      : null);
   
   // Form data
   const [formData, setFormData] = useState({
@@ -57,6 +71,7 @@ export default function SeasonRegistrationPage() {
     preferredJerseyNumber: '',
     alternateJerseyNumbers: '',
     preferredPosition: '',
+    coachNotes: '', // Schedule conflicts, coaching preferences, etc.
     
     // Parent info
     parentName: userData?.name || '',
@@ -85,6 +100,202 @@ export default function SeasonRegistrationPage() {
     }
   }, [seasonId]);
 
+  // Auto-select age group based on athlete's age and pre-fill athlete info
+  useEffect(() => {
+    if (!season || !athleteToRegister || autoSelectedAgeGroup) return;
+    
+    // Get available age groups from various possible sources
+    let availableAgeGroups: any[] = [];
+    
+    // Try season.activeAgeGroups first (Program Commissioner seasons)
+    if (season.activeAgeGroups && season.activeAgeGroups.length > 0) {
+      availableAgeGroups = season.activeAgeGroups;
+      console.log('[SeasonRegistrationPage] Using season.activeAgeGroups:', availableAgeGroups);
+    }
+    // Try single ageGroup from team season (Team Commissioner seasons)
+    else if ((season as any).ageGroup) {
+      const teamAgeGroup = (season as any).ageGroup;
+      availableAgeGroups = [{ id: teamAgeGroup, name: teamAgeGroup }];
+      console.log('[SeasonRegistrationPage] Using season.ageGroup (team season):', teamAgeGroup);
+    }
+    // Try program.ageGroups (direct array)
+    else if (program?.ageGroups && program.ageGroups.length > 0) {
+      availableAgeGroups = program.ageGroups;
+      console.log('[SeasonRegistrationPage] Using program.ageGroups:', availableAgeGroups);
+    }
+    // Try program.sportsOffered (new structure with sports containing age groups)
+    else if ((program as any)?.sportsOffered && Array.isArray((program as any).sportsOffered)) {
+      for (const sportConfig of (program as any).sportsOffered) {
+        if (sportConfig.ageGroups && sportConfig.ageGroups.length > 0) {
+          // Convert AgeGroupDivision to AgeGroup format
+          availableAgeGroups = sportConfig.ageGroups.map((ag: any) => ({
+            id: ag.id || ag.label,
+            name: ag.label || ag.id,
+            minAge: ag.minBirthYear ? new Date().getFullYear() - ag.maxBirthYear : undefined,
+            maxAge: ag.maxBirthYear ? new Date().getFullYear() - ag.minBirthYear : undefined,
+          }));
+          console.log('[SeasonRegistrationPage] Using program.sportsOffered age groups:', availableAgeGroups);
+          break;
+        }
+      }
+    }
+    // Try program.sports (legacy structure)
+    else if (program?.sports && Array.isArray(program.sports)) {
+      for (const sport of program.sports) {
+        if (sport.ageGroups && sport.ageGroups.length > 0) {
+          availableAgeGroups = sport.ageGroups;
+          console.log('[SeasonRegistrationPage] Using program.sports age groups:', availableAgeGroups);
+          break;
+        }
+      }
+    }
+    
+    console.log('[SeasonRegistrationPage] Auto-select debug:', {
+      athleteName: athleteToRegister.name,
+      athleteAgeGroup: athleteAgeGroup,
+      athleteDOB: athleteToRegister.dob,
+      seasonAgeGroup: (season as any).ageGroup,
+      seasonActiveAgeGroups: season.activeAgeGroups,
+      programAgeGroups: program?.ageGroups,
+      programSportsOffered: (program as any)?.sportsOffered,
+      availableAgeGroups,
+    });
+    
+    // If STILL no age groups and we have athlete's age group, just use that as last resort
+    if (availableAgeGroups.length === 0 && athleteAgeGroup) {
+      console.log('[SeasonRegistrationPage] No age groups in season/program, using athlete age group:', athleteAgeGroup);
+      const ageGroupObj = { id: athleteAgeGroup, name: athleteAgeGroup } as AgeGroup;
+      setSelectedAgeGroup(ageGroupObj);
+      setAutoSelectedAgeGroup(true);
+      setStep(2);
+      
+      // Pre-fill athlete info
+      const nameParts = (athleteToRegister.name || '').split(' ');
+      setFormData(prev => ({
+        ...prev,
+        athleteFirstName: nameParts[0] || '',
+        athleteLastName: nameParts.slice(1).join(' ') || '',
+        athleteDOB: athleteToRegister.dob ? (typeof athleteToRegister.dob === 'string' ? athleteToRegister.dob : athleteToRegister.dob.toDate?.().toISOString().split('T')[0]) : '',
+      }));
+      return;
+    }
+    
+    if (availableAgeGroups.length === 0) {
+      console.log('[SeasonRegistrationPage] No age groups found, skipping auto-select');
+      return;
+    }
+    
+    // Use pre-calculated age group if available
+    const athleteAge = athleteAgeGroup ? parseInt(athleteAgeGroup.replace(/\D/g, '')) : null;
+    
+    // Calculate athlete's age from DOB as fallback
+    const athleteDOB = athleteToRegister.dob;
+    let birthDate: Date | null = null;
+    let calculatedAge: number | null = null;
+    
+    if (athleteDOB) {
+      if (typeof athleteDOB === 'string') {
+        birthDate = new Date(athleteDOB);
+      } else if (athleteDOB?.toDate) {
+        birthDate = athleteDOB.toDate();
+      }
+      
+      if (birthDate && !isNaN(birthDate.getTime())) {
+        const today = new Date();
+        calculatedAge = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          calculatedAge--;
+        }
+      }
+    }
+    
+    const age = athleteAge || calculatedAge;
+    if (age === null) return;
+    
+    // Find matching age group
+    let matchedAgeGroup: AgeGroup | null = null;
+    
+    for (const ag of availableAgeGroups) {
+      // Handle string age groups like "9U", "9U-10U", "9/10", "7/8"
+      if (typeof ag === 'string') {
+        const agStr = ag.toUpperCase();
+        // Check for range formats: "9U-10U", "9-10", "9/10", "7/8"
+        if (agStr.includes('-') || agStr.includes('/')) {
+          // Range like "9U-10U" or "9/10" or "7/8"
+          const parts = agStr.split(/[-\/]/);
+          const minAge = parseInt(parts[0].replace(/\D/g, '')) || 0;
+          const maxAge = parseInt(parts[1]?.replace(/\D/g, '')) || minAge;
+          if (age >= minAge && age <= maxAge) {
+            matchedAgeGroup = { id: ag, name: ag } as AgeGroup;
+            break;
+          }
+        } else {
+          // Single like "9U" or "6"
+          const groupAge = parseInt(agStr.replace(/\D/g, '')) || 0;
+          if (age === groupAge || age === groupAge - 1) {
+            matchedAgeGroup = { id: ag, name: ag } as AgeGroup;
+            break;
+          }
+        }
+      } else {
+        // AgeGroup object with minAge/maxAge
+        if (ag.minAge !== undefined && ag.maxAge !== undefined) {
+          if (age >= ag.minAge && age <= ag.maxAge) {
+            matchedAgeGroup = ag;
+            break;
+          }
+        } else if (ag.name) {
+          // Try to parse from name - handle formats like "9U-10U", "9/10", "7/8"
+          const agStr = ag.name.toUpperCase();
+          if (agStr.includes('-') || agStr.includes('/')) {
+            const parts = agStr.split(/[-\/]/);
+            const minAge = parseInt(parts[0].replace(/\D/g, '')) || 0;
+            const maxAge = parseInt(parts[1]?.replace(/\D/g, '')) || minAge;
+            if (age >= minAge && age <= maxAge) {
+              matchedAgeGroup = ag;
+              break;
+            }
+          } else {
+            const groupAge = parseInt(agStr.replace(/\D/g, '')) || 0;
+            if (age === groupAge || age === groupAge - 1) {
+              matchedAgeGroup = ag;
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    if (matchedAgeGroup) {
+      console.log('[SeasonRegistrationPage] MATCH FOUND! Setting selectedAgeGroup to:', matchedAgeGroup, 'athleteAgeGroup was:', athleteAgeGroup);
+      setSelectedAgeGroup(matchedAgeGroup);
+      setAutoSelectedAgeGroup(true);
+      setStep(2); // Skip to athlete info step
+      
+      // Also pre-fill athlete info
+      const nameParts = (athleteToRegister.name || '').split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      
+      // Get DOB in proper format
+      const dobString = birthDate 
+        ? birthDate.toISOString().split('T')[0] 
+        : (typeof athleteToRegister.dob === 'string' ? athleteToRegister.dob : '');
+      
+      setFormData(prev => ({
+        ...prev,
+        athleteFirstName: firstName,
+        athleteLastName: lastName,
+        athleteDOB: dobString,
+      }));
+      
+      console.log('[SeasonRegistrationPage] Auto-selected age group:', matchedAgeGroup.name, 'for age:', age);
+    } else {
+      console.log('[SeasonRegistrationPage] No matching age group found for age:', age, 'in:', availableAgeGroups.map(ag => typeof ag === 'string' ? ag : ag.name));
+    }
+  }, [season, program, athleteToRegister, autoSelectedAgeGroup, athleteAgeGroup]);
+
   // Pre-fill parent info from user data
   useEffect(() => {
     if (userData) {
@@ -102,6 +313,19 @@ export default function SeasonRegistrationPage() {
     }
   }, [userData]);
 
+  // Pre-fill medical info from athlete
+  useEffect(() => {
+    if (athleteToRegister?.medical) {
+      const medical = athleteToRegister.medical;
+      setFormData(prev => ({
+        ...prev,
+        medicalAllergies: (medical.allergies && medical.allergies !== 'None') ? medical.allergies : prev.medicalAllergies,
+        medicalConditions: (medical.conditions && medical.conditions !== 'None') ? medical.conditions : prev.medicalConditions,
+        medicalMedications: (medical.medications && medical.medications !== 'None') ? medical.medications : prev.medicalMedications,
+      }));
+    }
+  }, [athleteToRegister]);
+
   const loadData = async () => {
     if (!seasonId) return;
     
@@ -109,20 +333,53 @@ export default function SeasonRegistrationPage() {
     setError(null);
     
     try {
-      const seasonData = await getSeason(seasonId);
+      let seasonData;
+      
+      // If we have programId from query params, use direct lookup (faster)
+      if (programIdFromQuery) {
+        seasonData = await getSeasonByProgramId(programIdFromQuery, seasonId);
+      } else {
+        // Fall back to searching all programs
+        seasonData = await getSeason(seasonId);
+      }
+      
       if (!seasonData) {
         setError('Season not found');
         return;
       }
       
-      if (seasonData.status !== 'registration') {
+      // Check if registration is allowed
+      // Allow if status is 'registration' OR if we're within the registration date window
+      const now = new Date();
+      const openDate = seasonData.registrationOpenDate?.toDate?.();
+      const closeDate = seasonData.registrationCloseDate?.toDate?.();
+      
+      const isWithinDates = (!openDate || openDate <= now) && (!closeDate || closeDate >= now);
+      const isRegistrationStatus = seasonData.status === 'registration';
+      const isNotCompleted = seasonData.status !== 'completed' && seasonData.status !== 'closed';
+      
+      // Registration is open if: (status is 'registration') OR (within dates AND not completed/closed)
+      if (!isRegistrationStatus && !(isWithinDates && isNotCompleted)) {
         setError('Registration is not currently open for this season');
         return;
       }
       
+      console.log('[SeasonRegistrationPage] Season loaded:', {
+        id: seasonData.id,
+        name: seasonData.name,
+        ageGroup: (seasonData as any).ageGroup,
+        activeAgeGroups: seasonData.activeAgeGroups,
+        sportsOffered: (seasonData as any).sportsOffered,
+        programId: seasonData.programId,
+      });
+      
       setSeason(seasonData);
       
       const programData = await getProgram(seasonData.programId);
+      console.log('[SeasonRegistrationPage] Program loaded:', {
+        id: programData?.id,
+        ageGroups: programData?.ageGroups,
+      });
       setProgram(programData);
     } catch (err) {
       console.error('Error loading season:', err);
@@ -192,6 +449,7 @@ export default function SeasonRegistrationPage() {
         preferredJerseyNumber: preferredJersey,
         alternateJerseyNumbers: alternateJerseys,
         preferredPosition: formData.preferredPosition || undefined,
+        coachNotes: formData.coachNotes?.trim() || undefined,
         
         parentName: formData.parentName.trim(),
         parentEmail: formData.parentEmail.trim(),
@@ -233,21 +491,24 @@ export default function SeasonRegistrationPage() {
       case 1:
         return !!selectedAgeGroup;
       case 2:
-        return !!(
-          formData.athleteFirstName &&
-          formData.athleteLastName &&
-          formData.athleteDOB &&
-          formData.athleteGender
-        );
-      case 3:
-        return !!(
-          formData.parentName &&
-          formData.parentEmail &&
-          formData.parentPhone &&
-          formData.emergencyContactName &&
-          formData.emergencyContactPhone &&
-          formData.emergencyRelationship
-        );
+        // Step 2 is now just preferences - always valid (optional fields)
+        return true;
+      case 3: {
+        // Parent info always required
+        const hasParentInfo = !!(formData.parentName && formData.parentEmail && formData.parentPhone);
+        
+        // Emergency contact only required if season requires it
+        const needsEmergency = season?.requireEmergencyContact !== false;
+        const hasEmergencyInfo = !!(formData.emergencyContactName && formData.emergencyContactPhone && formData.emergencyRelationship);
+        
+        // Medical info only required if season requires it
+        const needsMedical = season?.requireMedicalInfo === true;
+        const hasMedicalInfo = !!(formData.medicalAllergies || formData.medicalConditions || formData.medicalMedications);
+        
+        return hasParentInfo && 
+          (!needsEmergency || hasEmergencyInfo) && 
+          (!needsMedical || hasMedicalInfo);
+      }
       case 4:
         return formData.waiverAccepted;
       default:
@@ -359,17 +620,20 @@ export default function SeasonRegistrationPage() {
         <div className="max-w-2xl mx-auto px-4">
           <div className="flex items-center justify-between">
             {[
-              { num: 1, label: 'Age Group', icon: Users },
-              { num: 2, label: 'Athlete', icon: Trophy },
-              { num: 3, label: 'Contact', icon: Shield },
-              { num: 4, label: 'Confirm', icon: FileText },
-            ].map((s, idx) => {
+              // Only show Age Group step if not auto-selected
+              ...(autoSelectedAgeGroup ? [] : [{ num: 1, label: 'Age Group', icon: Users }]),
+              { num: autoSelectedAgeGroup ? 1 : 2, label: 'Preferences', icon: Trophy },
+              { num: autoSelectedAgeGroup ? 2 : 3, label: 'Contact', icon: Shield },
+              { num: autoSelectedAgeGroup ? 3 : 4, label: 'Confirm', icon: FileText },
+            ].map((s, idx, arr) => {
               const Icon = s.icon;
-              const isActive = step === s.num;
-              const isComplete = step > s.num;
+              // Adjust step comparison for auto-selected flow
+              const displayStep = autoSelectedAgeGroup ? step - 1 : step;
+              const isActive = displayStep === s.num;
+              const isComplete = displayStep > s.num;
               
               return (
-                <React.Fragment key={s.num}>
+                <React.Fragment key={s.label}>
                   <div className="flex flex-col items-center">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                       isComplete ? 'bg-green-500 text-white' :
@@ -385,9 +649,9 @@ export default function SeasonRegistrationPage() {
                       {s.label}
                     </span>
                   </div>
-                  {idx < 3 && (
+                  {idx < arr.length - 1 && (
                     <div className={`flex-1 h-0.5 mx-2 ${
-                      step > s.num ? 'bg-green-500' : isDark ? 'bg-gray-700' : 'bg-gray-300'
+                      displayStep > s.num ? 'bg-green-500' : isDark ? 'bg-gray-700' : 'bg-gray-300'
                     }`} />
                   )}
                 </React.Fragment>
@@ -422,19 +686,26 @@ export default function SeasonRegistrationPage() {
               </p>
               
               <div className="grid gap-3">
-                {season.activeAgeGroups.map(ag => {
-                  const count = season.registrationCounts[ag.id] || 0;
+                {/* Use season.activeAgeGroups, or fall back to program.ageGroups */}
+                {((season.activeAgeGroups && season.activeAgeGroups.length > 0) 
+                  ? season.activeAgeGroups 
+                  : (program?.ageGroups || [])
+                ).map(ag => {
+                  // Handle both AgeGroup objects and simple string arrays
+                  const ageGroupId = typeof ag === 'string' ? ag : ag.id;
+                  const ageGroupName = typeof ag === 'string' ? ag : ag.name;
+                  const count = season.registrationCounts?.[ageGroupId] || 0;
                   const isFull = season.maxPlayersPerAgeGroup 
                     ? count >= season.maxPlayersPerAgeGroup 
                     : false;
                   
                   return (
                     <button
-                      key={ag.id}
-                      onClick={() => !isFull && setSelectedAgeGroup(ag)}
+                      key={ageGroupId}
+                      onClick={() => !isFull && setSelectedAgeGroup(typeof ag === 'string' ? { id: ag, name: ag } as AgeGroup : ag)}
                       disabled={isFull}
                       className={`p-4 rounded-lg border text-left transition-colors ${
-                        selectedAgeGroup?.id === ag.id
+                        selectedAgeGroup?.id === ageGroupId
                           ? 'border-blue-500 bg-blue-500/20'
                           : isFull
                             ? isDark ? 'border-gray-700 bg-gray-800/50 opacity-50 cursor-not-allowed' : 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
@@ -444,14 +715,14 @@ export default function SeasonRegistrationPage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <div className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            {ag.name}
+                            {ageGroupName}
                           </div>
-                          {ag.minGrade !== undefined && ag.maxGrade !== undefined && (
+                          {typeof ag !== 'string' && ag.minGrade !== undefined && ag.maxGrade !== undefined && (
                             <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                               Grades {ag.minGrade}-{ag.maxGrade}
                             </div>
                           )}
-                          {ag.minAge !== undefined && ag.maxAge !== undefined && (
+                          {typeof ag !== 'string' && ag.minAge !== undefined && ag.maxAge !== undefined && (
                             <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                               Ages {ag.minAge}-{ag.maxAge}
                             </div>
@@ -482,83 +753,54 @@ export default function SeasonRegistrationPage() {
           {step === 2 && (
             <div className="space-y-4">
               <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Athlete Information
+                Preferences & Notes
               </h2>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    First Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.athleteFirstName}
-                    onChange={(e) => updateFormData('athleteFirstName', e.target.value)}
-                    className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                  />
+              {/* Show which athlete is being registered and to which age group */}
+              <div className={`p-4 rounded-lg border-2 ${isDark ? 'bg-blue-900/20 border-blue-500/30' : 'bg-blue-50 border-blue-200'}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
+                    {formData.athleteFirstName?.charAt(0) || '?'}
+                  </div>
+                  <div className="flex-1">
+                    <p className={`font-semibold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {formData.athleteFirstName} {formData.athleteLastName}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Born {formData.athleteDOB}
+                      </span>
+                      {athleteAgeGroup && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'}`}>
+                          {athleteAgeGroup}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Last Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.athleteLastName}
-                    onChange={(e) => updateFormData('athleteLastName', e.target.value)}
-                    className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                  />
+                
+                {/* Age Group Badge - Prominent */}
+                <div className={`mt-3 pt-3 border-t ${isDark ? 'border-blue-500/20' : 'border-blue-200'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Registering to Division:</span>
+                    <span className={`px-3 py-1.5 rounded-full text-sm font-bold ${isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700'}`}>
+                      {/* Show season's age group division, or fall back to athlete's calculated */}
+                      {selectedAgeGroup?.name || (season as any)?.ageGroup || athleteAgeGroup || 'Age Group'}
+                    </span>
+                  </div>
+                  {/* Debug - remove after testing */}
+                  {process.env.NODE_ENV === 'development' && (
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Debug: selected={selectedAgeGroup?.name} | season.ageGroup={(season as any)?.ageGroup} | athlete={athleteAgeGroup}
+                    </p>
+                  )}
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Date of Birth *
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.athleteDOB}
-                    onChange={(e) => updateFormData('athleteDOB', e.target.value)}
-                    className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Gender *
-                  </label>
-                  <select
-                    value={formData.athleteGender}
-                    onChange={(e) => updateFormData('athleteGender', e.target.value)}
-                    className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                  >
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Current Grade
-                </label>
-                <select
-                  value={formData.athleteGrade}
-                  onChange={(e) => updateFormData('athleteGrade', e.target.value)}
-                  className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                >
-                  <option value="">Select grade</option>
-                  <option value="0">Kindergarten</option>
-                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(g => (
-                    <option key={g} value={g}>{g}{g === 1 ? 'st' : g === 2 ? 'nd' : g === 3 ? 'rd' : 'th'} Grade</option>
-                  ))}
-                </select>
               </div>
 
               {/* Jersey & Position Preferences */}
               <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
                 <h3 className={`font-medium mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  Preferences (Optional)
+                  Jersey & Position Preferences (Optional)
                 </h3>
                 
                 <div className="grid grid-cols-2 gap-4">
@@ -570,7 +812,7 @@ export default function SeasonRegistrationPage() {
                       type="number"
                       value={formData.preferredJerseyNumber}
                       onChange={(e) => updateFormData('preferredJerseyNumber', e.target.value)}
-                      placeholder={jerseyRules ? `${jerseyRules.min}-${jerseyRules.max}` : 'e.g., 10'}
+                      placeholder={jerseyRules ? `${jerseyRules.min}-${jerseyRules.max}` : '1-99'}
                       min={jerseyRules?.min}
                       max={jerseyRules?.max}
                       className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
@@ -606,170 +848,236 @@ export default function SeasonRegistrationPage() {
                   />
                 </div>
               </div>
+
+              {/* Suggestions & Notes */}
+              <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                <h3 className={`font-medium mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  Notes for Coach (Optional)
+                </h3>
+                <p className={`text-sm mb-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Schedule conflicts, coaching preferences, or anything the coach should know
+                </p>
+                
+                <textarea
+                  value={formData.coachNotes || ''}
+                  onChange={(e) => updateFormData('coachNotes', e.target.value)}
+                  placeholder="Examples:&#10;• Cannot attend Tuesday practices&#10;• Prefers to play with sibling (#24)&#10;• Available for team captain role&#10;• Has prior experience at RB"
+                  rows={4}
+                  className={`w-full px-3 py-2 rounded-lg border resize-none ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'}`}
+                />
+              </div>
             </div>
           )}
 
           {/* Step 3: Contact & Medical Info */}
           {step === 3 && (
             <div className="space-y-6">
-              <div>
-                <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  Parent/Guardian Information
-                </h2>
-                {(userData?.name || userData?.email || userData?.phone) && (
-                  <p className={`text-sm mt-1 ${isDark ? 'text-green-400' : 'text-green-600'}`}>
-                    ✓ Some fields pre-filled from your profile
-                  </p>
-                )}
+              {/* Check if all required info is already filled from profile */}
+              {(() => {
+                const hasParentInfo = formData.parentName && formData.parentEmail && formData.parentPhone;
+                const needsEmergency = season?.requireEmergencyContact !== false;
+                const hasEmergencyInfo = formData.emergencyContactName && formData.emergencyContactPhone && formData.emergencyRelationship;
+                const needsMedical = season?.requireMedicalInfo === true;
                 
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Full Name *
-                      {userData?.name && <span className={`ml-2 text-xs ${isDark ? 'text-green-400' : 'text-green-600'}`}>(from profile)</span>}
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.parentName}
-                      onChange={(e) => updateFormData('parentName', e.target.value)}
-                      className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Email *
-                        {userData?.email && <span className={`ml-2 text-xs ${isDark ? 'text-green-400' : 'text-green-600'}`}>(from profile)</span>}
-                      </label>
-                      <input
-                        type="email"
-                        value={formData.parentEmail}
-                        onChange={(e) => updateFormData('parentEmail', e.target.value)}
-                        className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                      />
+                const allPrefilled = hasParentInfo && 
+                  (!needsEmergency || hasEmergencyInfo);
+                
+                if (allPrefilled && !needsMedical) {
+                  return (
+                    <div className={`p-4 rounded-lg border-2 ${isDark ? 'bg-green-900/20 border-green-500/30' : 'bg-green-50 border-green-200'}`}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <CheckCircle className={`w-5 h-5 ${isDark ? 'text-green-400' : 'text-green-600'}`} />
+                        <h2 className={`text-lg font-semibold ${isDark ? 'text-green-400' : 'text-green-700'}`}>
+                          Contact Info Pre-Filled
+                        </h2>
+                      </div>
+                      <p className={`text-sm mb-4 ${isDark ? 'text-green-300/80' : 'text-green-600'}`}>
+                        All required information has been loaded from your profile. Review below and continue.
+                      </p>
+                      
+                      <div className={`p-3 rounded-lg space-y-2 text-sm ${isDark ? 'bg-black/20' : 'bg-white'}`}>
+                        <div className="flex justify-between">
+                          <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Parent:</span>
+                          <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{formData.parentName}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Email:</span>
+                          <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{formData.parentEmail}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Phone:</span>
+                          <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{formData.parentPhone}</span>
+                        </div>
+                        {needsEmergency && (
+                          <>
+                            <div className={`border-t pt-2 mt-2 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                              <span className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>Emergency Contact</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>{formData.emergencyRelationship}:</span>
+                              <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{formData.emergencyContactName} ({formData.emergencyContactPhone})</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
+                  );
+                }
+                
+                // Show editable form for missing info
+                return (
+                  <>
                     <div>
-                      <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Phone *
-                        {userData?.phone && <span className={`ml-2 text-xs ${isDark ? 'text-green-400' : 'text-green-600'}`}>(from profile)</span>}
-                      </label>
-                      <input
-                        type="tel"
-                        value={formData.parentPhone}
-                        onChange={(e) => updateFormData('parentPhone', e.target.value)}
-                        placeholder="(555) 123-4567"
-                        className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                      />
+                      <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        Contact Information
+                      </h2>
+                      {(userData?.name || userData?.email || userData?.phone) && (
+                        <p className={`text-sm mt-1 ${isDark ? 'text-green-400' : 'text-green-600'}`}>
+                          ✓ Pre-filled from your profile
+                        </p>
+                      )}
+                      
+                      <div className="mt-4 space-y-4">
+                        <div>
+                          <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                            Full Name *
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.parentName}
+                            onChange={(e) => updateFormData('parentName', e.target.value)}
+                            className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Email *
+                            </label>
+                            <input
+                              type="email"
+                              value={formData.parentEmail}
+                              onChange={(e) => updateFormData('parentEmail', e.target.value)}
+                              className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                            />
+                          </div>
+                          <div>
+                            <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Phone *
+                            </label>
+                            <input
+                              type="tel"
+                              value={formData.parentPhone}
+                              onChange={(e) => updateFormData('parentPhone', e.target.value)}
+                              placeholder="(555) 123-4567"
+                              className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              </div>
 
-              <div>
-                <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  Emergency Contact
-                  {userData?.emergencyContact?.name && <span className={`ml-2 text-xs font-normal ${isDark ? 'text-green-400' : 'text-green-600'}`}>(from profile)</span>}
-                </h3>
-                
-                <div className="mt-3 space-y-4">
-                  <div>
-                    <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Contact Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.emergencyContactName}
-                      onChange={(e) => updateFormData('emergencyContactName', e.target.value)}
-                      className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Phone *
-                      </label>
-                      <input
-                        type="tel"
-                        value={formData.emergencyContactPhone}
-                        onChange={(e) => updateFormData('emergencyContactPhone', e.target.value)}
-                        className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                      />
-                    </div>
-                    <div>
-                      <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Relationship *
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.emergencyRelationship}
-                        onChange={(e) => updateFormData('emergencyRelationship', e.target.value)}
-                        placeholder="e.g., Grandparent"
-                        className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
+                    {/* Emergency Contact - Only if required */}
+                    {needsEmergency && (
+                      <div>
+                        <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          Emergency Contact *
+                        </h3>
+                        
+                        <div className="mt-3 space-y-4">
+                          <div>
+                            <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Contact Name
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.emergencyContactName}
+                              onChange={(e) => updateFormData('emergencyContactName', e.target.value)}
+                              className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                Phone
+                              </label>
+                              <input
+                                type="tel"
+                                value={formData.emergencyContactPhone}
+                                onChange={(e) => updateFormData('emergencyContactPhone', e.target.value)}
+                                className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                              />
+                            </div>
+                            <div>
+                              <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                Relationship
+                              </label>
+                              <input
+                                type="text"
+                                value={formData.emergencyRelationship}
+                                onChange={(e) => updateFormData('emergencyRelationship', e.target.value)}
+                                placeholder="e.g., Grandparent"
+                                className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-              <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <Heart className={`w-5 h-5 ${isDark ? 'text-red-400' : 'text-red-500'}`} />
-                  <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    Medical Information (Optional)
-                  </h3>
-                </div>
-                
-                <div className="space-y-3">
-                  <div>
-                    <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Allergies
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.medicalAllergies}
-                      onChange={(e) => updateFormData('medicalAllergies', e.target.value)}
-                      placeholder="e.g., Peanuts, Bee stings"
-                      className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Medical Conditions
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.medicalConditions}
-                      onChange={(e) => updateFormData('medicalConditions', e.target.value)}
-                      placeholder="e.g., Asthma, Diabetes"
-                      className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Medications
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.medicalMedications}
-                      onChange={(e) => updateFormData('medicalMedications', e.target.value)}
-                      placeholder="e.g., Inhaler, EpiPen"
-                      className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Additional Notes
-                    </label>
-                    <textarea
-                      value={formData.medicalNotes}
-                      onChange={(e) => updateFormData('medicalNotes', e.target.value)}
-                      placeholder="Any other medical information coaches should know"
-                      rows={2}
-                      className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                    />
-                  </div>
-                </div>
-              </div>
+                    {/* Medical Info - Only if required by season */}
+                    {needsMedical && (
+                      <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <Heart className={`w-5 h-5 ${isDark ? 'text-red-400' : 'text-red-500'}`} />
+                          <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            Medical Information *
+                          </h3>
+                        </div>
+                        
+                        <div className="space-y-3">
+                          <div>
+                            <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Allergies
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.medicalAllergies}
+                              onChange={(e) => updateFormData('medicalAllergies', e.target.value)}
+                              placeholder="e.g., Peanuts, Bee stings (or 'None')"
+                              className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                            />
+                          </div>
+                          <div>
+                            <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Medical Conditions
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.medicalConditions}
+                              onChange={(e) => updateFormData('medicalConditions', e.target.value)}
+                              placeholder="e.g., Asthma, Diabetes (or 'None')"
+                              className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                            />
+                          </div>
+                          <div>
+                            <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Medications
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.medicalMedications}
+                              onChange={(e) => updateFormData('medicalMedications', e.target.value)}
+                              placeholder="e.g., Inhaler, EpiPen (or 'None')"
+                              className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
 
@@ -857,16 +1165,22 @@ export default function SeasonRegistrationPage() {
           {/* Navigation Buttons */}
           <div className={`flex justify-between mt-6 pt-6 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
             <button
-              onClick={() => setStep(s => s - 1)}
-              disabled={step === 1}
+              onClick={() => {
+                // If on step 2 and age group was auto-selected, Cancel goes back to events
+                if (step === 2 && autoSelectedAgeGroup) {
+                  navigate(-1); // Go back to previous page
+                } else if (step === 1) {
+                  navigate(-1); // Can't go back from step 1, so cancel
+                } else {
+                  setStep(s => s - 1);
+                }
+              }}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-                step === 1
-                  ? 'opacity-50 cursor-not-allowed'
-                  : isDark ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                isDark ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
               <ChevronLeft className="w-4 h-4" />
-              Back
+              {(step === 2 && autoSelectedAgeGroup) || step === 1 ? 'Cancel' : 'Back'}
             </button>
             
             {step < 4 ? (

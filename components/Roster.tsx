@@ -17,6 +17,41 @@ import NoAthleteBlock from './NoAthleteBlock';
 // Pagination settings
 const PLAYERS_PER_PAGE = 12;
 
+/**
+ * Check if a player's age group fits within a team's age group range
+ * e.g., "9U" fits in "9U-10U", "10U" fits in "9U-10U", "8U" does NOT fit in "9U-10U"
+ */
+const playerAgeGroupFitsTeam = (playerAgeGroup: string | null, teamAgeGroup: string | null | undefined): boolean => {
+  // If either is not set, assume it's a match (no restriction)
+  if (!playerAgeGroup || !teamAgeGroup) return true;
+  
+  // Extract numeric age from age group string (e.g., "9U" -> 9, "10U" -> 10)
+  const extractAge = (ageGroup: string): number | null => {
+    const match = ageGroup.match(/(\d+)/);
+    return match ? parseInt(match[1], 10) : null;
+  };
+  
+  const playerAge = extractAge(playerAgeGroup);
+  if (playerAge === null) return true; // Can't determine, assume match
+  
+  // Check if team age group is a range (e.g., "9U-10U")
+  if (teamAgeGroup.includes('-')) {
+    const parts = teamAgeGroup.split('-');
+    const minAge = extractAge(parts[0]);
+    const maxAge = extractAge(parts[1]);
+    
+    if (minAge !== null && maxAge !== null) {
+      return playerAge >= minAge && playerAge <= maxAge;
+    }
+  }
+  
+  // Single age group comparison (e.g., "9U" === "9U")
+  const teamAge = extractAge(teamAgeGroup);
+  if (teamAge === null) return true;
+  
+  return playerAge === teamAge;
+};
+
 const Roster: React.FC = () => {
   const { userData, teamData } = useAuth();
   const { theme } = useTheme();
@@ -144,6 +179,10 @@ const Roster: React.FC = () => {
   const [copiedTeamLink, setCopiedTeamLink] = useState(false);
   
   const [newPlayer, setNewPlayer] = useState({ 
+    firstName: '',
+    lastName: '',
+    nickname: '',
+    gender: '' as 'male' | 'female' | 'other' | '',
     name: '', 
     number: '', 
     position: '', 
@@ -276,9 +315,17 @@ const Roster: React.FC = () => {
     
     setAddingPlayer(true);
     try {
+      // Calculate age group from DOB using Sept 10 cutoff
+      const calculatedAgeGroup = calculateAgeGroup(sanitizeDate(newPlayer.dob));
+      
       // SECURITY: Sanitize all input before storing
       const playerData: any = {
-        name: sanitizeText(newPlayer.name, 100),
+        firstName: sanitizeText(newPlayer.firstName, 50),
+        lastName: sanitizeText(newPlayer.lastName, 50),
+        nickname: sanitizeText(newPlayer.nickname, 30) || undefined,
+        gender: newPlayer.gender || undefined,
+        ageGroup: calculatedAgeGroup || undefined, // e.g., "9U", "10U"
+        name: sanitizeText(`${newPlayer.firstName} ${newPlayer.lastName}`.trim(), 100),
         dob: sanitizeDate(newPlayer.dob),
         teamId: targetTeamId,
         parentId: isParent ? userData?.uid : undefined,
@@ -307,7 +354,7 @@ const Roster: React.FC = () => {
       }
 
       await addDoc(collection(db, 'teams', targetTeamId, 'players'), playerData);
-      setNewPlayer({ name: '', number: '', position: '', td: '0', tkl: '0', dob: '', teamId: '', shirtSize: '', pantSize: '', height: '', weight: '' });
+      setNewPlayer({ firstName: '', lastName: '', nickname: '', gender: '', name: '', number: '', position: '', td: '0', tkl: '0', dob: '', teamId: '', shirtSize: '', pantSize: '', height: '', weight: '' });
       setIsAddModalOpen(false);
       
       // For parents, reload the AuthContext to pick up the new player
@@ -409,8 +456,8 @@ const Roster: React.FC = () => {
                 // Calculate player's age group
                 const playerAgeGroup = playerData.dob ? calculateAgeGroup(playerData.dob) : null;
                 
-                // Check for age group mismatch
-                const ageGroupMatches = !teamAgeGroup || !playerAgeGroup || teamAgeGroup === playerAgeGroup;
+                // Check for age group mismatch (handles ranges like "9U-10U")
+                const ageGroupMatches = playerAgeGroupFitsTeam(playerAgeGroup, teamAgeGroup);
                 
                 // Check if player is in draft pool
                 const draftPoolEntry = draftPoolPlayers.get(playerDoc.id) || 
@@ -459,8 +506,8 @@ const Roster: React.FC = () => {
               // Calculate player's age group
               const playerAgeGroup = playerData.dob ? calculateAgeGroup(playerData.dob) : null;
               
-              // Check for age group mismatch
-              const ageGroupMatches = !teamAgeGroup || !playerAgeGroup || teamAgeGroup === playerAgeGroup;
+              // Check for age group mismatch (handles ranges like "9U-10U")
+              const ageGroupMatches = playerAgeGroupFitsTeam(playerAgeGroup, teamAgeGroup);
               
               // Check if player is in draft pool
               const draftPoolEntry = draftPoolPlayers.get(playerDoc.id) || 
@@ -529,6 +576,15 @@ const Roster: React.FC = () => {
   const handleAddPlayerToTeam = async () => {
     if (!selectedPlayerToAdd || !teamData?.id || addingPlayer) return;
     
+    // DEBUG: Log what we're working with
+    console.log('DEBUG Add Player:', {
+      teamId: teamData.id,
+      userRole: userData?.role,
+      userTeamId: userData?.teamId,
+      userTeamIds: userData?.teamIds,
+      userId: userData?.uid
+    });
+    
     // Check if player is already on another team
     if (selectedPlayerToAdd.teamId && selectedPlayerToAdd.teamId !== teamData.id) {
       alert(`This player is already on another team${selectedPlayerToAdd.teamName ? ` (${selectedPlayerToAdd.teamName})` : ''}. Players can only be on one team at a time.`);
@@ -544,11 +600,14 @@ const Roster: React.FC = () => {
     
     setAddingPlayer(true);
     try {
-      // Copy player data to new team
+      // Copy player data to new team - include ageGroup or calculate it
+      const ageGroup = selectedPlayerToAdd.ageGroup || calculateAgeGroup(selectedPlayerToAdd.dob);
+      
       const playerData: any = {
         name: selectedPlayerToAdd.name,
         username: selectedPlayerToAdd.username,
         dob: selectedPlayerToAdd.dob,
+        ageGroup: ageGroup || undefined, // e.g., "9U", "10U"
         teamId: teamData.id,
         parentId: selectedPlayerToAdd.parentId,
         photoUrl: selectedPlayerToAdd.photoUrl,
@@ -755,14 +814,27 @@ const Roster: React.FC = () => {
 
   const handleUpdatePlayer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingPlayer || !editingPlayer.teamId || savingPlayer) return;
+    if (!editingPlayer || !editingPlayer.teamId || savingPlayer) {
+      console.error('[Roster] Cannot save - missing data:', { editingPlayer: !!editingPlayer, teamId: editingPlayer?.teamId, savingPlayer });
+      return;
+    }
+    
+    console.log('[Roster] Saving player update:', { 
+      playerId: editingPlayer.id, 
+      teamId: editingPlayer.teamId,
+      nickname: editingPlayer.nickname 
+    });
     
     setSavingPlayer(true);
     try {
       const playerRef = doc(db, 'teams', editingPlayer.teamId, 'players', editingPlayer.id);
       const updateData: any = {
+        firstName: editingPlayer.firstName || editingPlayer.name?.split(' ')[0] || '',
+        lastName: editingPlayer.lastName || editingPlayer.name?.split(' ').slice(1).join(' ') || '',
+        nickname: editingPlayer.nickname || '',
         name: editingPlayer.name,
         dob: editingPlayer.dob,
+        gender: editingPlayer.gender || '',
         shirtSize: editingPlayer.shirtSize || '',
         pantSize: editingPlayer.pantSize || '',
         height: editingPlayer.height || '',
@@ -777,7 +849,9 @@ const Roster: React.FC = () => {
         updateData.isCaptain = editingPlayer.isCaptain || false;
       }
       
+      console.log('[Roster] Update data:', updateData);
       await updateDoc(playerRef, updateData);
+      console.log('[Roster] Player saved successfully!');
       setEditingPlayer(null);
     } catch (error) {
       console.error('Error updating player:', error);
@@ -918,43 +992,78 @@ const Roster: React.FC = () => {
     }
   };
 
-  // Add coach to team (Head Coach only)
+  // Invite coach to team (Head Coach only) - Creates invitation that coach must accept
   const handleAddCoachToTeam = async (coach: UserProfile) => {
     if (!teamData?.id || !isHeadCoach || addingCoach) return;
     
     setAddingCoach(true);
     try {
-      // Add team to coach's teamIds array (supports multiple teams)
-      // Only set teamId if coach doesn't have one yet (preserve their primary team)
-      const updateData: any = {
-        teamIds: arrayUnion(teamData.id)
-      };
+      // Check if there's already a pending invitation for this coach to this team
+      const existingInviteQuery = query(
+        collection(db, 'teamInvitations'),
+        where('teamId', '==', teamData.id),
+        where('invitedCoachId', '==', coach.uid),
+        where('status', '==', 'pending')
+      );
+      const existingSnap = await getDocs(existingInviteQuery);
       
-      // If coach has no teamId, set this as their primary team
-      if (!coach.teamId) {
-        updateData.teamId = teamData.id;
+      if (!existingSnap.empty) {
+        alert(`${coach.name} already has a pending invitation to this team.`);
+        setAddingCoach(false);
+        return;
       }
       
-      await updateDoc(doc(db, 'users', coach.uid), updateData);
-      
-      // Also add coach to team's coachIds array (single source of truth)
-      await updateDoc(doc(db, 'teams', teamData.id), {
-        coachIds: arrayUnion(coach.uid)
+      // Create team invitation record
+      const invitationRef = await addDoc(collection(db, 'teamInvitations'), {
+        teamId: teamData.id,
+        teamName: teamData.name || teamData.id,
+        invitedCoachId: coach.uid,
+        invitedCoachName: coach.name,
+        invitedCoachEmail: coach.email,
+        invitedByUserId: userData?.uid,
+        invitedByName: userData?.name,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        respondedAt: null
       });
       
-      // Log the action
-      await addDoc(collection(db, 'adminActivityLog'), {
-        action: 'ADD_COACH',
+      // Create notification for the invited coach
+      await addDoc(collection(db, 'notifications'), {
+        userId: coach.uid,
+        type: 'team_invite',
+        category: 'team',
+        priority: 'high',
+        title: 'Team Invitation',
+        message: `${userData?.name} has invited you to join "${teamData.name}" as a coach.`,
+        read: false,
+        actionRequired: true,
+        actionType: 'accept_decline',
+        link: '/notifications',
+        metadata: {
+          invitationId: invitationRef.id,
+          teamId: teamData.id,
+          teamName: teamData.name,
+          invitedByUserId: userData?.uid,
+          invitedByName: userData?.name
+        },
+        createdAt: serverTimestamp()
+      });
+      
+      // Log the action (non-blocking)
+      addDoc(collection(db, 'adminActivityLog'), {
+        action: 'INVITE_COACH',
         targetType: 'coach',
         targetId: coach.uid,
-        details: `Head Coach "${userData?.name}" added coach "${coach.name}" to team "${teamData?.name || teamData?.id}"`,
+        details: `Head Coach "${userData?.name}" invited coach "${coach.name}" to team "${teamData?.name || teamData?.id}"`,
         performedBy: userData?.uid || 'unknown',
         performedByName: userData?.name || 'Unknown',
         timestamp: serverTimestamp()
-      });
+      }).catch(err => console.warn('Failed to log invite coach action:', err));
       
-      // Refresh coaches list
-      setTeamCoaches(prev => [...prev, coach]);
+      // Show success message
+      alert(`Invitation sent to ${coach.name}! They will need to accept it to join the team.`);
+      
+      // Remove from available coaches (they have a pending invite)
       setAvailableCoaches(prev => prev.filter(c => c.uid !== coach.uid));
       
       // Close modal if no more results
@@ -964,8 +1073,8 @@ const Roster: React.FC = () => {
         setAvailableCoaches([]);
       }
     } catch (error) {
-      console.error('Error adding coach:', error);
-      alert('Failed to add coach to team.');
+      console.error('Error inviting coach:', error);
+      alert('Failed to send invitation.');
     } finally {
       setAddingCoach(false);
     }
@@ -1010,7 +1119,9 @@ const Roster: React.FC = () => {
     
     setAssigningCoordinator(true);
     try {
-      const updateData: any = {};
+      const updateData: any = {
+        updatedAt: serverTimestamp()
+      };
       const fieldName = assignCoordinatorModal.type === 'OC' 
         ? 'offensiveCoordinatorId' 
         : assignCoordinatorModal.type === 'DC' 
@@ -1020,6 +1131,7 @@ const Roster: React.FC = () => {
       
       await updateDoc(doc(db, 'teams', teamData.id), updateData);
       
+      // Log the action (non-blocking - don't fail if logging fails)
       const coachName = coachId ? teamCoaches.find(c => c.uid === coachId)?.name || 'Unknown' : 'None';
       const positionName = assignCoordinatorModal.type === 'OC' 
         ? 'Offensive Coordinator' 
@@ -1027,8 +1139,7 @@ const Roster: React.FC = () => {
           ? 'Defensive Coordinator' 
           : 'Special Teams Coordinator';
       
-      // Log the action
-      await addDoc(collection(db, 'adminActivityLog'), {
+      addDoc(collection(db, 'adminActivityLog'), {
         action: coachId ? 'ASSIGN_COORDINATOR' : 'REMOVE_COORDINATOR',
         targetType: 'team',
         targetId: teamData.id,
@@ -1038,7 +1149,7 @@ const Roster: React.FC = () => {
         performedBy: userData?.uid || 'unknown',
         performedByName: userData?.name || 'Unknown',
         timestamp: serverTimestamp()
-      });
+      }).catch(err => console.warn('Failed to log coordinator action:', err));
       
       setAssignCoordinatorModal(null);
     } catch (error) {
@@ -1263,7 +1374,9 @@ const Roster: React.FC = () => {
 
                     <div className="text-center mb-4">
                         <h3 className={`text-xl font-bold truncate flex items-center justify-center gap-1.5 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
-                          {player.name}
+                          {player.nickname ? (
+                            <span>{player.firstName || player.name?.split(' ')[0]} <span className="text-orange-500">"{player.nickname}"</span> {player.lastName || player.name?.split(' ').slice(1).join(' ')}</span>
+                          ) : player.name}
                           {isCaptain && <Crown className="w-5 h-5 text-amber-500 flex-shrink-0" />}
                         </h3>
                         {/* Username */}
@@ -1735,7 +1848,7 @@ const Roster: React.FC = () => {
                         <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       ) : (
                         <>
-                          <Plus className="w-3 h-3" /> Add
+                          <UserPlus className="w-3 h-3" /> Invite
                         </>
                       )}
                     </button>
@@ -2159,22 +2272,57 @@ const Roster: React.FC = () => {
                   <p className="text-xs text-zinc-500 mt-1">Ask your coach for the Team ID if needed</p>
                 </div>
               
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>First Name *</label>
+                    <input name="firstName" value={newPlayer.firstName} onChange={handleInputChange} placeholder="John" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                      theme === 'dark' 
+                        ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                        : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                    }`} required />
+                  </div>
+                  <div>
+                    <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Last Name *</label>
+                    <input name="lastName" value={newPlayer.lastName} onChange={handleInputChange} placeholder="Smith" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                      theme === 'dark' 
+                        ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                        : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                    }`} required />
+                  </div>
+                </div>
+
                 <div>
-                  <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Full Name *</label>
-                  <input name="name" value={newPlayer.name} onChange={handleInputChange} placeholder="John Smith" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                  <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Nickname (optional)</label>
+                  <input name="nickname" value={newPlayer.nickname} onChange={handleInputChange} placeholder='e.g., "Flash", "Tank"' className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
                     theme === 'dark' 
                       ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
                       : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
-                  }`} required />
+                  }`} />
+                  <p className="text-xs text-zinc-500 mt-1">Shows on player card if set</p>
                 </div>
                 
-                <div>
-                  <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Date of Birth *</label>
-                  <input name="dob" type="date" value={newPlayer.dob} onChange={handleInputChange} className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
-                    theme === 'dark' 
-                      ? 'bg-black/30 border-white/10 text-white focus:border-orange-500/50' 
-                      : 'bg-zinc-50 border-zinc-300 text-zinc-900 focus:border-orange-500'
-                  }`} required />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Date of Birth *</label>
+                    <input name="dob" type="date" value={newPlayer.dob} onChange={handleInputChange} className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                      theme === 'dark' 
+                        ? 'bg-black/30 border-white/10 text-white focus:border-orange-500/50' 
+                        : 'bg-zinc-50 border-zinc-300 text-zinc-900 focus:border-orange-500'
+                    }`} required />
+                  </div>
+                  <div>
+                    <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Gender *</label>
+                    <select name="gender" value={newPlayer.gender} onChange={handleInputChange} className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                      theme === 'dark' 
+                        ? 'bg-black/30 border-white/10 text-white focus:border-orange-500/50' 
+                        : 'bg-zinc-50 border-zinc-300 text-zinc-900 focus:border-orange-500'
+                    }`} required>
+                      <option value="">Select...</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className={`pt-2 border-t ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
@@ -2586,27 +2734,79 @@ const Roster: React.FC = () => {
               </div>
               
               <div>
-                <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Full Name</label>
+                <label className="block text-xs font-bold text-zinc-600 dark:text-zinc-400 mb-1 uppercase tracking-wider">Basic Information</label>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">First Name *</label>
+                  <input 
+                    type="text"
+                    value={editingPlayer.firstName || editingPlayer.name?.split(' ')[0] || ''}
+                    onChange={(e) => setEditingPlayer({
+                      ...editingPlayer, 
+                      firstName: e.target.value,
+                      name: `${e.target.value} ${editingPlayer.lastName || editingPlayer.name?.split(' ').slice(1).join(' ') || ''}`.trim()
+                    })}
+                    className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Last Name *</label>
+                  <input 
+                    type="text"
+                    value={editingPlayer.lastName || editingPlayer.name?.split(' ').slice(1).join(' ') || ''}
+                    onChange={(e) => setEditingPlayer({
+                      ...editingPlayer, 
+                      lastName: e.target.value,
+                      name: `${editingPlayer.firstName || editingPlayer.name?.split(' ')[0] || ''} ${e.target.value}`.trim()
+                    })}
+                    className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Nickname (optional)</label>
                 <input 
                   type="text"
-                  value={editingPlayer.name}
-                  onChange={(e) => setEditingPlayer({...editingPlayer, name: e.target.value})}
-                  className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
-                  required
+                  value={editingPlayer.nickname || ''}
+                  onChange={(e) => setEditingPlayer({...editingPlayer, nickname: e.target.value})}
+                  placeholder="e.g., &quot;Flash&quot;, &quot;Tank&quot;"
+                  className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400"
                 />
+                <p className="text-[10px] text-zinc-500 mt-1">Shows on player card if set</p>
               </div>
 
               {/* PARENT-ONLY FIELD: Date of Birth */}
               {isParent && (
-                <div>
-                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Date of Birth</label>
-                  <input 
-                    type="date"
-                    value={editingPlayer.dob}
-                    onChange={(e) => setEditingPlayer({...editingPlayer, dob: e.target.value})}
-                    className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
-                  />
-                </div>
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Date of Birth</label>
+                    <input 
+                      type="date"
+                      value={editingPlayer.dob}
+                      onChange={(e) => setEditingPlayer({...editingPlayer, dob: e.target.value})}
+                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Gender</label>
+                    <select 
+                      value={editingPlayer.gender || ''}
+                      onChange={(e) => setEditingPlayer({...editingPlayer, gender: e.target.value as 'male' | 'female' | 'other'})}
+                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                    >
+                      <option value="">Select gender...</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </>
               )}
 
               {/* COACH-ONLY FIELDS: Jersey Number and Position */}

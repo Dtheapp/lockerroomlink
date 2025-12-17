@@ -18,8 +18,8 @@ import { sanitizeText } from '../services/sanitize';
 import GettingStartedChecklist from './GettingStartedChecklist';
 import SeasonManager, { type RegistrationFlyerData } from './SeasonManager';
 import { DraftPool } from './draftpool';
-import type { LiveStream, BulletinPost, UserProfile } from '../types';
-import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image, Copy, ExternalLink, Share2 } from 'lucide-react';
+import type { LiveStream, BulletinPost, UserProfile, ProgramSeason } from '../types';
+import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image, Copy, ExternalLink, Share2, Link2, Check, Palette, ChevronRight } from 'lucide-react';
 
 // Extended event type with attachments
 interface EventWithAttachments {
@@ -123,6 +123,11 @@ const NewOSYSDashboard: React.FC = () => {
 
   // Current season registration close date (for DraftPool)
   const [registrationCloseDate, setRegistrationCloseDate] = useState<Date | null>(null);
+
+  // Program season state (for teams in a program)
+  const [programSeasons, setProgramSeasons] = useState<ProgramSeason[]>([]);
+  const [loadingProgramSeasons, setLoadingProgramSeasons] = useState(false);
+  const [copiedSeasonLink, setCopiedSeasonLink] = useState<string | null>(null);
 
   // Event management state
   const [showNewEventForm, setShowNewEventForm] = useState(false);
@@ -359,6 +364,35 @@ const NewOSYSDashboard: React.FC = () => {
     
     fetchCurrentSeason();
   }, [teamData?.id]);
+
+  // Fetch program seasons if team belongs to a program
+  useEffect(() => {
+    const programId = teamData?.programId;
+    if (!programId) {
+      setProgramSeasons([]);
+      return;
+    }
+
+    setLoadingProgramSeasons(true);
+    
+    // Real-time listener for program seasons
+    const seasonsRef = collection(db, 'programs', programId, 'seasons');
+    const q = query(seasonsRef, orderBy('createdAt', 'desc'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const seasons = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as ProgramSeason));
+      setProgramSeasons(seasons);
+      setLoadingProgramSeasons(false);
+    }, (error) => {
+      console.error('Error fetching program seasons:', error);
+      setLoadingProgramSeasons(false);
+    });
+
+    return () => unsubscribe();
+  }, [teamData?.programId]);
 
   // Copy team ID
   const copyTeamId = () => {
@@ -1204,28 +1238,202 @@ const NewOSYSDashboard: React.FC = () => {
             <div className="text-2xl">📆</div>
             <div>
               <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Season Management</h2>
-              <p className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>Manage registration and seasons</p>
+              <p className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
+                {teamData?.programId ? 'Managed by your program commissioner' : 'Manage registration and seasons'}
+              </p>
             </div>
           </div>
-          <SeasonManager
-            teamId={teamData.id}
-            teamName={teamData.name}
-            sport={teamData.sport || 'football'}
-            ageGroup={teamData.ageGroup}
-            currentSeasonId={teamData.currentSeasonId}
-            rosterCount={roster.length}
-            leagueId={teamData.leagueId}
-            leagueStatus={teamData.leagueStatus}
-            leagueName={teamData.leagueName}
-            onNavigateToDesignStudio={(data?: RegistrationFlyerData) => {
-              if (data) {
-                // Navigate with season data to prefill registration template
-                navigate('/design', { state: { registrationData: data } });
-              } else {
-                navigate('/design');
-              }
-            }}
-          />
+          
+          {/* If team belongs to a program, show program seasons */}
+          {teamData?.programId && programSeasons.length > 0 ? (
+            <div className="space-y-3">
+              {programSeasons.map((season) => {
+                const statusColors: Record<string, string> = {
+                  'setup': theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-slate-200 text-slate-600',
+                  'registration_open': theme === 'dark' ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-green-100 text-green-700 border border-green-200',
+                  'registration_closed': theme === 'dark' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-amber-100 text-amber-700 border border-amber-200',
+                  'teams_forming': theme === 'dark' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-blue-100 text-blue-700 border border-blue-200',
+                  'active': theme === 'dark' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-purple-100 text-purple-700 border border-purple-200',
+                  'completed': theme === 'dark' ? 'bg-gray-600 text-gray-400' : 'bg-slate-300 text-slate-500',
+                };
+                const statusLabels: Record<string, string> = {
+                  'setup': '⚙️ Setup',
+                  'registration_open': '🟢 Registration Open',
+                  'registration_closed': '🔒 Registration Closed',
+                  'teams_forming': '👥 Forming Teams',
+                  'active': '🏈 Season Active',
+                  'completed': '✅ Completed',
+                };
+                
+                return (
+                  <div 
+                    key={season.id}
+                    className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-slate-50 border border-slate-200'}`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                        {season.name}
+                      </h3>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[season.status] || statusColors['setup']}`}>
+                        {statusLabels[season.status] || season.status}
+                      </span>
+                    </div>
+                    
+                    <div className={`grid grid-cols-2 gap-2 text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-600'}`}>
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="w-4 h-4" />
+                        <span>Reg: {season.registrationOpenDate} - {season.registrationCloseDate}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-lg">👥</span>
+                        <span>{season.totalRegistrations || 0} registered</span>
+                      </div>
+                    </div>
+                    
+                    {season.registrationFee > 0 && (
+                      <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
+                        Registration Fee: ${(season.registrationFee / 100).toFixed(2)}
+                      </p>
+                    )}
+                    
+                    {/* Registration Link - Show when registration is open or in setup */}
+                    {(season.status === 'registration_open' || season.status === 'setup') && (
+                      <div className={`mt-3 p-3 rounded-lg border ${
+                        theme === 'dark' 
+                          ? 'bg-purple-500/10 border-purple-500/30' 
+                          : 'bg-purple-50 border-purple-200'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Link2 className={`w-4 h-4 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
+                          <span className={`text-sm font-medium ${theme === 'dark' ? 'text-purple-300' : 'text-purple-700'}`}>
+                            Registration Link
+                          </span>
+                        </div>
+                        <p className={`text-xs mb-2 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                          Share this link with parents to register their athletes
+                        </p>
+                        <div className={`flex items-center gap-2 p-2 rounded-lg ${
+                          theme === 'dark' ? 'bg-black/30' : 'bg-white'
+                        }`}>
+                          <input 
+                            type="text"
+                            readOnly
+                            value={`${window.location.origin}/#/register/${season.id}`}
+                            className={`flex-1 text-xs truncate bg-transparent border-none outline-none ${
+                              theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'
+                            }`}
+                          />
+                          <button
+                            onClick={() => {
+                              const link = `${window.location.origin}/#/register/${season.id}`;
+                              navigator.clipboard.writeText(link);
+                              setCopiedSeasonLink(season.id);
+                              setTimeout(() => setCopiedSeasonLink(null), 2000);
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                              copiedSeasonLink === season.id
+                                ? 'bg-green-500 text-white'
+                                : theme === 'dark'
+                                  ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                                  : 'bg-purple-500 hover:bg-purple-600 text-white'
+                            }`}
+                          >
+                            {copiedSeasonLink === season.id ? (
+                              <>
+                                <Check className="w-3.5 h-3.5" />
+                                Copied!
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5" />
+                                Copy
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Create Flyer Prompt */}
+                    <button
+                      onClick={() => {
+                        // Build registration link
+                        const registrationLink = `${window.location.origin}/#/register/${season.id}`;
+                        
+                        navigate('/design', { 
+                          state: { 
+                            registrationData: {
+                              seasonId: season.id,
+                              seasonName: season.name,
+                              teamName: teamData.name,
+                              sport: teamData.sport,
+                              registrationFee: season.registrationFee,
+                              registrationOpenDate: season.registrationOpenDate,
+                              registrationCloseDate: season.registrationCloseDate,
+                              ageGroup: teamData.ageGroup,
+                              registrationLink,
+                            }
+                          } 
+                        });
+                      }}
+                      className={`mt-3 p-3 rounded-lg border-2 border-dashed w-full text-left transition-all hover:scale-[1.01] ${
+                        theme === 'dark' 
+                          ? 'border-orange-500/30 bg-orange-500/5 hover:border-orange-500/50 hover:bg-orange-500/10' 
+                          : 'border-orange-300 bg-orange-50 hover:border-orange-400 hover:bg-orange-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Palette className="w-5 h-5 text-orange-500" />
+                        <div className="flex-1">
+                          <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                            🎨 Create Registration Flyer
+                          </p>
+                          <p className={`text-xs ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                            Design a flyer to share with parents - season info pre-loaded
+                          </p>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-orange-500" />
+                      </div>
+                    </button>
+                  </div>
+                );
+              })}
+              
+              <p className={`text-xs text-center ${theme === 'dark' ? 'text-zinc-600' : 'text-slate-400'}`}>
+                Seasons are managed by {teamData.programName || 'your program commissioner'}
+              </p>
+            </div>
+          ) : teamData?.programId && loadingProgramSeasons ? (
+            <div className={`text-center py-6 ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
+              Loading seasons...
+            </div>
+          ) : teamData?.programId ? (
+            <div className={`text-center py-6 ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
+              <p>No seasons created yet by your program.</p>
+              <p className="text-xs mt-1">Contact your commissioner to set up the season.</p>
+            </div>
+          ) : (
+            /* Team manages their own seasons */
+            <SeasonManager
+              teamId={teamData.id}
+              teamName={teamData.name}
+              sport={teamData.sport || 'football'}
+              ageGroup={teamData.ageGroup}
+              currentSeasonId={teamData.currentSeasonId}
+              rosterCount={roster.length}
+              leagueId={teamData.leagueId}
+              leagueStatus={teamData.leagueStatus}
+              leagueName={teamData.leagueName}
+              onNavigateToDesignStudio={(data?: RegistrationFlyerData) => {
+                if (data) {
+                  // Navigate with season data to prefill registration template
+                  navigate('/design', { state: { registrationData: data } });
+                } else {
+                  navigate('/design');
+                }
+              }}
+            />
+          )}
         </GlassCard>
       )}
 

@@ -142,18 +142,43 @@ export interface PlayoffGame {
 
 export interface Program {
   id?: string;
-  name: string;              // e.g., "City of Arlington Youth Sports"
-  sport?: SportType;         // Primary sport of the program
+  name: string;              // e.g., "CYFL Tigers", "Arlington Youth Sports"
+  
+  // Sports offered by this program (multi-sport support)
+  sports?: SportType[];              // ["football", "basketball", "cheer"]
+  sport?: SportType;                 // Legacy: Primary sport (for backward compat)
+  
+  // Age group configurations per sport
+  sportConfigs?: SportAgeGroupConfig[];  // Detailed config per sport
+  
+  // Organization
   commissionerId: string;
   commissionerName?: string;
   assistantCommissionerIds?: string[];
+  
+  // Location
   city?: string;
   state?: string;
   region?: string;
+  
+  // Teams (dynamically created from pools)
   teamIds?: string[];
   teamCount?: number;
+  
+  // Seasons
+  currentSeasonId?: string;          // Active season
+  seasonIds?: string[];              // All seasons
+  
+  // Status
   status?: 'active' | 'inactive';
   leagueId?: string | null;
+  
+  // Branding
+  primaryColor?: string;             // Hex color
+  secondaryColor?: string;
+  logoUrl?: string;
+  
+  // Metadata
   createdAt?: Timestamp | Date;
   updatedAt?: Timestamp | Date;
 }
@@ -442,6 +467,14 @@ export interface UserProfile {
   isTeamManager?: boolean;             // True if this is a pseudo-profile for a team manager
   managerId?: string;                  // The team manager document ID
   commissionerId?: string;             // The commissioner who created this manager
+  
+  // --- ORGANIZATION INFO (for commissioners) ---
+  orgName?: string;                    // Organization/Program name (saved to profile)
+  orgZipcode?: string;                 // Organization zipcode
+  orgCity?: string;                    // Organization city
+  orgState?: string;                   // Organization state
+  primaryColor?: string;               // Organization primary color
+  secondaryColor?: string;             // Organization secondary color
 }
 
 // --- SEASON MANAGEMENT ---
@@ -666,6 +699,360 @@ export interface DraftPoolSummary {
 // Sport Types - expandable for future sports
 export type SportType = 'football' | 'basketball' | 'soccer' | 'baseball' | 'cheer' | 'volleyball' | 'other';
 
+// =============================================================================
+// PROGRAM SEASON & REGISTRATION POOL SYSTEM
+// =============================================================================
+
+/**
+ * Age Group Configuration for a Sport within a Program
+ * Defines how players are grouped for team formation
+ */
+export interface SportAgeGroupConfig {
+  sport: SportType;
+  ageGroups: AgeGroupDivision[];       // List of age divisions for this sport
+}
+
+/**
+ * An age division within a sport
+ * Can be single (10U) or combined (8U-9U)
+ */
+export interface AgeGroupDivision {
+  id: string;                          // Unique ID: "8u-9u" or "10u"
+  label: string;                       // Display: "8U-9U" or "10U"
+  ageGroups: string[];                 // ["8U", "9U"] or ["10U"]
+  type: 'single' | 'combined';         // Whether this is a combined division
+  minBirthYear: number;                // e.g., 2016 (for 9U in 2025)
+  maxBirthYear: number;                // e.g., 2018 (for 8U in 2025)
+}
+
+/**
+ * Program Season - Created by Commissioner
+ * This is the master season that contains registration pools for all sports/age groups
+ */
+export interface ProgramSeason {
+  id: string;
+  programId: string;
+  programName: string;
+  
+  // Season info
+  name: string;                        // "2025 Spring", "Fall 2025"
+  year: number;                        // 2025
+  status: 'setup' | 'registration_open' | 'registration_closed' | 'teams_forming' | 'active' | 'completed';
+  
+  // Registration dates
+  registrationOpenDate: string;        // YYYY-MM-DD
+  registrationCloseDate: string;       // YYYY-MM-DD
+  
+  // Sports & Age Groups offered this season
+  sportsOffered: SportAgeGroupConfig[];
+  
+  // Registration settings (apply to all pools in this season)
+  registrationFee: number;             // Default fee in cents (can be overridden per sport/age)
+  requireMedicalInfo: boolean;
+  requireEmergencyContact: boolean;
+  requireUniformSizes: boolean;
+  requireWaiver: boolean;
+  waiverText?: string;
+  
+  // Payment options
+  allowPayInFull: boolean;
+  allowPaymentPlan: boolean;
+  allowInPersonPayment: boolean;
+  
+  // Counts (aggregated from all pools)
+  totalRegistrations: number;
+  totalPools: number;
+  poolsReadyForDraft: number;
+  
+  // Metadata
+  createdBy: string;
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
+}
+
+/**
+ * Registration Pool - Auto-created per Sport + Age Group Division
+ * Collection: programs/{programId}/seasons/{seasonId}/pools/{poolId}
+ * poolId format: "football_8u-9u" or "basketball_10u"
+ */
+export interface RegistrationPool {
+  id: string;
+  programId: string;
+  programName: string;
+  seasonId: string;
+  seasonName: string;
+  
+  // Sport & Age Configuration
+  sport: SportType;
+  ageGroupDivisionId: string;          // Reference to AgeGroupDivision.id
+  ageGroups: string[];                 // ["8U", "9U"] for combined, ["10U"] for single
+  ageGroupLabel: string;               // Display: "8U-9U" or "10U"
+  ageGroupType: 'single' | 'combined';
+  minBirthYear: number;
+  maxBirthYear: number;
+  
+  // Pool Status
+  status: 'open' | 'closed' | 'teams_created' | 'draft_scheduled' | 'draft_complete' | 'assigned';
+  
+  // Player counts
+  playerCount: number;
+  
+  // Team sizing recommendations
+  minPlayersPerTeam: number;           // Based on sport (11 for football, 5 for basketball)
+  maxPlayersPerTeam: number;           // Max roster size
+  recommendedTeamCount: number;        // Calculated: Math.ceil(playerCount / idealTeamSize)
+  
+  // Teams (filled after commissioner creates them)
+  teamCount: number;
+  teamIds: string[];
+  teamNames: string[];                 // For display without fetching teams
+  
+  // Draft configuration
+  requiresDraft: boolean;              // True if teamCount > 1
+  draftStatus: 'not_needed' | 'pending' | 'scheduled' | 'in_progress' | 'complete';
+  draftDate?: Timestamp | Date;
+  draftType?: 'snake' | 'linear' | 'lottery';
+  draftEventId?: string;               // Link to DraftEvent document
+  
+  // Fees (can override season default)
+  registrationFee?: number;            // Override fee for this pool (cents)
+  
+  // Timestamps
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
+}
+
+/**
+ * Player in a Registration Pool
+ * Collection: programs/{programId}/seasons/{seasonId}/pools/{poolId}/players/{playerId}
+ */
+export interface PoolPlayer {
+  id: string;
+  
+  // Pool reference
+  poolId: string;
+  seasonId: string;
+  programId: string;
+  
+  // Player Info
+  playerName: string;
+  playerFirstName: string;
+  playerLastName: string;
+  playerDob: string;                   // YYYY-MM-DD
+  calculatedAge: number;               // Age as of season start
+  calculatedAgeGroup: string;          // System calculated: "8U", "9U", etc.
+  gender?: 'male' | 'female' | 'other';
+  
+  // Link to existing player (if they have an account)
+  existingPlayerId?: string;           // players/{playerId} if they exist
+  playerUsername?: string;             // For public profile link
+  
+  // Parent/Guardian Info
+  parentId: string;
+  parentName: string;
+  parentEmail: string;
+  parentPhone?: string;
+  isIndependentAthlete: boolean;       // True if athlete 18+ registered themselves
+  
+  // Registration source
+  registrationEventId?: string;        // Link to event used for registration
+  registeredAt: Timestamp | Date;
+  
+  // Payment
+  paymentStatus: 'paid' | 'partial' | 'pending' | 'pay_in_person';
+  amountPaid: number;                  // Cents
+  totalAmount: number;                 // Cents
+  remainingBalance: number;            // Cents
+  paymentMethod?: 'paypal' | 'cash' | 'check' | 'other';
+  paymentNotes?: string;
+  
+  // Emergency Contact (required for youth)
+  emergencyContact: {
+    name: string;
+    phone: string;
+    relationship: string;
+  };
+  
+  // Medical Info (optional)
+  medicalInfo?: {
+    allergies?: string;
+    medications?: string;
+    conditions?: string;
+    insuranceProvider?: string;
+    insurancePolicyNumber?: string;
+  };
+  
+  // Uniform (if collected during registration)
+  uniformSizes?: {
+    jersey?: string;
+    shorts?: string;
+    helmet?: string;
+  };
+  jerseyNumber?: string;               // Preferred or assigned
+  preferredPositions?: string[];
+  
+  // Waiver
+  waiverSigned: boolean;
+  waiverSignedAt?: Timestamp | Date;
+  waiverSignedBy?: string;             // Name of person who signed
+  
+  // Assignment Status
+  status: 'in_pool' | 'drafted' | 'auto_assigned' | 'declined' | 'removed';
+  assignedTeamId?: string;
+  assignedTeamName?: string;
+  assignedAt?: Timestamp | Date;
+  
+  // Draft tracking (if drafted)
+  draftRound?: number;
+  draftPick?: number;
+  draftedBy?: string;                  // Coach ID who picked them
+  
+  // Notes
+  parentNotes?: string;                // Notes from parent during registration
+  commissionerNotes?: string;          // Notes from commissioner (private)
+  
+  // Timestamps
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
+}
+
+/**
+ * Draft Event - Scheduled draft for a pool
+ * Collection: programs/{programId}/drafts/{draftId}
+ */
+export interface DraftEvent {
+  id: string;
+  programId: string;
+  seasonId: string;
+  poolId: string;
+  
+  // Pool info (denormalized for easy display)
+  sport: SportType;
+  ageGroupLabel: string;
+  
+  // Schedule
+  scheduledDate: Timestamp | Date;
+  location?: string;                   // "Zoom" or physical address
+  
+  // Teams & Coaches
+  teamIds: string[];
+  teamNames: string[];
+  coachIds: string[];
+  coachNames: string[];
+  
+  // Draft Config
+  draftType: 'snake' | 'linear' | 'lottery';
+  totalRounds: number;                 // Calculated from playerCount / teamCount
+  
+  // Lottery (if enabled)
+  lotteryEnabled: boolean;
+  lotteryCompleted: boolean;
+  lotteryResults?: {
+    position: number;
+    teamId: string;
+    teamName: string;
+    coachId: string;
+    drawnAt: Timestamp | Date;
+  }[];
+  
+  // Draft order (set by lottery or commissioner)
+  draftOrder: string[];                // Team IDs in pick order
+  
+  // Draft progress
+  currentRound: number;
+  currentPick: number;
+  currentTeamId?: string;
+  
+  // Pool info
+  totalPlayers: number;
+  playersRemaining: number;
+  
+  // Status
+  status: 'scheduled' | 'lottery_pending' | 'in_progress' | 'paused' | 'completed' | 'cancelled';
+  startedAt?: Timestamp | Date;
+  completedAt?: Timestamp | Date;
+  
+  // Pick history
+  picks: DraftPick[];
+  
+  // Metadata
+  createdBy: string;
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
+}
+
+export interface DraftPick {
+  round: number;
+  pick: number;                        // Overall pick number
+  pickInRound: number;                 // Pick number within round
+  teamId: string;
+  teamName: string;
+  coachId: string;
+  playerId: string;
+  playerName: string;
+  pickedAt: Timestamp | Date;
+}
+
+// =============================================================================
+// AGE GROUP UTILITIES
+// =============================================================================
+
+/**
+ * Calculate age group from date of birth
+ * @param dob Date of birth (YYYY-MM-DD string or Date)
+ * @param referenceDate Date to calculate age from (defaults to Aug 1 of current year)
+ * @returns Age group string (e.g., "8U", "9U")
+ */
+export function calculateAgeGroup(dob: string | Date, referenceDate?: Date): string {
+  const birthDate = typeof dob === 'string' ? new Date(dob) : dob;
+  const refDate = referenceDate || new Date(new Date().getFullYear(), 7, 1); // Aug 1
+  
+  let age = refDate.getFullYear() - birthDate.getFullYear();
+  const monthDiff = refDate.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && refDate.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  
+  // Map age to age group
+  if (age <= 5) return '5U';
+  if (age <= 6) return '6U';
+  if (age <= 7) return '7U';
+  if (age <= 8) return '8U';
+  if (age <= 9) return '9U';
+  if (age <= 10) return '10U';
+  if (age <= 11) return '11U';
+  if (age <= 12) return '12U';
+  if (age <= 13) return '13U';
+  if (age <= 14) return '14U';
+  return 'Open';
+}
+
+/**
+ * Get birth year range for an age group
+ * @param ageGroup Age group string (e.g., "8U")
+ * @param seasonYear The year of the season
+ * @returns { minYear, maxYear }
+ */
+export function getBirthYearRange(ageGroup: string, seasonYear: number): { minYear: number; maxYear: number } {
+  const ageMatch = ageGroup.match(/(\d+)U/);
+  if (!ageMatch) return { minYear: 1900, maxYear: seasonYear };
+  
+  const maxAge = parseInt(ageMatch[1], 10);
+  const minYear = seasonYear - maxAge;
+  const maxYear = seasonYear - maxAge + 1;
+  
+  return { minYear, maxYear };
+}
+
+/**
+ * Check if a player's DOB falls within an age group division
+ */
+export function isPlayerEligibleForDivision(dob: string | Date, division: AgeGroupDivision): boolean {
+  const birthDate = typeof dob === 'string' ? new Date(dob) : dob;
+  const birthYear = birthDate.getFullYear();
+  return birthYear >= division.minBirthYear && birthYear <= division.maxBirthYear;
+}
+
 // Standard age groups for youth sports
 export const AGE_GROUPS = [
   // Youth (age-based)
@@ -771,7 +1158,12 @@ export interface LiveStream {
 
 export interface Player {
   id: string;
-  name: string;
+  name: string; // Full display name (computed from firstName + lastName or legacy)
+  firstName?: string; // First name
+  lastName?: string; // Last name  
+  nickname?: string; // Optional nickname (shown on player card if set)
+  gender?: 'male' | 'female' | 'other'; // Player gender
+  ageGroup?: string; // Calculated age group (e.g., "9U", "10U") - auto-calculated from DOB using Sept 10 cutoff
   username?: string; // Unique athlete username for tracking (e.g., @johnny_smith)
   teamId: string | null; // Team the player belongs to (null if unassigned)
   // REMOVED NUMBER/POSITION FROM CORE PARENT INPUT FLOW:
@@ -1116,6 +1508,7 @@ export interface PlayerFilmEntry {
   taggedAt: any; // When the player was tagged in this video
   taggedBy?: string; // User ID who tagged this player
   teamName?: string; // Store team name for display
+  sport?: SportType; // Sport this film is for (football, basketball, etc.)
 }
 
 // --- PRIVATE MESSAGING ---

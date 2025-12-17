@@ -872,6 +872,8 @@ export interface PlayerRegistrationStatus {
   teamId?: string;            // If on-team
   draftPoolEntryId?: string;  // If in-draft-pool
   draftPoolTeamId?: string;   // Team's draft pool they're in
+  draftPoolTeamName?: string; // Team name for draft pool display
+  sport?: string;             // Sport for the team/draft pool
   registrationId?: string;    // Most recent registration
   eventName?: string;         // Event they registered for
   deniedReason?: string;      // If registration-denied
@@ -890,16 +892,75 @@ export async function getPlayerRegistrationStatus(
   currentTeamId?: string,
   playerName?: string // Optional: for fallback search
 ): Promise<PlayerRegistrationStatus> {
+  console.log('[PlayerStatus] Checking status for:', { playerId, currentTeamId, playerName });
+  
   // If player already has a teamId, they're on a team
   if (currentTeamId) {
     const teamDoc = await getDoc(doc(db, 'teams', currentTeamId));
     if (teamDoc.exists()) {
+      console.log('[PlayerStatus] Player is on team:', currentTeamId);
       return {
         status: 'on-team',
         teamId: currentTeamId,
         teamName: teamDoc.data().name || 'Unknown Team'
       };
     }
+  }
+  
+  // FAST PATH: Check the player document for cached draft pool status
+  // This avoids permission issues when parents try to read other teams' draft pools
+  // Players are stored in top-level 'players' collection (unassigned athletes)
+  try {
+    const playerDoc = await getDoc(doc(db, 'players', playerId));
+    console.log('[PlayerStatus] Checking player doc at players/' + playerId);
+    if (playerDoc.exists()) {
+      const playerData = playerDoc.data();
+      console.log('[PlayerStatus] Player doc draft status:', playerData.draftPoolStatus);
+      
+      if (playerData.draftPoolStatus === 'waiting' && playerData.draftPoolTeamId) {
+        // Fetch team info for name and sport
+        let draftPoolTeamName = 'Unknown Team';
+        let sport = 'other';
+        try {
+          const teamDoc = await getDoc(doc(db, 'teams', playerData.draftPoolTeamId));
+          if (teamDoc.exists()) {
+            const teamData = teamDoc.data();
+            draftPoolTeamName = teamData.name || 'Unknown Team';
+            sport = teamData.sport || 'other';
+          }
+        } catch (err) {
+          console.log('[PlayerStatus] Could not fetch draft pool team info:', err);
+        }
+        
+        return {
+          status: 'in-draft-pool',
+          draftPoolEntryId: playerData.draftPoolEntryId,
+          draftPoolTeamId: playerData.draftPoolTeamId,
+          draftPoolTeamName,
+          sport,
+        };
+      }
+      
+      if (playerData.draftPoolStatus === 'declined') {
+        return {
+          status: 'registration-denied',
+          draftPoolEntryId: playerData.draftPoolEntryId,
+          draftPoolTeamId: playerData.draftPoolTeamId,
+          deniedReason: playerData.draftPoolDeclinedReason || 'Registration was declined',
+        };
+      }
+      
+      if (playerData.draftPoolStatus === 'drafted' && playerData.teamId) {
+        const teamDoc = await getDoc(doc(db, 'teams', playerData.teamId));
+        return {
+          status: 'on-team',
+          teamId: playerData.teamId,
+          teamName: teamDoc.exists() ? teamDoc.data().name : 'Unknown Team'
+        };
+      }
+    }
+  } catch (err) {
+    console.log('[PlayerStatus] Could not read player doc, trying fallback:', err);
   }
   
   // Check draft pool across all teams for this player
@@ -913,11 +974,13 @@ export async function getPlayerRegistrationStatus(
       limit(5)
     );
     const regSnapshot = await getDocs(registrationsQuery);
+    console.log('[PlayerStatus] Found registrations:', regSnapshot.size);
     
     // If no registrations found, try to search draft pool directly via teams
     if (regSnapshot.empty) {
       // Fallback: Check all teams for draft pool entries with this playerId
       const teamsSnapshot = await getDocs(collection(db, 'teams'));
+      console.log('[PlayerStatus] Searching', teamsSnapshot.size, 'teams for draft pool entries');
       
       for (const teamDoc of teamsSnapshot.docs) {
         // Get all draft pool entries for this team and filter in memory
@@ -931,6 +994,14 @@ export async function getPlayerRegistrationStatus(
           const matchesByName = playerName && draftEntry.playerName === playerName;
           
           if (matchesById || matchesByName) {
+            console.log('[PlayerStatus] Found match in team', teamDoc.id, ':', { 
+              matchesById, 
+              matchesByName, 
+              status: draftEntry.status,
+              entryPlayerId: draftEntry.playerId,
+              entryPlayerName: draftEntry.playerName 
+            });
+            
             if (draftEntry.status === 'waiting') {
               return {
                 status: 'in-draft-pool',
@@ -962,6 +1033,7 @@ export async function getPlayerRegistrationStatus(
         }
       }
       
+      console.log('[PlayerStatus] No match found in any draft pool, returning not-registered');
       return { status: 'not-registered' };
     }
     

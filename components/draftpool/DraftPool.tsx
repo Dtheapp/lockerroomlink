@@ -112,14 +112,26 @@ const DraftPool: React.FC<DraftPoolProps> = ({ teamId, teamOwnerId, sport, ageGr
   
   // Handle declining a player
   const handleDecline = async (entryId: string) => {
+    if (!userData?.uid) return;
+    
     setActionLoading(entryId);
     setError(null);
+    setSuccess(null);
     
-    const result = await declineDraftEntry(teamId, entryId, 'Declined by team');
+    const result = await declineDraftEntry(
+      teamId, 
+      entryId, 
+      'Declined by team',
+      userData.uid,
+      userData.name || 'Coach'
+    );
     
     setActionLoading(null);
     
-    if (!result.success) {
+    if (result.success) {
+      setSuccess('Player declined. Parent has been notified.');
+      setTimeout(() => setSuccess(null), 3000);
+    } else {
       setError(result.error || 'Failed to decline player');
       setTimeout(() => setError(null), 5000);
     }
@@ -326,12 +338,28 @@ const DraftPool: React.FC<DraftPoolProps> = ({ teamId, teamOwnerId, sport, ageGr
                       </div>
                     )}
                     
-                    {/* Notes (coach/commissioner only) */}
+                    {/* Parent Suggestions/Notes (visible to coaches/commissioners) */}
                     {canSeePayment && entry.notes && (
-                      <div className={`text-xs mt-2 p-2 rounded ${
-                        theme === 'dark' ? 'bg-white/5 text-slate-400' : 'bg-slate-50 text-slate-600'
+                      <div className={`mt-3 p-3 rounded-lg border ${
+                        theme === 'dark' 
+                          ? 'bg-purple-500/10 border-purple-500/20' 
+                          : 'bg-purple-50 border-purple-200'
                       }`}>
-                        📝 {entry.notes}
+                        <div className="flex items-start gap-2">
+                          <span className="text-sm">💬</span>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-semibold mb-1 ${
+                              theme === 'dark' ? 'text-purple-400' : 'text-purple-700'
+                            }`}>
+                              Parent Suggestions
+                            </p>
+                            <p className={`text-sm leading-relaxed ${
+                              theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                            }`}>
+                              {entry.notes}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

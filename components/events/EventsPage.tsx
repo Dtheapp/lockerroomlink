@@ -1,17 +1,41 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, doc, getDoc, collectionGroup, Timestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { calculateAgeGroup } from '../../services/ageValidator';
 import EventList from './EventList';
 import { Event, PricingTier } from '../../types/events';
-import { Loader2, AlertCircle, Calendar, Search, MapPin, Users, ChevronRight, UserPlus, ChevronDown, Trophy, Clock } from 'lucide-react';
+import { Loader2, AlertCircle, Calendar, Search, MapPin, Users, ChevronRight, UserPlus, ChevronDown, Trophy, Clock, ExternalLink, X } from 'lucide-react';
+
+// Season registration as pseudo-event for display
+interface SeasonRegistration {
+  id: string;
+  type: 'season_registration';
+  seasonId: string;
+  programId: string;
+  programName: string;
+  seasonName: string;
+  sport: string;
+  ageGroups: string[];
+  registrationFee: number;
+  registrationOpenDate?: Date;
+  registrationCloseDate?: Date;
+  location?: string;
+}
 
 interface DraftPoolInfo {
   isInDraftPool: boolean;
+  teamId?: string;
   teamName?: string;
   registrationCloseDate?: string;
+  draftPoolCount?: number;
+}
+
+interface DraftPoolPreview {
+  teamId: string;
+  teamName: string;
+  players: { name: string; ageGroup?: string; registeredAt?: any }[];
 }
 
 /**
@@ -20,67 +44,81 @@ interface DraftPoolInfo {
  */
 const EventsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, userData, teamData, players, selectedPlayer, setSelectedPlayer, loading: authLoading } = useAuth();
+  const { user, userData, teamData, players, selectedPlayer, setSelectedPlayer, selectedSportContext, loading: authLoading } = useAuth();
 
   // Get the current team ID
   const teamId = teamData?.id || userData?.teamId;
 
   // State for public events browse (for users without a team)
   const [publicEvents, setPublicEvents] = useState<Event[]>([]);
+  const [seasonRegistrations, setSeasonRegistrations] = useState<SeasonRegistration[]>([]);
   const [publicPricingTiers, setPublicPricingTiers] = useState<Record<string, PricingTier[]>>({});
   const [loadingPublic, setLoadingPublic] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAthleteSelector, setShowAthleteSelector] = useState(false);
   
+  // Draft pool counts by team ID (to show on event cards)
+  const [draftPoolCounts, setDraftPoolCounts] = useState<Record<string, number>>({});
+  
+  // Draft pool preview modal
+  const [draftPoolPreview, setDraftPoolPreview] = useState<DraftPoolPreview | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  
   // Draft pool check for players waiting to be drafted
   const [draftPoolInfo, setDraftPoolInfo] = useState<DraftPoolInfo>({ isInDraftPool: false });
   const [draftPoolLoading, setDraftPoolLoading] = useState(true);
   
-  // Check if selected player is in draft pool
+  // Check if selected player is in draft pool FOR THE SELECTED SPORT
+  // Only load draft pool info if selectedSportContext is 'draft_pool'
   useEffect(() => {
     const checkDraftPool = async () => {
-      if (!selectedPlayer?.id) {
+      // If no sport context or not in draft pool mode, skip
+      if (!selectedSportContext || selectedSportContext.status !== 'draft_pool') {
+        console.log('[EventsPage] Sport context is not draft_pool, skipping draft pool check');
+        setDraftPoolInfo({ isInDraftPool: false });
+        setDraftPoolLoading(false);
+        return;
+      }
+      
+      const draftTeamId = selectedSportContext.draftPoolTeamId;
+      if (!draftTeamId) {
+        console.log('[EventsPage] No draftPoolTeamId in sport context');
+        setDraftPoolInfo({ isInDraftPool: false });
         setDraftPoolLoading(false);
         return;
       }
       
       try {
-        // Search all teams' draft pools for this player
-        const teamsSnap = await getDocs(collection(db, 'teams'));
+        console.log('[EventsPage] Loading draft pool info for team:', draftTeamId);
         
-        for (const teamDoc of teamsSnap.docs) {
-          const draftPoolQuery = query(
-            collection(db, 'teams', teamDoc.id, 'draftPool'),
-            where('playerId', '==', selectedPlayer.id),
-            where('status', '==', 'waiting')
-          );
-          const draftSnap = await getDocs(draftPoolQuery);
-          
-          if (!draftSnap.empty) {
-            // Found in draft pool - get registration close date from season
-            const teamDataDoc = teamDoc.data();
-            let closeDate: string | undefined;
-            
-            // Try to get registration close date from active season
-            const seasonsSnap = await getDocs(collection(db, 'teams', teamDoc.id, 'seasons'));
-            seasonsSnap.forEach(seasonDoc => {
-              const sData = seasonDoc.data();
-              if (sData.isActive && sData.registrationCloseDate) {
-                closeDate = sData.registrationCloseDate;
-              }
-            });
-            
-            setDraftPoolInfo({
-              isInDraftPool: true,
-              teamName: teamDataDoc.name || 'the team',
-              registrationCloseDate: closeDate,
-            });
-            setDraftPoolLoading(false);
-            return;
+        // Get team info
+        const teamDoc = await getDoc(doc(db, 'teams', draftTeamId));
+        const teamDataDoc = teamDoc.exists() ? teamDoc.data() : { name: 'the team' };
+        
+        // Get registration close date from season
+        let closeDate: string | undefined;
+        const seasonsSnap = await getDocs(collection(db, 'teams', draftTeamId, 'seasons'));
+        seasonsSnap.forEach(seasonDoc => {
+          const sData = seasonDoc.data();
+          if (sData.isActive && sData.registrationCloseDate) {
+            closeDate = sData.registrationCloseDate;
           }
-        }
+        });
         
-        setDraftPoolInfo({ isInDraftPool: false });
+        // Get draft pool count
+        const draftPoolQuery = query(
+          collection(db, 'teams', draftTeamId, 'draftPool'),
+          where('status', '==', 'waiting')
+        );
+        const draftSnap = await getDocs(draftPoolQuery);
+        
+        setDraftPoolInfo({
+          isInDraftPool: true,
+          teamId: draftTeamId,
+          teamName: teamDataDoc.name || selectedSportContext.draftPoolTeamName || 'the team',
+          registrationCloseDate: closeDate,
+          draftPoolCount: draftSnap.size,
+        });
         setDraftPoolLoading(false);
       } catch (err) {
         console.error('Error checking draft pool:', err);
@@ -90,7 +128,7 @@ const EventsPage: React.FC = () => {
     };
     
     checkDraftPool();
-  }, [selectedPlayer?.id]);
+  }, [selectedSportContext?.status, selectedSportContext?.draftPoolTeamId]);
 
   // Calculate the selected athlete's age group
   const selectedAthleteAgeGroup = useMemo(() => {
@@ -163,6 +201,29 @@ const EventsPage: React.FC = () => {
         }));
         
         setPublicPricingTiers(tiersMap);
+        
+        // Fetch draft pool counts for each team
+        const uniqueTeamIds = [...new Set(eventsData.map(e => e.teamId).filter(Boolean))];
+        console.log('[EventsPage] Fetching draft pool counts for teams:', uniqueTeamIds);
+        const countsMap: Record<string, number> = {};
+        await Promise.all(uniqueTeamIds.map(async (eventTeamId) => {
+          if (!eventTeamId) return;
+          try {
+            const draftPoolQuery = query(
+              collection(db, 'teams', eventTeamId, 'draftPool'),
+              where('status', '==', 'waiting')
+            );
+            const draftSnap = await getDocs(draftPoolQuery);
+            countsMap[eventTeamId] = draftSnap.size;
+            console.log('[EventsPage] Team', eventTeamId, 'draft pool count:', draftSnap.size);
+          } catch (err) {
+            console.log('[EventsPage] Failed to fetch draft pool for team', eventTeamId, err);
+            // Silently fail - user may not have permission to read draft pool
+            countsMap[eventTeamId] = 0;
+          }
+        }));
+        console.log('[EventsPage] Final draft pool counts:', countsMap);
+        setDraftPoolCounts(countsMap);
       } catch (error) {
         console.error('Error fetching public events:', error);
       } finally {
@@ -173,6 +234,123 @@ const EventsPage: React.FC = () => {
     fetchPublicEvents();
   }, [teamId, authLoading]);
 
+  // Fetch program seasons with open registration
+  useEffect(() => {
+    if (teamId || authLoading) return; // Skip if user has a team
+    
+    const fetchProgramSeasons = async () => {
+      try {
+        console.log('[EventsPage] Fetching program seasons with open registration...');
+        const now = new Date();
+        
+        // Query all programs first
+        const programsSnap = await getDocs(collection(db, 'programs'));
+        
+        const allSeasonRegs: SeasonRegistration[] = [];
+        
+        // For each program, get seasons with open registration
+        await Promise.all(programsSnap.docs.map(async (programDoc) => {
+          const programData = programDoc.data();
+          const programId = programDoc.id;
+          
+          try {
+            // Get seasons for this program
+            const seasonsSnap = await getDocs(
+              collection(db, 'programs', programId, 'seasons')
+            );
+            
+            seasonsSnap.docs.forEach((seasonDoc) => {
+              const seasonData = seasonDoc.data();
+              
+              // Check if registration is currently open
+              const status = seasonData.status;
+              if (status === 'completed' || status === 'ended' || status === 'archived') {
+                return; // Skip ended seasons
+              }
+              
+              // Check registration dates
+              const openDate = seasonData.registrationOpenDate?.toDate?.();
+              const closeDate = seasonData.registrationCloseDate?.toDate?.();
+              
+              // Skip if registration hasn't opened yet
+              if (openDate && openDate > now) {
+                return;
+              }
+              
+              // Skip if registration has closed
+              if (closeDate && closeDate < now) {
+                return;
+              }
+              
+              // This season has open registration!
+              allSeasonRegs.push({
+                id: `season_${seasonDoc.id}`,
+                type: 'season_registration',
+                seasonId: seasonDoc.id,
+                programId: programId,
+                programName: programData.name || 'Program',
+                seasonName: seasonData.name || 'Season',
+                sport: seasonData.sport || programData.sport || 'Football',
+                ageGroups: seasonData.activeAgeGroups || programData.ageGroups || [],
+                registrationFee: seasonData.registrationFee || 0,
+                registrationOpenDate: openDate,
+                registrationCloseDate: closeDate,
+                location: programData.city ? `${programData.city}, ${programData.state}` : undefined,
+              });
+            });
+          } catch (err) {
+            console.log('[EventsPage] Error fetching seasons for program', programId, err);
+          }
+        }));
+        
+        console.log('[EventsPage] Found', allSeasonRegs.length, 'season registrations');
+        setSeasonRegistrations(allSeasonRegs);
+      } catch (error) {
+        console.error('Error fetching program seasons:', error);
+      }
+    };
+    
+    fetchProgramSeasons();
+  }, [teamId, authLoading]);
+
+  // Function to load draft pool preview
+  const loadDraftPoolPreview = async (eventTeamId: string, teamName: string) => {
+    setLoadingPreview(true);
+    try {
+      const draftPoolQuery = query(
+        collection(db, 'teams', eventTeamId, 'draftPool'),
+        where('status', '==', 'waiting')
+      );
+      const draftSnap = await getDocs(draftPoolQuery);
+      
+      const players = draftSnap.docs.map(doc => {
+        const data = doc.data();
+        return {
+          name: data.playerName || 'Unknown',
+          ageGroup: data.ageGroup,
+          registeredAt: data.createdAt,
+        };
+      });
+      
+      // Sort by registration date (newest first)
+      players.sort((a, b) => {
+        const aTime = a.registeredAt?.toMillis?.() || 0;
+        const bTime = b.registeredAt?.toMillis?.() || 0;
+        return bTime - aTime;
+      });
+      
+      setDraftPoolPreview({
+        teamId: eventTeamId,
+        teamName,
+        players,
+      });
+    } catch (err) {
+      console.error('Error loading draft pool preview:', err);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
   // Loading state
   if (authLoading || draftPoolLoading) {
     return (
@@ -182,8 +360,9 @@ const EventsPage: React.FC = () => {
     );
   }
   
-  // DRAFT POOL VIEW - Player is waiting to be drafted (show instead of registration browser)
-  if (!teamId && draftPoolInfo.isInDraftPool) {
+  // DRAFT POOL VIEW - Player is waiting to be drafted for the SELECTED SPORT
+  // Only show when selectedSportContext.status === 'draft_pool'
+  if (!teamId && selectedSportContext?.status === 'draft_pool' && draftPoolInfo.isInDraftPool) {
     const isParent = userData?.role === 'Parent';
     const closeDateFormatted = draftPoolInfo.registrationCloseDate 
       ? new Date(draftPoolInfo.registrationCloseDate + 'T23:59:59').toLocaleDateString('en-US', { 
@@ -204,9 +383,28 @@ const EventsPage: React.FC = () => {
             🎉 You're in the Draft Pool!
           </h2>
           
-          <p className="text-slate-600 dark:text-zinc-400 mb-6 text-lg">
-            {isParent ? 'Your athlete is' : "You're"} registered and waiting to be drafted to <span className="font-semibold text-emerald-600 dark:text-emerald-400">{draftPoolInfo.teamName}</span>.
+          <p className="text-slate-600 dark:text-zinc-400 mb-4 text-lg">
+            {isParent ? 'Your athlete is' : "You're"} registered and waiting to be drafted to{' '}
+            {draftPoolInfo.teamId ? (
+              <a 
+                href={`#/team/${draftPoolInfo.teamId}`}
+                className="font-semibold text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1"
+              >
+                {draftPoolInfo.teamName}
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            ) : (
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">{draftPoolInfo.teamName}</span>
+            )}.
           </p>
+          
+          {/* Draft Pool Count Badge */}
+          {draftPoolInfo.draftPoolCount && draftPoolInfo.draftPoolCount > 0 && (
+            <div className="inline-flex items-center gap-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-4 py-2 rounded-full text-sm font-medium mb-6">
+              <Users className="w-4 h-4" />
+              {draftPoolInfo.draftPoolCount} player{draftPoolInfo.draftPoolCount !== 1 ? 's' : ''} in draft pool
+            </div>
+          )}
           
           <div className="bg-white dark:bg-zinc-900/50 border border-emerald-200 dark:border-emerald-900/30 rounded-xl p-5 mb-6">
             <div className="flex items-start gap-3 text-left">
@@ -226,6 +424,17 @@ const EventsPage: React.FC = () => {
             </div>
           </div>
           
+          {/* View Team Page Button */}
+          {draftPoolInfo.teamId && (
+            <a 
+              href={`#/team/${draftPoolInfo.teamId}`}
+              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold transition-colors shadow-lg shadow-emerald-500/30 mb-4"
+            >
+              <Users className="w-5 h-5" />
+              View Team Page
+            </a>
+          )}
+          
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 rounded-xl p-4">
             <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-sm">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -239,17 +448,85 @@ const EventsPage: React.FC = () => {
 
   // No team - show public events browse for registration
   if (!teamId) {
-    // Filter events by search query AND by athlete's age group
-    const filteredEvents = publicEvents.filter(event => {
-      // First, filter by age group if an athlete is selected
-      if (selectedAthleteAgeGroup && (event as any).ageGroup) {
-        // Match the age group (e.g., "9U" matches "9U")
-        if ((event as any).ageGroup !== selectedAthleteAgeGroup) {
+    // Convert season registrations to event-like format for unified display
+    const seasonAsEvents: Event[] = seasonRegistrations.map(sr => ({
+      id: sr.id,
+      title: `${sr.programName} - ${sr.seasonName}`,
+      type: 'registration' as const,
+      description: `Open registration for ${sr.sport}`,
+      location: sr.location || 'Online Registration',
+      status: 'active' as const,
+      startDate: sr.registrationOpenDate ? Timestamp.fromDate(sr.registrationOpenDate) : undefined,
+      endDate: sr.registrationCloseDate ? Timestamp.fromDate(sr.registrationCloseDate) : undefined,
+      teamId: sr.programId, // Use programId as teamId for routing
+      teamName: sr.programName,
+      isPublic: true,
+      // Store season-specific data
+      sport: sr.sport,
+      ageGroup: sr.ageGroups?.[0] || '', // First age group for filtering
+      ageGroups: sr.ageGroups, // All age groups
+      seasonId: sr.seasonId,
+      programId: sr.programId,
+      isSeasonRegistration: true, // Flag to identify season registrations
+      registrationFee: sr.registrationFee,
+    } as any));
+
+    // Combine events and season registrations
+    const allRegistrations = [...publicEvents, ...seasonAsEvents];
+
+    // Filter events by sport context, search query, AND athlete's age group
+    const filteredEvents = allRegistrations.filter(event => {
+      // First, filter by selected sport context if set
+      if (selectedSportContext?.sport && selectedSportContext.status === 'none') {
+        // Only show events for the selected sport when browsing for registration
+        const eventSport = ((event as any).sport || '').toLowerCase();
+        if (eventSport && eventSport !== selectedSportContext.sport) {
           return false;
         }
       }
       
-      // Then filter by search query
+      // Then, filter by age group if an athlete is selected
+      if (selectedAthleteAgeGroup) {
+        const eventAgeGroup = (event as any).ageGroup;
+        const eventAgeGroups = (event as any).ageGroups as string[] | undefined;
+        
+        // Check if any age group matches
+        let matches = false;
+        
+        // Check single ageGroup field
+        if (eventAgeGroup) {
+          // Handle range formats like "9U-10U" or exact match "9U"
+          if (eventAgeGroup.includes('-')) {
+            const [minAg, maxAg] = eventAgeGroup.split('-');
+            const minAge = parseInt(minAg.replace(/\D/g, '')) || 0;
+            const maxAge = parseInt(maxAg.replace(/\D/g, '')) || 99;
+            const athleteAge = parseInt(selectedAthleteAgeGroup.replace(/\D/g, '')) || 0;
+            matches = athleteAge >= minAge && athleteAge <= maxAge;
+          } else {
+            matches = eventAgeGroup === selectedAthleteAgeGroup;
+          }
+        }
+        
+        // Check ageGroups array (for season registrations)
+        if (!matches && eventAgeGroups && Array.isArray(eventAgeGroups)) {
+          matches = eventAgeGroups.some(ag => {
+            if (ag.includes('-')) {
+              const [minAg, maxAg] = ag.split('-');
+              const minAge = parseInt(minAg.replace(/\D/g, '')) || 0;
+              const maxAge = parseInt(maxAg.replace(/\D/g, '')) || 99;
+              const athleteAge = parseInt(selectedAthleteAgeGroup.replace(/\D/g, '')) || 0;
+              return athleteAge >= minAge && athleteAge <= maxAge;
+            }
+            return ag === selectedAthleteAgeGroup;
+          });
+        }
+        
+        if (!matches && (eventAgeGroup || (eventAgeGroups && eventAgeGroups.length > 0))) {
+          return false;
+        }
+      }
+      
+      // Finally filter by search query
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       return (
@@ -257,7 +534,8 @@ const EventsPage: React.FC = () => {
         event.description?.toLowerCase().includes(q) ||
         event.location?.toLowerCase().includes(q) ||
         event.teamName?.toLowerCase().includes(q) ||
-        (event as any).ageGroup?.toLowerCase().includes(q)
+        (event as any).ageGroup?.toLowerCase().includes(q) ||
+        ((event as any).ageGroups as string[] | undefined)?.some(ag => ag.toLowerCase().includes(q))
       );
     });
 
@@ -266,12 +544,26 @@ const EventsPage: React.FC = () => {
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 dark:from-orange-500 dark:to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
-              <Calendar className="w-6 h-6 text-white" />
+            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 dark:from-orange-500 dark:to-orange-600 rounded-xl flex items-center justify-center shadow-lg text-2xl">
+              {selectedSportContext?.sport === 'football' ? '🏈' :
+               selectedSportContext?.sport === 'basketball' ? '🏀' :
+               selectedSportContext?.sport === 'cheer' ? '📣' :
+               selectedSportContext?.sport === 'soccer' ? '⚽' :
+               selectedSportContext?.sport === 'baseball' ? '⚾' :
+               selectedSportContext?.sport === 'volleyball' ? '🏐' :
+               <Calendar className="w-6 h-6 text-white" />}
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Find a Team</h1>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">Browse open registrations and tryouts</p>
+              <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
+                {selectedSportContext?.sport && selectedSportContext.status === 'none'
+                  ? `Find a ${selectedSportContext.sport.charAt(0).toUpperCase() + selectedSportContext.sport.slice(1)} Team`
+                  : 'Find a Team'}
+              </h1>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                {selectedSportContext?.sport && selectedSportContext.status === 'none'
+                  ? `Browse ${selectedSportContext.sport} registrations and tryouts`
+                  : 'Browse open registrations and tryouts'}
+              </p>
             </div>
           </div>
         </div>
@@ -343,9 +635,14 @@ const EventsPage: React.FC = () => {
                 </div>
               )}
             </div>
-            {selectedAthleteAgeGroup && (
+            {(selectedAthleteAgeGroup || (selectedSportContext?.sport && selectedSportContext.status === 'none')) && (
               <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2">
-                Showing registrations for <span className="font-bold text-emerald-600 dark:text-emerald-400">{selectedAthleteAgeGroup}</span> teams
+                Showing {selectedSportContext?.sport && selectedSportContext.status === 'none' && (
+                  <span className="font-bold text-purple-600 dark:text-orange-400 capitalize">{selectedSportContext.sport} </span>
+                )}
+                registrations{selectedAthleteAgeGroup && (
+                  <> for <span className="font-bold text-emerald-600 dark:text-emerald-400">{selectedAthleteAgeGroup}</span> teams</>
+                )}
               </p>
             )}
           </div>
@@ -377,14 +674,21 @@ const EventsPage: React.FC = () => {
               <Calendar className="w-8 h-8 text-zinc-400" />
             </div>
             <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">
-              {searchQuery ? 'No Results Found' : selectedAthleteAgeGroup ? `No ${selectedAthleteAgeGroup} Registrations` : 'No Open Registrations'}
+              {searchQuery ? 'No Results Found' : 
+               selectedSportContext?.sport && selectedSportContext.status === 'none' 
+                 ? `No ${selectedSportContext.sport.charAt(0).toUpperCase() + selectedSportContext.sport.slice(1)} Registrations`
+                 : selectedAthleteAgeGroup 
+                   ? `No ${selectedAthleteAgeGroup} Registrations` 
+                   : 'No Open Registrations'}
             </h3>
             <p className="text-zinc-600 dark:text-zinc-400 max-w-md mx-auto">
               {searchQuery 
                 ? `No events found matching "${searchQuery}". Try a different search.`
-                : selectedAthleteAgeGroup 
-                  ? `No open registrations for ${selectedAthleteAgeGroup} teams right now. Try selecting a different athlete or check back later!`
-                  : 'There are no open registrations or tryouts at the moment. Check back later!'}
+                : selectedSportContext?.sport && selectedSportContext.status === 'none'
+                  ? `No open registrations for ${selectedSportContext.sport} right now. Try selecting a different sport or check back later!`
+                  : selectedAthleteAgeGroup 
+                    ? `No open registrations for ${selectedAthleteAgeGroup} teams right now. Try selecting a different athlete or check back later!`
+                    : 'There are no open registrations or tryouts at the moment. Check back later!'}
             </p>
           </div>
         ) : (
@@ -397,11 +701,21 @@ const EventsPage: React.FC = () => {
               const tiers = publicPricingTiers[event.id] || [];
               const minPrice = tiers.length > 0 ? Math.min(...tiers.map(t => t.price)) : 0;
               const maxPrice = tiers.length > 0 ? Math.max(...tiers.map(t => t.price)) : 0;
+              const poolCount = event.teamId ? draftPoolCounts[event.teamId] : 0;
+              const isSeasonReg = (event as any).isSeasonRegistration;
               
               return (
                 <button
                   key={event.id}
-                  onClick={() => navigate(`/events/${event.id}/register`)}
+                  onClick={() => {
+                    if (isSeasonReg) {
+                      // Navigate to season registration page with programId for faster lookup
+                      navigate(`/register/${(event as any).seasonId}?program=${(event as any).programId}`);
+                    } else {
+                      // Navigate to event registration page
+                      navigate(`/events/${event.id}/register`);
+                    }
+                  }}
                   className="w-full bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 text-left hover:border-purple-500 dark:hover:border-orange-500 hover:shadow-lg transition-all group"
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -415,8 +729,14 @@ const EventsPage: React.FC = () => {
                         }`}>
                           {event.type === 'registration' ? 'Registration' : 'Tryout'}
                         </span>
-                        {/* Age Group Badge */}
-                        {(event as any).ageGroup && (
+                        {/* Age Group Badge - show all age groups for season registrations */}
+                        {(event as any).ageGroups && Array.isArray((event as any).ageGroups) && (event as any).ageGroups.length > 0 ? (
+                          (event as any).ageGroups.slice(0, 3).map((ag: string, idx: number) => (
+                            <span key={idx} className="text-xs font-bold px-2 py-1 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
+                              {ag}
+                            </span>
+                          ))
+                        ) : (event as any).ageGroup && (
                           <span className="text-xs font-bold px-2 py-1 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
                             {(event as any).ageGroup}
                           </span>
@@ -427,7 +747,16 @@ const EventsPage: React.FC = () => {
                             {(event as any).sport}
                           </span>
                         )}
-                        {event.teamName && (
+                        {event.teamName && event.teamId && !isSeasonReg && (
+                          <a
+                            href={`#/team/${event.teamId}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs text-purple-600 dark:text-purple-400 hover:underline font-medium"
+                          >
+                            {event.teamName}
+                          </a>
+                        )}
+                        {event.teamName && (!event.teamId || isSeasonReg) && (
                           <span className="text-xs text-zinc-500 dark:text-zinc-400">{event.teamName}</span>
                         )}
                       </div>
@@ -463,6 +792,19 @@ const EventsPage: React.FC = () => {
                             <span>{event.maxCapacity} spots</span>
                           </div>
                         )}
+                        {/* Draft Pool Count - Clickable to view players */}
+                        {poolCount > 0 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              loadDraftPoolPreview(event.teamId!, event.teamName || 'Unknown Team');
+                            }}
+                            className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium hover:text-emerald-700 dark:hover:text-emerald-300 hover:underline"
+                          >
+                            <Users className="w-4 h-4" />
+                            <span>{poolCount} registered</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                     
@@ -485,6 +827,81 @@ const EventsPage: React.FC = () => {
                 </button>
               );
             })}
+          </div>
+        )}
+        
+        {/* Draft Pool Preview Modal */}
+        {draftPoolPreview && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setDraftPoolPreview(null)}>
+            <div 
+              className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-emerald-500 to-teal-600 p-4 text-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-5 h-5" />
+                    <h3 className="font-bold text-lg">Draft Pool</h3>
+                  </div>
+                  <button
+                    onClick={() => setDraftPoolPreview(null)}
+                    className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <p className="text-emerald-100 text-sm mt-1">{draftPoolPreview.teamName}</p>
+              </div>
+              
+              {/* Player List */}
+              <div className="p-4 overflow-y-auto max-h-[50vh]">
+                {loadingPreview ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
+                  </div>
+                ) : draftPoolPreview.players.length === 0 ? (
+                  <div className="text-center py-8 text-zinc-500">
+                    <Users className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                    <p>No players registered yet</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-3">
+                      {draftPoolPreview.players.length} player{draftPoolPreview.players.length !== 1 ? 's' : ''} waiting to be drafted
+                    </p>
+                    {draftPoolPreview.players.map((player, idx) => (
+                      <div 
+                        key={idx}
+                        className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800 rounded-xl"
+                      >
+                        <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center text-white font-bold">
+                          {player.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-zinc-900 dark:text-white">{player.name}</p>
+                          {player.ageGroup && (
+                            <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-full font-medium">
+                              {player.ageGroup}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {/* Footer */}
+              <div className="p-4 border-t border-zinc-200 dark:border-zinc-700">
+                <button
+                  onClick={() => setDraftPoolPreview(null)}
+                  className="w-full py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-medium rounded-xl transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

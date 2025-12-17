@@ -1,7 +1,7 @@
 <!-- BRAIN_HIVE_START -->
 ## 🧠 Brain Hive - Auto-Synced Rules
 
-*Last synced: 2025-12-13T01:44:48.091Z*
+*Last synced: 2025-12-16T10:44:03.066Z*
 
 <!-- BRAIN_HIVE_END -->
 
@@ -304,6 +304,25 @@ const positions = ['QB', 'RB', 'WR'];
 import { getPositions } from '../config/sportConfig';
 const positions = getPositions(teamData?.sport); // Works for football, basketball, soccer, etc.
 ```
+
+### ERR-007: Nested button inside button (Hydration Error)
+```typescript
+// ❌ WRONG - button cannot be descendant of button
+<button onClick={handleMain}>
+  <button onClick={handleEdit}>Edit</button>
+</button>
+
+// ✅ RIGHT - use span with cursor-pointer
+<button onClick={handleMain}>
+  <span 
+    onClick={(e) => { e.stopPropagation(); handleEdit(); }}
+    className="cursor-pointer text-purple-500 hover:text-purple-400"
+  >
+    Edit
+  </span>
+</button>
+```
+**Error:** "In HTML, button cannot be a descendant of button. This will cause a hydration error."
 
 ---
 
