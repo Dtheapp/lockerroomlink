@@ -102,7 +102,9 @@ export default function SeasonRegistrationPage() {
 
   // Auto-select age group based on athlete's age and pre-fill athlete info
   useEffect(() => {
-    if (!season || !athleteToRegister || autoSelectedAgeGroup) return;
+    // CRITICAL: Wait for BOTH season AND program to load before auto-selecting
+    // Otherwise we might fall back to just athlete's age group before program data is available
+    if (!season || !program || !athleteToRegister || autoSelectedAgeGroup) return;
     
     // Get available age groups from various possible sources
     let availableAgeGroups: any[] = [];
@@ -185,13 +187,12 @@ export default function SeasonRegistrationPage() {
       return;
     }
     
-    // Use pre-calculated age group if available
+    // Extract numeric age from player's ageGroup (e.g., "9U" -> 9)
     const athleteAge = athleteAgeGroup ? parseInt(athleteAgeGroup.replace(/\D/g, '')) : null;
     
-    // Calculate athlete's age from DOB as fallback
+    // Calculate DOB-based age as fallback and for form pre-fill
     const athleteDOB = athleteToRegister.dob;
     let birthDate: Date | null = null;
-    let calculatedAge: number | null = null;
     
     if (athleteDOB) {
       if (typeof athleteDOB === 'string') {
@@ -199,70 +200,45 @@ export default function SeasonRegistrationPage() {
       } else if (athleteDOB?.toDate) {
         birthDate = athleteDOB.toDate();
       }
-      
-      if (birthDate && !isNaN(birthDate.getTime())) {
-        const today = new Date();
-        calculatedAge = today.getFullYear() - birthDate.getFullYear();
-        const monthDiff = today.getMonth() - birthDate.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-          calculatedAge--;
-        }
-      }
     }
     
-    const age = athleteAge || calculatedAge;
-    if (age === null) return;
+    // If no athlete age group saved, we can't match properly
+    if (!athleteAgeGroup) {
+      console.log('[SeasonRegistrationPage] No athlete ageGroup saved on profile, cannot auto-match');
+      return;
+    }
     
-    // Find matching age group
+    console.log('[SeasonRegistrationPage] Matching athlete ageGroup:', athleteAgeGroup, '(numeric:', athleteAge, ') to available groups:', availableAgeGroups);
+    
+    // Find matching age group - match player's stored ageGroup to season's age groups
+    // Player ageGroup "9U" should match season ageGroup "9U-10U" or "9U"
     let matchedAgeGroup: AgeGroup | null = null;
     
     for (const ag of availableAgeGroups) {
-      // Handle string age groups like "9U", "9U-10U", "9/10", "7/8"
-      if (typeof ag === 'string') {
-        const agStr = ag.toUpperCase();
-        // Check for range formats: "9U-10U", "9-10", "9/10", "7/8"
-        if (agStr.includes('-') || agStr.includes('/')) {
-          // Range like "9U-10U" or "9/10" or "7/8"
-          const parts = agStr.split(/[-\/]/);
-          const minAge = parseInt(parts[0].replace(/\D/g, '')) || 0;
-          const maxAge = parseInt(parts[1]?.replace(/\D/g, '')) || minAge;
-          if (age >= minAge && age <= maxAge) {
-            matchedAgeGroup = { id: ag, name: ag } as AgeGroup;
-            break;
-          }
-        } else {
-          // Single like "9U" or "6"
-          const groupAge = parseInt(agStr.replace(/\D/g, '')) || 0;
-          if (age === groupAge || age === groupAge - 1) {
-            matchedAgeGroup = { id: ag, name: ag } as AgeGroup;
-            break;
-          }
-        }
-      } else {
-        // AgeGroup object with minAge/maxAge
-        if (ag.minAge !== undefined && ag.maxAge !== undefined) {
-          if (age >= ag.minAge && age <= ag.maxAge) {
-            matchedAgeGroup = ag;
-            break;
-          }
-        } else if (ag.name) {
-          // Try to parse from name - handle formats like "9U-10U", "9/10", "7/8"
-          const agStr = ag.name.toUpperCase();
-          if (agStr.includes('-') || agStr.includes('/')) {
-            const parts = agStr.split(/[-\/]/);
-            const minAge = parseInt(parts[0].replace(/\D/g, '')) || 0;
-            const maxAge = parseInt(parts[1]?.replace(/\D/g, '')) || minAge;
-            if (age >= minAge && age <= maxAge) {
-              matchedAgeGroup = ag;
-              break;
-            }
-          } else {
-            const groupAge = parseInt(agStr.replace(/\D/g, '')) || 0;
-            if (age === groupAge || age === groupAge - 1) {
-              matchedAgeGroup = ag;
-              break;
-            }
-          }
+      const agName = typeof ag === 'string' ? ag : (ag.name || ag.id);
+      const agNameUpper = agName?.toUpperCase() || '';
+      const athleteAgeGroupUpper = athleteAgeGroup.toUpperCase();
+      
+      // EXACT MATCH: player "9U" matches season "9U"
+      if (agNameUpper === athleteAgeGroupUpper) {
+        matchedAgeGroup = typeof ag === 'string' ? { id: ag, name: ag } as AgeGroup : ag;
+        console.log('[SeasonRegistrationPage] EXACT MATCH:', agName);
+        break;
+      }
+      
+      // RANGE MATCH: player "9U" should match season "9U-10U" or "8U-9U"
+      // Check if season age group is a range that includes player's age
+      if (agNameUpper.includes('-') || agNameUpper.includes('/')) {
+        const parts = agNameUpper.split(/[-\/]/);
+        const minAgeStr = parts[0].replace(/\D/g, '');
+        const maxAgeStr = parts[1]?.replace(/\D/g, '') || minAgeStr;
+        const minAge = parseInt(minAgeStr) || 0;
+        const maxAge = parseInt(maxAgeStr) || minAge;
+        
+        if (athleteAge !== null && athleteAge >= minAge && athleteAge <= maxAge) {
+          matchedAgeGroup = typeof ag === 'string' ? { id: ag, name: ag } as AgeGroup : ag;
+          console.log('[SeasonRegistrationPage] RANGE MATCH:', agName, '- athlete', athleteAge, 'falls in range', minAge, '-', maxAge);
+          break;
         }
       }
     }
@@ -290,9 +266,9 @@ export default function SeasonRegistrationPage() {
         athleteDOB: dobString,
       }));
       
-      console.log('[SeasonRegistrationPage] Auto-selected age group:', matchedAgeGroup.name, 'for age:', age);
+      console.log('[SeasonRegistrationPage] Auto-selected age group:', matchedAgeGroup.name, 'for athlete ageGroup:', athleteAgeGroup);
     } else {
-      console.log('[SeasonRegistrationPage] No matching age group found for age:', age, 'in:', availableAgeGroups.map(ag => typeof ag === 'string' ? ag : ag.name));
+      console.log('[SeasonRegistrationPage] No matching age group found for athlete ageGroup:', athleteAgeGroup, 'in:', availableAgeGroups.map(ag => typeof ag === 'string' ? ag : ag.name));
     }
   }, [season, program, athleteToRegister, autoSelectedAgeGroup, athleteAgeGroup]);
 
@@ -395,7 +371,9 @@ export default function SeasonRegistrationPage() {
       return;
     }
     
-    if (!formData.waiverAccepted) {
+    // Only check waiver if it's required
+    const waiverRequired = (season as any)?.requireWaiver === true;
+    if (waiverRequired && !formData.waiverAccepted) {
       setError('You must accept the waiver to continue');
       return;
     }
@@ -439,9 +417,15 @@ export default function SeasonRegistrationPage() {
         sport: program.sport,
         
         parentUserId: user.uid,
+        commissionerUserId: program.commissionerId, // For notification
+        
+        // Include athlete ID for draft pool status tracking
+        athleteId: athleteToRegister?.id,
         
         athleteFirstName: formData.athleteFirstName.trim(),
         athleteLastName: formData.athleteLastName.trim(),
+        athleteNickname: athleteToRegister?.nickname || undefined,
+        athleteUsername: athleteToRegister?.username || undefined,
         athleteDOB: new Date(formData.athleteDOB),
         athleteGender: formData.athleteGender,
         athleteGrade: formData.athleteGrade ? parseInt(formData.athleteGrade) : undefined,
@@ -464,7 +448,8 @@ export default function SeasonRegistrationPage() {
         medicalMedications: formData.medicalMedications.trim(),
         medicalNotes: formData.medicalNotes.trim(),
         
-        waiverAccepted: formData.waiverAccepted,
+        // If waiver not required, auto-accept. If required, use form value.
+        waiverAccepted: waiverRequired ? formData.waiverAccepted : true,
         
         amountDue: season.registrationFee,
         amountPaid: 0, // TODO: Integrate payment
@@ -510,7 +495,10 @@ export default function SeasonRegistrationPage() {
           (!needsMedical || hasMedicalInfo);
       }
       case 4:
-        return formData.waiverAccepted;
+        // Only require waiver acceptance if season explicitly requires it
+        // Default to NOT requiring waiver unless explicitly set to true
+        const needsWaiver = (season as any)?.requireWaiver === true;
+        return !needsWaiver || formData.waiverAccepted;
       default:
         return false;
     }
@@ -788,12 +776,6 @@ export default function SeasonRegistrationPage() {
                       {selectedAgeGroup?.name || (season as any)?.ageGroup || athleteAgeGroup || 'Age Group'}
                     </span>
                   </div>
-                  {/* Debug - remove after testing */}
-                  {process.env.NODE_ENV === 'development' && (
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      Debug: selected={selectedAgeGroup?.name} | season.ageGroup={(season as any)?.ageGroup} | athlete={athleteAgeGroup}
-                    </p>
-                  )}
                 </div>
               </div>
 
@@ -1127,38 +1109,40 @@ export default function SeasonRegistrationPage() {
                 </div>
               </div>
               
-              {/* Waiver */}
-              <div className={`p-4 rounded-lg border ${isDark ? 'bg-gray-700/30 border-gray-600' : 'bg-yellow-50 border-yellow-200'}`}>
-                <h3 className={`font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  Waiver & Release
-                </h3>
-                <div className={`text-sm max-h-32 overflow-y-auto mb-4 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  <p className="mb-2">
-                    By checking the box below, I acknowledge that I am the parent/legal guardian of the above-named athlete 
-                    and give permission for their participation in {program.name} {season.name}.
-                  </p>
-                  <p className="mb-2">
-                    I understand that participation in youth sports involves inherent risks, including but not limited to 
-                    physical injury. I agree to hold harmless the organization, coaches, volunteers, and facilities from 
-                    any claims arising from participation.
-                  </p>
-                  <p>
-                    I also consent to emergency medical treatment if required and cannot be reached.
-                  </p>
+              {/* Waiver - Only show if explicitly required */}
+              {(season as any).requireWaiver === true && (
+                <div className={`p-4 rounded-lg border ${isDark ? 'bg-gray-700/30 border-gray-600' : 'bg-yellow-50 border-yellow-200'}`}>
+                  <h3 className={`font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    Waiver & Release
+                  </h3>
+                  <div className={`text-sm max-h-32 overflow-y-auto mb-4 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <p className="mb-2">
+                      By checking the box below, I acknowledge that I am the parent/legal guardian of the above-named athlete 
+                      and give permission for their participation in {program.name} {season.name}.
+                    </p>
+                    <p className="mb-2">
+                      I understand that participation in youth sports involves inherent risks, including but not limited to 
+                      physical injury. I agree to hold harmless the organization, coaches, volunteers, and facilities from 
+                      any claims arising from participation.
+                    </p>
+                    <p>
+                      I also consent to emergency medical treatment if required and cannot be reached.
+                    </p>
+                  </div>
+                  
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.waiverAccepted}
+                      onChange={(e) => updateFormData('waiverAccepted', e.target.checked)}
+                      className="mt-1 w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      I have read and agree to the waiver above. I confirm that all information provided is accurate.
+                    </span>
+                  </label>
                 </div>
-                
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.waiverAccepted}
-                    onChange={(e) => updateFormData('waiverAccepted', e.target.checked)}
-                    className="mt-1 w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    I have read and agree to the waiver above. I confirm that all information provided is accurate.
-                  </span>
-                </label>
-              </div>
+              )}
             </div>
           )}
 
@@ -1195,7 +1179,7 @@ export default function SeasonRegistrationPage() {
             ) : (
               <button
                 onClick={handleSubmit}
-                disabled={saving || !formData.waiverAccepted}
+                disabled={saving || ((season as any)?.requireWaiver === true && !formData.waiverAccepted)}
                 className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {saving ? (

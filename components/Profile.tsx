@@ -1490,7 +1490,13 @@ const Profile: React.FC = () => {
                                             }
                                             
                                             // If sport context is selected and status doesn't match, show not registered for that sport
-                                            if (selectedSport && playerStatus?.status === 'in-draft-pool' && playerStatus?.sport !== selectedSport) {
+                                            // Use lowercase comparison to handle case differences
+                                            const playerSportLower = (playerStatus?.sport || '').toLowerCase();
+                                            const selectedSportLower = (selectedSport || '').toLowerCase();
+                                            const sportMatches = playerSportLower === selectedSportLower || 
+                                              (playerSportLower === 'other' && selectedSportLower === 'football');
+                                            
+                                            if (selectedSport && playerStatus?.status === 'in-draft-pool' && !sportMatches) {
                                               const sportEmoji = {
                                                 football: '🏈',
                                                 basketball: '🏀',
@@ -1980,6 +1986,13 @@ const Profile: React.FC = () => {
                         {(() => {
                           const playerStatus = selectedAthlete ? playerStatuses[selectedAthlete.id] : undefined;
                           const playerTeam = selectedAthlete?.teamId ? allTeams.find(t => t.id === selectedAthlete.teamId) : undefined;
+                          const selectedSport = selectedSportContext?.sport;
+                          
+                          // Check if player's status matches selected sport (case-insensitive)
+                          const playerSportLower = (playerStatus?.sport || '').toLowerCase();
+                          const selectedSportLower = (selectedSport || '').toLowerCase();
+                          const sportMatches = !selectedSport || playerSportLower === selectedSportLower || 
+                            (playerSportLower === 'other' && selectedSportLower === 'football');
                           
                           // On Team
                           if (playerTeam || playerStatus?.status === 'on-team') {
@@ -2028,8 +2041,8 @@ const Profile: React.FC = () => {
                             );
                           }
                           
-                          // In Draft Pool
-                          if (playerStatus?.status === 'in-draft-pool') {
+                          // In Draft Pool - only show if sport matches selected sport
+                          if (playerStatus?.status === 'in-draft-pool' && sportMatches) {
                             const sportEmoji = {
                               football: '🏈',
                               basketball: '🏀',
@@ -2106,24 +2119,38 @@ const Profile: React.FC = () => {
                                 <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
                                   {playerStatus.deniedReason || 'The registration for this athlete was not approved.'}
                                 </p>
-                                <p className="text-xs text-slate-500 dark:text-slate-500">
+                                <p className="text-xs text-slate-500 dark:text-slate-500 mb-3">
                                   Contact the league commissioner for more information or to re-apply.
                                 </p>
+                                <a
+                                  href="/#/events"
+                                  className="inline-flex items-center gap-2 px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                  Register for Another Team
+                                </a>
                               </div>
                             );
                           }
                           
-                          // Not Registered
+                          // Not Registered (or in draft pool for different sport)
+                          const sportLabel = selectedSport ? selectedSport.charAt(0).toUpperCase() + selectedSport.slice(1) : '';
+                          const notRegisteredMessage = selectedSport && playerStatus?.status === 'in-draft-pool' && !sportMatches
+                            ? `This athlete is not registered for ${sportLabel}. They are in the ${playerStatus.sport || 'another'} draft pool.`
+                            : selectedSport 
+                              ? `This athlete is not registered for ${sportLabel}. Register for a ${sportLabel} event to join a team.`
+                              : 'This athlete is not registered for any team or event. Register for a team event to join a team.';
+                          
                           return (
                             <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
                               <div className="flex items-center gap-2 mb-3">
                                 <AlertCircle className="w-5 h-5 text-orange-500" />
                                 <span className="font-bold text-orange-700 dark:text-orange-400">
-                                  ⚠️ Not Registered
+                                  ⚠️ Not Registered{selectedSport ? ` for ${sportLabel}` : ''}
                                 </span>
                               </div>
                               <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
-                                This athlete is not registered for any team or event. Register for a team event to join a team.
+                                {notRegisteredMessage}
                               </p>
                               <a
                                 href="/#/events"

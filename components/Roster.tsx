@@ -411,7 +411,10 @@ const Roster: React.FC = () => {
         });
         
         // Collect all draft pool entries for conflict checking
-        const draftPoolPlayers = new Map<string, { teamId: string; teamName: string }>();
+        // Check BOTH team draft pools AND season draft pools
+        const draftPoolPlayers = new Map<string, { teamId: string; teamName: string; source: string }>();
+        
+        // 1. Check team draft pools
         for (const teamDoc of teamsSnapshot.docs) {
           try {
             const draftPoolQuery = query(
@@ -425,19 +428,60 @@ const Roster: React.FC = () => {
               if (dpData.playerId) {
                 draftPoolPlayers.set(dpData.playerId, {
                   teamId: teamDoc.id,
-                  teamName: teamInfoMap.get(teamDoc.id)?.name || 'Unknown Team'
+                  teamName: teamInfoMap.get(teamDoc.id)?.name || 'Unknown Team',
+                  source: 'team'
                 });
               }
               if (dpData.playerName) {
                 draftPoolPlayers.set(dpData.playerName.toLowerCase(), {
                   teamId: teamDoc.id,
-                  teamName: teamInfoMap.get(teamDoc.id)?.name || 'Unknown Team'
+                  teamName: teamInfoMap.get(teamDoc.id)?.name || 'Unknown Team',
+                  source: 'team'
                 });
               }
             });
           } catch (e) {
             // Skip teams with no draft pool
           }
+        }
+        
+        // 2. Check season draft pools (where season registrations go)
+        try {
+          const seasonsSnap = await getDocs(collection(db, 'seasons'));
+          for (const seasonDoc of seasonsSnap.docs) {
+            try {
+              const seasonData = seasonDoc.data();
+              const seasonDraftPoolQuery = query(
+                collection(db, 'seasons', seasonDoc.id, 'draftPool'),
+                where('status', '==', 'available')
+              );
+              const seasonDraftPoolSnap = await getDocs(seasonDraftPoolQuery);
+              seasonDraftPoolSnap.docs.forEach(dpDoc => {
+                const dpData = dpDoc.data();
+                const seasonName = seasonData.name || 'Draft Pool';
+                if (dpData.athleteId) {
+                  draftPoolPlayers.set(dpData.athleteId, {
+                    teamId: seasonDoc.id,
+                    teamName: seasonName,
+                    source: 'season'
+                  });
+                }
+                // Also key by name for matching
+                const playerNameKey = `${dpData.athleteFirstName} ${dpData.athleteLastName}`.toLowerCase().trim();
+                if (playerNameKey) {
+                  draftPoolPlayers.set(playerNameKey, {
+                    teamId: seasonDoc.id,
+                    teamName: seasonName,
+                    source: 'season'
+                  });
+                }
+              });
+            } catch (e) {
+              // Skip seasons with no draft pool
+            }
+          }
+        } catch (e) {
+          console.error('Error checking season draft pools:', e);
         }
         
         for (const teamDoc of teamsSnapshot.docs) {
@@ -459,14 +503,23 @@ const Roster: React.FC = () => {
                 // Check for age group mismatch (handles ranges like "9U-10U")
                 const ageGroupMatches = playerAgeGroupFitsTeam(playerAgeGroup, teamAgeGroup);
                 
-                // Check if player is in draft pool
+                // Check if player is in draft pool (from map OR from player document field)
                 const draftPoolEntry = draftPoolPlayers.get(playerDoc.id) || 
                                        draftPoolPlayers.get(playerData.name?.toLowerCase() || '');
                 
+                // Also check player document's draftPoolStatus field
+                const hasPlayerDraftStatus = playerData.draftPoolStatus === 'waiting' || 
+                                             playerData.draftPoolStatus === 'available' ||
+                                             playerData.draftPoolStatus === 'pending';
+                
+                const isPlayerInDraftPool = !!draftPoolEntry || hasPlayerDraftStatus;
+                
                 // Determine conflict warning
                 let conflictWarning: string | undefined;
-                if (draftPoolEntry) {
-                  conflictWarning = `In draft pool for ${draftPoolEntry.teamName}`;
+                if (isPlayerInDraftPool) {
+                  conflictWarning = draftPoolEntry 
+                    ? `In draft pool for ${draftPoolEntry.teamName}`
+                    : 'Already in draft pool';
                 } else if (!ageGroupMatches) {
                   conflictWarning = `Age group mismatch: ${playerAgeGroup || 'Unknown'} vs team's ${teamAgeGroup}`;
                 }
@@ -478,7 +531,7 @@ const Roster: React.FC = () => {
                   teamId: teamDoc.id,
                   teamName: teamInfo?.name,
                   calculatedAgeGroup: playerAgeGroup,
-                  isInDraftPool: !!draftPoolEntry,
+                  isInDraftPool: isPlayerInDraftPool,
                   draftPoolTeamName: draftPoolEntry?.teamName,
                   conflictWarning,
                   ...playerData
@@ -509,13 +562,22 @@ const Roster: React.FC = () => {
               // Check for age group mismatch (handles ranges like "9U-10U")
               const ageGroupMatches = playerAgeGroupFitsTeam(playerAgeGroup, teamAgeGroup);
               
-              // Check if player is in draft pool
+              // Check if player is in draft pool (from map OR from player document field)
               const draftPoolEntry = draftPoolPlayers.get(playerDoc.id) || 
                                      draftPoolPlayers.get(playerData.name?.toLowerCase() || '');
               
+              // Also check player document's draftPoolStatus field
+              const hasPlayerDraftStatus = playerData.draftPoolStatus === 'waiting' || 
+                                           playerData.draftPoolStatus === 'available' ||
+                                           playerData.draftPoolStatus === 'pending';
+              
+              const isPlayerInDraftPool = !!draftPoolEntry || hasPlayerDraftStatus;
+              
               let conflictWarning: string | undefined;
-              if (draftPoolEntry) {
-                conflictWarning = `In draft pool for ${draftPoolEntry.teamName}`;
+              if (isPlayerInDraftPool) {
+                conflictWarning = draftPoolEntry 
+                  ? `In draft pool for ${draftPoolEntry.teamName}`
+                  : 'Already in draft pool';
               } else if (!ageGroupMatches) {
                 conflictWarning = `Age group mismatch: ${playerAgeGroup || 'Unknown'} vs team's ${teamAgeGroup}`;
               }
@@ -527,7 +589,7 @@ const Roster: React.FC = () => {
                   teamId: undefined,
                   teamName: undefined,
                   calculatedAgeGroup: playerAgeGroup,
-                  isInDraftPool: !!draftPoolEntry,
+                  isInDraftPool: isPlayerInDraftPool,
                   draftPoolTeamName: draftPoolEntry?.teamName,
                   conflictWarning,
                   ...playerData
@@ -2174,17 +2236,17 @@ const Roster: React.FC = () => {
                               {player.username && <span className="text-orange-500">@{player.username}</span>}
                               {player.username && (player.teamName || player.conflictWarning) && ' • '}
                               {player.isInDraftPool ? (
-                                <span className="text-amber-400">⏳ In draft pool ({player.draftPoolTeamName})</span>
+                                <span className={theme === 'dark' ? 'text-amber-400' : 'text-amber-600'}>⏳ In draft pool {player.draftPoolTeamName ? `(${player.draftPoolTeamName})` : ''}</span>
                               ) : isAlreadyOnThisTeam ? (
-                                <span className="text-green-500">Already on your team</span>
+                                <span className={theme === 'dark' ? 'text-green-400' : 'text-green-600'}>Already on your team</span>
                               ) : isOnAnotherTeam ? (
-                                <span className="text-red-400">On another team ({player.teamName})</span>
+                                <span className={theme === 'dark' ? 'text-red-400' : 'text-red-600'}>On another team ({player.teamName})</span>
                               ) : player.conflictWarning ? (
-                                <span className="text-amber-400">⚠️ {player.conflictWarning}</span>
+                                <span className={theme === 'dark' ? 'text-amber-400' : 'text-amber-600'}>⚠️ {player.conflictWarning}</span>
                               ) : player.teamName ? (
                                 <span>Currently on {player.teamName}</span>
                               ) : (
-                                <span className="text-green-500">Available</span>
+                                <span className={theme === 'dark' ? 'text-green-400' : 'text-green-600'}>Available</span>
                               )}
                             </div>
                           </div>

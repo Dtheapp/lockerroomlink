@@ -434,7 +434,9 @@ export const SPORT_CONFIGS: Record<SportType, SportConfig> = {
  * Get sport configuration by type
  */
 export function getSportConfig(sport: SportType | undefined): SportConfig {
-  return SPORT_CONFIGS[sport || 'football'];
+  const config = SPORT_CONFIGS[sport || 'football'];
+  // Fallback to football if sport not found
+  return config || SPORT_CONFIGS['football'];
 }
 
 /**

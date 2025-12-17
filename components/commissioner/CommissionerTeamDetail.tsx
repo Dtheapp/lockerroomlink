@@ -183,10 +183,7 @@ export const CommissionerTeamDetail: React.FC = () => {
       return;
     }
     
-    if (!editAgeGroup) {
-      setEditError('Please select an age group');
-      return;
-    }
+    // Age group is now optional - team can have no age group
     
     setEditing(true);
     setEditError('');
@@ -207,8 +204,8 @@ export const CommissionerTeamDetail: React.FC = () => {
       
       const updateData: Record<string, any> = {
         name: editName.trim(),
-        ageGroup: editAgeGroup,
-        ageGroups: [editAgeGroup],
+        ageGroup: editAgeGroup || null,
+        ageGroups: editAgeGroup ? [editAgeGroup] : [],
         updatedAt: serverTimestamp(),
       };
       
@@ -680,7 +677,7 @@ export const CommissionerTeamDetail: React.FC = () => {
               
               <div>
                 <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
-                  Age Group <span className="text-red-400">*</span>
+                  Age Group <span className="text-slate-400 text-xs">(optional)</span>
                 </label>
                 {(() => {
                   const programAgeGroups = programData?.ageGroups || [];
@@ -695,7 +692,7 @@ export const CommissionerTeamDetail: React.FC = () => {
                             <button
                               key={ag}
                               type="button"
-                              onClick={() => setEditAgeGroup(ag)}
+                              onClick={() => setEditAgeGroup(editAgeGroup === ag ? '' : ag)}
                               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                                 editAgeGroup === ag
                                   ? 'bg-purple-600 text-white'
@@ -713,6 +710,9 @@ export const CommissionerTeamDetail: React.FC = () => {
                           No age groups configured. Go to Age Groups to add some.
                         </p>
                       )}
+                      <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-gray-500' : 'text-slate-500'}`}>
+                        Click again to deselect. Teams without age groups won't appear in season setup.
+                      </p>
                     </div>
                   );
                 })()}

@@ -282,6 +282,23 @@ const EventsPage: React.FC = () => {
                 return;
               }
               
+              // Extract age groups - check multiple sources
+              // 1. sportsOffered array (new format)
+              // 2. activeAgeGroups (explicit list)
+              // 3. program-level ageGroups (fallback)
+              let seasonAgeGroups: string[] = [];
+              if (seasonData.sportsOffered && Array.isArray(seasonData.sportsOffered)) {
+                seasonAgeGroups = seasonData.sportsOffered.flatMap((sc: any) => 
+                  (sc.ageGroups || []).map((ag: any) => ag.name || ag.ageGroups?.join('-') || ag)
+                );
+              }
+              if (seasonAgeGroups.length === 0 && seasonData.activeAgeGroups) {
+                seasonAgeGroups = seasonData.activeAgeGroups;
+              }
+              if (seasonAgeGroups.length === 0 && programData.ageGroups) {
+                seasonAgeGroups = programData.ageGroups;
+              }
+              
               // This season has open registration!
               allSeasonRegs.push({
                 id: `season_${seasonDoc.id}`,
@@ -291,7 +308,7 @@ const EventsPage: React.FC = () => {
                 programName: programData.name || 'Program',
                 seasonName: seasonData.name || 'Season',
                 sport: seasonData.sport || programData.sport || 'Football',
-                ageGroups: seasonData.activeAgeGroups || programData.ageGroups || [],
+                ageGroups: seasonAgeGroups,
                 registrationFee: seasonData.registrationFee || 0,
                 registrationOpenDate: openDate,
                 registrationCloseDate: closeDate,

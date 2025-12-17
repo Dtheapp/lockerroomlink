@@ -72,6 +72,8 @@ export type NotificationType =
   | 'registration_open'
   | 'registration_confirmed'
   | 'registration_cancelled'
+  | 'registration_denied'
+  | 'player_declined'
   | 'season_cancelled'
   | 'payment_due'
   | 'payment_reminder'
@@ -806,6 +808,91 @@ export const notifyInfractionMessage = async (
 // ============================================
 
 /**
+ * Notify parent that their athlete was added to draft pool
+ */
+export const notifyParentDraftPoolRegistration = async (
+  parentId: string,
+  playerName: string,
+  teamName: string,
+  sport: string
+): Promise<string> => {
+  const sportEmoji: Record<string, string> = {
+    football: '🏈', basketball: '🏀', cheer: '📣', soccer: '⚽', 
+    baseball: '⚾', volleyball: '🏐', other: '🎯'
+  };
+  return createNotification(
+    parentId,
+    'registration_confirmed',
+    `${sportEmoji[sport] || '🎯'} Draft Pool Registration Confirmed`,
+    `${playerName} has been added to the draft pool for ${teamName}. The coach will review and draft players soon.`,
+    {
+      link: '/dashboard',
+      category: 'registration',
+      priority: 'normal',
+      metadata: { playerName, teamName, sport },
+    }
+  );
+};
+
+/**
+ * Notify coach that a new player registered for their draft pool
+ */
+export const notifyCoachNewDraftPoolEntry = async (
+  coachId: string,
+  playerName: string,
+  ageGroup: string,
+  teamName: string,
+  sport: string
+): Promise<string> => {
+  const sportEmoji: Record<string, string> = {
+    football: '🏈', basketball: '🏀', cheer: '📣', soccer: '⚽', 
+    baseball: '⚾', volleyball: '🏐', other: '🎯'
+  };
+  return createNotification(
+    coachId,
+    'roster_update',
+    `${sportEmoji[sport] || '🎯'} New Draft Pool Registration`,
+    `${playerName} (${ageGroup}) has registered for ${teamName}'s draft pool. Review and draft when ready.`,
+    {
+      link: '/dashboard',
+      category: 'team',
+      priority: 'high',
+      actionRequired: true,
+      actionType: 'review',
+      metadata: { playerName, ageGroup, teamName, sport },
+    }
+  );
+};
+
+/**
+ * Notify team commissioner of new draft pool entry
+ */
+export const notifyCommissionerNewDraftPoolEntry = async (
+  commissionerId: string,
+  playerName: string,
+  ageGroup: string,
+  teamName: string,
+  sport: string
+): Promise<string> => {
+  const sportEmoji: Record<string, string> = {
+    football: '🏈', basketball: '🏀', cheer: '📣', soccer: '⚽', 
+    baseball: '⚾', volleyball: '🏐', other: '🎯'
+  };
+  return createNotification(
+    commissionerId,
+    'roster_update',
+    `${sportEmoji[sport] || '🎯'} New Registration: ${teamName}`,
+    `${playerName} (${ageGroup}) registered for ${teamName}'s draft pool.`,
+    {
+      link: '/commissioner',
+      category: 'team',
+      priority: 'normal',
+      metadata: { playerName, ageGroup, teamName, sport },
+    }
+  );
+};
+
+/**
  * Notify of registration opening
  */
 export const notifyRegistrationOpen = async (
@@ -1096,14 +1183,9 @@ export default {
   // Registration & Payment notifications
   notifyRegistrationOpen,
   notifyPaymentDue,
-  
-  // Fan Hub notifications
-  notifyNewFollower,
-  notifyGiftReceived,
-  notifyFundraisingDonation,
-  notifyNILOffer,
-  
-  // League & Team notifications
+  notifyParentDraftPoolRegistration,
+  notifyCoachNewDraftPoolEntry,
+  notifyCommissionerNewDraftPoolEntry,
   sendLeagueAnnouncement,
   notifyLeagueRuleUpdate,
   notifySchedulePublished,

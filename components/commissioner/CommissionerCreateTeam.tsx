@@ -62,10 +62,7 @@ export const CommissionerCreateTeam: React.FC = () => {
       setError('Please enter a team ID');
       return;
     }
-    if (!ageGroup) {
-      setError('Please select an age group');
-      return;
-    }
+    // Age group is optional - team can be assigned later
     if (!programCity || !programState) {
       setError('Program city/state not set. Please update your program first.');
       return;
@@ -89,9 +86,9 @@ export const CommissionerCreateTeam: React.FC = () => {
       const teamData = {
         name: teamName.trim(),
         sport: selectedSport,
-        ageGroup: ageGroup,
-        ageGroups: [ageGroup],
-        ageGroupType: 'single',
+        ageGroup: ageGroup || null,
+        ageGroups: ageGroup ? [ageGroup] : [],
+        ageGroupType: ageGroup ? 'single' : null,
         city: programCity,
         state: programState,
         location: {
@@ -240,24 +237,28 @@ export const CommissionerCreateTeam: React.FC = () => {
             {/* Age Group - Simple dropdown from program */}
             <div>
               <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                Age Group <span className="text-red-400">*</span>
+                Age Group <span className="text-slate-400 text-xs">(optional)</span>
               </label>
               {programAgeGroups.length > 0 ? (
-                <select
-                  value={ageGroup}
-                  onChange={(e) => setAgeGroup(e.target.value)}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                    theme === 'dark' 
-                      ? 'bg-gray-700 border-gray-600 text-white' 
-                      : 'bg-white border-gray-300 text-gray-900'
-                  }`}
-                  required
-                >
-                  <option value="">Select age group...</option>
-                  {programAgeGroups.map((ag: string) => (
-                    <option key={ag} value={ag}>{ag}</option>
-                  ))}
-                </select>
+                <div>
+                  <select
+                    value={ageGroup}
+                    onChange={(e) => setAgeGroup(e.target.value)}
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                      theme === 'dark' 
+                        ? 'bg-gray-700 border-gray-600 text-white' 
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
+                  >
+                    <option value="">No age group (assign later)</option>
+                    {programAgeGroups.map((ag: string) => (
+                      <option key={ag} value={ag}>{ag}</option>
+                    ))}
+                  </select>
+                  <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
+                    Teams without age groups won't appear in season setup until assigned.
+                  </p>
+                </div>
               ) : (
                 <div className={`p-4 rounded-lg text-center ${theme === 'dark' ? 'bg-yellow-500/10 border border-yellow-500/20' : 'bg-yellow-50 border border-yellow-200'}`}>
                   <p className={`text-sm mb-2 ${theme === 'dark' ? 'text-yellow-300' : 'text-yellow-700'}`}>
@@ -277,7 +278,7 @@ export const CommissionerCreateTeam: React.FC = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || !teamName.trim() || !teamId.trim() || !ageGroup || programAgeGroups.length === 0}
+              disabled={loading || !teamName.trim() || !teamId.trim()}
               className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
             >
               {loading ? (

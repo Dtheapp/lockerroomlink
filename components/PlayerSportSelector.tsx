@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import { useAuth, SportContext } from '../contexts/AuthContext';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { ChevronDown, Trophy, Clock, Circle, User, Users, Check } from 'lucide-react';
+import { ChevronDown, Check } from 'lucide-react';
+import { getPlayerRegistrationStatus, PlayerRegistrationStatus } from '../services/eventService';
 import type { SportType, Player } from '../types';
 
-// All sports the system supports
-const ALL_SPORTS: { sport: SportType; emoji: string; label: string }[] = [
+const SPORTS: { sport: SportType; emoji: string; label: string }[] = [
   { sport: 'football', emoji: '🏈', label: 'Football' },
   { sport: 'basketball', emoji: '🏀', label: 'Basketball' },
   { sport: 'cheer', emoji: '📣', label: 'Cheer' },
@@ -20,298 +20,222 @@ const PlayerSportSelector: React.FC = () => {
     players, 
     selectedPlayer, 
     setSelectedPlayer,
-    sportContexts, 
     selectedSportContext, 
     setSelectedSportContext 
   } = useAuth();
   const { theme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'player' | 'sport'>('sport');
+  const [status, setStatus] = useState<PlayerRegistrationStatus | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Only show for parents with players
-  if (userData?.role !== 'Parent' || players.length === 0) {
-    return null;
-  }
-
-  // Build list of all sports with their status
-  const sportsWithStatus = ALL_SPORTS.map(sportInfo => {
-    const context = sportContexts.find(c => c.sport === sportInfo.sport);
-    return {
-      ...sportInfo,
-      context,
-      status: context?.status || 'none',
-    };
-  });
-
-  const getStatusInfo = (status: string, context?: SportContext) => {
-    if (status === 'active') {
-      return {
-        icon: <Trophy className="w-3 h-3" />,
-        text: context?.teamName || 'On Team',
-        color: 'text-emerald-500',
-        bg: 'bg-emerald-500/10',
-      };
+  // Fetch status on mount/player change
+  useEffect(() => {
+    if (!selectedPlayer?.id) {
+      setStatus(null);
+      setLoading(false);
+      return;
     }
-    if (status === 'draft_pool') {
-      return {
-        icon: <Clock className="w-3 h-3" />,
-        text: context?.draftPoolTeamName || 'Draft Pool',
-        color: 'text-amber-500',
-        bg: 'bg-amber-500/10',
-      };
+
+    setLoading(true);
+    getPlayerRegistrationStatus(selectedPlayer.id, selectedPlayer.teamId, selectedPlayer.name)
+      .then(result => {
+        console.log('[Selector] Status fetched:', result);
+        setStatus(result);
+        
+        // Auto-select sport IF none selected AND player has a status
+        if (!selectedSportContext && result) {
+          const sport = (result.sport === 'other' ? 'football' : result.sport || 'football').toLowerCase() as SportType;
+          
+          if (result.status === 'in-draft-pool') {
+            console.log('[Selector] Auto-selecting draft pool:', sport);
+            setSelectedSportContext({
+              sport,
+              status: 'draft_pool',
+              draftPoolTeamName: result.draftPoolTeamName,
+            });
+          } else if (result.status === 'on-team') {
+            console.log('[Selector] Auto-selecting active team:', sport);
+            setSelectedSportContext({
+              sport,
+              status: 'active',
+              teamId: result.teamId,
+              teamName: result.teamName,
+            });
+          }
+        }
+      })
+      .catch(err => {
+        console.error('[Selector] Error:', err);
+        setStatus(null);
+      })
+      .finally(() => setLoading(false));
+  }, [selectedPlayer?.id]);
+
+  // Only for parents with players
+  if (userData?.role !== 'Parent' || players.length === 0) return null;
+
+  // Get status for a sport
+  const getStatus = (sport: SportType) => {
+    if (!status) return { label: 'Not Registered', color: 'text-zinc-400' };
+    
+    // Normalize to lowercase for comparison
+    const statusSport = (status.sport === 'other' ? 'football' : status.sport || '').toLowerCase();
+    if (statusSport !== sport.toLowerCase()) return { label: 'Not Registered', color: 'text-zinc-400' };
+    
+    if (status.status === 'in-draft-pool') {
+      return { label: `⏳ ${status.draftPoolTeamName || 'In Draft Pool'}`, color: 'text-amber-500' };
     }
-    return {
-      icon: <Circle className="w-2 h-2" />,
-      text: 'Not Registered',
-      color: 'text-zinc-400',
-      bg: 'bg-zinc-500/10',
-    };
+    if (status.status === 'on-team') {
+      return { label: `✓ ${status.teamName || 'On Team'}`, color: 'text-emerald-500' };
+    }
+    return { label: 'Not Registered', color: 'text-zinc-400' };
   };
 
-  const handleSelectPlayer = (player: Player) => {
-    setSelectedPlayer(player);
-    // Don't close - let them also pick a sport if needed
-  };
-
-  const handleSelectSport = (sportInfo: typeof sportsWithStatus[0]) => {
-    if (sportInfo.context) {
-      setSelectedSportContext(sportInfo.context);
-    } else {
+  // Handle sport selection
+  const selectSport = (sport: SportType) => {
+    // Check the actual status, not the label
+    const statusSport = (status?.sport === 'other' ? 'football' : status?.sport || '').toLowerCase();
+    const isThisSport = statusSport === sport.toLowerCase();
+    
+    if (isThisSport && status?.status === 'in-draft-pool') {
       setSelectedSportContext({
-        sport: sportInfo.sport,
-        status: 'none',
+        sport,
+        status: 'draft_pool',
+        draftPoolTeamName: status?.draftPoolTeamName,
       });
+    } else if (isThisSport && status?.status === 'on-team') {
+      setSelectedSportContext({
+        sport,
+        status: 'active',
+        teamId: status?.teamId,
+        teamName: status?.teamName,
+      });
+    } else {
+      setSelectedSportContext({ sport, status: 'none' });
     }
     setIsOpen(false);
   };
 
-  // Get current display info
-  const currentSportInfo = ALL_SPORTS.find(s => s.sport === selectedSportContext?.sport);
-  const statusInfo = selectedSportContext 
-    ? getStatusInfo(selectedSportContext.status, selectedSportContext)
-    : null;
+  // Handle player selection
+  const selectPlayer = (player: Player) => {
+    setSelectedPlayer(player);
+    setIsOpen(false);
+  };
+
+  // Button display - use CONTEXT directly, not local status
+  const currentSport = selectedSportContext?.sport;
+  const sportInfo = currentSport ? SPORTS.find(s => s.sport === currentSport) : null;
+  
+  // Get label from context first, fall back to local status
+  const getButtonLabel = () => {
+    if (loading) return 'Loading...';
+    if (!sportInfo) return 'Select Sport';
+    
+    // Use context status directly
+    if (selectedSportContext?.status === 'draft_pool') {
+      return `${sportInfo.emoji} ${selectedSportContext.draftPoolTeamName || 'In Draft Pool'}`;
+    }
+    if (selectedSportContext?.status === 'active') {
+      return `${sportInfo.emoji} ${selectedSportContext.teamName || sportInfo.label}`;
+    }
+    return `${sportInfo.emoji} ${sportInfo.label}`;
+  };
+  
+  const buttonLabel = getButtonLabel();
+  const statusColor = selectedSportContext?.status === 'draft_pool' ? 'text-amber-300' :
+                      selectedSportContext?.status === 'active' ? 'text-emerald-300' : 'text-white/70';
 
   return (
     <div className="relative">
-      {/* Main Button - Unified Player + Sport Display */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full rounded-xl overflow-hidden transition-all duration-200 ${
-          isOpen 
-            ? 'ring-2 ring-purple-500 dark:ring-orange-500' 
-            : 'hover:shadow-lg'
-        }`}
+        className={`w-full rounded-xl overflow-hidden transition-all ${isOpen ? 'ring-2 ring-purple-500' : ''}`}
       >
-        {/* Gradient Header */}
-        <div className="bg-gradient-to-r from-purple-600 via-purple-500 to-indigo-500 dark:from-orange-600 dark:via-orange-500 dark:to-amber-500 p-3">
+        <div className="bg-gradient-to-r from-purple-600 via-purple-500 to-indigo-500 p-3">
           <div className="flex items-center gap-3">
-            {/* Player Avatar */}
-            <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-bold text-lg shadow-inner">
+            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-bold">
               {selectedPlayer?.name?.charAt(0)?.toUpperCase() || '?'}
             </div>
-            
-            {/* Player & Sport Info */}
-            <div className="flex-1 text-left min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-white font-bold truncate">
-                  {selectedPlayer?.name || 'Select Player'}
-                </span>
-              </div>
-              
-              {/* Sport & Status Row */}
-              <div className="flex items-center gap-2 mt-0.5">
-                {currentSportInfo && (
-                  <span className="text-white/90 text-sm flex items-center gap-1">
-                    <span>{currentSportInfo.emoji}</span>
-                    <span>{currentSportInfo.label}</span>
-                  </span>
-                )}
-                {statusInfo && (
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${statusInfo.bg} ${statusInfo.color} flex items-center gap-1`}>
-                    {statusInfo.icon}
-                    <span className="truncate max-w-[80px]">{statusInfo.text}</span>
-                  </span>
-                )}
+            <div className="flex-1 text-left">
+              <div className="text-white font-bold truncate">{selectedPlayer?.name || 'Select Athlete'}</div>
+              <div className={`text-sm truncate ${statusColor}`}>
+                {buttonLabel}
               </div>
             </div>
-            
-            {/* Dropdown Arrow */}
             <ChevronDown className={`w-5 h-5 text-white/80 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           </div>
         </div>
       </button>
 
-      {/* Dropdown Panel */}
       {isOpen && (
         <>
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 z-40" 
-            onClick={() => setIsOpen(false)}
-          />
-          
-          {/* Dropdown Menu */}
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           <div className={`absolute top-full left-0 right-0 mt-1 rounded-xl shadow-2xl border z-50 overflow-hidden ${
-            theme === 'dark' 
-              ? 'bg-zinc-900 border-zinc-700' 
-              : 'bg-white border-slate-200'
+            theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-slate-200'
           }`}>
-            {/* Tab Headers */}
-            <div className={`flex border-b ${theme === 'dark' ? 'border-zinc-700' : 'border-slate-200'}`}>
-              {players.length > 1 && (
-                <button
-                  onClick={() => setActiveTab('player')}
-                  className={`flex-1 px-4 py-2.5 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
-                    activeTab === 'player'
-                      ? theme === 'dark'
-                        ? 'bg-purple-900/30 text-purple-400 border-b-2 border-purple-500'
-                        : 'bg-purple-50 text-purple-700 border-b-2 border-purple-500'
-                      : theme === 'dark'
-                        ? 'text-zinc-400 hover:text-zinc-200'
-                        : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  <User className="w-4 h-4" />
-                  Players
-                </button>
-              )}
-              <button
-                onClick={() => setActiveTab('sport')}
-                className={`flex-1 px-4 py-2.5 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
-                  activeTab === 'sport'
-                    ? theme === 'dark'
-                      ? 'bg-purple-900/30 text-purple-400 border-b-2 border-purple-500'
-                      : 'bg-purple-50 text-purple-700 border-b-2 border-purple-500'
-                    : theme === 'dark'
-                      ? 'text-zinc-400 hover:text-zinc-200'
-                      : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                <Trophy className="w-4 h-4" />
-                Sports
-              </button>
+            {/* Sports */}
+            <div className={`px-3 py-2 border-b text-xs font-semibold uppercase ${
+              theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 text-zinc-400' : 'border-slate-200 bg-slate-50 text-slate-500'
+            }`}>
+              🏆 Sport
             </div>
-            
-            {/* Tab Content */}
-            <div className="max-h-[280px] overflow-y-auto">
-              {/* Players Tab */}
-              {activeTab === 'player' && players.length > 1 && (
-                <div className="p-2 space-y-1">
-                  {players.map((player) => {
-                    const isSelected = selectedPlayer?.id === player.id;
-                    
+            <div className="p-2 space-y-1 max-h-[200px] overflow-y-auto">
+              {SPORTS.map(s => {
+                const st = getStatus(s.sport);
+                const selected = currentSport === s.sport;
+                return (
+                  <button
+                    key={s.sport}
+                    onClick={() => selectSport(s.sport)}
+                    className={`w-full p-2.5 rounded-lg flex items-center gap-3 ${
+                      selected ? 'bg-purple-100 dark:bg-purple-900/40 ring-2 ring-purple-500' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    <span className="text-xl">{s.emoji}</span>
+                    <div className="flex-1 text-left">
+                      <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{s.label}</div>
+                      <div className={`text-xs ${st.color}`}>{st.label}</div>
+                    </div>
+                    {selected && <Check className="w-4 h-4 text-purple-500" />}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Players (only if multiple) */}
+            {players.length > 1 && (
+              <>
+                <div className={`px-3 py-2 border-t border-b text-xs font-semibold uppercase ${
+                  theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 text-zinc-400' : 'border-slate-200 bg-slate-50 text-slate-500'
+                }`}>
+                  👤 Athlete
+                </div>
+                <div className="p-2 space-y-1 max-h-[150px] overflow-y-auto">
+                  {players.map(p => {
+                    const selected = selectedPlayer?.id === p.id;
                     return (
                       <button
-                        key={player.id}
-                        onClick={() => handleSelectPlayer(player)}
-                        className={`w-full p-3 rounded-lg flex items-center gap-3 transition-all ${
-                          isSelected
-                            ? 'bg-purple-100 dark:bg-purple-900/40 ring-2 ring-purple-500 dark:ring-purple-400 shadow-lg shadow-purple-500/20'
-                            : theme === 'dark'
-                              ? 'hover:bg-zinc-800 text-white'
-                              : 'hover:bg-slate-50 text-slate-900'
+                        key={p.id}
+                        onClick={() => selectPlayer(p)}
+                        className={`w-full p-2.5 rounded-lg flex items-center gap-3 ${
+                          selected ? 'bg-purple-100 dark:bg-purple-900/40 ring-2 ring-purple-500' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'
                         }`}
                       >
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
-                          isSelected
-                            ? 'bg-purple-500 dark:bg-purple-600 text-white ring-2 ring-purple-300 dark:ring-purple-400'
-                            : theme === 'dark'
-                              ? 'bg-zinc-700 text-zinc-300'
-                              : 'bg-slate-200 text-slate-700'
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                          selected ? 'bg-purple-500 text-white' : 'bg-slate-200 dark:bg-zinc-700'
                         }`}>
-                          {player.name?.charAt(0)?.toUpperCase() || '?'}
+                          {p.name?.charAt(0)?.toUpperCase() || '?'}
                         </div>
-                        <div className="flex-1 text-left">
-                          <div className={`font-medium ${isSelected ? 'text-purple-700 dark:text-purple-300' : ''}`}>
-                            {player.name}
-                          </div>
-                        </div>
-                        {isSelected && (
-                          <div className="text-purple-500 dark:text-purple-400">
-                            <Check className="w-5 h-5" />
-                          </div>
-                        )}
+                        <span className={`flex-1 text-left font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                          {p.name}
+                        </span>
+                        {selected && <Check className="w-4 h-4 text-purple-500" />}
                       </button>
                     );
                   })}
                 </div>
-              )}
-              
-              {/* Sports Tab */}
-              {activeTab === 'sport' && (
-                <div className="p-2 space-y-1">
-                  {sportsWithStatus.map((sportInfo) => {
-                    const isRegistered = sportInfo.status === 'active' || sportInfo.status === 'draft_pool';
-                    const isSelected = selectedSportContext?.sport === sportInfo.sport;
-                    const teamName = sportInfo.context?.teamName || sportInfo.context?.draftPoolTeamName;
-                    
-                    return (
-                      <button
-                        key={sportInfo.sport}
-                        onClick={() => handleSelectSport(sportInfo)}
-                        className={`w-full p-3 rounded-lg flex items-center gap-3 transition-all ${
-                          isSelected
-                            ? 'bg-purple-100 dark:bg-purple-900/40 ring-2 ring-purple-500 dark:ring-purple-400 shadow-lg shadow-purple-500/20'
-                            : theme === 'dark'
-                              ? 'hover:bg-zinc-800'
-                              : 'hover:bg-slate-50'
-                        }`}
-                      >
-                        {/* Status Light */}
-                        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                          isRegistered 
-                            ? 'bg-emerald-500 shadow-lg shadow-emerald-500/50' 
-                            : 'bg-red-500 shadow-lg shadow-red-500/50'
-                        }`} />
-                        
-                        {/* Sport Emoji */}
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-xl flex-shrink-0 ${
-                          isRegistered
-                            ? 'bg-emerald-500/10 dark:bg-emerald-500/20'
-                            : theme === 'dark'
-                              ? 'bg-zinc-800'
-                              : 'bg-slate-100'
-                        }`}>
-                          {sportInfo.emoji}
-                        </div>
-                        
-                        {/* Sport Name & Status */}
-                        <div className="flex-1 text-left min-w-0">
-                          <div className={`font-medium ${
-                            isSelected
-                              ? 'text-purple-700 dark:text-purple-300'
-                              : theme === 'dark' ? 'text-white' : 'text-slate-900'
-                          }`}>
-                            {sportInfo.label}
-                          </div>
-                          <div className={`text-xs truncate ${
-                            isRegistered 
-                              ? 'text-emerald-600 dark:text-emerald-400' 
-                              : 'text-red-500 dark:text-red-400'
-                          }`}>
-                            {isRegistered ? (
-                              <>
-                                {sportInfo.status === 'active' && <span>✓ {teamName || 'On Team'}</span>}
-                                {sportInfo.status === 'draft_pool' && <span>⏳ Draft Pool: {teamName || 'Waiting'}</span>}
-                              </>
-                            ) : (
-                              <span>✗ Not Registered</span>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {/* Selection indicator */}
-                        {isSelected && (
-                          <div className="text-purple-500 dark:text-purple-400 flex-shrink-0">
-                            <Check className="w-5 h-5" />
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
         </>
       )}

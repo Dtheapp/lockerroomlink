@@ -47,7 +47,8 @@ import {
 import { RulesModal } from '../RulesModal';
 import { AgeGroupSelector } from '../AgeGroupSelector';
 import { StateSelector, isValidUSState } from '../StateSelector';
-import { toastError } from '../../services/toast';
+import { toastError, toastSuccess } from '../../services/toast';
+import { CommissionerSeasonSetup } from './CommissionerSeasonSetup';
 
 export const CommissionerDashboard: React.FC = () => {
   const { user, userData, programData, leagueData } = useAuth();
@@ -61,6 +62,13 @@ export const CommissionerDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [seasons, setSeasons] = useState<ProgramSeason[]>([]);
   
+  // Draft pool modal states
+  const [showDraftPoolModal, setShowDraftPoolModal] = useState(false);
+  const [selectedPoolSeason, setSelectedPoolSeason] = useState<ProgramSeason | null>(null);
+  const [draftPoolPlayers, setDraftPoolPlayers] = useState<any[]>([]);
+  const [draftPoolSortBy, setDraftPoolSortBy] = useState<string>('all');
+  const [loadingPoolPlayers, setLoadingPoolPlayers] = useState(false);
+  
   // Sport selector - persisted to localStorage
   const [selectedSport, setSelectedSport] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -70,8 +78,8 @@ export const CommissionerDashboard: React.FC = () => {
   });
   
   // Get available sports from program
-  const availableSports = programData?.sportsOffered?.map((s: any) => s.sport) 
-    || programData?.sportConfigs?.map((s: any) => s.sport)
+  const availableSports = (programData as any)?.sportsOffered?.map((s: any) => s.sport) 
+    || (programData as any)?.sportConfigs?.map((s: any) => s.sport)
     || (programData?.sport ? [programData.sport] : [])
     || [];
   
@@ -175,6 +183,73 @@ export const CommissionerDashboard: React.FC = () => {
   // Delete season confirmation
   const [deleteSeasonConfirm, setDeleteSeasonConfirm] = useState<ProgramSeason | null>(null);
   const [deletingSeason, setDeletingSeason] = useState(false);
+  
+  // Season creation modal
+  const [showSeasonModal, setShowSeasonModal] = useState(false);
+  
+  // Season management modal (view/edit seasons)
+  const [showSeasonManageModal, setShowSeasonManageModal] = useState(false);
+  const [selectedSeasonForEdit, setSelectedSeasonForEdit] = useState<ProgramSeason | null>(null);
+  const [isEditingSeasonMode, setIsEditingSeasonMode] = useState(false);
+  const [editSeasonData, setEditSeasonData] = useState<{
+    name: string;
+    seasonStartDate: string;
+    seasonEndDate: string;
+    registrationOpenDate: string;
+    registrationCloseDate: string;
+    registrationFee: number;
+    // Required fields toggles
+    requireWaiver: boolean;
+    requireMedicalInfo: boolean;
+    requireEmergencyContact: boolean;
+    requireUniformSizes: boolean;
+    // Payment options - multi-select
+    paymentOptions: {
+      payInFull: boolean;
+      payAsYouGo: boolean;
+      payInCash: boolean;
+    };
+  } | null>(null);
+  const [savingSeasonEdit, setSavingSeasonEdit] = useState(false);
+  
+  // Add team to age group state
+  const [showAddTeamToAgeGroup, setShowAddTeamToAgeGroup] = useState(false);
+  const [newTeamAgeGroup, setNewTeamAgeGroup] = useState('');
+  const [newTeamName, setNewTeamName] = useState('');
+  const [showTeamSuggestions, setShowTeamSuggestions] = useState(false);
+  
+  // Filter existing teams for autocomplete suggestions
+  const teamSuggestions = teams.filter(t => 
+    newTeamName.length > 0 && 
+    t.name.toLowerCase().includes(newTeamName.toLowerCase()) &&
+    t.ageGroup !== newTeamAgeGroup // Don't show teams already in this age group
+  ).slice(0, 5);
+  
+  // Helper to get season status based on dates
+  const getSeasonStatus = (season: ProgramSeason) => {
+    const now = new Date();
+    const regOpen = season.registrationOpenDate ? new Date(season.registrationOpenDate) : null;
+    const regClose = season.registrationCloseDate ? new Date(season.registrationCloseDate) : null;
+    const seasonStart = season.seasonStartDate ? new Date(season.seasonStartDate) : null;
+    const seasonEnd = season.seasonEndDate ? new Date(season.seasonEndDate) : null;
+    
+    // If season has explicit completed status
+    if (season.status === 'completed') return { label: 'Completed', color: 'gray', icon: '⚫' };
+    
+    // Check based on dates
+    if (seasonEnd && now > seasonEnd) return { label: 'Completed', color: 'gray', icon: '⚫' };
+    if (seasonStart && now >= seasonStart && (!seasonEnd || now <= seasonEnd)) return { label: 'In Season', color: 'green', icon: '🟢' };
+    if (regOpen && regClose && now >= regOpen && now <= regClose) return { label: 'Registration Open', color: 'blue', icon: '🔵' };
+    if (regOpen && now < regOpen) return { label: 'Upcoming', color: 'purple', icon: '🟣' };
+    if (regClose && now > regClose && (!seasonStart || now < seasonStart)) return { label: 'Registration Closed', color: 'amber', icon: '🟡' };
+    
+    // Fallback based on status field
+    if (season.status === 'active') return { label: 'Active', color: 'green', icon: '🟢' };
+    if (season.status === 'registration_open') return { label: 'Registration Open', color: 'blue', icon: '🔵' };
+    if (season.status === 'setup') return { label: 'Setup', color: 'purple', icon: '🟣' };
+    
+    return { label: 'Setup', color: 'purple', icon: '🟣' };
+  };
   
   // Get commissioner type from userData
   // Check role first (TeamCommissioner/LeagueCommissioner/ProgramCommissioner), then fall back to commissionerType field
@@ -305,6 +380,45 @@ export const CommissionerDashboard: React.FC = () => {
 
     return () => unsubscribe();
   }, [programData?.id, userData?.programId]);
+
+  // Load draft pool players when modal opens
+  useEffect(() => {
+    const loadPoolPlayers = async () => {
+      if (!showDraftPoolModal || !selectedPoolSeason) {
+        setDraftPoolPlayers([]);
+        return;
+      }
+      
+      setLoadingPoolPlayers(true);
+      try {
+        const programId = programData?.id || userData?.programId;
+        if (!programId) return;
+        
+        // Get all registrations from the draftPool subcollection
+        const draftPoolRef = collection(db, 'programs', programId, 'seasons', selectedPoolSeason.id, 'draftPool');
+        const draftPoolSnap = await getDocs(draftPoolRef);
+        
+        const allPlayers: any[] = draftPoolSnap.docs.map(doc => {
+          const data = doc.data();
+          console.log('📋 Draft pool player data:', data);
+          return {
+            id: doc.id,
+            ...data,
+            ageGroup: data.ageGroupName || 'Unknown'
+          };
+        });
+        
+        console.log('✅ Loaded draft pool players:', allPlayers.length);
+        setDraftPoolPlayers(allPlayers);
+      } catch (error) {
+        console.error('Error loading pool players:', error);
+      } finally {
+        setLoadingPoolPlayers(false);
+      }
+    };
+    
+    loadPoolPlayers();
+  }, [showDraftPoolModal, selectedPoolSeason, programData?.id, userData?.programId]);
 
   const handleCreate = async () => {
     if (!createName.trim()) {
@@ -1039,7 +1153,7 @@ export const CommissionerDashboard: React.FC = () => {
           
           {/* Seasons */}
           <button
-            onClick={() => navigate(`/commissioner/season-setup/${programData?.id || userData?.programId}`)}
+            onClick={() => setShowSeasonManageModal(true)}
             className={`rounded-xl p-4 text-left transition-all hover:scale-[1.02] ${
               theme === 'dark' 
                 ? 'bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-blue-500/50' 
@@ -1206,7 +1320,7 @@ export const CommissionerDashboard: React.FC = () => {
               </div>
             )
           ) : (
-            // Team Commissioner - show teams list (simplified)
+            // Team Commissioner - Season Manager
             !hasProgram ? (
               // No program set up yet
               <div className="p-8 text-center">
@@ -1223,151 +1337,110 @@ export const CommissionerDashboard: React.FC = () => {
                   Setup Your Program
                 </button>
               </div>
-            ) : ((programData as any)?.ageGroups?.length || 0) === 0 ? (
-              // No age groups yet
+            ) : filteredSeasons.length === 0 ? (
+              // No season yet - show create season CTA
               <div className="p-8 text-center">
-                <Layers className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-slate-400'}`} />
-                <p className={`mb-2 font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>No age groups yet</p>
+                <Calendar className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-500'}`} />
+                <p className={`mb-2 font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>
+                  Create Your First Season
+                </p>
                 <p className={`mb-4 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
-                  Create age groups first, then create teams and assign age groups to each team.
+                  Set up registration pools for parents to register their kids.
                 </p>
                 <button
-                  onClick={() => navigate('/commissioner/age-groups')}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                  onClick={() => setShowSeasonModal(true)}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium"
                 >
-                  <Layers className="w-4 h-4" />
-                  Create Age Groups
-                </button>
-              </div>
-            ) : filteredTeams.length === 0 ? (
-              // Has age groups but no teams
-              <div className="p-8 text-center">
-                <Trophy className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-slate-400'}`} />
-                <p className={`mb-2 font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>No teams yet</p>
-                <p className={`mb-4 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
-                  You have {(programData as any)?.ageGroups?.length || 0} age group(s). Now create teams and assign them to age groups.
-                </p>
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  Create Team
+                  <Calendar className="w-5 h-5" />
+                  Create Season
                 </button>
               </div>
             ) : (
+              // Has seasons - show season list
               <div className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-slate-200'}`}>
-                {filteredTeams.slice(0, 5).map((team) => (
+                {filteredSeasons.slice(0, 3).map((season) => {
+                  const statusInfo = getSeasonStatus(season);
+                  return (
                   <div
-                    key={team.id}
-                    className={`flex items-center justify-between px-4 py-3 transition-colors ${theme === 'dark' ? 'hover:bg-gray-750' : 'hover:bg-slate-50'}`}
+                    key={season.id}
+                    className={`transition-colors cursor-pointer ${theme === 'dark' ? 'hover:bg-gray-750' : 'hover:bg-slate-50'}`}
                   >
-                    <Link to={`/team/${team.id}`} className="flex items-center gap-3 flex-1">
-                      <div 
-                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold"
-                        style={{ backgroundColor: '#f97316' }}
-                      >
-                        {team.name?.charAt(0) || 'T'}
+                    <div 
+                      onClick={() => {
+                        setSelectedSeasonForEdit(season);
+                        setShowSeasonManageModal(true);
+                      }}
+                      className="flex items-center justify-between px-4 py-3"
+                    >
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                        <Calendar className="w-5 h-5 text-blue-400" />
                       </div>
                       <div>
-                        <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{team.name}</p>
-                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
-                          {team.sport || 'Football'} • {team.ageGroups?.length ? team.ageGroups.join(', ') : team.ageGroup || team.location?.city || 'All Ages'}
-                        </p>
+                        <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{season.name}</p>
+                        <div className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                          {statusInfo.icon} {statusInfo.label}
+                          {season.seasonStartDate && season.seasonEndDate && (
+                            <span className="ml-2 text-xs">
+                              • {new Date(season.seasonStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(season.seasonEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </Link>
+                    </div>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={(e) => handleEditTeam(team, e)}
-                        className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'text-gray-400 hover:text-blue-400 hover:bg-blue-500/10' : 'text-slate-500 hover:text-blue-600 hover:bg-blue-50'}`}
-                        title="Edit Team"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(e) => handleDeleteClick(team, e)}
+                        onClick={(e) => { e.stopPropagation(); setDeleteSeasonConfirm(season); }}
                         className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'text-gray-400 hover:text-red-400 hover:bg-red-500/10' : 'text-slate-500 hover:text-red-600 hover:bg-red-50'}`}
-                        title="Delete Team"
+                        title="Delete Season"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
-                      <Link to={`/team/${team.id}`}>
-                        <ChevronRight className={`w-5 h-5 ${theme === 'dark' ? 'text-gray-500' : 'text-slate-400'}`} />
-                      </Link>
+                      <Edit2 className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-500' : 'text-slate-400'}`} />
                     </div>
                   </div>
-                ))}
+                  {/* Age Groups Summary */}
+                  {season.sportsOffered && season.sportsOffered.length > 0 && (
+                    <div className={`px-4 pb-3 pt-0 flex flex-wrap gap-1.5`}>
+                      {season.sportsOffered.flatMap(sc => sc.ageGroups || []).slice(0, 4).map((ag) => {
+                        const teamsCount = teams.filter(t => 
+                          t.ageGroup === ag.label || 
+                          t.ageGroups?.some(a => ag.ageGroups.includes(a))
+                        ).length;
+                        return (
+                          <span key={ag.id} className={`text-xs px-2 py-1 rounded-full ${theme === 'dark' ? 'bg-white/10 text-slate-300' : 'bg-gray-100 text-gray-600'}`}>
+                            {ag.label} ({teamsCount})
+                          </span>
+                        );
+                      })}
+                      {season.sportsOffered.flatMap(sc => sc.ageGroups || []).length > 4 && (
+                        <span className={`text-xs px-2 py-1 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                          +{season.sportsOffered.flatMap(sc => sc.ageGroups || []).length - 4} more
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  </div>
+                  );
+                })}
+                
+                {/* Add another season button */}
+                <div className="px-4 py-3">
+                  <button
+                    onClick={() => setShowSeasonModal(true)}
+                    className={`w-full py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
+                      theme === 'dark' 
+                        ? 'bg-white/5 text-white hover:bg-white/10 border border-white/10' 
+                        : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
+                    }`}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Create Another Season
+                  </button>
+                </div>
               </div>
             )
           )}
-          
-          {/* Age Group Coverage Indicator - Show which age groups need teams */}
-          {!isLeagueCommissioner && hasProgram && ((programData as any)?.ageGroups?.length || 0) > 0 && (() => {
-            const allAgeGroups: string[] = (programData as any)?.ageGroups || [];
-            const coveredAgeGroups = new Set(filteredTeams.map(t => t.ageGroup || (t.ageGroups && t.ageGroups[0])).filter(Boolean));
-            const uncoveredAgeGroups = allAgeGroups.filter(ag => !coveredAgeGroups.has(ag));
-            const allCovered = uncoveredAgeGroups.length === 0;
-            
-            return (
-              <div className={`px-4 py-3 border-t ${theme === 'dark' ? 'border-gray-700' : 'border-slate-200'}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
-                    Age Group Coverage
-                  </span>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                    allCovered 
-                      ? 'bg-green-500/20 text-green-500' 
-                      : 'bg-amber-500/20 text-amber-500'
-                  }`}>
-                    {allAgeGroups.length - uncoveredAgeGroups.length}/{allAgeGroups.length} covered
-                  </span>
-                </div>
-                
-                <div className="flex flex-wrap gap-2">
-                  {allAgeGroups.map((ag: string) => {
-                    const hasCoverage = coveredAgeGroups.has(ag);
-                    return (
-                      <div
-                        key={ag}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 ${
-                          hasCoverage
-                            ? theme === 'dark' 
-                              ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
-                              : 'bg-green-50 text-green-700 border border-green-200'
-                            : theme === 'dark'
-                              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}
-                      >
-                        {hasCoverage ? (
-                          <CheckCircle2 className="w-3 h-3" />
-                        ) : (
-                          <AlertTriangle className="w-3 h-3" />
-                        )}
-                        {ag}
-                      </div>
-                    );
-                  })}
-                </div>
-                
-                {uncoveredAgeGroups.length > 0 && (
-                  <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-amber-400' : 'text-amber-600'}`}>
-                    ⚠️ Need {uncoveredAgeGroups.length} more team{uncoveredAgeGroups.length > 1 ? 's' : ''} to cover all age groups before creating a season
-                  </p>
-                )}
-                
-                {allCovered && (
-                  <button
-                    onClick={() => navigate(`/commissioner/season-setup/${programData?.id || userData?.programId}`)}
-                    className="mt-3 w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
-                  >
-                    <Calendar className="w-4 h-4" />
-                    Create Season
-                  </button>
-                )}
-              </div>
-            );
-          })()}
         </div>
         )}
 
@@ -1798,6 +1871,851 @@ export const CommissionerDashboard: React.FC = () => {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Season Management Modal */}
+      {showSeasonManageModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className={`w-full max-w-lg rounded-xl shadow-xl ${theme === 'dark' ? 'bg-zinc-900 border border-white/10' : 'bg-white'}`}>
+            {/* Modal Header */}
+            <div className={`flex items-center justify-between p-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-gray-200'}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <Calendar className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    {selectedSeasonForEdit ? selectedSeasonForEdit.name : 'Manage Seasons'}
+                  </h3>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                    {selectedSeasonForEdit 
+                      ? `${getSeasonStatus(selectedSeasonForEdit).icon} ${getSeasonStatus(selectedSeasonForEdit).label}` 
+                      : `${filteredSeasons.length} season${filteredSeasons.length !== 1 ? 's' : ''}`
+                    }
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setShowSeasonManageModal(false); setSelectedSeasonForEdit(null); setIsEditingSeasonMode(false); setEditSeasonData(null); }}
+                className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="p-4 max-h-[60vh] overflow-y-auto">
+              {selectedSeasonForEdit ? (
+                // Show selected season details / edit form
+                <div className="space-y-4">
+                  {/* Season Name */}
+                  <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-white/5' : 'bg-gray-50'}`}>
+                    <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Season Name</label>
+                    {isEditingSeasonMode ? (
+                      <input
+                        type="text"
+                        value={editSeasonData?.name || ''}
+                        onChange={(e) => setEditSeasonData(prev => prev ? {...prev, name: e.target.value} : null)}
+                        className={`w-full px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-300 text-gray-900'} border focus:ring-2 focus:ring-purple-500/50`}
+                      />
+                    ) : (
+                      <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{selectedSeasonForEdit.name}</p>
+                    )}
+                  </div>
+                  
+                  {/* Season Dates */}
+                  <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-white/5' : 'bg-gray-50'}`}>
+                    <h4 className={`font-medium mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Season Dates</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={`block text-xs mb-1 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>Starts</label>
+                        {isEditingSeasonMode ? (
+                          <input
+                            type="date"
+                            value={editSeasonData?.seasonStartDate || ''}
+                            onChange={(e) => setEditSeasonData(prev => prev ? {...prev, seasonStartDate: e.target.value} : null)}
+                            className={`w-full px-3 py-2 rounded-lg text-sm ${theme === 'dark' ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-300 text-gray-900'} border focus:ring-2 focus:ring-purple-500/50`}
+                          />
+                        ) : (
+                          <p className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                            {selectedSeasonForEdit.seasonStartDate ? new Date(selectedSeasonForEdit.seasonStartDate).toLocaleDateString() : 'Not set'}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className={`block text-xs mb-1 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>Ends</label>
+                        {isEditingSeasonMode ? (
+                          <input
+                            type="date"
+                            value={editSeasonData?.seasonEndDate || ''}
+                            onChange={(e) => setEditSeasonData(prev => prev ? {...prev, seasonEndDate: e.target.value} : null)}
+                            className={`w-full px-3 py-2 rounded-lg text-sm ${theme === 'dark' ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-300 text-gray-900'} border focus:ring-2 focus:ring-purple-500/50`}
+                          />
+                        ) : (
+                          <p className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                            {selectedSeasonForEdit.seasonEndDate ? new Date(selectedSeasonForEdit.seasonEndDate).toLocaleDateString() : 'Not set'}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Registration Dates */}
+                  <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-white/5' : 'bg-gray-50'}`}>
+                    <h4 className={`font-medium mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Registration</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={`block text-xs mb-1 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>Opens</label>
+                        {isEditingSeasonMode ? (
+                          <input
+                            type="date"
+                            value={editSeasonData?.registrationOpenDate || ''}
+                            onChange={(e) => setEditSeasonData(prev => prev ? {...prev, registrationOpenDate: e.target.value} : null)}
+                            className={`w-full px-3 py-2 rounded-lg text-sm ${theme === 'dark' ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-300 text-gray-900'} border focus:ring-2 focus:ring-purple-500/50`}
+                          />
+                        ) : (
+                          <p className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                            {new Date(selectedSeasonForEdit.registrationOpenDate).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className={`block text-xs mb-1 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>Closes</label>
+                        {isEditingSeasonMode ? (
+                          <input
+                            type="date"
+                            value={editSeasonData?.registrationCloseDate || ''}
+                            onChange={(e) => setEditSeasonData(prev => prev ? {...prev, registrationCloseDate: e.target.value} : null)}
+                            className={`w-full px-3 py-2 rounded-lg text-sm ${theme === 'dark' ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-300 text-gray-900'} border focus:ring-2 focus:ring-purple-500/50`}
+                          />
+                        ) : (
+                          <p className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                            {new Date(selectedSeasonForEdit.registrationCloseDate).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Fee & Stats */}
+                  <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-white/5' : 'bg-gray-50'}`}>
+                    <h4 className={`font-medium mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Season Info</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={`block text-xs mb-1 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>Registration Fee</label>
+                        {isEditingSeasonMode ? (
+                          <div className="relative">
+                            <span className={`absolute left-3 top-1/2 -translate-y-1/2 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>$</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={(editSeasonData?.registrationFee || 0) / 100}
+                              onChange={(e) => setEditSeasonData(prev => prev ? {...prev, registrationFee: Math.round(parseFloat(e.target.value || '0') * 100)} : null)}
+                              className={`w-full pl-7 pr-3 py-2 rounded-lg text-sm ${theme === 'dark' ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-300 text-gray-900'} border focus:ring-2 focus:ring-purple-500/50`}
+                            />
+                          </div>
+                        ) : (
+                          <p className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                            {selectedSeasonForEdit.registrationFee ? `$${selectedSeasonForEdit.registrationFee / 100}` : 'Free'}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className={`block text-xs mb-1 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>Draft Pools</label>
+                        <button
+                          onClick={() => {
+                            setSelectedPoolSeason(selectedSeasonForEdit);
+                            setShowDraftPoolModal(true);
+                          }}
+                          className={`font-medium text-sm underline ${theme === 'dark' ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-500'}`}
+                        >
+                          {selectedSeasonForEdit.totalPools || selectedSeasonForEdit.sportsOffered?.reduce((acc, s) => acc + (s.ageGroups?.length || 0), 0) || 0} pools
+                        </button>
+                      </div>
+                      <div>
+                        <label className={`block text-xs mb-1 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>Registrations</label>
+                        <p className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                          {selectedSeasonForEdit.totalRegistrations || 0}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Payment Options - Only show if editing AND fee > 0 */}
+                    {isEditingSeasonMode && editSeasonData && editSeasonData.registrationFee > 0 && (
+                      <div className={`mt-4 pt-4 border-t ${theme === 'dark' ? 'border-white/10' : 'border-gray-200'}`}>
+                        <label className={`block text-xs mb-2 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                          Payment Options (select at least one) <span className="text-red-500">*</span>
+                        </label>
+                        <div className="space-y-2">
+                          {[
+                            { key: 'payInFull', label: 'Pay in Full', desc: 'Full payment at registration' },
+                            { key: 'payAsYouGo', label: 'Pay as You Go', desc: 'Payment plan / installments' },
+                            { key: 'payInCash', label: 'Pay in Cash', desc: 'Pay at the field in person' }
+                          ].map(({ key, label, desc }) => (
+                            <label key={key} className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors ${
+                              (editSeasonData.paymentOptions as any)[key]
+                                ? theme === 'dark' ? 'bg-purple-600/20 border border-purple-500/30' : 'bg-purple-50 border border-purple-200'
+                                : theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-gray-50 border border-gray-200'
+                            }`}>
+                              <div>
+                                <p className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{label}</p>
+                                <p className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>{desc}</p>
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={(editSeasonData.paymentOptions as any)[key]}
+                                onChange={(e) => setEditSeasonData(prev => prev ? {
+                                  ...prev, 
+                                  paymentOptions: { ...prev.paymentOptions, [key]: e.target.checked }
+                                } : null)}
+                                className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                              />
+                            </label>
+                          ))}
+                        </div>
+                        {/* Warning if no option selected */}
+                        {!editSeasonData.paymentOptions.payInFull && !editSeasonData.paymentOptions.payAsYouGo && !editSeasonData.paymentOptions.payInCash && (
+                          <p className="mt-2 text-xs text-red-500 flex items-center gap-1">
+                            <span>⚠️</span> Select at least one payment option
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Required Fields Settings - Only show in edit mode */}
+                  {isEditingSeasonMode && editSeasonData && (
+                    <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-white/5' : 'bg-gray-50'}`}>
+                      <h4 className={`font-medium mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Registration Requirements</h4>
+                      <div className="space-y-3">
+                        {[
+                          { key: 'requireWaiver', label: 'Waiver & Liability Release', desc: 'Require parents to accept waiver' },
+                          { key: 'requireMedicalInfo', label: 'Medical Information', desc: 'Collect allergies, conditions, medications' },
+                          { key: 'requireEmergencyContact', label: 'Emergency Contact', desc: 'Require emergency contact info' },
+                          { key: 'requireUniformSizes', label: 'Uniform Sizes', desc: 'Collect jersey and shorts sizes' },
+                        ].map(({ key, label, desc }) => (
+                          <label key={key} className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
+                            theme === 'dark' ? 'bg-white/5 hover:bg-white/10' : 'bg-white hover:bg-gray-50 border border-gray-200'
+                          }`}>
+                            <div>
+                              <p className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{label}</p>
+                              <p className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>{desc}</p>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="checkbox"
+                                checked={(editSeasonData as any)[key]}
+                                onChange={(e) => setEditSeasonData(prev => prev ? {...prev, [key]: e.target.checked} : null)}
+                                className="sr-only peer"
+                              />
+                              <div className={`w-11 h-6 rounded-full peer-focus:ring-2 peer-focus:ring-purple-500/50 transition-colors ${
+                                (editSeasonData as any)[key] 
+                                  ? 'bg-purple-600' 
+                                  : theme === 'dark' ? 'bg-white/20' : 'bg-gray-300'
+                              }`}></div>
+                              <div className={`absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                                (editSeasonData as any)[key] ? 'translate-x-5' : 'translate-x-0'
+                              }`}></div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Age Groups & Teams */}
+                  <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-white/5' : 'bg-gray-50'}`}>
+                    <h4 className={`font-medium mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Age Groups & Teams</h4>
+                    <div className="space-y-3">
+                      {selectedSeasonForEdit.sportsOffered?.map((sportConfig) => (
+                        <div key={sportConfig.sport}>
+                          {selectedSeasonForEdit.sportsOffered && selectedSeasonForEdit.sportsOffered.length > 1 && (
+                            <p className={`text-xs font-medium uppercase tracking-wide mb-2 ${theme === 'dark' ? 'text-slate-500' : 'text-gray-400'}`}>
+                              {sportConfig.sport}
+                            </p>
+                          )}
+                          <div className="space-y-2">
+                            {sportConfig.ageGroups?.map((ageGroup) => {
+                              const teamsForAge = teams.filter(t => 
+                                t.ageGroup === ageGroup.label || 
+                                t.ageGroups?.some(ag => ageGroup.ageGroups.includes(ag))
+                              );
+                              return (
+                                <div key={ageGroup.id} className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-white border border-gray-200'}`}>
+                                  <div className="flex items-center justify-between">
+                                    <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                      {ageGroup.label}
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-xs px-2 py-0.5 rounded-full ${teamsForAge.length > 0 ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                                        {teamsForAge.length} team{teamsForAge.length !== 1 ? 's' : ''}
+                                      </span>
+                                      <button
+                                        onClick={() => {
+                                          // Set up to add team for this age group
+                                          setNewTeamAgeGroup(ageGroup.label);
+                                          setNewTeamName('');
+                                          setShowAddTeamToAgeGroup(true);
+                                        }}
+                                        className="text-xs px-2 py-1 rounded bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1"
+                                      >
+                                        <Plus className="w-3 h-3" /> Add
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {teamsForAge.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                      {teamsForAge.map(team => (
+                                        <span key={team.id} className={`text-xs px-2 py-1 rounded flex items-center gap-1 ${theme === 'dark' ? 'bg-white/10 text-slate-300' : 'bg-gray-100 text-gray-700'}`}>
+                                          {team.name}
+                                          <button
+                                            onClick={async (e) => {
+                                              e.stopPropagation();
+                                              if (!confirm(`Remove "${team.name}" from ${ageGroup.label}?`)) return;
+                                              try {
+                                                // Clear the age group from the team
+                                                await updateDoc(doc(db, 'teams', team.id!), {
+                                                  ageGroup: null,
+                                                  ageGroups: [],
+                                                  seasonId: null,
+                                                  updatedAt: serverTimestamp()
+                                                });
+                                                // Update local state
+                                                setTeams(prev => prev.map(t => 
+                                                  t.id === team.id 
+                                                    ? { ...t, ageGroup: undefined, ageGroups: [] }
+                                                    : t
+                                                ));
+                                                toastSuccess(`${team.name} removed from ${ageGroup.label}`);
+                                              } catch (err) {
+                                                console.error('Error removing team:', err);
+                                                toastError('Failed to remove team');
+                                              }
+                                            }}
+                                            className={`ml-0.5 p-0.5 rounded-full hover:bg-red-500/20 ${theme === 'dark' ? 'text-slate-400 hover:text-red-400' : 'text-gray-400 hover:text-red-500'}`}
+                                          >
+                                            <X className="w-3 h-3" />
+                                          </button>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                      {(!selectedSeasonForEdit.sportsOffered || selectedSeasonForEdit.sportsOffered.length === 0) && (
+                        <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                          No age groups configured
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Add Team to Age Group Mini Modal */}
+                  {showAddTeamToAgeGroup && (
+                    <div className={`p-4 rounded-lg border-2 ${theme === 'dark' ? 'bg-purple-900/20 border-purple-500/30' : 'bg-purple-50 border-purple-200'}`}>
+                      <h4 className={`font-medium mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                        Add Team to {newTeamAgeGroup}
+                      </h4>
+                      
+                      {/* Input with autocomplete */}
+                      <div className="relative mb-3">
+                        <input
+                          type="text"
+                          value={newTeamName}
+                          onChange={(e) => {
+                            setNewTeamName(e.target.value);
+                            setShowTeamSuggestions(true);
+                          }}
+                          onFocus={() => setShowTeamSuggestions(true)}
+                          placeholder="Team name (e.g., Tigers Blue)"
+                          className={`w-full px-3 py-2.5 rounded-lg text-sm ${theme === 'dark' ? 'bg-white/10 border-white/20 text-white placeholder-slate-400' : 'bg-white border-gray-300 text-gray-900'} border focus:ring-2 focus:ring-purple-500/50`}
+                        />
+                        
+                        {/* Autocomplete suggestions */}
+                        {showTeamSuggestions && teamSuggestions.length > 0 && (
+                          <div className={`absolute top-full left-0 right-0 mt-1 rounded-lg shadow-lg z-10 max-h-40 overflow-y-auto ${theme === 'dark' ? 'bg-zinc-800 border border-white/20' : 'bg-white border border-gray-200'}`}>
+                            <p className={`px-3 py-1.5 text-xs font-medium ${theme === 'dark' ? 'text-slate-400 bg-zinc-900/50' : 'text-gray-500 bg-gray-50'}`}>
+                              Existing teams - click to assign
+                            </p>
+                            {teamSuggestions.map(team => (
+                              <button
+                                key={team.id}
+                                onClick={async () => {
+                                  // Assign existing team to this age group
+                                  try {
+                                    await updateDoc(doc(db, 'teams', team.id!), {
+                                      ageGroup: newTeamAgeGroup,
+                                      ageGroups: [newTeamAgeGroup],
+                                      seasonId: selectedSeasonForEdit?.id,
+                                      updatedAt: serverTimestamp()
+                                    });
+                                    // Update local state
+                                    setTeams(prev => prev.map(t => 
+                                      t.id === team.id 
+                                        ? { ...t, ageGroup: newTeamAgeGroup, ageGroups: [newTeamAgeGroup] }
+                                        : t
+                                    ));
+                                    toastSuccess(`${team.name} assigned to ${newTeamAgeGroup}!`);
+                                    setShowAddTeamToAgeGroup(false);
+                                    setNewTeamName('');
+                                    setNewTeamAgeGroup('');
+                                    setShowTeamSuggestions(false);
+                                  } catch (err) {
+                                    console.error('Error assigning team:', err);
+                                    toastError('Failed to assign team');
+                                  }
+                                }}
+                                className={`w-full px-3 py-2 text-left text-sm hover:bg-purple-500/20 flex items-center justify-between ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}
+                              >
+                                <span>{team.name}</span>
+                                {team.ageGroup && (
+                                  <span className={`text-xs px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-white/10 text-slate-400' : 'bg-gray-100 text-gray-500'}`}>
+                                    {team.ageGroup}
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Action buttons - stack on mobile */}
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <button
+                          onClick={async () => {
+                            if (!newTeamName.trim() || !programData?.id) return;
+                            try {
+                              // Create team in Firestore
+                              const teamRef = await addDoc(collection(db, 'teams'), {
+                                name: newTeamName.trim(),
+                                programId: programData.id,
+                                seasonId: selectedSeasonForEdit?.id,
+                                ageGroup: newTeamAgeGroup,
+                                ageGroups: [newTeamAgeGroup],
+                                sport: programData.sport || 'football',
+                                ownerId: user?.uid,
+                                status: 'active',
+                                createdAt: serverTimestamp(),
+                                updatedAt: serverTimestamp()
+                              });
+                              
+                              // Add to local state for immediate UI update
+                              setTeams(prev => [...prev, {
+                                id: teamRef.id,
+                                name: newTeamName.trim(),
+                                programId: programData.id,
+                                seasonId: selectedSeasonForEdit?.id,
+                                ageGroup: newTeamAgeGroup,
+                                ageGroups: [newTeamAgeGroup],
+                                sport: programData.sport || 'football',
+                                ownerId: user?.uid,
+                                coachId: null,
+                                status: 'active'
+                              } as Team]);
+                              
+                              toastSuccess(`Team "${newTeamName}" created!`);
+                              setShowAddTeamToAgeGroup(false);
+                              setNewTeamName('');
+                              setNewTeamAgeGroup('');
+                              setShowTeamSuggestions(false);
+                            } catch (err) {
+                              console.error('Error creating team:', err);
+                              toastError('Failed to create team');
+                            }
+                          }}
+                          disabled={!newTeamName.trim()}
+                          className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 text-white rounded-lg text-sm font-medium"
+                        >
+                          + Create New Team
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowAddTeamToAgeGroup(false);
+                            setNewTeamName('');
+                            setNewTeamAgeGroup('');
+                            setShowTeamSuggestions(false);
+                          }}
+                          className={`py-2.5 px-4 rounded-lg text-sm font-medium ${theme === 'dark' ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Action Buttons */}
+                  <div className="flex gap-2">
+                    {isEditingSeasonMode ? (
+                      <>
+                        <button
+                          onClick={() => {
+                            setIsEditingSeasonMode(false);
+                            setEditSeasonData(null);
+                          }}
+                          className={`flex-1 py-2 rounded-lg text-sm font-medium ${theme === 'dark' ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!editSeasonData || !selectedSeasonForEdit) return;
+                            
+                            // Validate: all age groups must have at least 1 team
+                            const ageGroupsWithoutTeams: string[] = [];
+                            selectedSeasonForEdit.sportsOffered?.forEach((sportConfig: any) => {
+                              sportConfig.ageGroups?.forEach((ageGroup: any) => {
+                                const teamsForAge = teams.filter(t => 
+                                  t.ageGroup === ageGroup.label || 
+                                  t.ageGroups?.some((ag: string) => ageGroup.ageGroups.includes(ag))
+                                );
+                                if (teamsForAge.length === 0) {
+                                  ageGroupsWithoutTeams.push(ageGroup.label);
+                                }
+                              });
+                            });
+                            
+                            if (ageGroupsWithoutTeams.length > 0) {
+                              toastError(`Each age group needs at least 1 team. Missing: ${ageGroupsWithoutTeams.join(', ')}`);
+                              return;
+                            }
+                            
+                            // Validate: if fee > 0, require at least one payment option
+                            if (editSeasonData.registrationFee > 0) {
+                              const hasPaymentOption = editSeasonData.paymentOptions.payInFull || 
+                                                       editSeasonData.paymentOptions.payAsYouGo || 
+                                                       editSeasonData.paymentOptions.payInCash;
+                              if (!hasPaymentOption) {
+                                toastError('Please select at least one payment option');
+                                return;
+                              }
+                            }
+                            
+                            setSavingSeasonEdit(true);
+                            try {
+                              const programId = programData?.id || userData?.programId;
+                              if (!programId) throw new Error('No program ID');
+                              
+                              await updateDoc(doc(db, 'programs', programId, 'seasons', selectedSeasonForEdit.id), {
+                                name: editSeasonData.name,
+                                seasonStartDate: editSeasonData.seasonStartDate,
+                                seasonEndDate: editSeasonData.seasonEndDate,
+                                registrationOpenDate: editSeasonData.registrationOpenDate,
+                                registrationCloseDate: editSeasonData.registrationCloseDate,
+                                registrationFee: editSeasonData.registrationFee,
+                                // Required fields
+                                requireWaiver: editSeasonData.requireWaiver,
+                                requireMedicalInfo: editSeasonData.requireMedicalInfo,
+                                requireEmergencyContact: editSeasonData.requireEmergencyContact,
+                                requireUniformSizes: editSeasonData.requireUniformSizes,
+                                // Payment options (only if fee > 0)
+                                ...(editSeasonData.registrationFee > 0 && { paymentOptions: editSeasonData.paymentOptions }),
+                                updatedAt: serverTimestamp()
+                              });
+                              
+                              // Update local state
+                              setSelectedSeasonForEdit({
+                                ...selectedSeasonForEdit,
+                                ...editSeasonData
+                              });
+                              setIsEditingSeasonMode(false);
+                              setEditSeasonData(null);
+                              toastSuccess('Season updated successfully!');
+                            } catch (error) {
+                              console.error('Error updating season:', error);
+                              toastError('Failed to update season');
+                            } finally {
+                              setSavingSeasonEdit(false);
+                            }
+                          }}
+                          disabled={savingSeasonEdit}
+                          className="flex-1 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                        >
+                          {savingSeasonEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                          Save Changes
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => setSelectedSeasonForEdit(null)}
+                          className={`flex-1 py-2 rounded-lg text-sm font-medium ${theme === 'dark' ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        >
+                          ← Back
+                        </button>
+                        <button
+                          onClick={() => {
+                            setIsEditingSeasonMode(true);
+                            const seasonPaymentOptions = (selectedSeasonForEdit as any).paymentOptions || {};
+                            setEditSeasonData({
+                              name: selectedSeasonForEdit.name,
+                              seasonStartDate: selectedSeasonForEdit.seasonStartDate || '',
+                              seasonEndDate: selectedSeasonForEdit.seasonEndDate || '',
+                              registrationOpenDate: selectedSeasonForEdit.registrationOpenDate,
+                              registrationCloseDate: selectedSeasonForEdit.registrationCloseDate,
+                              registrationFee: selectedSeasonForEdit.registrationFee || 0,
+                              // Required fields - default to true if not set
+                              requireWaiver: (selectedSeasonForEdit as any).requireWaiver !== false,
+                              requireMedicalInfo: (selectedSeasonForEdit as any).requireMedicalInfo === true,
+                              requireEmergencyContact: (selectedSeasonForEdit as any).requireEmergencyContact !== false,
+                              requireUniformSizes: (selectedSeasonForEdit as any).requireUniformSizes === true,
+                              // Payment options - multi-select (default payInFull to true if none set)
+                              paymentOptions: {
+                                payInFull: seasonPaymentOptions.payInFull !== false,
+                                payAsYouGo: seasonPaymentOptions.payAsYouGo === true,
+                                payInCash: seasonPaymentOptions.payInCash === true
+                              }
+                            });
+                          }}
+                          className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                          Edit Season
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                // Show all seasons list
+                <div className="space-y-3">
+                  {filteredSeasons.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Calendar className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-500'}`} />
+                      <p className={`font-medium mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                        No Seasons Yet
+                      </p>
+                      <p className={`text-sm mb-4 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                        Create your first season to set up registration.
+                      </p>
+                    </div>
+                  ) : (
+                    filteredSeasons.map(season => {
+                      const statusInfo = getSeasonStatus(season);
+                      return (
+                        <button
+                          key={season.id}
+                          onClick={() => setSelectedSeasonForEdit(season)}
+                          className={`w-full p-4 rounded-lg text-left flex items-center justify-between ${
+                            theme === 'dark' 
+                              ? 'bg-white/5 hover:bg-white/10 border border-white/10' 
+                              : 'bg-gray-50 hover:bg-gray-100 border border-gray-200'
+                          }`}
+                        >
+                          <div>
+                            <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                              {season.name}
+                            </p>
+                            <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                              {statusInfo.icon} {statusInfo.label}
+                              {season.seasonStartDate && season.seasonEndDate && (
+                                <span className="ml-2">
+                                  • {new Date(season.seasonStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(season.seasonEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          <Edit2 className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`} />
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+            
+            {/* Modal Footer */}
+            <div className={`p-4 border-t ${theme === 'dark' ? 'border-white/10' : 'border-gray-200'}`}>
+              <button
+                onClick={() => {
+                  setShowSeasonManageModal(false);
+                  setSelectedSeasonForEdit(null);
+                  setShowSeasonModal(true);
+                }}
+                className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Create New Season
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Season Creation Modal */}
+      {showSeasonModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className={`w-full max-w-2xl max-h-[90vh] rounded-xl shadow-xl overflow-hidden ${theme === 'dark' ? 'bg-zinc-900' : 'bg-white'}`}>
+            <div className="max-h-[90vh] overflow-y-auto">
+              <CommissionerSeasonSetup
+                programId={programData?.id || userData?.programId}
+                onComplete={(seasonId) => {
+                  setShowSeasonModal(false);
+                  toastSuccess('Season created successfully!');
+                }}
+                onCancel={() => setShowSeasonModal(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Draft Pool Modal */}
+      {showDraftPoolModal && selectedPoolSeason && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className={`w-full max-w-2xl max-h-[85vh] rounded-xl shadow-xl overflow-hidden ${theme === 'dark' ? 'bg-zinc-900 border border-white/10' : 'bg-white'}`}>
+            {/* Header */}
+            <div className={`flex items-center justify-between p-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-gray-200'}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-purple-400" />
+                </div>
+                <div>
+                  <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    Draft Pool - {selectedPoolSeason.name}
+                  </h3>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                    {selectedPoolSeason.totalRegistrations || 0} total registrations
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setShowDraftPoolModal(false); setSelectedPoolSeason(null); setDraftPoolPlayers([]); setDraftPoolSortBy('all'); }}
+                className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Filter by Age Group */}
+            <div className={`p-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-gray-200'}`}>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setDraftPoolSortBy('all')}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    draftPoolSortBy === 'all'
+                      ? 'bg-purple-600 text-white'
+                      : theme === 'dark' ? 'bg-white/10 text-slate-300 hover:bg-white/20' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  All
+                </button>
+                {selectedPoolSeason.sportsOffered?.flatMap(s => s.ageGroups || []).map(ag => (
+                  <button
+                    key={ag.id}
+                    onClick={() => setDraftPoolSortBy(ag.label)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                      draftPoolSortBy === ag.label
+                        ? 'bg-purple-600 text-white'
+                        : theme === 'dark' ? 'bg-white/10 text-slate-300 hover:bg-white/20' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {ag.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* Player List */}
+            <div className="p-4 max-h-[50vh] overflow-y-auto">
+              {loadingPoolPlayers ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+                </div>
+              ) : draftPoolPlayers.length === 0 ? (
+                <div className="text-center py-12">
+                  <Users className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-purple-400/50' : 'text-purple-300'}`} />
+                  <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>No Players Registered</p>
+                  <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                    Players will appear here once parents register.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {draftPoolPlayers
+                    .filter(p => draftPoolSortBy === 'all' || p.ageGroup === draftPoolSortBy)
+                    .map((player, idx) => (
+                      <div 
+                        key={player.id || idx}
+                        className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-gray-50 border border-gray-200'}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0 ${theme === 'dark' ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'}`}>
+                              {(player.athleteFirstName || player.firstName)?.[0]}{(player.athleteLastName || player.lastName)?.[0]}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              {/* Player Name */}
+                              <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                {player.athleteFirstName || player.firstName} {player.athleteLastName || player.lastName}
+                                {player.athleteNickname && (
+                                  <span className={`ml-1 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                                    "{player.athleteNickname}"
+                                  </span>
+                                )}
+                              </p>
+                              
+                              {/* Username - clickable */}
+                              {player.athleteUsername ? (
+                                <button
+                                  onClick={() => navigate(`/profile/${player.athleteUsername}`)}
+                                  className="text-xs text-purple-500 hover:text-purple-400 hover:underline block"
+                                >
+                                  @{player.athleteUsername}
+                                </button>
+                              ) : (
+                                <span className={`text-xs ${theme === 'dark' ? 'text-slate-500' : 'text-gray-400'}`}>
+                                  No username linked
+                                </span>
+                              )}
+                              
+                              {/* Jersey & Position */}
+                              <div className="flex flex-wrap items-center gap-2 mt-1">
+                                {player.preferredJerseyNumber && (
+                                  <span className={`text-xs px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
+                                    #{player.preferredJerseyNumber}
+                                    {player.alternateJerseyNumbers?.length > 0 && (
+                                      <span className="opacity-60"> (alt: {player.alternateJerseyNumbers.join(', ')})</span>
+                                    )}
+                                  </span>
+                                )}
+                                {player.preferredPosition && (
+                                  <span className={`text-xs px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'}`}>
+                                    {player.preferredPosition}
+                                  </span>
+                                )}
+                              </div>
+                              
+                              {/* Coach Notes / Suggestions */}
+                              {player.coachNotes ? (
+                                <div className={`text-xs mt-1.5 p-2 rounded ${theme === 'dark' ? 'bg-white/5' : 'bg-gray-50'}`}>
+                                  <span className={`font-medium ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>Notes: </span>
+                                  <span className={`italic ${theme === 'dark' ? 'text-slate-300' : 'text-gray-600'}`}>
+                                    "{player.coachNotes}"
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className={`text-xs ${theme === 'dark' ? 'text-slate-500' : 'text-gray-400'}`}>
+                                  No notes provided
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <span className={`text-xs px-2 py-1 rounded-full flex-shrink-0 ${theme === 'dark' ? 'bg-white/10 text-slate-300' : 'bg-gray-200 text-gray-700'}`}>
+                            {player.ageGroup || 'No Age Group'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -11,8 +11,13 @@ export interface SportContext {
   status: 'active' | 'draft_pool' | 'none';
   teamId?: string;
   teamName?: string;
+  // Team-based draft pool (legacy)
   draftPoolTeamId?: string;
   draftPoolTeamName?: string;
+  // Program-based draft pool (new)
+  draftPoolProgramId?: string;
+  draftPoolSeasonId?: string;
+  draftPoolAgeGroup?: string;
 }
 
 interface AuthContextType {
@@ -77,6 +82,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [teamData, setTeamData] = useState<Team | null>(null);
   const [loading, setLoading] = useState(true);
   
+  // Track initial load to avoid resetting user selections on doc updates
+  const isInitialLoad = React.useRef(true);
+  
   // Player management for parents
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayer, setSelectedPlayerState] = useState<Player | null>(null);
@@ -127,6 +135,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const contexts: SportContext[] = [];
     const sportsFound = new Set<string>();
     
+    console.log('[SportContexts] Computing for player:', player.id, 'teamId:', player.teamId);
+    
     // Check if player is on any teams (active)
     if (player.teamId) {
       try {
@@ -135,6 +145,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const teamData = teamDoc.data();
           const sport = (teamData.sport || 'football') as SportType;
           sportsFound.add(sport);
+          console.log('[SportContexts] Player is on team:', player.teamId, 'sport:', sport);
           contexts.push({
             sport,
             status: 'active',
@@ -149,9 +160,49 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // Check player document for draft pool status
     try {
+      console.log('[SportContexts] Checking players/' + player.id + ' for draft pool status');
       const playerDoc = await getDoc(doc(db, 'players', player.id));
+      console.log('[SportContexts] playerDoc.exists():', playerDoc.exists());
       if (playerDoc.exists()) {
         const playerData = playerDoc.data();
+        console.log('[SportContexts] Player draft pool data:', playerData.draftPoolStatus, playerData.draftPoolProgramId, playerData.draftPoolSeasonId);
+        
+        // Check for PROGRAM-based draft pool (new system) - uses programId/seasonId
+        if (playerData.draftPoolStatus === 'waiting' && playerData.draftPoolProgramId && playerData.draftPoolSeasonId) {
+          // Get the program to find out what sport
+          const programDoc = await getDoc(doc(db, 'programs', playerData.draftPoolProgramId));
+          if (programDoc.exists()) {
+            const programData = programDoc.data();
+            const sport = (programData.sport || 'football') as SportType;
+            
+            // Get season name for display
+            let seasonName = '';
+            try {
+              const seasonDoc = await getDoc(doc(db, 'programs', playerData.draftPoolProgramId, 'seasons', playerData.draftPoolSeasonId));
+              if (seasonDoc.exists()) {
+                seasonName = seasonDoc.data().name || '';
+              }
+            } catch (e) {
+              console.log('Could not fetch season name');
+            }
+            
+            // Only add if not already in this sport
+            if (!sportsFound.has(sport)) {
+              sportsFound.add(sport);
+              contexts.push({
+                sport,
+                status: 'draft_pool',
+                draftPoolProgramId: playerData.draftPoolProgramId,
+                draftPoolSeasonId: playerData.draftPoolSeasonId,
+                draftPoolTeamName: seasonName ? `${programData.name} - ${seasonName}` : programData.name || 'Unknown Program',
+                draftPoolAgeGroup: playerData.draftPoolAgeGroup,
+              });
+              console.log('✅ Found program-based draft pool context:', sport, programData.name);
+            }
+          }
+        }
+        
+        // Check for TEAM-based draft pool (legacy system) - uses teamId
         if (playerData.draftPoolStatus === 'waiting' && playerData.draftPoolTeamId) {
           // Get the team to find out what sport
           const teamDoc = await getDoc(doc(db, 'teams', playerData.draftPoolTeamId));
@@ -207,6 +258,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Error searching draft pools for sport context:', err);
     }
     
+    console.log('[SportContexts] Final contexts:', contexts);
     return contexts;
   };
 
@@ -247,6 +299,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Function to set selected sport context
   const setSelectedSportContext = async (context: SportContext | null) => {
     setSelectedSportContextState(context);
+    
+    // Persist selected sport to user profile
+    if (userData?.uid && context) {
+      try {
+        await updateDoc(doc(db, 'users', userData.uid), {
+          selectedSport: context.sport
+        });
+      } catch (error) {
+        console.error('Error saving selected sport:', error);
+      }
+    }
     
     // Load team data if switching to an active sport context
     if (context?.status === 'active' && context.teamId) {
@@ -367,15 +430,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                             
                             setSelectedPlayerState(playerToSelect);
                             
-                            // Compute sport contexts for the selected player
+                            // Compute sport contexts for the selected player (for dropdown options only)
+                            // Actual auto-selection happens in PlayerSportSelector which uses getPlayerRegistrationStatus
                             computeSportContexts(playerToSelect).then(contexts => {
-                                console.log('[AuthContext] Computed sport contexts on load:', contexts);
+                                console.log('[AuthContext] Computed sport contexts:', contexts);
                                 setSportContexts(contexts);
-                                
-                                // Auto-select a sport context (prefer active team over draft pool)
-                                const activeContext = contexts.find(c => c.status === 'active');
-                                const draftContext = contexts.find(c => c.status === 'draft_pool');
-                                setSelectedSportContextState(activeContext || draftContext || null);
                             });
                             
                             // Load team data for selected player (only if they have a team)

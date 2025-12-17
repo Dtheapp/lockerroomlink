@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, writeBatch, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, writeBatch, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import type { Season, SeasonRegistration, SeasonStatus, SportType } from '../types';
-import { Calendar, Users, DollarSign, Play, Square, CheckCircle, Clock, AlertCircle, ChevronRight, Plus, X, FileText, Palette, Trophy, UserPlus, Settings, CalendarDays, Info, Link2, Copy, Check, Trash2, Edit3 } from 'lucide-react';
+import { Calendar, Users, DollarSign, Play, Square, CheckCircle, Clock, AlertCircle, ChevronRight, Plus, X, FileText, Palette, Trophy, UserPlus, Settings, CalendarDays, Info, Link2, Copy, Check, Trash2, Edit3, XCircle } from 'lucide-react';
 import { GlassCard } from './ui/OSYSComponents';
 import { GameScheduleManager } from './season/GameScheduleManager';
 
@@ -28,6 +28,8 @@ interface SeasonManagerProps {
   teamName: string;
   sport: SportType;
   ageGroup?: string; // Team's age group (e.g., "9U", "10U")
+  ageGroups?: string[]; // For multi-grade teams (e.g., ["8U", "9U"])
+  programId?: string; // Program ID for draft pool queries
   currentSeasonId?: string | null;
   rosterCount?: number; // Number of players currently on the roster
   // League membership info - if team is in active league, they cannot create seasons
@@ -45,6 +47,8 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
   teamName, 
   sport, 
   ageGroup,
+  ageGroups,
+  programId,
   currentSeasonId,
   rosterCount = 0,
   leagueId,
@@ -74,6 +78,10 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
   const [savingSeasonEdit, setSavingSeasonEdit] = useState(false);
   const [showDeleteSeasonConfirm, setShowDeleteSeasonConfirm] = useState(false);
   const [deletingSeason, setDeletingSeason] = useState(false);
+  
+  // Draft Pool state - players waiting in pool for this team's age group
+  const [draftPoolPlayers, setDraftPoolPlayers] = useState<any[]>([]);
+  const [loadingDraftPool, setLoadingDraftPool] = useState(false);
   
   // Payment details popup state
   const [selectedRegistrationForPayment, setSelectedRegistrationForPayment] = useState<SeasonRegistration | null>(null);
@@ -150,6 +158,109 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
       });
     });
   }, [teamId, seasons]);
+  
+  // Fetch draft pool players for team's age group from program
+  useEffect(() => {
+    const loadDraftPoolPlayers = async () => {
+      // Try to get programId from multiple sources
+      let effectiveProgramId = programId || userData?.programId;
+      
+      // If no programId, try to get from the team's current/active season
+      if (!effectiveProgramId && seasons.length > 0) {
+        const activeOrRegSeason = seasons.find(s => s.status === 'active' || s.status === 'registration');
+        if (activeOrRegSeason && (activeOrRegSeason as any).programId) {
+          effectiveProgramId = (activeOrRegSeason as any).programId;
+          console.log('📍 Found programId from team season:', effectiveProgramId);
+        }
+      }
+      
+      // If no programId but we have leagueId, try to get programId from the league's programs
+      if (!effectiveProgramId && leagueId) {
+        try {
+          const leagueDoc = await getDoc(doc(db, 'leagues', leagueId));
+          if (leagueDoc.exists()) {
+            const leagueData = leagueDoc.data();
+            // Get the first programId from the league
+            if (leagueData?.programIds && leagueData.programIds.length > 0) {
+              effectiveProgramId = leagueData.programIds[0];
+              console.log('📍 Found programId from league:', effectiveProgramId);
+            }
+          }
+        } catch (err) {
+          console.error('Error looking up league for programId:', err);
+        }
+      }
+      
+      console.log('🔍 Draft Pool Check:', { programId, effectiveProgramId, ageGroup, ageGroups, leagueId, seasonsCount: seasons.length });
+      
+      // Need programId and an age group to query
+      if (!effectiveProgramId || (!ageGroup && (!ageGroups || ageGroups.length === 0))) {
+        console.log('⚠️ Missing programId or ageGroup, skipping draft pool load');
+        setDraftPoolPlayers([]);
+        return;
+      }
+      
+      setLoadingDraftPool(true);
+      try {
+        // Find active season for this program
+        const seasonsRef = collection(db, 'programs', effectiveProgramId, 'seasons');
+        const seasonsSnap = await getDocs(seasonsRef);
+        console.log('🔎 Found', seasonsSnap.docs.length, 'seasons in program', effectiveProgramId);
+        
+        const allPlayers: any[] = [];
+        const teamAgeGroups = ageGroups || (ageGroup ? [ageGroup] : []);
+        
+        for (const seasonDoc of seasonsSnap.docs) {
+          const seasonData = seasonDoc.data();
+          console.log('📅 Season:', seasonDoc.id, seasonData.name, 'status:', seasonData.status);
+          // Only check active seasons
+          if (seasonData.status !== 'active' && seasonData.status !== 'registration') continue;
+          
+          // Query draft pool for this season
+          const draftPoolRef = collection(db, 'programs', effectiveProgramId, 'seasons', seasonDoc.id, 'draftPool');
+          const draftPoolSnap = await getDocs(draftPoolRef);
+          console.log('🏊 Draft pool for season', seasonDoc.id, ':', draftPoolSnap.docs.length, 'players');
+          
+          draftPoolSnap.docs.forEach(doc => {
+            const data = doc.data();
+            console.log('👤 Player in pool:', data.athleteFirstName, data.athleteLastName, 'ageGroup:', data.ageGroupName);
+            // Check if player's age group matches team's age group(s)
+            const playerAgeGroup = data.ageGroupName || '';
+            const matches = teamAgeGroups.some(tag => 
+              playerAgeGroup.toLowerCase().includes(tag.toLowerCase()) ||
+              tag.toLowerCase().includes(playerAgeGroup.replace('-', '').replace('U', '').toLowerCase())
+            );
+            
+            // Also check if it's an exact match or range match (e.g., "9U-10U" matches "9U" or "10U")
+            const rangeMatch = teamAgeGroups.some(tag => {
+              const playerParts = playerAgeGroup.split('-').map(p => p.replace('U', '').trim());
+              const teamPart = tag.replace('U', '').trim();
+              return playerParts.includes(teamPart) || playerAgeGroup === tag;
+            });
+            
+            console.log('🎯 Age group match check:', { playerAgeGroup, teamAgeGroups, matches, rangeMatch });
+            
+            // For now, add all players to see them (remove filter to debug)
+            allPlayers.push({
+              id: doc.id,
+              ...data,
+              seasonId: seasonDoc.id,
+              seasonName: seasonData.name
+            });
+          });
+        }
+        
+        console.log('📋 Draft pool players for team age group:', allPlayers.length, teamAgeGroups);
+        setDraftPoolPlayers(allPlayers);
+      } catch (error) {
+        console.error('Error loading draft pool players:', error);
+      } finally {
+        setLoadingDraftPool(false);
+      }
+    };
+    
+    loadDraftPoolPlayers();
+  }, [programId, userData?.programId, ageGroup, ageGroups, leagueId, seasons]);
   
   // Get current season
   const currentSeason = seasons.find(s => s.id === currentSeasonId);
@@ -805,6 +916,188 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                 Design Flyer Now
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Draft Pool Players - Show players waiting in pool for team's age group */}
+      {draftPoolPlayers.length > 0 && (
+        <div className={`rounded-2xl border overflow-hidden ${
+          theme === 'dark' ? 'bg-zinc-800/50 border-white/10' : 'bg-white border-slate-200 shadow-sm'
+        }`}>
+          {/* Header */}
+          <div className={`px-4 py-3 flex items-center justify-between ${
+            theme === 'dark' ? 'bg-gradient-to-r from-purple-500/20 to-orange-500/20' : 'bg-gradient-to-r from-purple-50 to-orange-50'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                theme === 'dark' ? 'bg-orange-500/20' : 'bg-orange-100'
+              }`}>
+                <Trophy className={`w-5 h-5 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-600'}`} />
+              </div>
+              <div>
+                <h3 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                  Draft Pool
+                </h3>
+                <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                  {draftPoolPlayers.length} player{draftPoolPlayers.length !== 1 ? 's' : ''} waiting • {ageGroups?.join(', ') || ageGroup || 'Your age group'}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Player List */}
+          <div className={`divide-y ${theme === 'dark' ? 'divide-white/10' : 'divide-slate-200'}`}>
+            {draftPoolPlayers.map((player, idx) => (
+              <div key={player.id || idx} className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  {/* Player Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Avatar */}
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0 ${
+                        theme === 'dark' ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'
+                      }`}>
+                        {(player.athleteFirstName || player.firstName)?.[0]}{(player.athleteLastName || player.lastName)?.[0]}
+                      </div>
+                      
+                      <div className="flex-1">
+                        {/* Name */}
+                        <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                          {player.athleteFirstName || player.firstName} {player.athleteLastName || player.lastName}
+                          {player.athleteNickname && (
+                            <span className={`ml-1 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                              "{player.athleteNickname}"
+                            </span>
+                          )}
+                        </span>
+                        
+                        {/* Username - clickable to profile */}
+                        {player.athleteUsername && (
+                          <a
+                            href={`/#/athlete/${player.athleteUsername}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`ml-2 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full transition-colors ${
+                              theme === 'dark' 
+                                ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' 
+                                : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                            }`}
+                          >
+                            @{player.athleteUsername}
+                          </a>
+                        )}
+                        
+                        {/* Age Group Badge */}
+                        <span className={`ml-2 text-xs px-2 py-0.5 rounded-full font-bold ${
+                          theme === 'dark' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {player.ageGroupName || player.ageGroup || 'Pool'}
+                        </span>
+                        
+                        {/* Payment Status */}
+                        {player.paymentStatus && (
+                          <span className={`ml-2 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${
+                            player.paymentStatus === 'paid' 
+                              ? theme === 'dark' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-green-100 text-green-700 border-green-200'
+                              : player.paymentStatus === 'partial'
+                                ? theme === 'dark' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' : 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                                : theme === 'dark' ? 'bg-gray-500/20 text-gray-400 border-gray-500/30' : 'bg-gray-100 text-gray-600 border-gray-200'
+                          }`}>
+                            {player.paymentStatus === 'paid' ? '✓ Paid' : player.paymentStatus === 'partial' ? '◐ Partial' : '○ Pending'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Details row */}
+                    <div className={`text-sm mt-1 ml-12 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                      {player.parentName && `Parent: ${player.parentName}`}
+                      {player.preferredJerseyNumber && (
+                        <span className={`ml-2 ${theme === 'dark' ? 'text-amber-400' : 'text-amber-600'}`}>
+                          Jersey: #{player.preferredJerseyNumber}
+                          {player.alternateJerseyNumbers?.length > 0 && ` (alt: ${player.alternateJerseyNumbers.join(', ')})`}
+                        </span>
+                      )}
+                      {player.preferredPosition && (
+                        <span className={`ml-2 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
+                          Position: {player.preferredPosition}
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Coach Notes / Parent Suggestions */}
+                    {player.coachNotes && (
+                      <div className={`mt-3 ml-12 p-3 rounded-lg border ${
+                        theme === 'dark' 
+                          ? 'bg-purple-500/10 border-purple-500/20' 
+                          : 'bg-purple-50 border-purple-200'
+                      }`}>
+                        <div className="flex items-start gap-2">
+                          <span className="text-sm">💬</span>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-semibold mb-1 ${
+                              theme === 'dark' ? 'text-purple-400' : 'text-purple-700'
+                            }`}>
+                              Parent Suggestions
+                            </p>
+                            <p className={`text-sm leading-relaxed ${
+                              theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                            }`}>
+                              {player.coachNotes}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Actions (Coach only) */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {/* Draft Button */}
+                    <button
+                      onClick={() => {
+                        // TODO: Implement draft to roster
+                        console.log('Draft player:', player.id);
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition ${
+                        theme === 'dark'
+                          ? 'bg-green-500/20 hover:bg-green-500/30 text-green-400'
+                          : 'bg-green-100 hover:bg-green-200 text-green-700'
+                      }`}
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      Draft
+                    </button>
+                    
+                    {/* Decline Button */}
+                    <button
+                      onClick={() => {
+                        // TODO: Implement decline
+                        console.log('Decline player:', player.id);
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition ${
+                        theme === 'dark'
+                          ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400'
+                          : 'bg-red-100 hover:bg-red-200 text-red-700'
+                      }`}
+                    >
+                      <XCircle className="w-4 h-4" />
+                      Decline
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {/* Info footer */}
+          <div className={`px-4 py-3 border-t ${
+            theme === 'dark' ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-slate-50'
+          }`}>
+            <p className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+              💡 Players in the draft pool registered for your age group and are waiting to be added to your roster.
+            </p>
           </div>
         </div>
       )}

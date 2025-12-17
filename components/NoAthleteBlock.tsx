@@ -27,30 +27,48 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children }
   // Load additional draft pool info when in draft pool context
   useEffect(() => {
     const loadDraftPoolInfo = async () => {
-      if (selectedSportContext?.status !== 'draft_pool' || !selectedSportContext.draftPoolTeamId) {
+      if (selectedSportContext?.status !== 'draft_pool') {
         setLoading(false);
         return;
       }
       
       try {
-        // Get draft pool count
-        const draftPoolQuery = query(
-          collection(db, 'teams', selectedSportContext.draftPoolTeamId, 'draftPool'),
-          where('status', '==', 'waiting')
-        );
-        const draftSnap = await getDocs(draftPoolQuery);
-        setDraftPoolCount(draftSnap.size);
-        
-        // Get registration close date from season
-        const seasonsSnap = await getDocs(collection(db, 'teams', selectedSportContext.draftPoolTeamId, 'seasons'));
-        let closeDate: string | null = null;
-        seasonsSnap.forEach(seasonDoc => {
-          const sData = seasonDoc.data();
-          if (sData.isActive && sData.registrationCloseDate) {
-            closeDate = sData.registrationCloseDate;
+        // PROGRAM-BASED draft pool (new system)
+        if (selectedSportContext.draftPoolProgramId && selectedSportContext.draftPoolSeasonId) {
+          // Get draft pool count from program/season
+          const draftPoolSnap = await getDocs(
+            collection(db, 'programs', selectedSportContext.draftPoolProgramId, 'seasons', selectedSportContext.draftPoolSeasonId, 'draftPool')
+          );
+          setDraftPoolCount(draftPoolSnap.size);
+          
+          // Get registration close date from season
+          const seasonDoc = await getDoc(doc(db, 'programs', selectedSportContext.draftPoolProgramId, 'seasons', selectedSportContext.draftPoolSeasonId));
+          if (seasonDoc.exists()) {
+            const seasonData = seasonDoc.data();
+            setRegistrationCloseDate(seasonData.registrationCloseDate || null);
           }
-        });
-        setRegistrationCloseDate(closeDate);
+        }
+        // TEAM-BASED draft pool (legacy system)
+        else if (selectedSportContext.draftPoolTeamId) {
+          // Get draft pool count
+          const draftPoolQuery = query(
+            collection(db, 'teams', selectedSportContext.draftPoolTeamId, 'draftPool'),
+            where('status', '==', 'waiting')
+          );
+          const draftSnap = await getDocs(draftPoolQuery);
+          setDraftPoolCount(draftSnap.size);
+          
+          // Get registration close date from season
+          const seasonsSnap = await getDocs(collection(db, 'teams', selectedSportContext.draftPoolTeamId, 'seasons'));
+          let closeDate: string | null = null;
+          seasonsSnap.forEach(seasonDoc => {
+            const sData = seasonDoc.data();
+            if (sData.isActive && sData.registrationCloseDate) {
+              closeDate = sData.registrationCloseDate;
+            }
+          });
+          setRegistrationCloseDate(closeDate);
+        }
       } catch (err) {
         console.error('Error loading draft pool info:', err);
       } finally {
@@ -120,16 +138,11 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children }
           
           <p className="text-slate-600 dark:text-zinc-400 mb-4 text-lg">
             {isParent ? 'Your athlete is' : "You're"} registered for {sportEmoji} {selectedSportContext.sport.charAt(0).toUpperCase() + selectedSportContext.sport.slice(1)} and waiting to be drafted to{' '}
-            {selectedSportContext.draftPoolTeamId ? (
-              <a 
-                href={`#/team/${selectedSportContext.draftPoolTeamId}`}
-                className="font-semibold text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1"
-              >
-                {selectedSportContext.draftPoolTeamName}
-                <ExternalLink className="w-4 h-4" />
-              </a>
-            ) : (
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400">{selectedSportContext.draftPoolTeamName}</span>
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+              {selectedSportContext.draftPoolTeamName || 'a team'}
+            </span>
+            {selectedSportContext.draftPoolAgeGroup && (
+              <span className="text-sm"> ({selectedSportContext.draftPoolAgeGroup})</span>
             )}.
           </p>
           
@@ -159,8 +172,8 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children }
             </div>
           </div>
           
-          {/* View Team Page Button */}
-          {selectedSportContext.draftPoolTeamId && (
+          {/* View Team/Program Page Button */}
+          {selectedSportContext.draftPoolTeamId ? (
             <a 
               href={`#/team/${selectedSportContext.draftPoolTeamId}`}
               className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold transition-colors shadow-lg shadow-emerald-500/30 mb-4"
@@ -168,7 +181,15 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children }
               <Users className="w-5 h-5" />
               View Team Page
             </a>
-          )}
+          ) : selectedSportContext.draftPoolProgramId ? (
+            <a 
+              href={`#/program/${selectedSportContext.draftPoolProgramId}`}
+              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold transition-colors shadow-lg shadow-emerald-500/30 mb-4"
+            >
+              <Users className="w-5 h-5" />
+              View Program
+            </a>
+          ) : null}
           
           {/* Info about other sports */}
           {sportContexts.filter(c => c.status === 'active').length > 0 && (

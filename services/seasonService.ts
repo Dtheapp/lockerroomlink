@@ -14,6 +14,7 @@
 
 import { 
   collection, 
+  collectionGroup,
   doc, 
   getDoc, 
   getDocs,
@@ -241,25 +242,40 @@ export async function getSeason(seasonId: string): Promise<Season | null> {
   return null;
 }
 
-// Direct lookup when we know the programId (faster)
+// Direct lookup when we know the programId (faster and more reliable)
 export async function getSeasonByProgramId(programId: string, seasonId: string): Promise<Season | null> {
   try {
-    const docRef = doc(db, 'programs', programId, 'seasons', seasonId);
-    const docSnap = await getDoc(docRef);
+    // First try nested collection: programs/{programId}/seasons/{seasonId}
+    const nestedRef = doc(db, 'programs', programId, 'seasons', seasonId);
+    const nestedSnap = await getDoc(nestedRef);
     
-    if (docSnap.exists()) {
+    if (nestedSnap.exists()) {
+      console.log('[getSeasonByProgramId] Found in nested collection');
       return { 
-        id: docSnap.id, 
+        id: nestedSnap.id, 
         programId,
-        ...docSnap.data() 
+        ...nestedSnap.data() 
       } as Season;
     }
+    
+    // Also try top-level seasons collection
+    const topLevelRef = doc(db, 'seasons', seasonId);
+    const topLevelSnap = await getDoc(topLevelRef);
+    
+    if (topLevelSnap.exists()) {
+      console.log('[getSeasonByProgramId] Found in top-level collection');
+      return { 
+        id: topLevelSnap.id, 
+        ...topLevelSnap.data() 
+      } as Season;
+    }
+    
+    console.error('[getSeasonByProgramId] Season not found in either location:', { programId, seasonId });
+    return null;
   } catch (err) {
     console.error('Error getting season by program ID:', err);
+    return null;
   }
-  
-  // Fall back to general search
-  return getSeason(seasonId);
 }
 
 export async function updateSeason(seasonId: string, updates: Partial<Season>): Promise<void> {
@@ -347,10 +363,26 @@ export async function registerForSeason(input: SeasonRegistrationInput): Promise
   registrationId: string;
   draftPoolId: string;
 }> {
-  // Get season to validate
-  const season = await getSeason(input.seasonId);
+  // Get season to validate - use programId for direct lookup if available
+  const season = input.programId 
+    ? await getSeasonByProgramId(input.programId, input.seasonId)
+    : await getSeason(input.seasonId);
   if (!season) throw new Error('Season not found');
-  if (season.status !== 'registration') {
+  
+  // Check registration status - either explicit status OR within date range
+  const now = new Date();
+  const regOpen = season.registrationOpenDate ? 
+    (typeof season.registrationOpenDate === 'string' ? new Date(season.registrationOpenDate) : (season.registrationOpenDate as any).toDate?.() || new Date(season.registrationOpenDate)) 
+    : null;
+  const regClose = season.registrationCloseDate ? 
+    (typeof season.registrationCloseDate === 'string' ? new Date(season.registrationCloseDate) : (season.registrationCloseDate as any).toDate?.() || new Date(season.registrationCloseDate)) 
+    : null;
+  
+  const isWithinDates = (!regOpen || regOpen <= now) && (!regClose || regClose >= now);
+  const isRegistrationStatus = season.status === 'registration' || season.status === 'registration_open';
+  const isNotCompleted = season.status !== 'completed' && season.status !== 'closed';
+  
+  if (!isRegistrationStatus && !(isWithinDates && isNotCompleted)) {
     throw new Error('Registration is not open for this season');
   }
   
@@ -395,10 +427,12 @@ export async function registerForSeason(input: SeasonRegistrationInput): Promise
     athleteFirstName: input.athleteFirstName,
     athleteLastName: input.athleteLastName,
     athleteFullName: `${input.athleteFirstName} ${input.athleteLastName}`,
+    athleteNickname: input.athleteNickname || null,
+    athleteUsername: input.athleteUsername || null,
     athleteDOB: Timestamp.fromDate(athleteDOB),
     athleteAge,
     athleteGender: input.athleteGender,
-    athleteGrade: input.athleteGrade,
+    athleteGrade: input.athleteGrade || null,
     
     // Preferences
     preferredJerseyNumber: input.preferredJerseyNumber || null,
@@ -413,9 +447,9 @@ export async function registerForSeason(input: SeasonRegistrationInput): Promise
     parentPhone: input.parentPhone,
     
     // Emergency contact
-    emergencyContactName: input.emergencyContactName,
-    emergencyContactPhone: input.emergencyContactPhone,
-    emergencyRelationship: input.emergencyRelationship,
+    emergencyContactName: input.emergencyContactName || '',
+    emergencyContactPhone: input.emergencyContactPhone || '',
+    emergencyRelationship: input.emergencyRelationship || '',
     
     // Medical info
     medicalAllergies: input.medicalAllergies || '',
@@ -446,8 +480,8 @@ export async function registerForSeason(input: SeasonRegistrationInput): Promise
   };
   batch.set(registrationRef, registrationData);
   
-  // 2. Add to draft pool
-  const draftPoolRef = doc(collection(db, `seasons/${input.seasonId}/draftPool`));
+  // 2. Add to draft pool - use nested path under program/season
+  const draftPoolRef = doc(collection(db, `programs/${input.programId}/seasons/${input.seasonId}/draftPool`));
   const draftPoolData: Omit<DraftPoolPlayer, 'id'> & { id: string } = {
     id: draftPoolRef.id,
     registrationId: registrationRef.id,
@@ -456,16 +490,22 @@ export async function registerForSeason(input: SeasonRegistrationInput): Promise
     ageGroupId: input.ageGroupId,
     ageGroupName: input.ageGroupName,
     
+    // Link to the global player document for status tracking
+    athleteId: input.athleteId || null,
+    
     athleteFirstName: input.athleteFirstName,
     athleteLastName: input.athleteLastName,
     athleteFullName: `${input.athleteFirstName} ${input.athleteLastName}`,
+    athleteNickname: input.athleteNickname || null,
+    athleteUsername: input.athleteUsername || null,
     athleteDOB: Timestamp.fromDate(athleteDOB),
     athleteAge,
     athleteGender: input.athleteGender,
     
-    preferredJerseyNumber: input.preferredJerseyNumber,
+    preferredJerseyNumber: input.preferredJerseyNumber || null,
     alternateJerseyNumbers: input.alternateJerseyNumbers || [],
-    preferredPosition: input.preferredPosition,
+    preferredPosition: input.preferredPosition || null,
+    coachNotes: input.coachNotes || null,
     
     hasMedicalInfo: !!(input.medicalAllergies || input.medicalConditions || input.medicalMedications),
     
@@ -489,8 +529,8 @@ export async function registerForSeason(input: SeasonRegistrationInput): Promise
   };
   batch.set(draftPoolRef, draftPoolData);
   
-  // 3. Increment registration counts on season
-  const seasonRef = doc(db, 'seasons', input.seasonId);
+  // 3. Increment registration counts on season (nested under program)
+  const seasonRef = doc(db, 'programs', input.programId, 'seasons', input.seasonId);
   batch.update(seasonRef, {
     [`registrationCounts.${input.ageGroupId}`]: increment(1),
     totalRegistrations: increment(1),
@@ -498,6 +538,174 @@ export async function registerForSeason(input: SeasonRegistrationInput): Promise
   });
   
   await batch.commit();
+  
+  // 4. Update the player document with draft pool status (outside batch for error isolation)
+  if (input.athleteId) {
+    try {
+      const playerRef = doc(db, 'players', input.athleteId);
+      await updateDoc(playerRef, {
+        draftPoolStatus: 'waiting',
+        draftPoolProgramId: input.programId,
+        draftPoolSeasonId: input.seasonId,
+        draftPoolEntryId: draftPoolRef.id,
+        draftPoolAgeGroup: input.ageGroupName,
+        draftPoolUpdatedAt: serverTimestamp(),
+      });
+      console.log('✅ Updated player document with draft pool status:', input.athleteId);
+    } catch (err) {
+      console.error('⚠️ Failed to update player document (non-fatal):', err);
+      // Don't fail the whole registration if this update fails
+    }
+  }
+  
+  // 5. Create notification for parent (using top-level notifications collection)
+  try {
+    console.log('[SeasonRegistration] Creating notification for parent:', input.parentUserId);
+    const notifDoc = await addDoc(collection(db, 'notifications'), {
+      userId: input.parentUserId,
+      type: 'registration_confirmed',
+      title: '🎉 Registration Confirmed!',
+      message: `${input.athleteFirstName} ${input.athleteLastName} has been registered for ${input.seasonName} (${input.ageGroupName}). They are now in the draft pool waiting for team assignment.`,
+      category: 'registration',
+      priority: 'normal',
+      read: false,
+      link: '/dashboard',
+      metadata: {
+        athleteName: `${input.athleteFirstName} ${input.athleteLastName}`,
+        seasonName: input.seasonName,
+        programName: input.programName,
+        ageGroup: input.ageGroupName,
+      },
+      createdAt: serverTimestamp()
+    });
+    console.log('✅ Created parent notification with ID:', notifDoc.id);
+  } catch (err) {
+    console.error('⚠️ Failed to create parent notification:', err);
+  }
+  
+  // 6. Notify commissioner of new registration
+  if (input.commissionerUserId) {
+    try {
+      await addDoc(collection(db, 'notifications'), {
+        userId: input.commissionerUserId,
+        type: 'roster_update',
+        title: '🏈 New Registration',
+        message: `${input.athleteFirstName} ${input.athleteLastName} (${input.ageGroupName}) registered for ${input.seasonName}.`,
+        category: 'team',
+        priority: 'high',
+        read: false,
+        link: '/commissioner',
+        metadata: {
+          athleteName: `${input.athleteFirstName} ${input.athleteLastName}`,
+          seasonName: input.seasonName,
+          ageGroup: input.ageGroupName,
+        },
+        createdAt: serverTimestamp()
+      });
+      console.log('✅ Created commissioner notification');
+    } catch (err) {
+      console.error('⚠️ Failed to create commissioner notification:', err);
+    }
+  }
+  
+  // 7. Notify all coaches whose teams match this age group
+  try {
+    // Find all teams in this program with matching age group
+    console.log('[SeasonRegistration] Looking for teams with programId:', input.programId);
+    
+    const teamsQuery = query(
+      collection(db, 'teams'),
+      where('programId', '==', input.programId)
+    );
+    const teamsSnap = await getDocs(teamsQuery);
+    
+    console.log('[SeasonRegistration] Found teams in program:', teamsSnap.docs.length);
+    
+    const coachIdsNotified = new Set<string>();
+    
+    for (const teamDoc of teamsSnap.docs) {
+      const teamData = teamDoc.data();
+      
+      // Check if team age group matches (could be single like "9U" or range like "9U-10U")
+      const teamAgeGroup = teamData.ageGroup || '';
+      const teamAgeGroups = teamData.ageGroups || [];
+      
+      console.log('[SeasonRegistration] Checking team:', {
+        teamId: teamDoc.id,
+        teamName: teamData.name,
+        teamAgeGroup,
+        teamAgeGroups,
+        registeredAgeGroup: input.ageGroupName,
+        coachId: teamData.coachId,
+        coachIds: teamData.coachIds,
+        ownerId: teamData.ownerId,
+      });
+      
+      // Match if ageGroup contains the registered age group OR is in ageGroups array
+      const ageGroupMatches = 
+        teamAgeGroup === input.ageGroupName ||
+        teamAgeGroup.includes(input.ageGroupName) ||
+        teamAgeGroups.includes(input.ageGroupName);
+      
+      console.log('[SeasonRegistration] Age group matches:', ageGroupMatches);
+      
+      if (ageGroupMatches) {
+        // Get all coach IDs for this team (check all possible fields)
+        const coachIds: string[] = [];
+        if (teamData.headCoachId) coachIds.push(teamData.headCoachId);
+        if (teamData.coachId) coachIds.push(teamData.coachId);
+        if (teamData.coachIds) coachIds.push(...teamData.coachIds);
+        if (teamData.offensiveCoordinatorId) coachIds.push(teamData.offensiveCoordinatorId);
+        if (teamData.defensiveCoordinatorId) coachIds.push(teamData.defensiveCoordinatorId);
+        if (teamData.ownerId && !coachIds.includes(teamData.ownerId)) coachIds.push(teamData.ownerId);
+        
+        console.log('[SeasonRegistration] Coach IDs to notify:', coachIds);
+        
+        // Notify each coach (avoid duplicates and don't notify commissioner twice)
+        for (const coachId of coachIds) {
+          console.log('[SeasonRegistration] Checking coach:', coachId, {
+            alreadyNotified: coachIdsNotified.has(coachId),
+            isCommissioner: coachId === input.commissionerUserId,
+            isParent: coachId === input.parentUserId,
+          });
+          
+          if (coachId && 
+              !coachIdsNotified.has(coachId) && 
+              coachId !== input.commissionerUserId &&
+              coachId !== input.parentUserId) {
+            coachIdsNotified.add(coachId);
+            
+            console.log('[SeasonRegistration] ✅ Sending notification to coach:', coachId);
+            
+            await addDoc(collection(db, 'notifications'), {
+              userId: coachId,
+              type: 'roster_update',
+              title: '📋 New Player in Draft Pool',
+              message: `${input.athleteFirstName} ${input.athleteLastName} (${input.ageGroupName}) registered for ${input.seasonName} and is available for drafting.`,
+              category: 'team',
+              priority: 'normal',
+              read: false,
+              link: '/dashboard',
+              metadata: {
+                athleteName: `${input.athleteFirstName} ${input.athleteLastName}`,
+                seasonName: input.seasonName,
+                ageGroup: input.ageGroupName,
+                teamId: teamDoc.id,
+                teamName: teamData.name,
+              },
+              createdAt: serverTimestamp()
+            });
+          }
+        }
+      }
+    }
+    
+    if (coachIdsNotified.size > 0) {
+      console.log('✅ Notified coaches:', Array.from(coachIdsNotified));
+    }
+  } catch (err) {
+    console.error('⚠️ Failed to notify coaches (non-fatal):', err);
+  }
   
   console.log('✅ Season registration created:', registrationRef.id);
   console.log('✅ Added to draft pool:', draftPoolRef.id);

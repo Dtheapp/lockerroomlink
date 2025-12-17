@@ -1292,6 +1292,9 @@ const Dashboard: React.FC = () => {
               teamId={teamData.id}
               teamName={teamData.name}
               sport={teamData.sport || 'football'}
+              ageGroup={teamData.ageGroup}
+              ageGroups={teamData.ageGroups}
+              programId={teamData.programId}
               currentSeasonId={teamData.currentSeasonId}
               leagueId={teamData.leagueId}
               leagueStatus={teamData.leagueStatus}

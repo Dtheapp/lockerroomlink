@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { collection, query, orderBy, limit, getDocs, onSnapshot, where, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, onSnapshot, where, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import NoAthleteBlock from './NoAthleteBlock';
 import { getStats, getSportConfig } from '../config/sportConfig';
 import { uploadFile, deleteFile } from '../services/storage';
+import { toastSuccess, toastError } from '../services/toast';
+import { getPlayerRegistrationStatus, type PlayerRegistrationStatus } from '../services/eventService';
 import {
   GlassCard,
   Badge,
@@ -19,7 +21,7 @@ import GettingStartedChecklist from './GettingStartedChecklist';
 import SeasonManager, { type RegistrationFlyerData } from './SeasonManager';
 import { DraftPool } from './draftpool';
 import type { LiveStream, BulletinPost, UserProfile, ProgramSeason } from '../types';
-import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image, Copy, ExternalLink, Share2, Link2, Check, Palette, ChevronRight } from 'lucide-react';
+import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image, Copy, ExternalLink, Share2, Link2, Check, Palette, ChevronRight, Trophy, AlertTriangle, Loader2 } from 'lucide-react';
 
 // Extended event type with attachments
 interface EventWithAttachments {
@@ -75,7 +77,7 @@ interface CoachDisplay {
 }
 
 const NewOSYSDashboard: React.FC = () => {
-  const { teamData, userData, players } = useAuth();
+  const { teamData, userData, players, selectedSportContext, selectedPlayer } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [roster, setRoster] = useState<PlayerData[]>([]);
@@ -128,6 +130,15 @@ const NewOSYSDashboard: React.FC = () => {
   const [programSeasons, setProgramSeasons] = useState<ProgramSeason[]>([]);
   const [loadingProgramSeasons, setLoadingProgramSeasons] = useState(false);
   const [copiedSeasonLink, setCopiedSeasonLink] = useState<string | null>(null);
+  
+  // Draft pool state for coach dashboard
+  const [draftPoolPlayers, setDraftPoolPlayers] = useState<any[]>([]);
+  const [loadingDraftPool, setLoadingDraftPool] = useState(false);
+  
+  // Decline player modal state
+  const [declineModalPlayer, setDeclineModalPlayer] = useState<any | null>(null);
+  const [declineReason, setDeclineReason] = useState('');
+  const [decliningPlayer, setDecliningPlayer] = useState(false);
 
   // Event management state
   const [showNewEventForm, setShowNewEventForm] = useState(false);
@@ -393,6 +404,259 @@ const NewOSYSDashboard: React.FC = () => {
 
     return () => unsubscribe();
   }, [teamData?.programId]);
+
+  // Fetch draft pool players for coach view
+  useEffect(() => {
+    const loadDraftPool = async () => {
+      const programId = teamData?.programId;
+      if (!programId) {
+        setDraftPoolPlayers([]);
+        return;
+      }
+      
+      const teamAgeGroups = teamData?.ageGroups || (teamData?.ageGroup ? [teamData.ageGroup] : []);
+      console.log('🔍 Draft Pool Load:', { programId, teamAgeGroups, programSeasonsCount: programSeasons.length });
+      
+      if (programSeasons.length === 0) {
+        return; // Wait for program seasons to load
+      }
+      
+      setLoadingDraftPool(true);
+      try {
+        const allPlayers: any[] = [];
+        
+        for (const season of programSeasons) {
+          console.log('📅 Season found:', season.id, season.name, 'status:', season.status);
+          
+          // Check for any active/registration status
+          const isActiveStatus = ['active', 'registration_open', 'registration', 'setup', 'teams_forming'].includes(season.status);
+          if (!isActiveStatus && season.status !== 'completed') {
+            // For now, query ALL seasons to debug
+          }
+          
+          // Query draft pool for this season
+          const draftPoolRef = collection(db, 'programs', programId, 'seasons', season.id, 'draftPool');
+          const draftPoolSnap = await getDocs(draftPoolRef);
+          
+          console.log('🏊 Draft pool for season', season.id, ':', draftPoolSnap.docs.length, 'players');
+          
+          draftPoolSnap.docs.forEach(docSnap => {
+            const data = docSnap.data();
+            const playerAgeGroup = data.ageGroupName || data.ageGroup || '';
+            
+            // Filter by team's age group(s)
+            const matchesTeamAgeGroup = teamAgeGroups.some(teamAg => {
+              // Exact match
+              if (playerAgeGroup === teamAg) return true;
+              
+              // Range match: "11U-12U" matches team "11U" or "12U"
+              // Also: team "11U-12U" matches player "11U" or "12U"
+              const playerParts = playerAgeGroup.split('-').map(p => p.trim().toUpperCase());
+              const teamParts = teamAg.split('-').map(p => p.trim().toUpperCase());
+              
+              // Check if any part matches
+              return playerParts.some(pp => teamParts.includes(pp)) || 
+                     teamParts.some(tp => playerParts.includes(tp));
+            });
+            
+            console.log('👤 Player:', data.athleteFirstName, data.athleteLastName, 'ageGroup:', playerAgeGroup, 'matches:', matchesTeamAgeGroup, 'teamAgeGroups:', teamAgeGroups);
+            
+            // Only add players that match team's age group
+            if (matchesTeamAgeGroup) {
+              allPlayers.push({
+                id: docSnap.id,
+                ...data,
+                seasonId: season.id,
+                seasonName: season.name
+              });
+            }
+          });
+        }
+        
+        console.log('📋 Total draft pool players (filtered):', allPlayers.length);
+        setDraftPoolPlayers(allPlayers);
+      } catch (error) {
+        console.error('Error loading draft pool:', error);
+      } finally {
+        setLoadingDraftPool(false);
+      }
+    };
+    
+    loadDraftPool();
+  }, [teamData?.programId, teamData?.ageGroup, teamData?.ageGroups, programSeasons]);
+
+  // Check if registration is still open (to disable Draft button)
+  // Registration is considered "open" if:
+  // 1. Status is explicitly registration_open, OR
+  // 2. We're between the registration open and close dates (regardless of status)
+  const isRegistrationOpen = React.useMemo(() => {
+    return programSeasons.some(season => {
+      const today = new Date().toISOString().split('T')[0];
+      
+      // If status explicitly says registration is open
+      if (season.status === 'registration_open' || season.status === 'registration') {
+        return true;
+      }
+      
+      // Also check dates - if today is between open and close dates, registration is open
+      const openDate = season.registrationOpenDate;
+      const closeDate = season.registrationCloseDate;
+      
+      if (openDate && closeDate) {
+        // If today >= openDate AND today <= closeDate, registration is open
+        if (today >= openDate && today <= closeDate) {
+          return true;
+        }
+      }
+      
+      return false;
+    });
+  }, [programSeasons]);
+
+  // Handle declining a player from draft pool
+  const handleDeclinePlayer = async () => {
+    if (!declineModalPlayer || !declineReason.trim()) {
+      toastError('Please enter a reason for declining');
+      return;
+    }
+    
+    setDecliningPlayer(true);
+    try {
+      const programId = teamData?.programId;
+      if (!programId) throw new Error('No program ID');
+      
+      const player = declineModalPlayer;
+      const seasonId = player.seasonId;
+      
+      // 1. Delete from draft pool
+      await deleteDoc(doc(db, 'programs', programId, 'seasons', seasonId, 'draftPool', player.id));
+      
+      // 2. Update player document with declined status (if athleteId exists)
+      if (player.athleteId) {
+        try {
+          await updateDoc(doc(db, 'players', player.athleteId), {
+            draftPoolStatus: 'declined',
+            draftPoolDeclinedReason: declineReason,
+            draftPoolDeclinedBy: userData?.displayName || 'Coach',
+            draftPoolDeclinedAt: serverTimestamp(),
+            // Clear the active draft pool references
+            draftPoolProgramId: deleteField(),
+            draftPoolSeasonId: deleteField(),
+            draftPoolEntryId: deleteField(),
+            draftPoolAgeGroup: deleteField(),
+            draftPoolUpdatedAt: serverTimestamp(),
+          });
+          console.log('✅ Updated player document with declined status');
+        } catch (err) {
+          console.error('⚠️ Failed to update player document (non-fatal):', err);
+        }
+      }
+      
+      // 3. Create notification for parent (TOP-LEVEL notifications collection!)
+      if (player.parentUserId) {
+        await addDoc(collection(db, 'notifications'), {
+          userId: player.parentUserId, // Required: identifies who the notification is for
+          type: 'registration_declined',
+          title: '❌ Registration Declined',
+          message: `${player.athleteFirstName} ${player.athleteLastName}'s registration has been declined. Reason: ${declineReason}`,
+          category: 'registration',
+          priority: 'high',
+          read: false,
+          link: '/dashboard',
+          metadata: {
+            athleteName: `${player.athleteFirstName} ${player.athleteLastName}`,
+            teamName: teamData?.name || 'Team',
+            reason: declineReason,
+            declinedBy: userData?.displayName || 'Coach',
+            declinedByUserId: userData?.uid,
+          },
+          createdAt: serverTimestamp()
+        });
+        console.log('✅ Sent decline notification to parent:', player.parentUserId);
+      }
+      
+      // 4. Create notification for commissioner (program owner)
+      const programDoc = await getDocs(query(collection(db, 'programs'), where('__name__', '==', programId)));
+      if (!programDoc.empty) {
+        const programData = programDoc.docs[0].data();
+        if (programData.commissionerId && programData.commissionerId !== userData?.uid) {
+          await addDoc(collection(db, 'notifications'), {
+            userId: programData.commissionerId,
+            type: 'player_declined',
+            title: '⚠️ Player Declined from Draft Pool',
+            message: `${userData?.displayName || 'Coach'} declined ${player.athleteFirstName} ${player.athleteLastName} from ${teamData?.name}. Reason: ${declineReason}`,
+            category: 'team',
+            priority: 'normal',
+            read: false,
+            link: '/commissioner',
+            metadata: {
+              athleteName: `${player.athleteFirstName} ${player.athleteLastName}`,
+              teamName: teamData?.name || 'Team',
+              reason: declineReason,
+              declinedBy: userData?.displayName || 'Coach',
+            },
+            createdAt: serverTimestamp()
+          });
+          console.log('✅ Sent decline notification to commissioner:', programData.commissionerId);
+        }
+      }
+      
+      // 5. Notify all coaches on the team
+      if (teamData) {
+        const coachIdsToNotify: string[] = [];
+        if (teamData.headCoachId) coachIdsToNotify.push(teamData.headCoachId);
+        if (teamData.coachId) coachIdsToNotify.push(teamData.coachId);
+        if (teamData.coachIds) coachIdsToNotify.push(...teamData.coachIds);
+        if (teamData.offensiveCoordinatorId) coachIdsToNotify.push(teamData.offensiveCoordinatorId);
+        if (teamData.defensiveCoordinatorId) coachIdsToNotify.push(teamData.defensiveCoordinatorId);
+        if (teamData.ownerId) coachIdsToNotify.push(teamData.ownerId);
+        
+        // Remove duplicates only (notify everyone including the one who declined)
+        const uniqueCoachIds = [...new Set(coachIdsToNotify)].filter(
+          id => id && id !== player.parentUserId
+        );
+        
+        for (const coachId of uniqueCoachIds) {
+          try {
+            await addDoc(collection(db, 'notifications'), {
+              userId: coachId,
+              type: 'player_declined',
+              title: '❌ Player Declined',
+              message: `${userData?.displayName || 'A coach'} declined ${player.athleteFirstName} ${player.athleteLastName} from ${teamData?.name}. Reason: ${declineReason}`,
+              category: 'team',
+              priority: 'low',
+              read: false,
+              link: '/dashboard',
+              metadata: {
+                athleteName: `${player.athleteFirstName} ${player.athleteLastName}`,
+                teamName: teamData?.name || 'Team',
+                reason: declineReason,
+                declinedBy: userData?.displayName || 'Coach',
+              },
+              createdAt: serverTimestamp()
+            });
+            console.log('✅ Sent decline notification to coach:', coachId);
+          } catch (err) {
+            console.error('Failed to notify coach:', coachId, err);
+          }
+        }
+      }
+      
+      // 6. Update local state to remove player
+      setDraftPoolPlayers(prev => prev.filter(p => p.id !== player.id));
+      
+      // 7. Close modal and show success
+      setDeclineModalPlayer(null);
+      setDeclineReason('');
+      toastSuccess(`${player.athleteFirstName} ${player.athleteLastName} has been declined and removed from the draft pool`);
+      
+    } catch (error) {
+      console.error('Error declining player:', error);
+      toastError('Failed to decline player. Please try again.');
+    } finally {
+      setDecliningPlayer(false);
+    }
+  };
 
   // Copy team ID
   const copyTeamId = () => {
@@ -793,7 +1057,87 @@ const NewOSYSDashboard: React.FC = () => {
     );
   }
 
-  // Show onboarding for parents with players but NOT on a team yet
+  // Determine if player is in draft pool (requires BOTH status AND sport to be set)
+  const isInDraftPool = selectedSportContext?.status === 'draft_pool' && selectedSportContext?.sport;
+  const draftPoolInfo = isInDraftPool ? {
+    sport: selectedSportContext.sport,
+    teamName: selectedSportContext.draftPoolTeamName,
+    ageGroup: selectedSportContext.draftPoolAgeGroup,
+  } : null;
+
+  // Show draft pool status for parents with players in draft pool
+  if (userData?.role === 'Parent' && players.length > 0 && !teamData?.id && isInDraftPool && draftPoolInfo) {
+    const sportEmoji: Record<string, string> = {
+      football: '🏈',
+      basketball: '🏀',
+      cheer: '📣',
+      soccer: '⚽',
+      baseball: '⚾',
+      volleyball: '🏐',
+      other: '🎯',
+    };
+    
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className={`rounded-2xl p-8 max-w-lg text-center border shadow-xl ${
+          theme === 'dark' 
+            ? 'bg-gradient-to-br from-zinc-900 to-zinc-950 border-emerald-900/30' 
+            : 'bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200'
+        }`}>
+          <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg ${
+            theme === 'dark' ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/30' : 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/30'
+          }`}>
+            <span className="text-4xl">🎉</span>
+          </div>
+          
+          <h2 className={`text-2xl font-bold mb-3 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+            You're in the Draft Pool!
+          </h2>
+          
+          <p className={`mb-6 text-lg ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-600'}`}>
+            Your athlete is registered for {sportEmoji[draftPoolInfo.sport] || '🎯'}{' '}
+            <span className={`font-semibold ${theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600'}`}>
+              {draftPoolInfo.teamName || 'the program'}
+            </span>
+            {draftPoolInfo.ageGroup && (
+              <span className="text-sm"> ({draftPoolInfo.ageGroup})</span>
+            )} and waiting to be drafted to a team.
+          </p>
+          
+          <div className={`rounded-xl p-5 mb-6 border ${
+            theme === 'dark' ? 'bg-zinc-900/50 border-emerald-900/30' : 'bg-white border-emerald-200'
+          }`}>
+            <div className="flex items-start gap-3 text-left">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                theme === 'dark' ? 'bg-emerald-900/30' : 'bg-emerald-100'
+              }`}>
+                <Clock className={`w-5 h-5 ${theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600'}`} />
+              </div>
+              <div>
+                <h4 className={`font-bold mb-1 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>What happens next?</h4>
+                <p className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-600'}`}>
+                  The coach will review registrations and draft players to the roster. You'll be notified when your athlete is assigned to a team.
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className={`rounded-xl p-4 border ${
+            theme === 'dark' ? 'bg-amber-900/20 border-amber-900/30' : 'bg-amber-50 border-amber-200'
+          }`}>
+            <div className="flex items-center gap-2 text-sm">
+              <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${theme === 'dark' ? 'text-amber-400' : 'text-amber-600'}`} />
+              <span className={theme === 'dark' ? 'text-amber-300' : 'text-amber-700'}>
+                Once drafted, the team dashboard will load here automatically.
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show onboarding for parents with players but NOT on a team yet (and not in draft pool)
   if (userData?.role === 'Parent' && players.length > 0 && !teamData?.id) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -1212,8 +1556,161 @@ const NewOSYSDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Draft Pool - Shows players waiting to be added to roster */}
-      {teamData?.id && teamData?.sport && teamData?.ageGroup && (
+      {/* Draft Pool - Program-level pool for coaches in a program */}
+      {teamData?.programId && draftPoolPlayers.length > 0 && (
+        <GlassCard className={`${theme === 'light' ? 'bg-white border-slate-200 shadow-lg' : ''}`}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+              theme === 'dark' ? 'bg-gradient-to-br from-orange-500/30 to-purple-500/30' : 'bg-gradient-to-br from-orange-100 to-purple-100'
+            }`}>
+              <Trophy className={`w-5 h-5 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-600'}`} />
+            </div>
+            <div>
+              <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Draft Pool</h2>
+              <p className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
+                {draftPoolPlayers.length} player{draftPoolPlayers.length !== 1 ? 's' : ''} waiting to be drafted
+              </p>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            {draftPoolPlayers.map((player, idx) => (
+              <div 
+                key={player.id || idx}
+                className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-slate-50 border border-slate-200'}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    {/* Avatar */}
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                      theme === 'dark' ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'
+                    }`}>
+                      {(player.athleteFirstName || player.firstName)?.[0]}{(player.athleteLastName || player.lastName)?.[0]}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      {/* Name Row */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`font-semibold text-base ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                          {player.athleteFirstName || player.firstName} {player.athleteLastName || player.lastName}
+                        </span>
+                        {player.athleteNickname && (
+                          <span className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                            "{player.athleteNickname}"
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Badges Row */}
+                      <div className="flex items-center gap-2 flex-wrap mt-1.5">
+                        {player.athleteUsername && (
+                          <a
+                            href={`/#/athlete/${player.athleteUsername}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              theme === 'dark' 
+                                ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' 
+                                : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                            }`}
+                          >
+                            @{player.athleteUsername}
+                          </a>
+                        )}
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                          theme === 'dark' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {player.ageGroupName || player.ageGroup || 'Pool'}
+                        </span>
+                        {player.paymentStatus && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            player.paymentStatus === 'paid' 
+                              ? theme === 'dark' ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700'
+                              : player.paymentStatus === 'partial'
+                                ? theme === 'dark' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-100 text-yellow-700'
+                                : theme === 'dark' ? 'bg-gray-500/20 text-gray-400' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {player.paymentStatus === 'paid' ? '✓ Paid' : player.paymentStatus === 'partial' ? '◐ Partial' : '○ Pending'}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Jersey & Position */}
+                      {(player.preferredJerseyNumber || player.preferredPosition) && (
+                        <div className={`flex items-center gap-2 mt-1.5 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                          {player.preferredJerseyNumber && <span className="font-medium">#{player.preferredJerseyNumber}</span>}
+                          {player.preferredPosition && <span>• {player.preferredPosition}</span>}
+                        </div>
+                      )}
+                      
+                      {/* Parent Suggestions / Coach Notes */}
+                      {(player.coachNotes || player.parentSuggestions || player.notes) && (
+                        <div className={`mt-2 p-2 rounded-lg text-sm ${
+                          theme === 'dark' ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-200'
+                        }`}>
+                          <span className={`font-medium ${theme === 'dark' ? 'text-blue-400' : 'text-blue-700'}`}>
+                            💬 Parent Notes:
+                          </span>
+                          <span className={`ml-1 ${theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>
+                            {player.coachNotes || player.parentSuggestions || player.notes}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Actions */}
+                  <div className="flex flex-col gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => {
+                        // TODO: Implement draft action
+                        console.log('Draft player:', player.id);
+                      }}
+                      disabled={isRegistrationOpen}
+                      title={isRegistrationOpen ? 'Draft available after registration closes' : 'Add player to roster'}
+                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                        isRegistrationOpen
+                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-60'
+                          : 'bg-green-600 hover:bg-green-700 text-white'
+                      }`}
+                    >
+                      {isRegistrationOpen ? '🔒 Draft' : 'Draft'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDeclineModalPlayer(player);
+                        setDeclineReason('');
+                      }}
+                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                        theme === 'dark' 
+                          ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30' 
+                          : 'bg-red-100 text-red-600 hover:bg-red-200 border border-red-200'
+                      }`}
+                    >
+                      Decline
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {/* Registration Open Notice */}
+          {isRegistrationOpen && (
+            <div className={`mt-4 p-3 rounded-lg flex items-center gap-2 ${
+              theme === 'dark' ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-amber-50 border border-amber-200'
+            }`}>
+              <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${theme === 'dark' ? 'text-amber-400' : 'text-amber-600'}`} />
+              <span className={`text-sm ${theme === 'dark' ? 'text-amber-300' : 'text-amber-700'}`}>
+                Draft will be available after registration closes
+              </span>
+            </div>
+          )}
+        </GlassCard>
+      )}
+      
+      {/* Draft Pool - OLD team-level for teams NOT in a program */}
+      {teamData?.id && teamData?.sport && teamData?.ageGroup && !teamData?.programId && (
         <DraftPool
           teamId={teamData.id}
           teamOwnerId={(teamData as any).ownerId || teamData.coachId || ''}
@@ -1399,8 +1896,8 @@ const NewOSYSDashboard: React.FC = () => {
                 );
               })}
               
-              <p className={`text-xs text-center ${theme === 'dark' ? 'text-zinc-600' : 'text-slate-400'}`}>
-                Seasons are managed by {teamData.programName || 'your program commissioner'}
+              <p className={`text-xs text-center mt-4 ${theme === 'dark' ? 'text-zinc-600' : 'text-slate-400'}`}>
+                Seasons are managed by {programSeasons[0]?.programName || teamData.programName || 'your program commissioner'}
               </p>
             </div>
           ) : teamData?.programId && loadingProgramSeasons ? (
@@ -2346,6 +2843,99 @@ const NewOSYSDashboard: React.FC = () => {
           onClose={() => setEndedStream(null)}
           onSaved={() => setEndedStream(null)}
         />
+      )}
+
+      {/* Decline Player Modal */}
+      {declineModalPlayer && (
+        <div 
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => { setDeclineModalPlayer(null); setDeclineReason(''); }}
+        >
+          <div 
+            className={`w-full max-w-md rounded-xl shadow-xl ${theme === 'dark' ? 'bg-zinc-900 border border-white/10' : 'bg-white'}`}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className={`p-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-gray-200'}`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  theme === 'dark' ? 'bg-red-500/20' : 'bg-red-100'
+                }`}>
+                  <AlertTriangle className={`w-5 h-5 ${theme === 'dark' ? 'text-red-400' : 'text-red-600'}`} />
+                </div>
+                <div>
+                  <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    Decline Player
+                  </h3>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                    {declineModalPlayer.athleteFirstName} {declineModalPlayer.athleteLastName}
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Content */}
+            <div className="p-4 space-y-4">
+              <div className={`p-3 rounded-lg ${
+                theme === 'dark' ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-amber-50 border border-amber-200'
+              }`}>
+                <p className={`text-sm ${theme === 'dark' ? 'text-amber-300' : 'text-amber-700'}`}>
+                  ⚠️ This action will remove the player from the draft pool and notify the parent and commissioner.
+                </p>
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-700'}`}>
+                  Reason for declining <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={declineReason}
+                  onChange={(e) => setDeclineReason(e.target.value)}
+                  placeholder="e.g., Roster full, age group mismatch, player requested different team..."
+                  rows={3}
+                  className={`w-full px-3 py-2 rounded-lg border text-sm ${
+                    theme === 'dark' 
+                      ? 'bg-white/5 border-white/10 text-white placeholder-slate-500' 
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                  } focus:ring-2 focus:ring-red-500/50 focus:border-red-500`}
+                />
+              </div>
+            </div>
+            
+            {/* Footer */}
+            <div className={`p-4 border-t flex gap-3 justify-end ${theme === 'dark' ? 'border-white/10' : 'border-gray-200'}`}>
+              <button
+                onClick={() => { setDeclineModalPlayer(null); setDeclineReason(''); }}
+                disabled={decliningPlayer}
+                className={`px-4 py-2 text-sm font-medium rounded-lg ${
+                  theme === 'dark' 
+                    ? 'bg-white/10 text-white hover:bg-white/20' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeclinePlayer}
+                disabled={decliningPlayer || !declineReason.trim()}
+                className={`px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 ${
+                  decliningPlayer || !declineReason.trim()
+                    ? 'bg-red-400 text-red-100 cursor-not-allowed opacity-60'
+                    : 'bg-red-600 hover:bg-red-700 text-white'
+                }`}
+              >
+                {decliningPlayer ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Declining...
+                  </>
+                ) : (
+                  'Confirm Decline'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -27,6 +27,11 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { DraftPoolEntry, DraftPoolSummary, DraftPoolPaymentStatus, SportType, Player } from '../types';
+import { 
+  notifyParentDraftPoolRegistration, 
+  notifyCoachNewDraftPoolEntry,
+  notifyCommissionerNewDraftPoolEntry 
+} from './notificationService';
 
 // =============================================================================
 // ADD TO DRAFT POOL
@@ -167,6 +172,54 @@ export async function addToDraftPool(params: AddToDraftPoolParams): Promise<stri
       console.error('[DraftPool] Failed to update player document:', err);
       // Don't fail the whole operation if this update fails
     }
+  }
+  
+  // Send notifications
+  try {
+    // Get team info for notification
+    const teamDoc = await getDoc(doc(db, 'teams', teamId));
+    const teamData = teamDoc.exists() ? teamDoc.data() : null;
+    const teamName = teamData?.name || 'Unknown Team';
+    const teamSport = (teamData?.sport || sport || 'football') as string;
+    
+    // Notify parent (check both parentId and registeredByUserId)
+    const parentUserId = rest.parentId || rest.registeredByUserId;
+    if (parentUserId) {
+      await notifyParentDraftPoolRegistration(
+        parentUserId,
+        rest.playerName,
+        teamName,
+        teamSport
+      );
+      console.log('[DraftPool] Sent notification to parent:', parentUserId);
+    }
+    
+    // Notify coach(es)
+    if (teamData?.coachId) {
+      await notifyCoachNewDraftPoolEntry(
+        teamData.coachId,
+        rest.playerName,
+        ageGroup || 'N/A',
+        teamName,
+        teamSport
+      );
+      console.log('[DraftPool] Sent notification to coach:', teamData.coachId);
+    }
+    
+    // Notify owner/commissioner (if different from coach)
+    if (ownerId && ownerId !== teamData?.coachId) {
+      await notifyCommissionerNewDraftPoolEntry(
+        ownerId,
+        rest.playerName,
+        ageGroup || 'N/A',
+        teamName,
+        teamSport
+      );
+      console.log('[DraftPool] Sent notification to commissioner:', ownerId);
+    }
+  } catch (notifErr) {
+    console.error('[DraftPool] Failed to send notifications:', notifErr);
+    // Don't fail the whole operation if notifications fail
   }
   
   // If eligible for auto-draft and paid in full, auto-draft immediately
@@ -519,10 +572,18 @@ export async function declineDraftEntry(
     // Import notification service dynamically to avoid circular deps
     const { createNotification } = await import('./notificationService');
     
+    console.log('[DraftPool] Entry data for notification:', {
+      registeredByUserId: entry.registeredByUserId,
+      playerName: entry.playerName,
+      teamId,
+      teamName,
+    });
+    
     // Notify the parent that their player was declined
     if (entry.registeredByUserId) {
       try {
-        await createNotification(
+        console.log('[DraftPool] Creating decline notification for parent:', entry.registeredByUserId);
+        const notifId = await createNotification(
           entry.registeredByUserId,
           'player_declined',
           '❌ Registration Declined',
@@ -539,9 +600,12 @@ export async function declineDraftEntry(
             category: 'registration',
           }
         );
+        console.log('[DraftPool] ✅ Created decline notification:', notifId);
       } catch (notifErr) {
-        console.error('Failed to notify parent of decline:', notifErr);
+        console.error('[DraftPool] ❌ Failed to notify parent of decline:', notifErr);
       }
+    } else {
+      console.log('[DraftPool] ⚠️ No registeredByUserId found on entry, skipping parent notification');
     }
     
     // Notify the coach/commissioner who declined (confirmation)

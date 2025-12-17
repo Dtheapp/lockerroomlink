@@ -743,6 +743,10 @@ export interface ProgramSeason {
   registrationOpenDate: string;        // YYYY-MM-DD
   registrationCloseDate: string;       // YYYY-MM-DD
   
+  // Season dates
+  seasonStartDate?: string;            // YYYY-MM-DD - When the season actually starts
+  seasonEndDate?: string;              // YYYY-MM-DD - When the season ends
+  
   // Sports & Age Groups offered this season
   sportsOffered: SportAgeGroupConfig[];
   

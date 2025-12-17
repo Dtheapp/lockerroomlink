@@ -137,10 +137,15 @@ export interface DraftPoolPlayer {
   ageGroupId: string;              // Which age group they registered for
   ageGroupName: string;            // Denormalized
   
+  // Link to global player document for status tracking
+  athleteId?: string | null;       // ID in /players collection
+  
   // Athlete info (denormalized for draft board display)
   athleteFirstName: string;
   athleteLastName: string;
   athleteFullName: string;
+  athleteNickname?: string;
+  athleteUsername?: string;        // For linking to user profile
   athleteDOB: Timestamp;
   athleteAge: number;              // Calculated at registration
   athleteGender: 'male' | 'female' | 'other';
@@ -149,6 +154,7 @@ export interface DraftPoolPlayer {
   preferredJerseyNumber?: number;
   alternateJerseyNumbers?: number[];
   preferredPosition?: string;
+  coachNotes?: string;              // Schedule conflicts, coach preferences, notes from parent
   
   // Medical flags (just flags, not full info - that stays on registration)
   hasMedicalInfo: boolean;
@@ -233,10 +239,14 @@ export interface SeasonRegistrationInput {
   
   // Who's registering
   parentUserId: string;
+  commissionerUserId?: string;      // For notification to commissioner
   
   // Athlete info
+  athleteId?: string;               // Player document ID (if linked)
   athleteFirstName: string;
   athleteLastName: string;
+  athleteNickname?: string;
+  athleteUsername?: string;        // Linked player's username for profile
   athleteDOB: Date;
   athleteGender: 'male' | 'female' | 'other';
   athleteGrade?: number;           // Optional grade for validation

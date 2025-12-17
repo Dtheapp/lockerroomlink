@@ -917,6 +917,46 @@ export async function getPlayerRegistrationStatus(
       const playerData = playerDoc.data();
       console.log('[PlayerStatus] Player doc draft status:', playerData.draftPoolStatus);
       
+      // Check for PROGRAM-based draft pool (new system) - uses programId/seasonId instead of teamId
+      if (playerData.draftPoolStatus === 'waiting' && playerData.draftPoolProgramId && playerData.draftPoolSeasonId) {
+        // Fetch program info for name
+        let programName = 'Unknown Program';
+        let seasonName = '';
+        let sport: string = 'football'; // Default to football instead of 'other'
+        try {
+          const programDoc = await getDoc(doc(db, 'programs', playerData.draftPoolProgramId));
+          if (programDoc.exists()) {
+            const programData = programDoc.data();
+            programName = programData.name || 'Unknown Program';
+            sport = programData.sport || 'football'; // Default to football
+            console.log('[PlayerStatus] Program sport:', programData.sport, '-> using:', sport);
+          }
+          // Also get season name
+          const seasonDoc = await getDoc(doc(db, 'programs', playerData.draftPoolProgramId, 'seasons', playerData.draftPoolSeasonId));
+          if (seasonDoc.exists()) {
+            seasonName = seasonDoc.data().name || '';
+            // Season might also have sport field
+            if (seasonDoc.data().sport) {
+              sport = seasonDoc.data().sport;
+              console.log('[PlayerStatus] Using season sport instead:', sport);
+            }
+          }
+        } catch (err) {
+          console.log('[PlayerStatus] Could not fetch draft pool program info:', err);
+        }
+        
+        return {
+          status: 'in-draft-pool',
+          draftPoolEntryId: playerData.draftPoolEntryId,
+          draftPoolProgramId: playerData.draftPoolProgramId,
+          draftPoolSeasonId: playerData.draftPoolSeasonId,
+          draftPoolTeamName: seasonName ? `${programName} - ${seasonName}` : programName,
+          draftPoolAgeGroup: playerData.draftPoolAgeGroup,
+          sport,
+        };
+      }
+      
+      // Check for TEAM-based draft pool (legacy system) - uses teamId
       if (playerData.draftPoolStatus === 'waiting' && playerData.draftPoolTeamId) {
         // Fetch team info for name and sport
         let draftPoolTeamName = 'Unknown Team';

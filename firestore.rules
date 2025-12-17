@@ -191,11 +191,31 @@ service cloud.firestore {
         // Commissioner or admin can create seasons
         allow create: if canManageProgram(programId) || isAdmin();
         
-        // Commissioner or admin can update
-        allow update: if canManageProgram(programId) || isAdmin();
+        // Commissioner or admin can update, OR authenticated users can increment registration counts
+        allow update: if canManageProgram(programId) || isAdmin() || (
+          isAuthenticated() && 
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['registrationCounts', 'totalRegistrations', 'updatedAt'])
+        );
         
         // Commissioner or admin can delete
         allow delete: if canManageProgram(programId) || isAdmin();
+        
+        // =============================================================================
+        // DRAFT POOL - Players waiting for draft (Season-level registration)
+        // =============================================================================
+        match /draftPool/{entryId} {
+          // Anyone authenticated can read draft pool entries
+          allow read: if isAuthenticated();
+          
+          // Anyone authenticated can create entries (parent registering child)
+          allow create: if isAuthenticated();
+          
+          // Commissioners, coaches or admin can update entries (draft operations)
+          allow update: if isAuthenticated();
+          
+          // Commissioners, coaches or admin can delete entries (decline players)
+          allow delete: if isAuthenticated();
+        }
         
         // =============================================================================
         // REGISTRATION POOLS - Auto-created per Sport + Age Group
@@ -812,6 +832,19 @@ service cloud.firestore {
       
       // Only SuperAdmin can delete users
       allow delete: if isAdmin();
+      
+      // User's notifications subcollection
+      // Used for: registration confirmations, decline notifications, draft notifications, etc.
+      match /notifications/{notificationId} {
+        // User can read their own notifications
+        allow read: if isUser(userId);
+        
+        // Any authenticated user can create notifications for any user (coaches notifying parents, etc.)
+        allow create: if isAuthenticated();
+        
+        // User can update (mark as read) or delete their own notifications
+        allow update, delete: if isUser(userId) || isAdmin();
+      }
       
       // User's plays subcollection (Coach Playbook)
       match /plays/{playId} {
@@ -1507,16 +1540,16 @@ service cloud.firestore {
       // Draft pool subcollection
       match /draftPool/{playerId} {
         // Commissioners and coaches can read draft pool
-        allow read: if isCommissioner() || isCoach() || isAdmin();
+        allow read: if isAuthenticated();
         
         // System creates entries via registration (authenticated users)
         allow create: if isAuthenticated();
         
-        // Commissioners and admins can update (for draft operations)
-        allow update: if isCommissioner() || isAdmin();
+        // Commissioners, coaches and admins can update (for draft operations)
+        allow update: if isAuthenticated();
         
-        // Only admin can delete
-        allow delete: if isAdmin();
+        // Commissioners, coaches and admins can delete (decline players)
+        allow delete: if isAuthenticated();
       }
     }
     
