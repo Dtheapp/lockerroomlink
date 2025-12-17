@@ -215,12 +215,12 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
   
   // Calculate total pools that will be created
   const getTotalPools = (): number => {
-    if (!program?.sportConfigs) return 0;
+    // Use program.ageGroups (flat array from AgeGroupsManager)
+    const programAgeGroups = (program as any)?.ageGroups || [];
+    if (programAgeGroups.length === 0) return 0;
     
-    return selectedSports.reduce((total, sport) => {
-      const sportConfig = program.sportConfigs?.find(sc => sc.sport === sport);
-      return total + (sportConfig?.ageGroups.length || 0);
-    }, 0);
+    // Each selected sport gets pools for each age group
+    return selectedSports.length * programAgeGroups.length;
   };
   
   // Create the season
@@ -231,12 +231,23 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
     setError('');
     
     try {
-      // Build sports offered from program's config
+      // Build sports offered using program's ageGroups (from AgeGroupsManager)
+      const programAgeGroups: string[] = (program as any)?.ageGroups || [];
+      
       const sportsOffered: SportAgeGroupConfig[] = selectedSports.map(sport => {
-        const sportConfig = program.sportConfigs?.find(sc => sc.sport === sport);
+        // Convert flat ageGroups array to AgeGroupDivision format
+        const ageGroupDivisions = programAgeGroups.map(ag => ({
+          id: `${sport}-${ag}`.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+          label: ag,
+          type: ag.includes('-') ? 'combined' as const : 'single' as const,
+          ageGroups: ag.includes('-') ? ag.split('-') : [ag],
+          minBirthYear: 2010,
+          maxBirthYear: 2020
+        }));
+        
         return {
           sport,
-          ageGroups: sportConfig?.ageGroups || []
+          ageGroups: ageGroupDivisions
         };
       });
       
@@ -474,8 +485,9 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
               <div className="space-y-3">
                 {(program.sports || [program.sport]).filter(Boolean).map(sport => {
                   const isSelected = selectedSports.includes(sport as SportType);
-                  const sportConfig = program.sportConfigs?.find(sc => sc.sport === sport);
-                  const divisionCount = sportConfig?.ageGroups.length || 0;
+                  // Use program.ageGroups (flat array from AgeGroupsManager)
+                  const programAgeGroups = (program as any)?.ageGroups || [];
+                  const divisionCount = programAgeGroups.length;
                   
                   return (
                     <button
