@@ -1300,6 +1300,74 @@ export const CommissionerDashboard: React.FC = () => {
               </div>
             )
           )}
+          
+          {/* Age Group Coverage Indicator - Show which age groups need teams */}
+          {!isLeagueCommissioner && hasProgram && ((programData as any)?.ageGroups?.length || 0) > 0 && (() => {
+            const allAgeGroups: string[] = (programData as any)?.ageGroups || [];
+            const coveredAgeGroups = new Set(filteredTeams.map(t => t.ageGroup || (t.ageGroups && t.ageGroups[0])).filter(Boolean));
+            const uncoveredAgeGroups = allAgeGroups.filter(ag => !coveredAgeGroups.has(ag));
+            const allCovered = uncoveredAgeGroups.length === 0;
+            
+            return (
+              <div className={`px-4 py-3 border-t ${theme === 'dark' ? 'border-gray-700' : 'border-slate-200'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
+                    Age Group Coverage
+                  </span>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    allCovered 
+                      ? 'bg-green-500/20 text-green-500' 
+                      : 'bg-amber-500/20 text-amber-500'
+                  }`}>
+                    {allAgeGroups.length - uncoveredAgeGroups.length}/{allAgeGroups.length} covered
+                  </span>
+                </div>
+                
+                <div className="flex flex-wrap gap-2">
+                  {allAgeGroups.map((ag: string) => {
+                    const hasCoverage = coveredAgeGroups.has(ag);
+                    return (
+                      <div
+                        key={ag}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 ${
+                          hasCoverage
+                            ? theme === 'dark' 
+                              ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                              : 'bg-green-50 text-green-700 border border-green-200'
+                            : theme === 'dark'
+                              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}
+                      >
+                        {hasCoverage ? (
+                          <CheckCircle2 className="w-3 h-3" />
+                        ) : (
+                          <AlertTriangle className="w-3 h-3" />
+                        )}
+                        {ag}
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {uncoveredAgeGroups.length > 0 && (
+                  <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-amber-400' : 'text-amber-600'}`}>
+                    ⚠️ Need {uncoveredAgeGroups.length} more team{uncoveredAgeGroups.length > 1 ? 's' : ''} to cover all age groups before creating a season
+                  </p>
+                )}
+                
+                {allCovered && (
+                  <button
+                    onClick={() => navigate(`/commissioner/season-setup/${programData?.id || userData?.programId}`)}
+                    className="mt-3 w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Create Season
+                  </button>
+                )}
+              </div>
+            );
+          })()}
         </div>
         )}
 
