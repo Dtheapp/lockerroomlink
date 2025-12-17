@@ -1577,7 +1577,7 @@ export const CommissionerDashboard: React.FC = () => {
                     </div>
                   );
                 })()}
-              )}
+              </div>
             </div>
             
             <div className={`p-4 border-t flex gap-3 flex-shrink-0 ${theme === 'dark' ? 'border-gray-700' : 'border-slate-200'}`}>
