@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { collection, query, orderBy, limit, getDocs, onSnapshot, where, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, deleteField } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, getDoc, onSnapshot, where, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -21,7 +21,7 @@ import GettingStartedChecklist from './GettingStartedChecklist';
 import SeasonManager, { type RegistrationFlyerData } from './SeasonManager';
 import { DraftPool } from './draftpool';
 import type { LiveStream, BulletinPost, UserProfile, ProgramSeason } from '../types';
-import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image, Copy, ExternalLink, Share2, Link2, Check, Palette, ChevronRight, Trophy, AlertTriangle, Loader2 } from 'lucide-react';
+import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image, Copy, ExternalLink, Share2, Link2, Check, Palette, ChevronRight, ChevronDown, Trophy, AlertTriangle, Loader2, UserPlus, Users, Sword, Shield, Zap, Crown } from 'lucide-react';
 
 // Extended event type with attachments
 interface EventWithAttachments {
@@ -130,10 +130,15 @@ const NewOSYSDashboard: React.FC = () => {
   const [programSeasons, setProgramSeasons] = useState<ProgramSeason[]>([]);
   const [loadingProgramSeasons, setLoadingProgramSeasons] = useState(false);
   const [copiedSeasonLink, setCopiedSeasonLink] = useState<string | null>(null);
+  const [showCompletedSeasons, setShowCompletedSeasons] = useState(false);
   
   // Draft pool state for coach dashboard
   const [draftPoolPlayers, setDraftPoolPlayers] = useState<any[]>([]);
   const [loadingDraftPool, setLoadingDraftPool] = useState(false);
+  
+  // Draft player modal state
+  const [draftModalPlayer, setDraftModalPlayer] = useState<any | null>(null);
+  const [draftingPlayer, setDraftingPlayer] = useState(false);
   
   // Decline player modal state
   const [declineModalPlayer, setDeclineModalPlayer] = useState<any | null>(null);
@@ -175,7 +180,34 @@ const NewOSYSDashboard: React.FC = () => {
         // Fetch roster from players subcollection
         const playersRef = collection(db, 'teams', teamData.id, 'players');
         const playersSnap = await getDocs(playersRef);
-        setRoster(playersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerData)));
+        const rosterPlayers = playersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerData));
+        
+        // Enrich with photos from global athlete profiles
+        const enrichedPlayers = await Promise.all(
+          rosterPlayers.map(async (player) => {
+            // If player already has photoUrl, use it
+            if (player.photoUrl) return player;
+            
+            // Try to fetch from global athletes collection
+            if (player.athleteId) {
+              try {
+                const athleteDoc = await getDoc(doc(db, 'players', player.athleteId));
+                if (athleteDoc.exists()) {
+                  const athleteData = athleteDoc.data();
+                  return {
+                    ...player,
+                    photoUrl: athleteData.photoUrl || player.photoUrl,
+                  };
+                }
+              } catch (err) {
+                console.error('Error fetching athlete photo:', err);
+              }
+            }
+            return player;
+          })
+        );
+        
+        setRoster(enrichedPlayers);
 
         // Fetch plays
         const playsRef = collection(db, 'teams', teamData.id, 'plays');
@@ -191,11 +223,40 @@ const NewOSYSDashboard: React.FC = () => {
 
     fetchData();
 
-    // Real-time events listener
-    const eventsRef = collection(db, 'teams', teamData.id, 'events');
-    const eventsQuery = query(eventsRef, orderBy('eventStartDate', 'asc'), limit(5));
+    // Real-time events listener - read from global events collection filtered by teamId
+    const eventsRef = collection(db, 'events');
+    const eventsQuery = query(
+      eventsRef, 
+      where('teamId', '==', teamData.id),
+      orderBy('eventStartDate', 'asc'), 
+      limit(10)
+    );
     const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot) => {
-      setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as EventData)));
+      const eventsData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        // Extract location - handle both object and string formats
+        const locationValue = typeof data.location === 'object' 
+          ? (data.location?.name || data.location?.address || '') 
+          : (data.location || '');
+        return { 
+          ...data, // Spread first so our explicit fields take precedence
+          id: doc.id, 
+          title: data.title || '',
+          eventType: data.type || data.eventType || 'event', // Handle both field names
+          eventStartDate: data.eventStartDate,
+          eventStartTime: data.eventStartTime || data.startTime || '',
+          location: locationValue,
+          description: data.description || '',
+        } as EventData;
+      });
+      // Filter to only future events
+      const now = new Date();
+      const futureEvents = eventsData.filter(event => {
+        if (!event.eventStartDate) return false;
+        const eventDate = event.eventStartDate?.toDate?.() || new Date(event.eventStartDate);
+        return eventDate >= now;
+      });
+      setEvents(futureEvents);
     }, (error) => {
       console.error('Error fetching events:', error);
     });
@@ -428,10 +489,24 @@ const NewOSYSDashboard: React.FC = () => {
         for (const season of programSeasons) {
           console.log('📅 Season found:', season.id, season.name, 'status:', season.status);
           
-          // Check for any active/registration status
-          const isActiveStatus = ['active', 'registration_open', 'registration', 'setup', 'teams_forming'].includes(season.status);
-          if (!isActiveStatus && season.status !== 'completed') {
-            // For now, query ALL seasons to debug
+          // Check if this age group's draft is still active using the new flag
+          const ageGroupsDraftActive = (season as any).ageGroupsDraftActive || {};
+          const teamHasActiveDraft = teamAgeGroups.some(ag => {
+            // Check exact match or partial match for range age groups
+            if (ageGroupsDraftActive[ag] === true) return true;
+            // Also check if any key contains our age group (for range matching)
+            return Object.keys(ageGroupsDraftActive).some(key => 
+              ageGroupsDraftActive[key] === true && (key.includes(ag) || ag.includes(key))
+            );
+          });
+          
+          console.log('🎯 Team draft active check:', { teamAgeGroups, ageGroupsDraftActive, teamHasActiveDraft });
+          
+          // Only skip if explicitly set to false for ALL team age groups
+          // (For backwards compatibility, if ageGroupsDraftActive is empty, still show)
+          if (Object.keys(ageGroupsDraftActive).length > 0 && !teamHasActiveDraft) {
+            console.log('⏭️ Skipping season - draft complete for team age groups');
+            continue;
           }
           
           // Query draft pool for this season
@@ -442,6 +517,13 @@ const NewOSYSDashboard: React.FC = () => {
           
           draftPoolSnap.docs.forEach(docSnap => {
             const data = docSnap.data();
+            
+            // Skip already drafted or declined players
+            if (data.status === 'drafted' || data.status === 'declined') {
+              console.log('⏭️ Skipping player (status:', data.status, '):', data.athleteFirstName, data.athleteLastName);
+              return;
+            }
+            
             const playerAgeGroup = data.ageGroupName || data.ageGroup || '';
             
             // Filter by team's age group(s)
@@ -486,30 +568,16 @@ const NewOSYSDashboard: React.FC = () => {
   }, [teamData?.programId, teamData?.ageGroup, teamData?.ageGroups, programSeasons]);
 
   // Check if registration is still open (to disable Draft button)
-  // Registration is considered "open" if:
-  // 1. Status is explicitly registration_open, OR
-  // 2. We're between the registration open and close dates (regardless of status)
+  // Draft is only available when season status is 'active' (started)
   const isRegistrationOpen = React.useMemo(() => {
+    // Check if any season is still in registration phase (not yet started)
     return programSeasons.some(season => {
-      const today = new Date().toISOString().split('T')[0];
-      
-      // If status explicitly says registration is open
-      if (season.status === 'registration_open' || season.status === 'registration') {
-        return true;
+      // If status is explicitly 'active' or 'completed', registration is closed
+      if (season.status === 'active' || season.status === 'completed') {
+        return false;
       }
-      
-      // Also check dates - if today is between open and close dates, registration is open
-      const openDate = season.registrationOpenDate;
-      const closeDate = season.registrationCloseDate;
-      
-      if (openDate && closeDate) {
-        // If today >= openDate AND today <= closeDate, registration is open
-        if (today >= openDate && today <= closeDate) {
-          return true;
-        }
-      }
-      
-      return false;
+      // Otherwise, registration is still open (status is 'registration_open', 'setup', etc.)
+      return true;
     });
   }, [programSeasons]);
 
@@ -537,7 +605,7 @@ const NewOSYSDashboard: React.FC = () => {
           await updateDoc(doc(db, 'players', player.athleteId), {
             draftPoolStatus: 'declined',
             draftPoolDeclinedReason: declineReason,
-            draftPoolDeclinedBy: userData?.displayName || 'Coach',
+            draftPoolDeclinedBy: userData?.name || 'Coach',
             draftPoolDeclinedAt: serverTimestamp(),
             // Clear the active draft pool references
             draftPoolProgramId: deleteField(),
@@ -567,7 +635,7 @@ const NewOSYSDashboard: React.FC = () => {
             athleteName: `${player.athleteFirstName} ${player.athleteLastName}`,
             teamName: teamData?.name || 'Team',
             reason: declineReason,
-            declinedBy: userData?.displayName || 'Coach',
+            declinedBy: userData?.name || 'Coach',
             declinedByUserId: userData?.uid,
           },
           createdAt: serverTimestamp()
@@ -584,7 +652,7 @@ const NewOSYSDashboard: React.FC = () => {
             userId: programData.commissionerId,
             type: 'player_declined',
             title: '⚠️ Player Declined from Draft Pool',
-            message: `${userData?.displayName || 'Coach'} declined ${player.athleteFirstName} ${player.athleteLastName} from ${teamData?.name}. Reason: ${declineReason}`,
+            message: `${userData?.name || 'Coach'} declined ${player.athleteFirstName} ${player.athleteLastName} from ${teamData?.name}. Reason: ${declineReason}`,
             category: 'team',
             priority: 'normal',
             read: false,
@@ -593,7 +661,7 @@ const NewOSYSDashboard: React.FC = () => {
               athleteName: `${player.athleteFirstName} ${player.athleteLastName}`,
               teamName: teamData?.name || 'Team',
               reason: declineReason,
-              declinedBy: userData?.displayName || 'Coach',
+              declinedBy: userData?.name || 'Coach',
             },
             createdAt: serverTimestamp()
           });
@@ -622,7 +690,7 @@ const NewOSYSDashboard: React.FC = () => {
               userId: coachId,
               type: 'player_declined',
               title: '❌ Player Declined',
-              message: `${userData?.displayName || 'A coach'} declined ${player.athleteFirstName} ${player.athleteLastName} from ${teamData?.name}. Reason: ${declineReason}`,
+              message: `${userData?.name || 'A coach'} declined ${player.athleteFirstName} ${player.athleteLastName} from ${teamData?.name}. Reason: ${declineReason}`,
               category: 'team',
               priority: 'low',
               read: false,
@@ -631,7 +699,7 @@ const NewOSYSDashboard: React.FC = () => {
                 athleteName: `${player.athleteFirstName} ${player.athleteLastName}`,
                 teamName: teamData?.name || 'Team',
                 reason: declineReason,
-                declinedBy: userData?.displayName || 'Coach',
+                declinedBy: userData?.name || 'Coach',
               },
               createdAt: serverTimestamp()
             });
@@ -655,6 +723,168 @@ const NewOSYSDashboard: React.FC = () => {
       toastError('Failed to decline player. Please try again.');
     } finally {
       setDecliningPlayer(false);
+    }
+  };
+
+  // Handle drafting a player to the team roster
+  const handleDraftPlayer = async () => {
+    if (!draftModalPlayer || !teamData?.id) {
+      toastError('Missing player or team data');
+      return;
+    }
+    
+    setDraftingPlayer(true);
+    try {
+      const programId = teamData?.programId;
+      if (!programId) throw new Error('No program ID');
+      
+      const player = draftModalPlayer;
+      const seasonId = player.seasonId;
+      
+      console.log('🎯 Drafting player to team:', { 
+        teamId: teamData.id, 
+        teamName: teamData.name,
+        playerId: player.id,
+        playerName: `${player.athleteFirstName} ${player.athleteLastName}`
+      });
+      
+      // 1. Add player to team roster (teams/{teamId}/players collection)
+      const playerData = {
+        name: `${player.athleteFirstName} ${player.athleteLastName}`,
+        firstName: player.athleteFirstName,
+        lastName: player.athleteLastName,
+        number: player.jerseyNumber || null,
+        position: player.position || null,
+        parentName: player.parentName,
+        parentEmail: player.parentEmail,
+        parentPhone: player.parentPhone,
+        parentId: player.parentUserId || null,
+        parentUserId: player.parentUserId || null,
+        athleteId: player.athleteId || null,
+        dateOfBirth: player.dateOfBirth || player.athleteDateOfBirth || null,
+        ageGroup: player.ageGroup || teamData?.ageGroup || null,
+        status: 'active',
+        draftedAt: serverTimestamp(),
+        draftedBy: userData?.uid,
+        draftedByName: userData?.name || 'Coach',
+        seasonId: seasonId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      
+      let rosterRef;
+      try {
+        rosterRef = await addDoc(collection(db, 'teams', teamData.id, 'players'), playerData);
+        console.log('✅ Step 1: Added player to roster:', rosterRef.id);
+      } catch (rosterError: any) {
+        console.error('❌ Step 1 FAILED - Could not add to team roster:', rosterError);
+        throw new Error(`Failed to add player to roster: ${rosterError.message}`);
+      }
+      
+      // 2. Update draft pool entry status to 'drafted'
+      try {
+        await updateDoc(doc(db, 'programs', programId, 'seasons', seasonId, 'draftPool', player.id), {
+          status: 'drafted',
+          draftedAt: serverTimestamp(),
+          draftedBy: userData?.uid,
+          draftedToTeamId: teamData.id,
+          draftedToTeamName: teamData.name,
+          rosterPlayerId: rosterRef.id,
+          updatedAt: serverTimestamp()
+        });
+        console.log('✅ Step 2: Updated draft pool entry to drafted');
+      } catch (poolError: any) {
+        console.error('⚠️ Step 2 failed (non-fatal) - Could not update draft pool:', poolError);
+        // Continue anyway - roster was added successfully
+      }
+      
+      // 3. Update the top-level player document if athleteId exists
+      if (player.athleteId) {
+        try {
+          await updateDoc(doc(db, 'players', player.athleteId), {
+            teamId: teamData.id,
+            teamName: teamData.name,
+            rosterPlayerId: rosterRef.id,
+            seasonId: seasonId,
+            draftPoolStatus: 'drafted',
+            draftPoolDraftedAt: serverTimestamp(),
+            draftPoolDraftedBy: userData?.name || 'Coach',
+            status: 'active',
+            updatedAt: serverTimestamp(),
+          });
+          console.log('✅ Updated top-level player document');
+        } catch (err) {
+          console.error('⚠️ Failed to update player document (non-fatal):', err);
+        }
+      }
+      
+      // 4. Send notification to parent
+      if (player.parentUserId) {
+        await addDoc(collection(db, 'notifications'), {
+          userId: player.parentUserId,
+          type: 'player_drafted',
+          title: '🎉 Player Drafted!',
+          message: `${player.athleteFirstName} ${player.athleteLastName} has been drafted to ${teamData.name}!`,
+          category: 'team',
+          priority: 'high',
+          read: false,
+          link: '/dashboard',
+          metadata: {
+            athleteName: `${player.athleteFirstName} ${player.athleteLastName}`,
+            teamId: teamData.id,
+            teamName: teamData.name,
+            draftedBy: userData?.name || 'Coach',
+          },
+          createdAt: serverTimestamp()
+        });
+        console.log('✅ Step 4: Sent draft notification to parent:', player.parentUserId);
+      }
+      
+      // 5. Check if any players remain in draft pool for this age group
+      // If not, set ageGroupsDraftActive[ageGroup] = false
+      try {
+        const playerAgeGroup = player.ageGroupName || player.ageGroup || '';
+        if (playerAgeGroup) {
+          const draftPoolRef = collection(db, 'programs', programId, 'seasons', seasonId, 'draftPool');
+          const remainingSnap = await getDocs(draftPoolRef);
+          
+          // Count remaining 'available' players for this age group
+          let remainingCount = 0;
+          remainingSnap.docs.forEach(docSnap => {
+            const data = docSnap.data();
+            const docAgeGroup = data.ageGroupName || data.ageGroup || '';
+            if (data.status !== 'drafted' && data.status !== 'declined' && docAgeGroup === playerAgeGroup) {
+              remainingCount++;
+            }
+          });
+          
+          console.log(`📊 Remaining players in ${playerAgeGroup}: ${remainingCount}`);
+          
+          // If no more players for this age group, update the season flag
+          if (remainingCount === 0) {
+            await updateDoc(doc(db, 'programs', programId, 'seasons', seasonId), {
+              [`ageGroupsDraftActive.${playerAgeGroup}`]: false,
+              updatedAt: serverTimestamp()
+            });
+            console.log(`✅ Step 5: Set ageGroupsDraftActive.${playerAgeGroup} = false (draft complete for this age group)`);
+          }
+        }
+      } catch (err) {
+        console.error('⚠️ Step 5 failed (non-fatal) - Could not check remaining players:', err);
+      }
+      
+      // 6. Update local state to remove player from draft pool
+      setDraftPoolPlayers(prev => prev.filter(p => p.id !== player.id));
+      
+      // 7. Close modal and show success
+      setDraftModalPlayer(null);
+      toastSuccess(`${player.athleteFirstName} ${player.athleteLastName} has been drafted to ${teamData.name}!`);
+      
+    } catch (error) {
+      console.error('Error drafting player:', error);
+      toastError('Failed to draft player. Please try again.');
+    } finally {
+      setDraftingPlayer(false);
     }
   };
 
@@ -737,7 +967,16 @@ const NewOSYSDashboard: React.FC = () => {
   const canAccessAdvancedFeatures = userData?.role === 'Coach' || userData?.role === 'SuperAdmin' || isIndependentAthlete;
 
   // Quick actions based on sport and role
-  const quickActions = [
+  const isParent = userData?.role === 'Parent';
+  const isCoachOrAdmin = userData?.role === 'Coach' || userData?.role === 'SuperAdmin';
+  
+  const quickActions = isParent ? [
+    // Parent-specific quick actions
+    { icon: '📢', label: 'Announce', link: '/chat' },
+    { icon: '💫', label: 'Send Kudos', link: '/chat' },
+    { icon: '⚠️', label: 'File Grievance', link: '/grievance' },
+  ] : [
+    // Coach/Admin quick actions
     { icon: '📋', label: 'New Play', link: '/playbook' },
     // Go Live - coaches and independent athletes only
     ...(canAccessAdvancedFeatures 
@@ -753,7 +992,7 @@ const NewOSYSDashboard: React.FC = () => {
     ),
     { icon: '💫', label: 'Send Kudos', link: '/chat' },
     // Coach-only action for season management
-    ...(userData?.role === 'Coach' || userData?.role === 'SuperAdmin' ? [{ icon: '📆', label: 'Manage Season', action: () => setShowSeasonManager(true) }] : []),
+    ...(isCoachOrAdmin ? [{ icon: '📆', label: 'Manage Season', action: () => setShowSeasonManager(true) }] : []),
   ];
 
   // Format event date
@@ -768,13 +1007,13 @@ const NewOSYSDashboard: React.FC = () => {
 
   // Get event type badge
   const getEventBadge = (type?: string) => {
-    const typeMap: Record<string, { label: string; variant: 'primary' | 'success' | 'warning' | 'default' }> = {
-      game: { label: 'Game Day', variant: 'primary' },
-      practice: { label: 'Practice', variant: 'default' },
-      meeting: { label: 'Meeting', variant: 'default' },
-      event: { label: 'Event', variant: 'success' },
+    const typeMap: Record<string, { label: string; variant: 'primary' | 'success' | 'warning' | 'default' | 'gold' }> = {
+      practice: { label: 'PRACTICE', variant: 'primary' },
+      game: { label: 'GAME', variant: 'gold' },
+      meeting: { label: 'MEETING', variant: 'default' },
+      event: { label: 'EVENT', variant: 'success' },
     };
-    return typeMap[type?.toLowerCase() || ''] || { label: type || 'Event', variant: 'default' as const };
+    return typeMap[type?.toLowerCase() || ''] || { label: type?.toUpperCase() || 'EVENT', variant: 'default' as const };
   };
 
   // Count new plays this week
@@ -1018,12 +1257,22 @@ const NewOSYSDashboard: React.FC = () => {
   };
 
   // Format event date
-  const formatEventDateDisplay = (dateStr: string) => {
-    if (!dateStr) return { day: '--', month: '---', full: '' };
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
+  const formatEventDateDisplay = (dateInput: any) => {
+    if (!dateInput) return { day: '--', month: '---', full: '' };
+    // Handle Firestore Timestamp, Date, or string
+    let date: Date;
+    if (dateInput?.toDate) {
+      date = dateInput.toDate();
+    } else if (dateInput instanceof Date) {
+      date = dateInput;
+    } else if (typeof dateInput === 'string' && dateInput.includes('-')) {
+      const [year, month, day] = dateInput.split('-').map(Number);
+      date = new Date(year, month - 1, day);
+    } else {
+      date = new Date(dateInput);
+    }
     return {
-      day: day.toString(),
+      day: date.getDate().toString(),
       month: date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
       full: date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
     };
@@ -1663,8 +1912,7 @@ const NewOSYSDashboard: React.FC = () => {
                   <div className="flex flex-col gap-2 flex-shrink-0">
                     <button
                       onClick={() => {
-                        // TODO: Implement draft action
-                        console.log('Draft player:', player.id);
+                        setDraftModalPlayer(player);
                       }}
                       disabled={isRegistrationOpen}
                       title={isRegistrationOpen ? 'Draft available after registration closes' : 'Add player to roster'}
@@ -1743,120 +1991,126 @@ const NewOSYSDashboard: React.FC = () => {
           
           {/* If team belongs to a program, show program seasons */}
           {teamData?.programId && programSeasons.length > 0 ? (
-            <div className="space-y-3">
-              {programSeasons.map((season) => {
-                const statusColors: Record<string, string> = {
-                  'setup': theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-slate-200 text-slate-600',
-                  'registration_open': theme === 'dark' ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-green-100 text-green-700 border border-green-200',
-                  'registration_closed': theme === 'dark' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-amber-100 text-amber-700 border border-amber-200',
-                  'teams_forming': theme === 'dark' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-blue-100 text-blue-700 border border-blue-200',
-                  'active': theme === 'dark' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-purple-100 text-purple-700 border border-purple-200',
-                  'completed': theme === 'dark' ? 'bg-gray-600 text-gray-400' : 'bg-slate-300 text-slate-500',
-                };
-                const statusLabels: Record<string, string> = {
-                  'setup': '⚙️ Setup',
-                  'registration_open': '🟢 Registration Open',
-                  'registration_closed': '🔒 Registration Closed',
-                  'teams_forming': '👥 Forming Teams',
-                  'active': '🏈 Season Active',
-                  'completed': '✅ Completed',
-                };
-                
-                return (
-                  <div 
-                    key={season.id}
-                    className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-slate-50 border border-slate-200'}`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-                        {season.name}
-                      </h3>
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[season.status] || statusColors['setup']}`}>
-                        {statusLabels[season.status] || season.status}
+            (() => {
+              // Separate active and completed seasons
+              const activeSeasons = programSeasons.filter(s => s.status !== 'completed');
+              const completedSeasons = programSeasons.filter(s => s.status === 'completed');
+              
+              const statusColors: Record<string, string> = {
+                'setup': theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-slate-200 text-slate-600',
+                'registration_open': theme === 'dark' ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-green-100 text-green-700 border border-green-200',
+                'registration_closed': theme === 'dark' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-amber-100 text-amber-700 border border-amber-200',
+                'teams_forming': theme === 'dark' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-blue-100 text-blue-700 border border-blue-200',
+                'active': theme === 'dark' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-purple-100 text-purple-700 border border-purple-200',
+                'completed': theme === 'dark' ? 'bg-gray-600 text-gray-400' : 'bg-slate-300 text-slate-500',
+              };
+              const statusLabels: Record<string, string> = {
+                'setup': '⚙️ Setup',
+                'registration_open': '🟢 Registration Open',
+                'registration_closed': '🔒 Registration Closed',
+                'teams_forming': '👥 Forming Teams',
+                'active': '🏈 Season Active',
+                'completed': '✅ Completed',
+              };
+              
+              // Render a single season card
+              const renderSeasonCard = (season: ProgramSeason) => (
+                <div 
+                  key={season.id}
+                  className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-slate-50 border border-slate-200'}`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                      {season.name}
+                    </h3>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[season.status] || statusColors['setup']}`}>
+                      {statusLabels[season.status] || season.status}
+                    </span>
+                  </div>
+                  
+                  <div className={`grid grid-cols-2 gap-2 text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-600'}`}>
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4" />
+                      <span>Reg: {season.registrationOpenDate} - {season.registrationCloseDate}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-lg">👥</span>
+                      <span>
+                        {draftPoolPlayers.filter(p => p.seasonId === season.id).length} registered
+                        {teamData?.ageGroup && ` (${teamData.ageGroup})`}
                       </span>
                     </div>
-                    
-                    <div className={`grid grid-cols-2 gap-2 text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-600'}`}>
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="w-4 h-4" />
-                        <span>Reg: {season.registrationOpenDate} - {season.registrationCloseDate}</span>
+                  </div>
+                  
+                  {season.registrationFee > 0 && (
+                    <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
+                      Registration Fee: ${(season.registrationFee / 100).toFixed(2)}
+                    </p>
+                  )}
+                  
+                  {/* Registration Link - Show when registration is open or in setup */}
+                  {(season.status === 'registration_open' || season.status === 'setup') && (
+                    <div className={`mt-3 p-3 rounded-lg border ${
+                      theme === 'dark' 
+                        ? 'bg-purple-500/10 border-purple-500/30' 
+                        : 'bg-purple-50 border-purple-200'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Link2 className={`w-4 h-4 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
+                        <span className={`text-sm font-medium ${theme === 'dark' ? 'text-purple-300' : 'text-purple-700'}`}>
+                          Registration Link
+                        </span>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-lg">👥</span>
-                        <span>{season.totalRegistrations || 0} registered</span>
+                      <p className={`text-xs mb-2 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                        Share this link with parents to register their athletes
+                      </p>
+                      <div className={`flex items-center gap-2 p-2 rounded-lg ${
+                        theme === 'dark' ? 'bg-black/30' : 'bg-white'
+                      }`}>
+                        <input 
+                          type="text"
+                          readOnly
+                          value={`${window.location.origin}/#/register/${season.id}`}
+                          className={`flex-1 text-xs truncate bg-transparent border-none outline-none ${
+                            theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'
+                          }`}
+                        />
+                        <button
+                          onClick={() => {
+                            const link = `${window.location.origin}/#/register/${season.id}`;
+                            navigator.clipboard.writeText(link);
+                            setCopiedSeasonLink(season.id);
+                            setTimeout(() => setCopiedSeasonLink(null), 2000);
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                            copiedSeasonLink === season.id
+                              ? 'bg-green-500 text-white'
+                              : theme === 'dark'
+                                ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                                : 'bg-purple-500 hover:bg-purple-600 text-white'
+                          }`}
+                        >
+                          {copiedSeasonLink === season.id ? (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              Copied!
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              Copy
+                            </>
+                          )}
+                        </button>
                       </div>
                     </div>
-                    
-                    {season.registrationFee > 0 && (
-                      <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
-                        Registration Fee: ${(season.registrationFee / 100).toFixed(2)}
-                      </p>
-                    )}
-                    
-                    {/* Registration Link - Show when registration is open or in setup */}
-                    {(season.status === 'registration_open' || season.status === 'setup') && (
-                      <div className={`mt-3 p-3 rounded-lg border ${
-                        theme === 'dark' 
-                          ? 'bg-purple-500/10 border-purple-500/30' 
-                          : 'bg-purple-50 border-purple-200'
-                      }`}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <Link2 className={`w-4 h-4 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
-                          <span className={`text-sm font-medium ${theme === 'dark' ? 'text-purple-300' : 'text-purple-700'}`}>
-                            Registration Link
-                          </span>
-                        </div>
-                        <p className={`text-xs mb-2 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                          Share this link with parents to register their athletes
-                        </p>
-                        <div className={`flex items-center gap-2 p-2 rounded-lg ${
-                          theme === 'dark' ? 'bg-black/30' : 'bg-white'
-                        }`}>
-                          <input 
-                            type="text"
-                            readOnly
-                            value={`${window.location.origin}/#/register/${season.id}`}
-                            className={`flex-1 text-xs truncate bg-transparent border-none outline-none ${
-                              theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'
-                            }`}
-                          />
-                          <button
-                            onClick={() => {
-                              const link = `${window.location.origin}/#/register/${season.id}`;
-                              navigator.clipboard.writeText(link);
-                              setCopiedSeasonLink(season.id);
-                              setTimeout(() => setCopiedSeasonLink(null), 2000);
-                            }}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
-                              copiedSeasonLink === season.id
-                                ? 'bg-green-500 text-white'
-                                : theme === 'dark'
-                                  ? 'bg-purple-600 hover:bg-purple-700 text-white'
-                                  : 'bg-purple-500 hover:bg-purple-600 text-white'
-                            }`}
-                          >
-                            {copiedSeasonLink === season.id ? (
-                              <>
-                                <Check className="w-3.5 h-3.5" />
-                                Copied!
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3.5 h-3.5" />
-                                Copy
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Create Flyer Prompt */}
+                  )}
+                  
+                  {/* Create Flyer Prompt - Only for setup/registration_open seasons (not active or completed) */}
+                  {(season.status === 'setup' || season.status === 'registration_open') && (
                     <button
                       onClick={() => {
-                        // Build registration link
                         const registrationLink = `${window.location.origin}/#/register/${season.id}`;
-                        
                         navigate('/design', { 
                           state: { 
                             registrationData: {
@@ -1892,14 +2146,51 @@ const NewOSYSDashboard: React.FC = () => {
                         <ChevronRight className="w-5 h-5 text-orange-500" />
                       </div>
                     </button>
-                  </div>
-                );
-              })}
+                  )}
+                </div>
+              );
               
-              <p className={`text-xs text-center mt-4 ${theme === 'dark' ? 'text-zinc-600' : 'text-slate-400'}`}>
-                Seasons are managed by {programSeasons[0]?.programName || teamData.programName || 'your program commissioner'}
-              </p>
-            </div>
+              return (
+                <div className="space-y-3">
+                  {/* Active Seasons First */}
+                  {activeSeasons.map(renderSeasonCard)}
+                  
+                  {/* Completed Seasons - Collapsed by default */}
+                  {completedSeasons.length > 0 && (
+                    <>
+                      <button
+                        onClick={() => setShowCompletedSeasons(!showCompletedSeasons)}
+                        className={`w-full p-3 rounded-xl flex items-center justify-between transition-colors ${
+                          theme === 'dark' 
+                            ? 'bg-white/5 hover:bg-white/10 border border-white/10' 
+                            : 'bg-slate-100 hover:bg-slate-200 border border-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Check className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-500' : 'text-slate-400'}`} />
+                          <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                            Completed Seasons ({completedSeasons.length})
+                          </span>
+                        </div>
+                        <ChevronDown className={`w-4 h-4 transition-transform ${
+                          showCompletedSeasons ? 'rotate-180' : ''
+                        } ${theme === 'dark' ? 'text-gray-500' : 'text-slate-400'}`} />
+                      </button>
+                      
+                      {showCompletedSeasons && (
+                        <div className="space-y-3 mt-2">
+                          {completedSeasons.map(renderSeasonCard)}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  
+                  <p className={`text-xs text-center mt-4 ${theme === 'dark' ? 'text-zinc-600' : 'text-slate-400'}`}>
+                    Seasons are managed by {teamData?.programName || programSeasons[0]?.programName || 'your program commissioner'}
+                  </p>
+                </div>
+              );
+            })()
           ) : teamData?.programId && loadingProgramSeasons ? (
             <div className={`text-center py-6 ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
               Loading seasons...
@@ -1944,12 +2235,12 @@ const NewOSYSDashboard: React.FC = () => {
             </h2>
             <div className="flex items-center gap-2">
               {userData?.role === 'Coach' && (
-                <button
-                  onClick={() => setShowNewEventForm(true)}
+                <Link
+                  to="/events/create"
                   className="p-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white transition"
                 >
                   <Plus className="w-4 h-4" />
-                </button>
+                </Link>
               )}
               <Link to="/events" className="text-purple-500 text-sm hover:text-purple-400 transition">
                 View All →
@@ -1997,7 +2288,7 @@ const NewOSYSDashboard: React.FC = () => {
                       <div className={`font-medium truncate ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{event.title}</div>
                       <div className={`text-xs truncate ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
                         {event.location && `📍 ${event.location}`}
-                        {event.eventStartTime && ` • ${event.eventStartTime}`}
+                        {event.eventStartTime && ` • ${formatTime12Hour(event.eventStartTime)}`}
                       </div>
                     </div>
                     <Badge variant={badge.variant}>{badge.label}</Badge>
@@ -2060,20 +2351,48 @@ const NewOSYSDashboard: React.FC = () => {
             </Link>
           </div>
           <div className="space-y-2">
-            {roster.slice(0, 5).map((player) => (
-              <div 
-                key={player.id}
-                className={`flex items-center gap-3 p-2 rounded-lg transition ${theme === 'dark' ? 'hover:bg-white/5' : 'hover:bg-slate-100'}`}
-              >
-                <Avatar name={player.name} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <div className={`font-medium truncate ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{player.name}</div>
-                  <div className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-                    #{player.jerseyNumber || '--'} • {player.position || 'No position'}
+            {roster.slice(0, 5).map((player) => {
+              // Check if this player belongs to the current parent
+              const isMyChild = userData?.role === 'Parent' && (
+                player.parentId === userData?.uid || 
+                player.parentUserId === userData?.uid
+              );
+              // Build display name with nickname
+              const displayName = player.nickname 
+                ? `${player.firstName || player.name?.split(' ')[0] || ''} "${player.nickname}" ${player.lastName || player.name?.split(' ').slice(1).join(' ') || ''}`
+                : player.name;
+              return (
+                <div 
+                  key={player.id}
+                  className={`flex items-center gap-3 p-2 rounded-lg transition ${
+                    isMyChild 
+                      ? theme === 'dark' 
+                        ? 'bg-purple-500/20 border border-purple-500/30 hover:bg-purple-500/30' 
+                        : 'bg-purple-100 border border-purple-300 hover:bg-purple-200'
+                      : theme === 'dark' ? 'hover:bg-white/5' : 'hover:bg-slate-100'
+                  }`}
+                >
+                  {player.photoUrl ? (
+                    <img src={player.photoUrl} alt={player.name} className="w-8 h-8 rounded-full object-cover" />
+                  ) : (
+                    <Avatar name={player.name} size="sm" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className={`font-medium truncate flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                      {displayName}
+                      {isMyChild && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-purple-500/30 text-purple-300' : 'bg-purple-200 text-purple-700'}`}>
+                          Your Child
+                        </span>
+                      )}
+                    </div>
+                    <div className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                      #{player.number || '--'} • {player.position || 'No position'}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {roster.length === 0 && (
               <p className={`text-center py-4 italic ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>No players yet</p>
             )}
@@ -2101,7 +2420,11 @@ const NewOSYSDashboard: React.FC = () => {
                   key={coach.uid}
                   to={coach.username ? `/coach/${coach.username}` : '#'}
                   className={`flex flex-col items-center gap-2 p-3 rounded-xl transition ${
-                    theme === 'dark' ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'
+                    coach.isHeadCoach
+                      ? theme === 'dark'
+                        ? 'bg-amber-500/10 hover:bg-amber-500/20 ring-2 ring-amber-500/50 shadow-lg shadow-amber-500/20'
+                        : 'bg-amber-50 hover:bg-amber-100 ring-2 ring-amber-400 shadow-lg shadow-amber-200'
+                      : theme === 'dark' ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'
                   }`}
                 >
                   {/* Coach Photo */}
@@ -2127,31 +2450,31 @@ const NewOSYSDashboard: React.FC = () => {
                   {/* Role Badges */}
                   <div className="flex flex-wrap gap-1 justify-center">
                     {coach.isHeadCoach && (
-                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${
-                        theme === 'dark' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-amber-100 text-amber-700 border-amber-300'
+                      <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded flex items-center gap-0.5 ${
+                        theme === 'dark' ? 'bg-orange-900/30 text-orange-400' : 'bg-orange-100 text-orange-700'
                       }`}>
-                        HC
+                        <Crown className="w-2.5 h-2.5" /> HC
                       </span>
                     )}
                     {coach.isOC && (
-                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${
-                        theme === 'dark' ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'bg-red-100 text-red-700 border-red-300'
+                      <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded flex items-center gap-0.5 ${
+                        theme === 'dark' ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-700'
                       }`}>
-                        OC
+                        <Sword className="w-2.5 h-2.5" /> OC
                       </span>
                     )}
                     {coach.isDC && (
-                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${
-                        theme === 'dark' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-blue-100 text-blue-700 border-blue-300'
+                      <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded flex items-center gap-0.5 ${
+                        theme === 'dark' ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-100 text-blue-700'
                       }`}>
-                        DC
+                        <Shield className="w-2.5 h-2.5" /> DC
                       </span>
                     )}
                     {coach.isSTC && (
-                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${
-                        theme === 'dark' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' : 'bg-yellow-100 text-yellow-700 border-yellow-300'
+                      <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded flex items-center gap-0.5 ${
+                        theme === 'dark' ? 'bg-yellow-900/30 text-yellow-400' : 'bg-yellow-100 text-yellow-700'
                       }`}>
-                        STC
+                        <Zap className="w-2.5 h-2.5" /> STC
                       </span>
                     )}
                     {!coach.isHeadCoach && !coach.isOC && !coach.isDC && !coach.isSTC && (
@@ -2843,6 +3166,110 @@ const NewOSYSDashboard: React.FC = () => {
           onClose={() => setEndedStream(null)}
           onSaved={() => setEndedStream(null)}
         />
+      )}
+
+      {/* Draft Player Confirmation Modal */}
+      {draftModalPlayer && (
+        <div 
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setDraftModalPlayer(null)}
+        >
+          <div 
+            className={`w-full max-w-md rounded-xl shadow-xl ${theme === 'dark' ? 'bg-zinc-900 border border-white/10' : 'bg-white'}`}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className={`p-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-gray-200'}`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  theme === 'dark' ? 'bg-green-500/20' : 'bg-green-100'
+                }`}>
+                  <UserPlus className={`w-5 h-5 ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`} />
+                </div>
+                <div>
+                  <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    Draft Player to Team
+                  </h3>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                    {draftModalPlayer.athleteFirstName} {draftModalPlayer.athleteLastName}
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Content */}
+            <div className="p-4 space-y-4">
+              {/* Player Info */}
+              <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-white/5' : 'bg-gray-50'}`}>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className={theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}>Age Group:</span>
+                    <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      {draftModalPlayer.ageGroup || teamData?.ageGroup || 'N/A'}
+                    </p>
+                  </div>
+                  {draftModalPlayer.position && (
+                    <div>
+                      <span className={theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}>Position:</span>
+                      <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                        {draftModalPlayer.position}
+                      </p>
+                    </div>
+                  )}
+                  <div>
+                    <span className={theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}>Parent:</span>
+                    <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      {draftModalPlayer.parentName}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Team destination */}
+              <div className={`p-3 rounded-lg flex items-center gap-3 ${
+                theme === 'dark' ? 'bg-green-500/10 border border-green-500/20' : 'bg-green-50 border border-green-200'
+              }`}>
+                <Users className={`w-5 h-5 ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`} />
+                <div>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-green-300' : 'text-green-700'}`}>
+                    Adding to team:
+                  </p>
+                  <p className={`font-bold ${theme === 'dark' ? 'text-green-400' : 'text-green-800'}`}>
+                    {teamData?.name}
+                  </p>
+                </div>
+              </div>
+              
+              <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+                Are you sure you want to draft this player? They will be added to your team roster and the parent will be notified.
+              </p>
+            </div>
+            
+            {/* Footer */}
+            <div className={`p-4 border-t flex gap-3 ${theme === 'dark' ? 'border-white/10' : 'border-gray-200'}`}>
+              <button
+                onClick={() => setDraftModalPlayer(null)}
+                className={`flex-1 py-2.5 rounded-lg font-medium transition-colors ${
+                  theme === 'dark' ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDraftPlayer}
+                disabled={draftingPlayer}
+                className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {draftingPlayer ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <UserPlus className="w-4 h-4" />
+                )}
+                Draft Player
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Decline Player Modal */}

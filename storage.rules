@@ -1,0 +1,71 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper function to check authentication
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Team player photos - allow team coaches, admins, and parents
+    match /teams/{teamId}/players/{playerId}/{allPaths=**} {
+      // Anyone can read player photos (public profiles)
+      allow read: if true;
+      // Authenticated users can upload (parent uploading child's photo)
+      allow write: if isAuthenticated();
+    }
+    
+    // Top-level player photos (not on team)
+    match /players/{playerId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // User profile photos
+    match /users/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Team assets (logos, banners, etc)
+    match /teams/{teamId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // Event images
+    match /events/{eventId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // Fundraising campaign images
+    match /campaigns/{campaignId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // Design studio assets
+    match /designs/{designId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // Chat/message attachments
+    match /messages/{messageId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+    
+    // Playbook images
+    match /playbooks/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+    
+    // Default: deny all other paths
+    match /{allPaths=**} {
+      allow read: if false;
+      allow write: if false;
+    }
+  }
+}

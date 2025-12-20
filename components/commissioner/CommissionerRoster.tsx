@@ -27,7 +27,10 @@ import {
   UserMinus,
   AlertTriangle,
   ChevronDown,
-  User
+  User,
+  Star,
+  Crown,
+  AtSign
 } from 'lucide-react';
 
 interface TeamWithPlayers extends Team {
@@ -67,11 +70,46 @@ export const CommissionerRoster: React.FC = () => {
           
           // Get players for this team
           const playersSnap = await getDocs(collection(db, 'teams', teamDoc.id, 'players'));
-          const players = playersSnap.docs.map(doc => ({ 
+          const playersRaw = playersSnap.docs.map(doc => ({ 
             id: doc.id, 
             teamId: teamDoc.id,
             ...doc.data() 
           } as Player));
+          
+          // ENRICH with athlete profile data (photo, username, dob, uniform sizes)
+          const players = await Promise.all(playersRaw.map(async (player) => {
+            if (player.athleteId) {
+              try {
+                const athleteDoc = await getDoc(doc(db, 'players', player.athleteId));
+                if (athleteDoc.exists()) {
+                  const athleteData = athleteDoc.data();
+                  // Handle DOB - could be string or Firestore Timestamp
+                  let dobValue = athleteData.dob || athleteData.dateOfBirth || player.dob || player.dateOfBirth;
+                  if (dobValue && typeof dobValue === 'object' && dobValue.toDate) {
+                    dobValue = dobValue.toDate().toISOString().split('T')[0];
+                  }
+                  return {
+                    ...player,
+                    photoUrl: athleteData.photoUrl || player.photoUrl,
+                    username: athleteData.username || player.username,
+                    dob: dobValue,
+                    dateOfBirth: dobValue,
+                    nickname: athleteData.nickname || player.nickname,
+                    firstName: athleteData.firstName || player.firstName,
+                    lastName: athleteData.lastName || player.lastName,
+                    name: athleteData.name || player.name,
+                    // Uniform sizes from athlete profile
+                    helmetSize: athleteData.helmetSize || player.helmetSize,
+                    shirtSize: athleteData.shirtSize || player.shirtSize,
+                    pantSize: athleteData.pantSize || player.pantSize,
+                  };
+                }
+              } catch (err) {
+                console.log('[CommissionerRoster] Could not enrich player:', player.athleteId);
+              }
+            }
+            return player;
+          }));
           
           teamsWithPlayers.push({
             ...teamData,
@@ -254,50 +292,87 @@ export const CommissionerRoster: React.FC = () => {
         ) : (
           /* Players Grid */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredPlayers.map((player) => (
-              <div 
-                key={`${player.teamId}-${player.id}`}
-                className={`rounded-xl p-4 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-gray-200 shadow-sm'}`}
-              >
-                <div className="flex items-start gap-3">
-                  {/* Player Avatar/Number */}
-                  <div 
-                    className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-lg flex-shrink-0"
-                    style={{ backgroundColor: player.teamColor }}
-                  >
-                    {player.number || '?'}
-                  </div>
+            {filteredPlayers.map((player) => {
+              const isStarter = player.isStarter;
+              const isCaptain = player.isCaptain;
+              
+              return (
+                <div 
+                  key={`${player.teamId}-${player.id}`}
+                  className={`rounded-xl p-4 relative overflow-hidden transition-all duration-300 ${
+                    isStarter 
+                      ? 'ring-2 ring-amber-400/50 border-amber-400' 
+                      : ''
+                  } ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-gray-200 shadow-sm'}`}
+                  style={isStarter ? { boxShadow: '0 0 20px rgba(251, 191, 36, 0.3)' } : {}}
+                >
+                  {/* Starter Badge */}
+                  {isStarter && (
+                    <div className="absolute top-2 left-2 bg-gradient-to-br from-amber-400 to-amber-600 rounded-full px-2 py-0.5 shadow-lg flex items-center gap-1 z-10">
+                      <Star className="w-3 h-3 text-white fill-white" />
+                      <span className="text-[10px] font-bold text-white uppercase">Starter</span>
+                    </div>
+                  )}
                   
-                  <div className="flex-1 min-w-0">
-                    <h3 className={`font-semibold truncate ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                      {player.name}
-                    </h3>
-                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                      {player.position || 'No position'} • {player.teamName}
-                    </p>
-                    {player.username && (
-                      <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
-                        @{player.username}
-                      </p>
+                  <div className={`flex items-start gap-3 ${isStarter ? 'mt-6' : ''}`}>
+                    {/* Player Photo or Number */}
+                    {player.photoUrl ? (
+                      <img 
+                        src={player.photoUrl} 
+                        alt={player.name}
+                        className={`w-12 h-12 rounded-full object-cover flex-shrink-0 border-2 ${
+                          isStarter ? 'border-amber-400' : 'border-gray-300 dark:border-gray-600'
+                        }`}
+                      />
+                    ) : (
+                      <div 
+                        className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0 ${
+                          isStarter ? 'ring-2 ring-amber-400' : ''
+                        }`}
+                        style={{ backgroundColor: player.teamColor }}
+                      >
+                        {player.number || '?'}
+                      </div>
                     )}
+                    
+                    <div className="flex-1 min-w-0">
+                      <h3 className={`font-semibold truncate flex items-center gap-1.5 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                        {player.name}
+                        {isCaptain && <Crown className="w-4 h-4 text-amber-500 flex-shrink-0" />}
+                      </h3>
+                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {player.position || 'TBD'} • {player.teamName}
+                      </p>
+                      {/* Clickable Username */}
+                      {player.username && (
+                        <Link 
+                          to={`/athlete/${player.username}`}
+                          className="flex items-center gap-1 mt-1 hover:opacity-80 transition-opacity"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <AtSign className="w-3 h-3 text-purple-500" />
+                          <span className="text-xs text-purple-600 dark:text-purple-400 font-medium hover:underline">{player.username}</span>
+                        </Link>
+                      )}
+                    </div>
+                    
+                    {/* Remove Button */}
+                    <button
+                      onClick={() => setConfirmRemove({
+                        playerId: player.id!,
+                        playerName: player.name,
+                        teamId: player.teamId!,
+                        teamName: player.teamName
+                      })}
+                      className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                      title="Remove from team"
+                    >
+                      <UserMinus className="w-5 h-5" />
+                    </button>
                   </div>
-                  
-                  {/* Remove Button */}
-                  <button
-                    onClick={() => setConfirmRemove({
-                      playerId: player.id!,
-                      playerName: player.name,
-                      teamId: player.teamId!,
-                      teamName: player.teamName
-                    })}
-                    className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                    title="Remove from team"
-                  >
-                    <UserMinus className="w-5 h-5" />
-                  </button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -73,6 +73,15 @@ const NewOSYSLayout: React.FC = () => {
     }
   }, [location.pathname, markAsRead]);
 
+  // Scroll to top on every route change
+  useEffect(() => {
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTo({ top: 0, behavior: 'instant' });
+    }
+    // Also scroll window in case content is outside the ref
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [location.pathname]);
+
   // Handle navigation click with unsaved changes check
   const handleNavClick = (e: React.MouseEvent, path: string) => {
     if (location.pathname === path) {
@@ -177,8 +186,7 @@ const NewOSYSLayout: React.FC = () => {
       { icon: '📋', label: 'Playbook', path: '/playbook', section: 'Main', configKey: 'playbookEnabled', hideForParent: true, teamRequired: true },
       { icon: '👥', label: 'Roster', path: '/roster', section: 'Main', teamRequired: true },
       { icon: '📅', label: 'Schedule', path: '/events', section: 'Main', teamRequired: true },
-      { icon: '📆', label: 'Events', path: '/events', section: 'Main', coachOnly: true, teamRequired: true },
-      { icon: '🗨️', label: 'Team Chat', path: '/chat', section: 'Engage', configKey: 'chatEnabled', unreadKey: 'teamChat', teamRequired: true },
+      { icon: '️', label: 'Team Chat', path: '/chat', section: 'Engage', configKey: 'chatEnabled', unreadKey: 'teamChat', teamRequired: true },
       { icon: '🛡️', label: 'Strategy', path: '/strategies', section: 'Engage', configKey: 'chatEnabled', coachOnly: true, unreadKey: 'strategy', teamRequired: true },
       { icon: '📺', label: 'Film Room', path: '/videos', section: 'Engage', configKey: 'videoLibraryEnabled', teamRequired: true },
       { icon: '📢', label: 'Marketing', path: '/team-marketing', section: 'Engage', teamRequired: true },

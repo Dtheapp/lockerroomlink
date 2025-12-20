@@ -466,42 +466,80 @@ const PublicTeamProfile: React.FC = () => {
                   Coaching Staff
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {coaches.map((coach) => (
-                    <a 
-                      key={coach.id}
-                      href={`#/coach/${coach.username}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`flex items-center gap-3 p-4 rounded-xl transition-all hover:scale-[1.02] ${
-                        coach.isHeadCoach 
-                          ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 hover:border-amber-400' 
-                          : 'bg-slate-800/50 border border-white/10 hover:border-white/20'
-                      }`}
-                    >
-                      {coach.photoUrl ? (
-                        <img 
-                          src={coach.photoUrl} 
-                          alt={coach.name}
-                          className={`w-12 h-12 rounded-xl object-cover border-2 ${
-                            coach.isHeadCoach ? 'border-amber-500' : 'border-slate-600'
-                          }`}
-                        />
-                      ) : (
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                          coach.isHeadCoach ? 'bg-gradient-to-br from-amber-500 to-orange-600' : 'bg-slate-700'
-                        }`}>
-                          <User className="w-6 h-6 text-white" />
+                  {coaches.map((coach) => {
+                    // Check coordinator roles from team document
+                    const isOC = team.offensiveCoordinatorId === coach.id;
+                    const isDC = team.defensiveCoordinatorId === coach.id;
+                    const isSTC = team.specialTeamsCoordinatorId === coach.id;
+                    const hasCoordinatorRole = isOC || isDC || isSTC;
+                    
+                    return (
+                      <a 
+                        key={coach.id}
+                        href={`#/coach/${coach.username}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`flex items-center gap-3 p-4 rounded-xl transition-all hover:scale-[1.02] ${
+                          coach.isHeadCoach 
+                            ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 hover:border-amber-400' 
+                            : hasCoordinatorRole
+                              ? 'bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border border-purple-500/30 hover:border-purple-400'
+                              : 'bg-slate-800/50 border border-white/10 hover:border-white/20'
+                        }`}
+                      >
+                        {coach.photoUrl ? (
+                          <img 
+                            src={coach.photoUrl} 
+                            alt={coach.name}
+                            className={`w-12 h-12 rounded-xl object-cover border-2 ${
+                              coach.isHeadCoach ? 'border-amber-500' : hasCoordinatorRole ? 'border-purple-500' : 'border-slate-600'
+                            }`}
+                          />
+                        ) : (
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                            coach.isHeadCoach 
+                              ? 'bg-gradient-to-br from-amber-500 to-orange-600' 
+                              : hasCoordinatorRole
+                                ? 'bg-gradient-to-br from-purple-500 to-indigo-600'
+                                : 'bg-slate-700'
+                          }`}>
+                            <User className="w-6 h-6 text-white" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-white truncate">{coach.name}</p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {coach.isHeadCoach && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 flex items-center gap-0.5">
+                                👑 HC
+                              </span>
+                            )}
+                            {isOC && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
+                                OC
+                              </span>
+                            )}
+                            {isDC && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">
+                                DC
+                              </span>
+                            )}
+                            {isSTC && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400">
+                                STC
+                              </span>
+                            )}
+                            {!coach.isHeadCoach && !hasCoordinatorRole && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400">
+                                Coach
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-white truncate">{coach.name}</p>
-                        <p className="text-xs text-slate-500">
-                          {coach.isHeadCoach ? '👑 Head Coach' : 'Coach'}
-                        </p>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-slate-500 flex-shrink-0" />
-                    </a>
-                  ))}
+                        <ChevronRight className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                      </a>
+                    );
+                  })}
                 </div>
               </GlassCard>
             )}

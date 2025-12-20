@@ -224,9 +224,14 @@ const Chat: React.FC = () => {
     return () => unsubscribe();
   }, [teamData?.id]);
   
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive (but not on initial load)
+  const prevMessagesLengthRef = useRef<number>(0);
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Only scroll if we have new messages (not on initial load when going from 0 to N)
+    if (prevMessagesLengthRef.current > 0 && messages.length > prevMessagesLengthRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    prevMessagesLengthRef.current = messages.length;
   }, [messages]);
 
   // Close menu when clicking outside

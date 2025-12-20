@@ -57,7 +57,7 @@ const GRIEVANCE_TYPES = [
 ];
 
 export const CommissionerGrievances: React.FC = () => {
-  const { userData } = useAuth();
+  const { userData, programData } = useAuth();
   const { theme } = useTheme();
   
   const [grievances, setGrievances] = useState<Grievance[]>([]);
@@ -72,14 +72,14 @@ export const CommissionerGrievances: React.FC = () => {
   const [resolution, setResolution] = useState('');
 
   useEffect(() => {
-    if (!userData?.programId) {
+    if (!programData?.id) {
       setLoading(false);
       return;
     }
 
     const loadGrievances = async () => {
       try {
-        const data = await getGrievancesByProgram(userData.programId!);
+        const data = await getGrievancesByProgram(programData.id);
         setGrievances(data);
       } catch (error) {
         console.error('Error loading grievances:', error);
@@ -89,7 +89,7 @@ export const CommissionerGrievances: React.FC = () => {
     };
 
     loadGrievances();
-  }, [userData?.programId]);
+  }, [programData?.id]);
 
   // Load submitter/team info when grievance is selected
   useEffect(() => {

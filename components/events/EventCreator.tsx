@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { collection, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { Event, EventType, PricingTier, NewEvent, CustomField, EventLocation } from '../../types/events';
 import { US_STATES } from '../../types/events';
@@ -26,7 +26,9 @@ interface EventCreatorProps {
   teamName?: string;
   onComplete: (eventId: string) => void;
   onCancel: () => void;
+  onDelete?: () => void; // For deleting existing events (only in edit mode)
   duplicateFrom?: Event; // For duplicating existing events
+  editEvent?: Event; // For editing existing events
 }
 
 // Steps in the wizard
@@ -34,13 +36,68 @@ const STEPS = [
   { id: 'type', title: 'Event Type', icon: FileText },
   { id: 'details', title: 'Details', icon: Calendar },
   { id: 'location', title: 'Location', icon: MapPin },
-  { id: 'pricing', title: 'Pricing', icon: DollarSign },
   { id: 'options', title: 'Options', icon: Users },
   { id: 'review', title: 'Review', icon: Check },
 ];
 
+// Helper to convert Timestamp/Date to datetime-local format string
+const toDateTimeLocalString = (date: any): string => {
+  if (!date) return '';
+  let d: Date;
+  if (date.toDate) {
+    // Firestore Timestamp
+    d = date.toDate();
+  } else if (date instanceof Date) {
+    d = date;
+  } else if (typeof date === 'string') {
+    return date; // Already a string
+  } else {
+    return '';
+  }
+  // Format: YYYY-MM-DDTHH:MM
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+// Helper to convert Timestamp/Date to date-only format string  
+const toDateString = (date: any): string => {
+  if (!date) return '';
+  let d: Date;
+  if (date.toDate) {
+    d = date.toDate();
+  } else if (date instanceof Date) {
+    d = date;
+  } else if (typeof date === 'string') {
+    return date.split('T')[0]; // Get just the date part
+  } else {
+    return '';
+  }
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 // Default empty event
-const getDefaultEvent = (teamId: string, duplicateFrom?: Event): Partial<NewEvent> => {
+const getDefaultEvent = (teamId: string, duplicateFrom?: Event, editEvent?: Event): Partial<NewEvent> => {
+  if (editEvent) {
+    // Load existing event for editing (keep original title, don't prefix with "Copy of")
+    const { id, createdAt, updatedAt, currentCount, waitlistCount, shareableLink, ...eventData } = editEvent;
+    return {
+      ...eventData,
+      teamId,
+      // Convert Timestamps to string format for datetime-local inputs
+      eventStartDate: toDateTimeLocalString(editEvent.eventStartDate) as any,
+      eventEndDate: toDateTimeLocalString(editEvent.eventEndDate) as any,
+      registrationOpenDate: toDateString(editEvent.registrationOpenDate) as any,
+      registrationCloseDate: toDateString(editEvent.registrationCloseDate) as any,
+    };
+  }
+  
   if (duplicateFrom) {
     // Extract only the fields that belong in NewEvent (exclude auto-generated fields)
     const { id, createdAt, updatedAt, currentCount, waitlistCount, shareableLink, ...eventData } = duplicateFrom;
@@ -50,6 +107,11 @@ const getDefaultEvent = (teamId: string, duplicateFrom?: Event): Partial<NewEven
       title: `Copy of ${duplicateFrom.title}`,
       status: 'draft',
       duplicatedFrom: duplicateFrom.id,
+      // Convert Timestamps to string format for datetime-local inputs
+      eventStartDate: toDateTimeLocalString(duplicateFrom.eventStartDate) as any,
+      eventEndDate: toDateTimeLocalString(duplicateFrom.eventEndDate) as any,
+      registrationOpenDate: toDateString(duplicateFrom.registrationOpenDate) as any,
+      registrationCloseDate: toDateString(duplicateFrom.registrationCloseDate) as any,
     };
   }
   
@@ -84,12 +146,15 @@ const EventCreator: React.FC<EventCreatorProps> = ({
   teamName,
   onComplete,
   onCancel,
-  duplicateFrom
+  onDelete,
+  duplicateFrom,
+  editEvent
 }) => {
+  const isEditMode = !!editEvent;
   const [currentStep, setCurrentStep] = useState(0);
-  const [event, setEvent] = useState<Partial<NewEvent>>(getDefaultEvent(teamId, duplicateFrom));
+  const [event, setEvent] = useState<Partial<NewEvent>>(getDefaultEvent(teamId, duplicateFrom, editEvent));
   const [pricingTiers, setPricingTiers] = useState<Partial<PricingTier>[]>(
-    duplicateFrom ? [] : [{ name: 'Standard', price: 0, isActive: true, sortOrder: 0 }]
+    (duplicateFrom || editEvent) ? [] : [{ name: 'Standard', price: 0, isActive: true, sortOrder: 0 }]
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -169,18 +234,6 @@ const EventCreator: React.FC<EventCreatorProps> = ({
           return false;
         }
         return true;
-      case 'pricing':
-        if (event.type === 'registration' && pricingTiers.length === 0) {
-          setError('Please add at least one pricing tier');
-          return false;
-        }
-        for (const tier of pricingTiers) {
-          if (!tier.name?.trim()) {
-            setError('All pricing tiers must have a name');
-            return false;
-          }
-        }
-        return true;
       default:
         return true;
     }
@@ -209,22 +262,41 @@ const EventCreator: React.FC<EventCreatorProps> = ({
       // Generate shareable link placeholder
       const shareableLink = `${window.location.origin}/event/PLACEHOLDER`;
       
-      // Create event document
-      const eventData: any = {
+      // Helper to remove undefined values from object
+      const cleanUndefined = (obj: any): any => {
+        if (obj === null || obj === undefined) return null;
+        if (typeof obj !== 'object') return obj;
+        if (Array.isArray(obj)) return obj.map(cleanUndefined);
+        
+        const cleaned: any = {};
+        for (const [key, value] of Object.entries(obj)) {
+          if (value !== undefined) {
+            cleaned[key] = typeof value === 'object' ? cleanUndefined(value) : value;
+          }
+        }
+        return cleaned;
+      };
+      
+      // Build event data - clean undefined values
+      const eventData: any = cleanUndefined({
         ...event,
         teamId,
-        status: publish ? 'active' : 'draft',
-        currentCount: 0,
-        waitlistCount: 0,
-        shareableLink,
-        createdBy: '', // Will be set by the calling component
-        createdAt: Timestamp.now(),
+        status: publish ? 'active' : (event.status || 'draft'),
         updatedAt: Timestamp.now(),
-        flier: {
+        flier: event.flier ? {
           ...event.flier,
           qrCodeUrl: shareableLink,
-        }
-      };
+        } : null,
+      });
+      
+      // Only set these for new events
+      if (!isEditMode) {
+        eventData.currentCount = 0;
+        eventData.waitlistCount = 0;
+        eventData.shareableLink = shareableLink;
+        eventData.createdBy = '';
+        eventData.createdAt = Timestamp.now();
+      }
       
       // Convert date strings to Timestamps if needed
       if (event.eventStartDate && typeof event.eventStartDate === 'string') {
@@ -240,22 +312,29 @@ const EventCreator: React.FC<EventCreatorProps> = ({
         eventData.registrationCloseDate = Timestamp.fromDate(new Date(event.registrationCloseDate as unknown as string));
       }
       
-      const eventRef = await addDoc(collection(db, 'events'), eventData);
+      let eventRefId: string;
       
-      // Update shareable link with actual ID
-      // (In production, you'd use a URL shortener or custom domain)
-      
-      // Add pricing tiers as subcollection
-      for (const tier of pricingTiers) {
-        await addDoc(collection(db, 'events', eventRef.id, 'pricingTiers'), {
-          ...tier,
-          eventId: eventRef.id,
-          currentQuantity: 0,
-          isActive: tier.isActive ?? true,
-        });
+      if (isEditMode && editEvent?.id) {
+        // Update existing event
+        await updateDoc(doc(db, 'events', editEvent.id), eventData);
+        eventRefId = editEvent.id;
+      } else {
+        // Create new event
+        const eventRef = await addDoc(collection(db, 'events'), eventData);
+        eventRefId = eventRef.id;
+        
+        // Add pricing tiers as subcollection (only for new events)
+        for (const tier of pricingTiers) {
+          await addDoc(collection(db, 'events', eventRefId, 'pricingTiers'), {
+            ...tier,
+            eventId: eventRefId,
+            currentQuantity: 0,
+            isActive: tier.isActive ?? true,
+          });
+        }
       }
       
-      onComplete(eventRef.id);
+      onComplete(eventRefId);
       
     } catch (err: any) {
       console.error('Error saving event:', err);
@@ -274,16 +353,6 @@ const EventCreator: React.FC<EventCreatorProps> = ({
         return <StepDetails event={event} updateEvent={updateEvent} />;
       case 'location':
         return <StepLocation event={event} updateLocation={updateLocation} />;
-      case 'pricing':
-        return (
-          <StepPricing 
-            event={event}
-            pricingTiers={pricingTiers}
-            addPricingTier={addPricingTier}
-            updatePricingTier={updatePricingTier}
-            removePricingTier={removePricingTier}
-          />
-        );
       case 'options':
         return (
           <StepOptions
@@ -307,7 +376,7 @@ const EventCreator: React.FC<EventCreatorProps> = ({
       <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-white">
-            {duplicateFrom ? 'Duplicate Event' : 'Create New Event'}
+            {isEditMode ? 'Edit Event' : duplicateFrom ? 'Duplicate Event' : 'Create New Event'}
           </h2>
           <button 
             onClick={onCancel}
@@ -371,13 +440,26 @@ const EventCreator: React.FC<EventCreatorProps> = ({
       
       {/* Footer with navigation */}
       <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-        <button
-          onClick={currentStep === 0 ? onCancel : prevStep}
-          className="flex items-center gap-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          {currentStep === 0 ? 'Cancel' : 'Back'}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={currentStep === 0 ? onCancel : prevStep}
+            className="flex items-center gap-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            {currentStep === 0 ? 'Cancel' : 'Back'}
+          </button>
+          
+          {/* Delete button - only in edit mode */}
+          {isEditMode && onDelete && (
+            <button
+              onClick={onDelete}
+              className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete
+            </button>
+          )}
+        </div>
         
         <div className="flex items-center gap-3">
           {currentStep === STEPS.length - 1 ? (
@@ -395,7 +477,7 @@ const EventCreator: React.FC<EventCreatorProps> = ({
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                Publish Event
+                {isEditMode ? 'Save Changes' : 'Publish Event'}
               </button>
             </>
           ) : (
@@ -423,8 +505,7 @@ const StepEventType: React.FC<{
   updateEvent: (updates: Partial<NewEvent>) => void;
 }> = ({ event, updateEvent }) => {
   const eventTypes: { type: EventType; title: string; description: string; icon: string }[] = [
-    { type: 'registration', title: 'Team Registration', description: 'Sign up players for your team or season', icon: '📋' },
-    { type: 'game', title: 'Game / Match', description: 'Promote an upcoming game or match', icon: '🏆' },
+    { type: 'practice', title: 'Practice', description: 'Schedule a team practice session', icon: '🏈' },
     { type: 'fundraiser', title: 'Fundraiser', description: 'Raise money for your team', icon: '💰' },
     { type: 'social', title: 'Team Social', description: 'BBQ, party, or team gathering', icon: '🎉' },
     { type: 'other', title: 'Other Event', description: 'Any other type of event', icon: '📅' },
@@ -508,22 +589,22 @@ const StepDetails: React.FC<{
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Start Date *
+            Start Date & Time *
           </label>
           <input
-            type="date"
-            value={event.eventStartDate ? (typeof event.eventStartDate === 'string' ? event.eventStartDate : '') : ''}
+            type="datetime-local"
+            value={toDateTimeLocalString(event.eventStartDate)}
             onChange={(e) => updateEvent({ eventStartDate: e.target.value as any })}
             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
           />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            End Date
+            End Date & Time
           </label>
           <input
-            type="date"
-            value={event.eventEndDate ? (typeof event.eventEndDate === 'string' ? event.eventEndDate : '') : ''}
+            type="datetime-local"
+            value={toDateTimeLocalString(event.eventEndDate)}
             onChange={(e) => updateEvent({ eventEndDate: e.target.value as any })}
             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
           />
@@ -539,7 +620,7 @@ const StepDetails: React.FC<{
             </label>
             <input
               type="date"
-              value={event.registrationOpenDate ? (typeof event.registrationOpenDate === 'string' ? event.registrationOpenDate : '') : ''}
+              value={toDateString(event.registrationOpenDate)}
               onChange={(e) => updateEvent({ registrationOpenDate: e.target.value as any })}
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
             />
@@ -550,7 +631,7 @@ const StepDetails: React.FC<{
             </label>
             <input
               type="date"
-              value={event.registrationCloseDate ? (typeof event.registrationCloseDate === 'string' ? event.registrationCloseDate : '') : ''}
+              value={toDateString(event.registrationCloseDate)}
               onChange={(e) => updateEvent({ registrationCloseDate: e.target.value as any })}
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
             />

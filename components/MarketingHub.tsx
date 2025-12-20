@@ -32,7 +32,6 @@ import { useTheme } from '../contexts/ThemeContext';
 import { loadTeamPromoItems, loadUserPromoItems } from './design-studio/promoService';
 import type { PromoItem } from './design-studio/promoTypes';
 import SocialShareModal from './ui/SocialShareModal';
-import NoAthleteBlock from './NoAthleteBlock';
 
 interface MarketingHubProps {
   isTeamMode?: boolean;
@@ -125,7 +124,6 @@ const MarketingHub: React.FC<MarketingHubProps> = ({ isTeamMode = false }) => {
   const categories = ['all', 'flyer', 'poster', 'social', 'banner', 'story'];
 
   return (
-    <NoAthleteBlock featureName={pageTitle}>
     <div className={`min-h-screen ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-100'}`}>
       {/* Header */}
       <div className={`border-b ${theme === 'dark' ? 'border-white/10 bg-slate-900/50' : 'border-slate-200 bg-white/50'} backdrop-blur-xl sticky top-0 z-10`}>
@@ -446,7 +444,6 @@ const MarketingHub: React.FC<MarketingHubProps> = ({ isTeamMode = false }) => {
         />
       )}
     </div>
-    </NoAthleteBlock>
   );
 };
 

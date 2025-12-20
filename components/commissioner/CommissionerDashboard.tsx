@@ -4,7 +4,7 @@
  * Supports both "team" commissioners (manage teams) and "league" commissioners (manage leagues)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -24,7 +24,6 @@ import {
   AlertTriangle, 
   Calendar, 
   Trophy, 
-  Settings, 
   Plus,
   ChevronRight,
   Bell,
@@ -42,12 +41,18 @@ import {
   Link2,
   Search,
   X,
-  CheckCircle2
+  CheckCircle2,
+  Check,
+  ChevronDown,
+  Play,
+  Square,
+  AlertCircle,
+  Settings
 } from 'lucide-react';
 import { RulesModal } from '../RulesModal';
 import { AgeGroupSelector } from '../AgeGroupSelector';
 import { StateSelector, isValidUSState } from '../StateSelector';
-import { toastError, toastSuccess } from '../../services/toast';
+import { toastError, toastSuccess, toastInfo } from '../../services/toast';
 import { CommissionerSeasonSetup } from './CommissionerSeasonSetup';
 
 export const CommissionerDashboard: React.FC = () => {
@@ -61,6 +66,15 @@ export const CommissionerDashboard: React.FC = () => {
   const [coachRequests, setCoachRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [seasons, setSeasons] = useState<ProgramSeason[]>([]);
+  
+  // Dashboard draft pool states (inline on dashboard, not modal)
+  const [dashboardDraftPoolPlayers, setDashboardDraftPoolPlayers] = useState<any[]>([]);
+  const [dashboardDraftFilter, setDashboardDraftFilter] = useState<string>('all');
+  const [loadingDashboardDraft, setLoadingDashboardDraft] = useState(false);
+  const [draftingPlayerId, setDraftingPlayerId] = useState<string | null>(null);
+  const [decliningPlayerId, setDecliningPlayerId] = useState<string | null>(null);
+  const [showDraftToTeamModal, setShowDraftToTeamModal] = useState(false);
+  const [playerToDraft, setPlayerToDraft] = useState<any>(null);
   
   // Draft pool modal states
   const [showDraftPoolModal, setShowDraftPoolModal] = useState(false);
@@ -114,13 +128,48 @@ export const CommissionerDashboard: React.FC = () => {
     ? teams.filter(t => t.sport?.toLowerCase() === selectedSport.toLowerCase())
     : teams;
   
-  // Filter seasons by selected sport
-  const filteredSeasons = selectedSport
-    ? seasons.filter(s => 
-        s.sportsOffered?.some((so: any) => so.sport?.toLowerCase() === selectedSport.toLowerCase()) ||
-        (s as any).sport?.toLowerCase() === selectedSport.toLowerCase()
-      )
-    : seasons;
+  // Filter seasons by selected sport - memoize to prevent infinite loops
+  const filteredSeasons = useMemo(() => {
+    return selectedSport
+      ? seasons.filter(s => 
+          s.sportsOffered?.some((so: any) => so.sport?.toLowerCase() === selectedSport.toLowerCase()) ||
+          (s as any).sport?.toLowerCase() === selectedSport.toLowerCase()
+        )
+      : seasons;
+  }, [seasons, selectedSport]);
+  
+  // Helper: Check if sport has age groups and teams configured
+  const canCreateSeason = (): { canCreate: boolean; missingAgeGroups: boolean; missingTeams: boolean } => {
+    const sportConfigs = (programData as any)?.sportConfigs || [];
+    const currentSportConfig = sportConfigs.find((sc: any) => sc.sport?.toLowerCase() === selectedSport?.toLowerCase());
+    const sportAgeGroupCount = currentSportConfig?.ageGroups?.length || 0;
+    const sportTeamsCount = filteredTeams.length;
+    
+    return {
+      canCreate: sportAgeGroupCount > 0 && sportTeamsCount > 0,
+      missingAgeGroups: sportAgeGroupCount === 0,
+      missingTeams: sportTeamsCount === 0
+    };
+  };
+  
+  // Handler: Validate before opening create season modal
+  const handleCreateSeasonClick = () => {
+    const { canCreate, missingAgeGroups, missingTeams } = canCreateSeason();
+    
+    if (!canCreate) {
+      const sportName = selectedSport?.charAt(0).toUpperCase() + selectedSport?.slice(1).toLowerCase();
+      if (missingAgeGroups && missingTeams) {
+        toastError(`Configure age groups and teams for ${sportName} first`);
+      } else if (missingAgeGroups) {
+        toastError(`Configure age groups for ${sportName} first`);
+      } else if (missingTeams) {
+        toastError(`Create at least one team for ${sportName} first`);
+      }
+      return;
+    }
+    
+    setShowSeasonModal(true);
+  };
   
   const [stats, setStats] = useState({
     totalTeams: 0,
@@ -212,6 +261,13 @@ export const CommissionerDashboard: React.FC = () => {
   } | null>(null);
   const [savingSeasonEdit, setSavingSeasonEdit] = useState(false);
   
+  // Season lifecycle control states
+  const [updatingSeasonStatus, setUpdatingSeasonStatus] = useState(false);
+  const [showEndSeasonConfirm, setShowEndSeasonConfirm] = useState(false);
+  
+  // Collapse completed seasons by default
+  const [showCompletedSeasons, setShowCompletedSeasons] = useState(false);
+  
   // Add team to age group state
   const [showAddTeamToAgeGroup, setShowAddTeamToAgeGroup] = useState(false);
   const [newTeamAgeGroup, setNewTeamAgeGroup] = useState('');
@@ -263,7 +319,7 @@ export const CommissionerDashboard: React.FC = () => {
                                 userData?.commissionerType === 'league';
   
   // Check if user has a program
-  const hasProgram = !!programData || !!userData?.programId;
+  const hasProgram = !!programData;
 
   useEffect(() => {
     if (!userData) {
@@ -359,7 +415,7 @@ export const CommissionerDashboard: React.FC = () => {
 
   // Real-time listener for seasons
   useEffect(() => {
-    const programId = programData?.id || userData?.programId;
+    const programId = programData?.id;
     if (!programId) {
       setSeasons([]);
       return;
@@ -379,7 +435,7 @@ export const CommissionerDashboard: React.FC = () => {
     });
 
     return () => unsubscribe();
-  }, [programData?.id, userData?.programId]);
+  }, [programData?.id]);
 
   // Load draft pool players when modal opens
   useEffect(() => {
@@ -391,7 +447,7 @@ export const CommissionerDashboard: React.FC = () => {
       
       setLoadingPoolPlayers(true);
       try {
-        const programId = programData?.id || userData?.programId;
+        const programId = programData?.id;
         if (!programId) return;
         
         // Get all registrations from the draftPool subcollection
@@ -418,7 +474,224 @@ export const CommissionerDashboard: React.FC = () => {
     };
     
     loadPoolPlayers();
-  }, [showDraftPoolModal, selectedPoolSeason, programData?.id, userData?.programId]);
+  }, [showDraftPoolModal, selectedPoolSeason, programData?.id]);
+
+  // Load dashboard draft pool players (all from current season)
+  useEffect(() => {
+    const loadDashboardDraftPool = async () => {
+      if (!programData?.id || filteredSeasons.length === 0) {
+        setDashboardDraftPoolPlayers([]);
+        return;
+      }
+      
+      setLoadingDashboardDraft(true);
+      try {
+        // Get the current/active season
+        const activeSeason = filteredSeasons.find(s => s.status === 'registration_open' || s.status === 'active') || filteredSeasons[0];
+        if (!activeSeason) {
+          setDashboardDraftPoolPlayers([]);
+          return;
+        }
+        
+        // Get all registrations from the draftPool subcollection
+        const draftPoolRef = collection(db, 'programs', programData.id, 'seasons', activeSeason.id, 'draftPool');
+        const draftPoolSnap = await getDocs(draftPoolRef);
+        
+        const allPlayers: any[] = draftPoolSnap.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            seasonId: activeSeason.id,
+            seasonName: activeSeason.name,
+            ...data,
+            ageGroup: data.ageGroupName || 'Unknown'
+          };
+        });
+        
+        console.log('📋 Dashboard draft pool loaded:', allPlayers.length, 'players');
+        setDashboardDraftPoolPlayers(allPlayers);
+      } catch (error) {
+        console.error('Error loading dashboard draft pool:', error);
+      } finally {
+        setLoadingDashboardDraft(false);
+      }
+    };
+    
+    loadDashboardDraftPool();
+  }, [programData?.id, filteredSeasons]);
+
+  // Get unique age groups from dashboard draft pool
+  const dashboardAgeGroups = [...new Set(dashboardDraftPoolPlayers.map(p => p.ageGroup))].filter(Boolean).sort();
+
+  // Handle drafting a player to a team
+  const handleDraftPlayer = async (player: any, teamId: string, teamName: string) => {
+    if (!programData?.id || !player.seasonId) return;
+    
+    setDraftingPlayerId(player.id);
+    try {
+      // Get team data for age group
+      const teamDoc = await getDoc(doc(db, 'teams', teamId));
+      const teamAgeGroup = teamDoc.exists() ? teamDoc.data()?.ageGroup : null;
+      
+      // Look up athlete profile for photo/username if not in draft pool data
+      let photoUrl = player.photoUrl || null;
+      let username = player.username || player.playerUsername || null;
+      let dobValue = player.dateOfBirth || player.athleteDateOfBirth || player.dob || player.playerDob || null;
+      
+      if (player.athleteId && (!photoUrl || !username || !dobValue)) {
+        try {
+          const athleteDoc = await getDoc(doc(db, 'players', player.athleteId));
+          if (athleteDoc.exists()) {
+            const athleteData = athleteDoc.data();
+            photoUrl = photoUrl || athleteData.photoUrl || null;
+            username = username || athleteData.username || null;
+            dobValue = dobValue || athleteData.dob || athleteData.dateOfBirth || null;
+            console.log('📸 Looked up athlete profile for photo/username/dob');
+          }
+        } catch (err) {
+          console.log('Could not look up athlete profile:', err);
+        }
+      }
+      
+      // 1. Add player to team roster (teams/{teamId}/players collection)
+      const playerData = {
+        name: `${player.athleteFirstName} ${player.athleteLastName}`,
+        firstName: player.athleteFirstName,
+        lastName: player.athleteLastName,
+        number: player.jerseyNumber || null,
+        position: player.position || null,
+        parentName: player.parentName,
+        parentEmail: player.parentEmail,
+        parentPhone: player.parentPhone,
+        parentId: player.parentUserId || null,
+        parentUserId: player.parentUserId || null,
+        athleteId: player.athleteId || null,
+        dateOfBirth: dobValue,
+        dob: dobValue, // Also save as dob for roster compatibility
+        ageGroup: player.ageGroup || teamAgeGroup || null,
+        photoUrl: photoUrl, // From athlete profile lookup
+        username: username, // From athlete profile lookup
+        status: 'active',
+        draftedAt: serverTimestamp(),
+        draftedBy: user?.uid,
+        draftedByName: userData?.displayName || 'Commissioner',
+        seasonId: player.seasonId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      
+      const rosterRef = await addDoc(collection(db, 'teams', teamId, 'players'), playerData);
+      console.log('✅ Step 1: Added player to roster:', rosterRef.id);
+      
+      // 2. Update the draft pool entry
+      const draftPoolRef = doc(db, 'programs', programData.id, 'seasons', player.seasonId, 'draftPool', player.id);
+      await updateDoc(draftPoolRef, {
+        status: 'drafted',
+        draftedToTeamId: teamId,
+        draftedToTeamName: teamName,
+        rosterPlayerId: rosterRef.id,
+        draftedAt: serverTimestamp(),
+        draftedBy: user?.uid,
+        updatedAt: serverTimestamp()
+      });
+      console.log('✅ Step 2: Updated draft pool entry');
+      
+      // 3. Update the player document in top-level players collection
+      // SYNC coach-assigned fields so parent's "My Athletes" view shows them
+      if (player.athleteId) {
+        const playerRef = doc(db, 'players', player.athleteId);
+        await updateDoc(playerRef, {
+          teamId: teamId,
+          teamName: teamName,
+          rosterPlayerId: rosterRef.id,
+          // Sync coach-assigned fields from draft
+          number: player.jerseyNumber || 0,
+          position: player.position || 'TBD',
+          draftPoolStatus: 'drafted',
+          draftPoolDraftedAt: serverTimestamp(),
+          draftPoolDraftedBy: userData?.displayName || 'Commissioner',
+          status: 'active',
+          updatedAt: serverTimestamp()
+        });
+        console.log('✅ Step 3: Updated top-level player document with number/position');
+      }
+      
+      // 4. Send notification to parent
+      if (player.parentUserId) {
+        await addDoc(collection(db, 'notifications'), {
+          userId: player.parentUserId,
+          type: 'player_drafted',
+          title: '🎉 Player Drafted!',
+          message: `${player.athleteFirstName} ${player.athleteLastName} has been drafted to ${teamName}!`,
+          category: 'team',
+          priority: 'high',
+          read: false,
+          link: '/dashboard',
+          metadata: {
+            athleteName: `${player.athleteFirstName} ${player.athleteLastName}`,
+            teamId: teamId,
+            teamName: teamName,
+            draftedBy: userData?.displayName || 'Commissioner',
+          },
+          createdAt: serverTimestamp()
+        });
+        console.log('✅ Step 4: Sent notification to parent');
+      }
+      
+      // Remove from local state
+      setDashboardDraftPoolPlayers(prev => prev.filter(p => p.id !== player.id));
+      
+      toastSuccess(`${player.athleteFirstName} ${player.athleteLastName} drafted to ${teamName}!`);
+      setShowDraftToTeamModal(false);
+      setPlayerToDraft(null);
+    } catch (error: any) {
+      console.error('Error drafting player:', error);
+      toastError(error.message || 'Failed to draft player');
+    } finally {
+      setDraftingPlayerId(null);
+    }
+  };
+
+  // Handle declining a player registration
+  const handleDeclinePlayer = async (player: any) => {
+    if (!programData?.id || !player.seasonId) return;
+    
+    const reason = prompt('Enter reason for declining (optional):');
+    
+    setDecliningPlayerId(player.id);
+    try {
+      const draftPoolRef = doc(db, 'programs', programData.id, 'seasons', player.seasonId, 'draftPool', player.id);
+      
+      // Update the draft pool entry
+      await updateDoc(draftPoolRef, {
+        status: 'declined',
+        declinedAt: serverTimestamp(),
+        declinedBy: user?.uid,
+        declinedReason: reason || 'Registration declined by commissioner',
+        updatedAt: serverTimestamp()
+      });
+      
+      // Update the player document
+      if (player.athleteId) {
+        const playerRef = doc(db, 'players', player.athleteId);
+        await updateDoc(playerRef, {
+          draftPoolStatus: 'declined',
+          draftPoolDeclinedReason: reason || 'Registration declined by commissioner',
+          draftPoolUpdatedAt: serverTimestamp()
+        });
+      }
+      
+      // Remove from local state
+      setDashboardDraftPoolPlayers(prev => prev.filter(p => p.id !== player.id));
+      
+      toastSuccess(`${player.athleteFirstName} ${player.athleteLastName} registration declined`);
+    } catch (error: any) {
+      console.error('Error declining player:', error);
+      toastError(error.message || 'Failed to decline registration');
+    } finally {
+      setDecliningPlayerId(null);
+    }
+  };
 
   const handleCreate = async () => {
     if (!createName.trim()) {
@@ -496,8 +769,8 @@ export const CommissionerDashboard: React.FC = () => {
         };
         
         // Link to program if exists
-        if (programData?.id || userData?.programId) {
-          teamData.programId = programData?.id || userData?.programId;
+        if (programData?.id) {
+          teamData.programId = programData.id;
           teamData.programName = programData?.name || '';
         }
         
@@ -796,7 +1069,7 @@ export const CommissionerDashboard: React.FC = () => {
 
   // Delete program handler
   const handleDeleteProgram = async () => {
-    const programIdToDelete = programData?.id || userData?.programId;
+    const programIdToDelete = programData?.id;
     if (!programIdToDelete) return;
     
     setDeletingProgram(true);
@@ -850,7 +1123,7 @@ export const CommissionerDashboard: React.FC = () => {
   const handleDeleteSeason = async () => {
     if (!deleteSeasonConfirm) return;
     
-    const programId = programData?.id || userData?.programId;
+    const programId = programData?.id;
     if (!programId) return;
     
     setDeletingSeason(true);
@@ -971,12 +1244,6 @@ export const CommissionerDashboard: React.FC = () => {
                   </div>
                 );
               })()}
-              <Link
-                to="/profile"
-                className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-              >
-                <Settings className="w-5 h-5 text-white" />
-              </Link>
             </div>
           </div>
         </div>
@@ -1126,7 +1393,18 @@ export const CommissionerDashboard: React.FC = () => {
               
               {/* Age Groups - Clickable */}
               <button
-                onClick={() => navigate('/commissioner/age-groups')}
+                onClick={() => {
+                  // Get sport-specific age groups count
+                  const sportConfigs = (programData as any)?.sportConfigs || [];
+                  const currentSportConfig = sportConfigs.find((sc: any) => sc.sport?.toLowerCase() === selectedSport?.toLowerCase());
+                  const sportAgeGroupCount = currentSportConfig?.ageGroups?.length || 0;
+                  
+                  // If no age groups for this sport, show info but still navigate (they need to create them)
+                  if (sportAgeGroupCount === 0) {
+                    toastInfo(`No age groups configured for ${selectedSport}. Create some now!`);
+                  }
+                  navigate('/commissioner/age-groups');
+                }}
                 className={`rounded-xl p-4 text-left transition-all hover:scale-[1.02] ${
                   theme === 'dark' 
                     ? 'bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-purple-500/50' 
@@ -1142,7 +1420,12 @@ export const CommissionerDashboard: React.FC = () => {
                   </span>
                 </div>
                 <p className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-                  {(programData as any)?.ageGroups?.length || 0}
+                  {(() => {
+                    // Get sport-specific age groups count ONLY - no fallback to legacy
+                    const sportConfigs = (programData as any)?.sportConfigs || [];
+                    const currentSportConfig = sportConfigs.find((sc: any) => sc.sport?.toLowerCase() === selectedSport?.toLowerCase());
+                    return currentSportConfig?.ageGroups?.length || 0;
+                  })()}
                 </p>
                 <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-500'}`}>
                   Click to manage →
@@ -1251,7 +1534,7 @@ export const CommissionerDashboard: React.FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => navigate(`/commissioner/program-setup/${programData?.id || userData?.programId}?mode=info`)}
+                onClick={() => navigate(`/commissioner/program-setup/${programData?.id}?mode=info`)}
                 className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'text-gray-400 hover:text-blue-400 hover:bg-blue-500/10' : 'text-slate-400 hover:text-blue-500 hover:bg-blue-50'}`}
                 title="Edit Program"
               >
@@ -1268,13 +1551,141 @@ export const CommissionerDashboard: React.FC = () => {
           </div>
         )}
 
+        {/* Draft Pool Section - Only for Team Commissioners with pending registrations */}
+        {!isLeagueCommissioner && hasProgram && dashboardDraftPoolPlayers.filter(p => p.status === 'available' || !p.status).length > 0 && (
+          <div className={`rounded-xl overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-slate-200'}`}>
+            <div className={`px-4 py-3 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-slate-200'}`}>
+              <div className="flex items-center gap-2">
+                <Users className={`w-5 h-5 ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`} />
+                <h2 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  Draft Pool
+                </h2>
+                <span className={`text-sm px-2 py-0.5 rounded-full ${theme === 'dark' ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700'}`}>
+                  {dashboardDraftPoolPlayers.filter(p => p.status === 'available' || !p.status).length} pending
+                </span>
+              </div>
+              <button
+                onClick={() => setShowDraftPoolModal(true)}
+                className={`text-sm ${theme === 'dark' ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-500'} flex items-center gap-1`}
+              >
+                View All <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+            
+            {/* Age Group Filter Pills */}
+            {dashboardAgeGroups.length > 1 && (
+              <div className={`px-4 py-3 flex flex-wrap gap-2 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-slate-200'}`}>
+                <button
+                  onClick={() => setDashboardDraftFilter('all')}
+                  className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
+                    dashboardDraftFilter === 'all'
+                      ? theme === 'dark' ? 'bg-purple-600 text-white' : 'bg-purple-600 text-white'
+                      : theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  All
+                </button>
+                {dashboardAgeGroups.map(ag => (
+                  <button
+                    key={ag}
+                    onClick={() => setDashboardDraftFilter(ag)}
+                    className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
+                      dashboardDraftFilter === ag
+                        ? theme === 'dark' ? 'bg-purple-600 text-white' : 'bg-purple-600 text-white'
+                        : theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {ag}
+                  </button>
+                ))}
+              </div>
+            )}
+            
+            {/* Draft Pool Players */}
+            {loadingDashboardDraft ? (
+              <div className="p-8 text-center">
+                <div className="animate-spin w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full mx-auto"></div>
+              </div>
+            ) : (
+              <div className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-slate-200'}`}>
+                {dashboardDraftPoolPlayers
+                  .filter(p => (p.status === 'available' || !p.status) && (dashboardDraftFilter === 'all' || p.ageGroup === dashboardDraftFilter))
+                  .slice(0, 10)
+                  .map((player) => (
+                    <div
+                      key={player.id}
+                      className={`px-4 py-3 flex items-center justify-between ${theme === 'dark' ? 'hover:bg-gray-750' : 'hover:bg-slate-50'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${theme === 'dark' ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700'}`}>
+                          {player.athleteFirstName?.charAt(0) || '?'}{player.athleteLastName?.charAt(0) || ''}
+                        </div>
+                        <div>
+                          <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                            {player.athleteFirstName} {player.athleteLastName}
+                          </p>
+                          <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                            {player.ageGroup} • {player.position || 'No position'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setPlayerToDraft(player);
+                            setShowDraftToTeamModal(true);
+                          }}
+                          disabled={draftingPlayerId === player.id}
+                          className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                            draftingPlayerId === player.id
+                              ? 'bg-gray-500 text-white cursor-wait'
+                              : theme === 'dark'
+                              ? 'bg-green-600 hover:bg-green-700 text-white'
+                              : 'bg-green-600 hover:bg-green-700 text-white'
+                          }`}
+                        >
+                          {draftingPlayerId === player.id ? 'Drafting...' : 'Draft'}
+                        </button>
+                        <button
+                          onClick={() => handleDeclinePlayer(player)}
+                          disabled={decliningPlayerId === player.id}
+                          className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                            decliningPlayerId === player.id
+                              ? 'bg-gray-500 text-white cursor-wait'
+                              : theme === 'dark'
+                              ? 'bg-red-600/20 hover:bg-red-600/30 text-red-400'
+                              : 'bg-red-100 hover:bg-red-200 text-red-600'
+                          }`}
+                        >
+                          {decliningPlayerId === player.id ? 'Declining...' : 'Decline'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Teams or Leagues List - Only show if program exists for team commissioners */}
         {(isLeagueCommissioner || hasProgram) && (
         <div className={`rounded-xl overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-slate-200'}`}>
           <div className={`px-4 py-3 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-slate-200'}`}>
-            <h2 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-              {isLeagueCommissioner ? 'Your Leagues' : 'Season Manager'}
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                {isLeagueCommissioner ? 'Your Leagues' : 'Season Manager'}
+              </h2>
+              {!isLeagueCommissioner && selectedSport && (
+                <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-500'}`}>
+                  — {selectedSport.charAt(0).toUpperCase() + selectedSport.slice(1).toLowerCase()}
+                  {(() => {
+                    const sportLower = selectedSport.toLowerCase();
+                    const sportName = (programData as any)?.sportNames?.[sportLower] || programData?.name;
+                    return sportName ? ` | ${sportName}` : '';
+                  })()}
+                </span>
+              )}
+            </div>
             <Link
               to={isLeagueCommissioner ? "/commissioner/leagues" : "/commissioner/teams"}
               className={`text-sm ${isLeagueCommissioner ? 'text-purple-400 hover:text-purple-300' : 'text-orange-400 hover:text-orange-300'} flex items-center gap-1`}
@@ -1338,28 +1749,85 @@ export const CommissionerDashboard: React.FC = () => {
                 </button>
               </div>
             ) : filteredSeasons.length === 0 ? (
-              // No season yet - show create season CTA
-              <div className="p-8 text-center">
-                <Calendar className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-500'}`} />
-                <p className={`mb-2 font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>
-                  Create Your First Season
-                </p>
-                <p className={`mb-4 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
-                  Set up registration pools for parents to register their kids.
-                </p>
-                <button
-                  onClick={() => setShowSeasonModal(true)}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium"
-                >
-                  <Calendar className="w-5 h-5" />
-                  Create Season
-                </button>
-              </div>
+              // No season yet - show create season CTA or warning
+              (() => {
+                const { canCreate, missingAgeGroups, missingTeams } = canCreateSeason();
+                const sportName = selectedSport?.charAt(0).toUpperCase() + selectedSport?.slice(1).toLowerCase();
+                
+                if (!canCreate) {
+                  return (
+                    <div className="p-8 text-center">
+                      <AlertCircle className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-amber-400' : 'text-amber-500'}`} />
+                      <p className={`mb-2 font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>
+                        Setup Required Before Creating Season
+                      </p>
+                      <p className={`mb-4 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                        {missingAgeGroups && missingTeams
+                          ? `Configure age groups and create teams for ${sportName} first.`
+                          : missingAgeGroups
+                            ? `Configure age groups for ${sportName} first.`
+                            : `Create at least one team for ${sportName} first.`
+                        }
+                      </p>
+                      <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                        {missingAgeGroups && (
+                          <button
+                            onClick={() => setShowAgeGroupsModal(true)}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-sm"
+                          >
+                            <Settings className="w-4 h-4" />
+                            Configure Age Groups
+                          </button>
+                        )}
+                        {missingTeams && (
+                          <button
+                            onClick={() => navigate('/commissioner/teams/create')}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                          >
+                            <Users className="w-4 h-4" />
+                            Create Team
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+                
+                return (
+                  <div className="p-8 text-center">
+                    <Calendar className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-500'}`} />
+                    <p className={`mb-2 font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>
+                      Create Your First Season
+                    </p>
+                    <p className={`mb-4 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                      Set up registration pools for parents to register their kids.
+                    </p>
+                    <button
+                      onClick={handleCreateSeasonClick}
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium"
+                    >
+                      <Calendar className="w-5 h-5" />
+                      Create Season
+                    </button>
+                  </div>
+                );
+              })()
             ) : (
-              // Has seasons - show season list
-              <div className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-slate-200'}`}>
-                {filteredSeasons.slice(0, 3).map((season) => {
+              // Has seasons - show season list with active first, completed collapsed
+              (() => {
+                // Separate active and completed seasons
+                const activeSeasons = filteredSeasons.filter(s => 
+                  s.status !== 'completed' && getSeasonStatus(s).label !== 'Completed'
+                );
+                const completedSeasons = filteredSeasons.filter(s => 
+                  s.status === 'completed' || getSeasonStatus(s).label === 'Completed'
+                );
+                
+                // Helper to render a season item
+                const renderSeasonItem = (season: ProgramSeason) => {
                   const statusInfo = getSeasonStatus(season);
+                  const isCompleted = season.status === 'completed' || statusInfo.label === 'Completed';
+                  
                   return (
                   <div
                     key={season.id}
@@ -1373,8 +1841,8 @@ export const CommissionerDashboard: React.FC = () => {
                       className="flex items-center justify-between px-4 py-3"
                     >
                     <div className="flex items-center gap-3 flex-1">
-                      <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                        <Calendar className="w-5 h-5 text-blue-400" />
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isCompleted ? 'bg-gray-500/20' : 'bg-blue-500/20'}`}>
+                        <Calendar className={`w-5 h-5 ${isCompleted ? 'text-gray-400' : 'text-blue-400'}`} />
                       </div>
                       <div>
                         <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{season.name}</p>
@@ -1396,7 +1864,40 @@ export const CommissionerDashboard: React.FC = () => {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
-                      <Edit2 className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-500' : 'text-slate-400'}`} />
+                      {/* Only show edit for non-completed seasons */}
+                      {!isCompleted && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Go directly to edit mode
+                            setSelectedSeasonForEdit(season);
+                            setIsEditingSeasonMode(true);
+                            const seasonPaymentOptions = (season as any).paymentOptions || {};
+                            setEditSeasonData({
+                              name: season.name,
+                              seasonStartDate: season.seasonStartDate || '',
+                              seasonEndDate: season.seasonEndDate || '',
+                              registrationOpenDate: season.registrationOpenDate,
+                              registrationCloseDate: season.registrationCloseDate,
+                              registrationFee: season.registrationFee || 0,
+                              requireWaiver: (season as any).requireWaiver !== false,
+                              requireMedicalInfo: (season as any).requireMedicalInfo === true,
+                              requireEmergencyContact: (season as any).requireEmergencyContact !== false,
+                              requireUniformSizes: (season as any).requireUniformSizes === true,
+                              paymentOptions: {
+                                payInFull: seasonPaymentOptions.payInFull !== false,
+                                payAsYouGo: seasonPaymentOptions.payAsYouGo === true,
+                                payInCash: seasonPaymentOptions.payInCash === true
+                              }
+                            });
+                            setShowSeasonManageModal(true);
+                          }}
+                          className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'text-gray-400 hover:text-purple-400 hover:bg-purple-500/10' : 'text-slate-500 hover:text-purple-600 hover:bg-purple-50'}`}
+                          title="Edit Season"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                   {/* Age Groups Summary */}
@@ -1420,25 +1921,137 @@ export const CommissionerDashboard: React.FC = () => {
                       )}
                     </div>
                   )}
+                  
+                  {/* Quick Action Buttons - Only for non-completed seasons */}
+                  {!isCompleted && (
+                  <div className={`px-4 pb-3 flex flex-wrap gap-2`}>
+                    {/* Start Season Button - Show if not active/completed */}
+                    {season.status !== 'active' && season.status !== 'completed' && statusInfo.label !== 'In Season' && statusInfo.label !== 'Completed' && (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!programData?.id || updatingSeasonStatus) return;
+                          setUpdatingSeasonStatus(true);
+                          try {
+                            // Close registration by setting end date to yesterday so it properly shows as ended
+                            const yesterday = new Date();
+                            yesterday.setDate(yesterday.getDate() - 1);
+                            const yesterdayStr = yesterday.toISOString().split('T')[0];
+                            await updateDoc(doc(db, 'programs', programData.id, 'seasons', season.id), {
+                              status: 'active',
+                              registrationCloseDate: yesterdayStr,
+                              startedAt: serverTimestamp(),
+                              updatedAt: serverTimestamp()
+                            });
+                            toastSuccess('Season started! Registration is now closed.');
+                          } catch (error) {
+                            console.error('Error starting season:', error);
+                            toastError('Failed to start season');
+                          } finally {
+                            setUpdatingSeasonStatus(false);
+                          }
+                        }}
+                        disabled={updatingSeasonStatus}
+                        className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+                      >
+                        <Play className="w-3.5 h-3.5" />
+                        Start Season
+                      </button>
+                    )}
+                    
+                    {/* End Season Button - Show if active */}
+                    {(season.status === 'active' || statusInfo.label === 'In Season') && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedSeasonForEdit(season);
+                          setShowEndSeasonConfirm(true);
+                        }}
+                        disabled={updatingSeasonStatus}
+                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-600/50 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+                      >
+                        <Square className="w-3.5 h-3.5" />
+                        End Season
+                      </button>
+                    )}
+                    
+                    {/* Add Games Button - Only enabled when season is active */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (season.status === 'active' || statusInfo.label === 'In Season') {
+                          navigate(`/commissioner/schedule-builder/${season.id}`);
+                        } else {
+                          toastError('Start the season first before adding games');
+                        }
+                      }}
+                      disabled={season.status !== 'active' && statusInfo.label !== 'In Season'}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
+                        season.status === 'active' || statusInfo.label === 'In Season'
+                          ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                          : theme === 'dark' 
+                            ? 'bg-white/10 text-slate-500 cursor-not-allowed' 
+                            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      }`}
+                      title={season.status !== 'active' && statusInfo.label !== 'In Season' ? 'Start season first' : (season.scheduleBuilt ? 'Edit schedule' : 'Build schedule')}
+                    >
+                      <Calendar className="w-3.5 h-3.5" />
+                      {season.scheduleBuilt ? 'Edit Schedule' : 'Build Schedule'}
+                    </button>
+                  </div>
+                  )}
                   </div>
                   );
-                })}
+                };
                 
-                {/* Add another season button */}
-                <div className="px-4 py-3">
-                  <button
-                    onClick={() => setShowSeasonModal(true)}
-                    className={`w-full py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
-                      theme === 'dark' 
-                        ? 'bg-white/5 text-white hover:bg-white/10 border border-white/10' 
-                        : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
-                    }`}
-                  >
-                    <Plus className="w-4 h-4" />
-                    Create Another Season
-                  </button>
+                return (
+                <div className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-slate-200'}`}>
+                  {/* Active Seasons First */}
+                  {activeSeasons.slice(0, 3).map(renderSeasonItem)}
+                  
+                  {/* Start Next Season - Only show if no active seasons but have completed */}
+                  {activeSeasons.length === 0 && completedSeasons.length > 0 && (
+                    <div className="px-4 py-3">
+                      <button
+                        onClick={handleCreateSeasonClick}
+                        className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Start Next Season
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* Completed Seasons - Collapsed by default */}
+                  {completedSeasons.length > 0 && (
+                    <>
+                      <button
+                        onClick={() => setShowCompletedSeasons(!showCompletedSeasons)}
+                        className={`w-full px-4 py-3 flex items-center justify-between transition-colors ${
+                          theme === 'dark' ? 'hover:bg-gray-750' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Check className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-500' : 'text-slate-400'}`} />
+                          <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                            Completed Seasons ({completedSeasons.length})
+                          </span>
+                        </div>
+                        <ChevronDown className={`w-4 h-4 transition-transform ${
+                          showCompletedSeasons ? 'rotate-180' : ''
+                        } ${theme === 'dark' ? 'text-gray-500' : 'text-slate-400'}`} />
+                      </button>
+                      
+                      {showCompletedSeasons && (
+                        <div className={`${theme === 'dark' ? 'bg-gray-800/50' : 'bg-slate-50'}`}>
+                          {completedSeasons.map(renderSeasonItem)}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
-              </div>
+                );
+              })()
             )
           )}
         </div>
@@ -1876,6 +2489,72 @@ export const CommissionerDashboard: React.FC = () => {
         </div>
       )}
       
+      {/* End Season Confirmation Modal */}
+      {showEndSeasonConfirm && selectedSeasonForEdit && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className={`rounded-2xl w-full max-w-md border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Square className="w-8 h-8 text-amber-500" />
+              </div>
+              <h2 className={`text-xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>End Season?</h2>
+              <p className={`mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                Are you sure you want to end <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>"{selectedSeasonForEdit.name}"</span>?
+              </p>
+              <div className={`p-3 rounded-lg mb-4 ${theme === 'dark' ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'}`}>
+                <p className={`text-sm flex items-start gap-2 text-left ${theme === 'dark' ? 'text-amber-400' : 'text-amber-700'}`}>
+                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>
+                    This will mark the season as completed. All players will remain on their teams until released manually or a new season begins.
+                  </span>
+                </p>
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowEndSeasonConfirm(false)}
+                  className={`flex-1 py-2.5 rounded-lg font-medium transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-900'}`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!programData?.id || updatingSeasonStatus) return;
+                    setUpdatingSeasonStatus(true);
+                    try {
+                      await updateDoc(doc(db, 'programs', programData.id, 'seasons', selectedSeasonForEdit.id), {
+                        status: 'completed',
+                        completedAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                      });
+                      setSelectedSeasonForEdit({ ...selectedSeasonForEdit, status: 'completed' });
+                      setShowEndSeasonConfirm(false);
+                      toastSuccess('Season ended successfully!');
+                    } catch (error) {
+                      console.error('Error ending season:', error);
+                      toastError('Failed to end season');
+                    } finally {
+                      setUpdatingSeasonStatus(false);
+                    }
+                  }}
+                  disabled={updatingSeasonStatus}
+                  className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {updatingSeasonStatus ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Square className="w-4 h-4" />
+                      End Season
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Season Management Modal */}
       {showSeasonManageModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -1965,11 +2644,18 @@ export const CommissionerDashboard: React.FC = () => {
                   
                   {/* Registration Dates */}
                   <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-white/5' : 'bg-gray-50'}`}>
-                    <h4 className={`font-medium mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Registration</h4>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Registration</h4>
+                      {selectedSeasonForEdit.status !== 'setup' && selectedSeasonForEdit.status !== 'registration_open' && (
+                        <span className={`text-xs px-2 py-0.5 rounded ${theme === 'dark' ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
+                          🔒 Locked
+                        </span>
+                      )}
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className={`block text-xs mb-1 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>Opens</label>
-                        {isEditingSeasonMode ? (
+                        {isEditingSeasonMode && (selectedSeasonForEdit.status === 'setup' || selectedSeasonForEdit.status === 'registration_open') ? (
                           <input
                             type="date"
                             value={editSeasonData?.registrationOpenDate || ''}
@@ -1984,7 +2670,7 @@ export const CommissionerDashboard: React.FC = () => {
                       </div>
                       <div>
                         <label className={`block text-xs mb-1 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>Closes</label>
-                        {isEditingSeasonMode ? (
+                        {isEditingSeasonMode && (selectedSeasonForEdit.status === 'setup' || selectedSeasonForEdit.status === 'registration_open') ? (
                           <input
                             type="date"
                             value={editSeasonData?.registrationCloseDate || ''}
@@ -2006,7 +2692,7 @@ export const CommissionerDashboard: React.FC = () => {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className={`block text-xs mb-1 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>Registration Fee</label>
-                        {isEditingSeasonMode ? (
+                        {isEditingSeasonMode && (selectedSeasonForEdit.status === 'setup' || selectedSeasonForEdit.status === 'registration_open') ? (
                           <div className="relative">
                             <span className={`absolute left-3 top-1/2 -translate-y-1/2 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>$</span>
                             <input
@@ -2087,8 +2773,8 @@ export const CommissionerDashboard: React.FC = () => {
                     )}
                   </div>
                   
-                  {/* Required Fields Settings - Only show in edit mode */}
-                  {isEditingSeasonMode && editSeasonData && (
+                  {/* Required Fields Settings - Only show in edit mode AND when registration is still open */}
+                  {isEditingSeasonMode && editSeasonData && (selectedSeasonForEdit.status === 'setup' || selectedSeasonForEdit.status === 'registration_open') && (
                     <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-white/5' : 'bg-gray-50'}`}>
                       <h4 className={`font-medium mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Registration Requirements</h4>
                       <div className="space-y-3">
@@ -2129,7 +2815,14 @@ export const CommissionerDashboard: React.FC = () => {
                   
                   {/* Age Groups & Teams */}
                   <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-white/5' : 'bg-gray-50'}`}>
-                    <h4 className={`font-medium mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Age Groups & Teams</h4>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Age Groups & Teams</h4>
+                      {(selectedSeasonForEdit.status === 'active' || selectedSeasonForEdit.status === 'completed') && (
+                        <span className={`text-xs px-2 py-0.5 rounded ${theme === 'dark' ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
+                          🔒 Draft ended
+                        </span>
+                      )}
+                    </div>
                     <div className="space-y-3">
                       {selectedSeasonForEdit.sportsOffered?.map((sportConfig) => (
                         <div key={sportConfig.sport}>
@@ -2154,17 +2847,19 @@ export const CommissionerDashboard: React.FC = () => {
                                       <span className={`text-xs px-2 py-0.5 rounded-full ${teamsForAge.length > 0 ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
                                         {teamsForAge.length} team{teamsForAge.length !== 1 ? 's' : ''}
                                       </span>
-                                      <button
-                                        onClick={() => {
-                                          // Set up to add team for this age group
-                                          setNewTeamAgeGroup(ageGroup.label);
-                                          setNewTeamName('');
-                                          setShowAddTeamToAgeGroup(true);
-                                        }}
-                                        className="text-xs px-2 py-1 rounded bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1"
-                                      >
-                                        <Plus className="w-3 h-3" /> Add
-                                      </button>
+                                      {selectedSeasonForEdit.status !== 'active' && selectedSeasonForEdit.status !== 'completed' && (
+                                        <button
+                                          onClick={() => {
+                                            // Set up to add team for this age group
+                                            setNewTeamAgeGroup(ageGroup.label);
+                                            setNewTeamName('');
+                                            setShowAddTeamToAgeGroup(true);
+                                          }}
+                                          className="text-xs px-2 py-1 rounded bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1"
+                                        >
+                                          <Plus className="w-3 h-3" /> Add
+                                        </button>
+                                      )}
                                     </div>
                                   </div>
                                   {teamsForAge.length > 0 && (
@@ -2172,34 +2867,36 @@ export const CommissionerDashboard: React.FC = () => {
                                       {teamsForAge.map(team => (
                                         <span key={team.id} className={`text-xs px-2 py-1 rounded flex items-center gap-1 ${theme === 'dark' ? 'bg-white/10 text-slate-300' : 'bg-gray-100 text-gray-700'}`}>
                                           {team.name}
-                                          <button
-                                            onClick={async (e) => {
-                                              e.stopPropagation();
-                                              if (!confirm(`Remove "${team.name}" from ${ageGroup.label}?`)) return;
-                                              try {
-                                                // Clear the age group from the team
-                                                await updateDoc(doc(db, 'teams', team.id!), {
-                                                  ageGroup: null,
-                                                  ageGroups: [],
-                                                  seasonId: null,
-                                                  updatedAt: serverTimestamp()
-                                                });
-                                                // Update local state
-                                                setTeams(prev => prev.map(t => 
-                                                  t.id === team.id 
-                                                    ? { ...t, ageGroup: undefined, ageGroups: [] }
-                                                    : t
-                                                ));
-                                                toastSuccess(`${team.name} removed from ${ageGroup.label}`);
-                                              } catch (err) {
-                                                console.error('Error removing team:', err);
-                                                toastError('Failed to remove team');
-                                              }
-                                            }}
-                                            className={`ml-0.5 p-0.5 rounded-full hover:bg-red-500/20 ${theme === 'dark' ? 'text-slate-400 hover:text-red-400' : 'text-gray-400 hover:text-red-500'}`}
-                                          >
-                                            <X className="w-3 h-3" />
-                                          </button>
+                                          {selectedSeasonForEdit.status !== 'active' && selectedSeasonForEdit.status !== 'completed' && (
+                                            <button
+                                              onClick={async (e) => {
+                                                e.stopPropagation();
+                                                if (!confirm(`Remove "${team.name}" from ${ageGroup.label}?`)) return;
+                                                try {
+                                                  // Clear the age group from the team
+                                                  await updateDoc(doc(db, 'teams', team.id!), {
+                                                    ageGroup: null,
+                                                    ageGroups: [],
+                                                    seasonId: null,
+                                                    updatedAt: serverTimestamp()
+                                                  });
+                                                  // Update local state
+                                                  setTeams(prev => prev.map(t => 
+                                                    t.id === team.id 
+                                                      ? { ...t, ageGroup: undefined, ageGroups: [] }
+                                                      : t
+                                                  ));
+                                                  toastSuccess(`${team.name} removed from ${ageGroup.label}`);
+                                                } catch (err) {
+                                                  console.error('Error removing team:', err);
+                                                  toastError('Failed to remove team');
+                                                }
+                                              }}
+                                              className={`ml-0.5 p-0.5 rounded-full hover:bg-red-500/20 ${theme === 'dark' ? 'text-slate-400 hover:text-red-400' : 'text-gray-400 hover:text-red-500'}`}
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </button>
+                                          )}
                                         </span>
                                       ))}
                                     </div>
@@ -2400,7 +3097,7 @@ export const CommissionerDashboard: React.FC = () => {
                             
                             setSavingSeasonEdit(true);
                             try {
-                              const programId = programData?.id || userData?.programId;
+                              const programId = programData?.id;
                               if (!programId) throw new Error('No program ID');
                               
                               await updateDoc(doc(db, 'programs', programId, 'seasons', selectedSeasonForEdit.id), {
@@ -2450,38 +3147,117 @@ export const CommissionerDashboard: React.FC = () => {
                         >
                           ← Back
                         </button>
-                        <button
-                          onClick={() => {
-                            setIsEditingSeasonMode(true);
-                            const seasonPaymentOptions = (selectedSeasonForEdit as any).paymentOptions || {};
-                            setEditSeasonData({
-                              name: selectedSeasonForEdit.name,
-                              seasonStartDate: selectedSeasonForEdit.seasonStartDate || '',
-                              seasonEndDate: selectedSeasonForEdit.seasonEndDate || '',
-                              registrationOpenDate: selectedSeasonForEdit.registrationOpenDate,
-                              registrationCloseDate: selectedSeasonForEdit.registrationCloseDate,
-                              registrationFee: selectedSeasonForEdit.registrationFee || 0,
-                              // Required fields - default to true if not set
-                              requireWaiver: (selectedSeasonForEdit as any).requireWaiver !== false,
-                              requireMedicalInfo: (selectedSeasonForEdit as any).requireMedicalInfo === true,
-                              requireEmergencyContact: (selectedSeasonForEdit as any).requireEmergencyContact !== false,
-                              requireUniformSizes: (selectedSeasonForEdit as any).requireUniformSizes === true,
-                              // Payment options - multi-select (default payInFull to true if none set)
-                              paymentOptions: {
-                                payInFull: seasonPaymentOptions.payInFull !== false,
-                                payAsYouGo: seasonPaymentOptions.payAsYouGo === true,
-                                payInCash: seasonPaymentOptions.payInCash === true
-                              }
-                            });
-                          }}
-                          className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                          Edit Season
-                        </button>
+                        {/* Only show edit button for non-completed seasons */}
+                        {selectedSeasonForEdit.status !== 'completed' && getSeasonStatus(selectedSeasonForEdit).label !== 'Completed' ? (
+                          <button
+                            onClick={() => {
+                              setIsEditingSeasonMode(true);
+                              const seasonPaymentOptions = (selectedSeasonForEdit as any).paymentOptions || {};
+                              setEditSeasonData({
+                                name: selectedSeasonForEdit.name,
+                                seasonStartDate: selectedSeasonForEdit.seasonStartDate || '',
+                                seasonEndDate: selectedSeasonForEdit.seasonEndDate || '',
+                                registrationOpenDate: selectedSeasonForEdit.registrationOpenDate,
+                                registrationCloseDate: selectedSeasonForEdit.registrationCloseDate,
+                                registrationFee: selectedSeasonForEdit.registrationFee || 0,
+                                requireWaiver: (selectedSeasonForEdit as any).requireWaiver !== false,
+                                requireMedicalInfo: (selectedSeasonForEdit as any).requireMedicalInfo === true,
+                                requireEmergencyContact: (selectedSeasonForEdit as any).requireEmergencyContact !== false,
+                                requireUniformSizes: (selectedSeasonForEdit as any).requireUniformSizes === true,
+                                paymentOptions: {
+                                  payInFull: seasonPaymentOptions.payInFull !== false,
+                                  payAsYouGo: seasonPaymentOptions.payAsYouGo === true,
+                                  payInCash: seasonPaymentOptions.payInCash === true
+                                }
+                              });
+                            }}
+                            className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                            Edit Season
+                          </button>
+                        ) : (
+                          <div className={`flex-1 py-2 rounded-lg text-sm font-medium text-center ${theme === 'dark' ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+                            🔒 Completed seasons cannot be edited
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
+                  
+                  {/* Season Lifecycle Controls - Only show when not editing */}
+                  {!isEditingSeasonMode && selectedSeasonForEdit && (
+                    <div className={`mt-4 p-4 rounded-lg ${theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-gray-50 border border-gray-200'}`}>
+                      <h4 className={`font-medium mb-3 flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                        <Activity className="w-4 h-4 text-blue-400" />
+                        Season Lifecycle
+                      </h4>
+                      <p className={`text-sm mb-3 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                        Current Status: <span className="font-medium">{getSeasonStatus(selectedSeasonForEdit).icon} {getSeasonStatus(selectedSeasonForEdit).label}</span>
+                      </p>
+                      
+                      <div className="flex flex-col gap-2">
+                        {/* Start Season Button - Show if registration is open or closed but season hasn't started */}
+                        {(selectedSeasonForEdit.status === 'registration_open' || 
+                          selectedSeasonForEdit.status === 'setup' ||
+                          (!selectedSeasonForEdit.status && getSeasonStatus(selectedSeasonForEdit).label !== 'In Season' && getSeasonStatus(selectedSeasonForEdit).label !== 'Completed')
+                        ) && (
+                          <button
+                            onClick={async () => {
+                              if (!programData?.id || updatingSeasonStatus) return;
+                              setUpdatingSeasonStatus(true);
+                              try {
+                                // Close registration by setting end date to yesterday so it properly shows as ended
+                                const yesterday = new Date();
+                                yesterday.setDate(yesterday.getDate() - 1);
+                                const yesterdayStr = yesterday.toISOString().split('T')[0];
+                                await updateDoc(doc(db, 'programs', programData.id, 'seasons', selectedSeasonForEdit.id), {
+                                  status: 'active',
+                                  registrationCloseDate: yesterdayStr,
+                                  startedAt: serverTimestamp(),
+                                  updatedAt: serverTimestamp()
+                                });
+                                setSelectedSeasonForEdit({ ...selectedSeasonForEdit, status: 'active', registrationCloseDate: yesterdayStr });
+                                toastSuccess('Season started! Registration is now closed.');
+                              } catch (error) {
+                                console.error('Error starting season:', error);
+                                toastError('Failed to start season');
+                              } finally {
+                                setUpdatingSeasonStatus(false);
+                              }
+                            }}
+                            disabled={updatingSeasonStatus}
+                            className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                          >
+                            {updatingSeasonStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                            Start Season
+                          </button>
+                        )}
+                        
+                        {/* End Season Button - Show if season is active */}
+                        {(selectedSeasonForEdit.status === 'active' || getSeasonStatus(selectedSeasonForEdit).label === 'In Season') && (
+                          <button
+                            onClick={() => setShowEndSeasonConfirm(true)}
+                            disabled={updatingSeasonStatus}
+                            className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-600/50 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                          >
+                            <Square className="w-4 h-4" />
+                            End Season
+                          </button>
+                        )}
+                        
+                        {/* Complete Season Info - Show if already completed */}
+                        {(selectedSeasonForEdit.status === 'completed' || getSeasonStatus(selectedSeasonForEdit).label === 'Completed') && (
+                          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                            <p className={`text-sm flex items-center gap-2 ${theme === 'dark' ? 'text-slate-300' : 'text-gray-600'}`}>
+                              <CheckCircle2 className="w-4 h-4 text-gray-400" />
+                              This season has been completed
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 // Show all seasons list
@@ -2497,53 +3273,70 @@ export const CommissionerDashboard: React.FC = () => {
                       </p>
                     </div>
                   ) : (
-                    filteredSeasons.map(season => {
-                      const statusInfo = getSeasonStatus(season);
-                      return (
+                    <>
+                      {filteredSeasons.map(season => {
+                        const statusInfo = getSeasonStatus(season);
+                        const isCompleted = season.status === 'completed' || statusInfo.label === 'Completed';
+                        return (
+                          <button
+                            key={season.id}
+                            onClick={() => setSelectedSeasonForEdit(season)}
+                            className={`w-full p-4 rounded-lg text-left flex items-center justify-between ${
+                              theme === 'dark' 
+                                ? 'bg-white/5 hover:bg-white/10 border border-white/10' 
+                                : 'bg-gray-50 hover:bg-gray-100 border border-gray-200'
+                            }`}
+                          >
+                            <div>
+                              <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                {season.name}
+                              </p>
+                              <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                                {statusInfo.icon} {statusInfo.label}
+                                {season.seasonStartDate && season.seasonEndDate && (
+                                  <span className="ml-2">
+                                    • {new Date(season.seasonStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(season.seasonEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                            {isCompleted ? (
+                              <span className={`text-xs px-2 py-1 rounded ${theme === 'dark' ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>🔒 View Only</span>
+                            ) : (
+                              <Edit2 className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`} />
+                            )}
+                          </button>
+                        );
+                      })}
+                      {/* Show Create New Season button if all seasons are completed */}
+                      {filteredSeasons.every(s => s.status === 'completed' || getSeasonStatus(s).label === 'Completed') && (
                         <button
-                          key={season.id}
-                          onClick={() => setSelectedSeasonForEdit(season)}
-                          className={`w-full p-4 rounded-lg text-left flex items-center justify-between ${
-                            theme === 'dark' 
-                              ? 'bg-white/5 hover:bg-white/10 border border-white/10' 
-                              : 'bg-gray-50 hover:bg-gray-100 border border-gray-200'
-                          }`}
+                          onClick={() => {
+                            const { canCreate, missingAgeGroups, missingTeams } = canCreateSeason();
+                            if (!canCreate) {
+                              const sportName = selectedSport?.charAt(0).toUpperCase() + selectedSport?.slice(1).toLowerCase();
+                              if (missingAgeGroups && missingTeams) {
+                                toastError(`Configure age groups and teams for ${sportName} first`);
+                              } else if (missingAgeGroups) {
+                                toastError(`Configure age groups for ${sportName} first`);
+                              } else if (missingTeams) {
+                                toastError(`Create at least one team for ${sportName} first`);
+                              }
+                              return;
+                            }
+                            setShowSeasonManageModal(false);
+                            setShowSeasonModal(true);
+                          }}
+                          className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 mt-4"
                         >
-                          <div>
-                            <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                              {season.name}
-                            </p>
-                            <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
-                              {statusInfo.icon} {statusInfo.label}
-                              {season.seasonStartDate && season.seasonEndDate && (
-                                <span className="ml-2">
-                                  • {new Date(season.seasonStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(season.seasonEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                </span>
-                              )}
-                            </p>
-                          </div>
-                          <Edit2 className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`} />
+                          <Plus className="w-4 h-4" />
+                          Create New Season
                         </button>
-                      );
-                    })
+                      )}
+                    </>
                   )}
                 </div>
               )}
-            </div>
-            
-            {/* Modal Footer */}
-            <div className={`p-4 border-t ${theme === 'dark' ? 'border-white/10' : 'border-gray-200'}`}>
-              <button
-                onClick={() => {
-                  setShowSeasonManageModal(false);
-                  setSelectedSeasonForEdit(null);
-                  setShowSeasonModal(true);
-                }}
-                className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Create New Season
-              </button>
             </div>
           </div>
         </div>
@@ -2555,7 +3348,8 @@ export const CommissionerDashboard: React.FC = () => {
           <div className={`w-full max-w-2xl max-h-[90vh] rounded-xl shadow-xl overflow-hidden ${theme === 'dark' ? 'bg-zinc-900' : 'bg-white'}`}>
             <div className="max-h-[90vh] overflow-y-auto">
               <CommissionerSeasonSetup
-                programId={programData?.id || userData?.programId}
+                programId={programData?.id}
+                selectedSport={selectedSport}
                 onComplete={(seasonId) => {
                   setShowSeasonModal(false);
                   toastSuccess('Season created successfully!');
@@ -2714,6 +3508,86 @@ export const CommissionerDashboard: React.FC = () => {
                         </div>
                       </div>
                     ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Draft to Team Modal */}
+      {showDraftToTeamModal && playerToDraft && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`w-full max-w-md rounded-xl overflow-hidden ${theme === 'dark' ? 'bg-gray-900 border border-white/10' : 'bg-white border border-gray-200'}`}>
+            <div className={`px-4 py-3 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <div>
+                <h3 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Draft Player to Team</h3>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {playerToDraft.athleteFirstName} {playerToDraft.athleteLastName} • {playerToDraft.ageGroup}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowDraftToTeamModal(false);
+                  setPlayerToDraft(null);
+                }}
+                className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-4 max-h-[60vh] overflow-y-auto">
+              {teams.length === 0 ? (
+                <div className="text-center py-8">
+                  <Users className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+                  <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>No Teams Available</p>
+                  <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Create teams first before drafting players.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {teams
+                    .filter(t => t.sport?.toLowerCase() === selectedSport?.toLowerCase())
+                    .filter(t => t.ageGroup?.toLowerCase() === playerToDraft.ageGroup?.toLowerCase())
+                    .map((team) => (
+                      <button
+                        key={team.id}
+                        onClick={() => handleDraftPlayer(playerToDraft, team.id, team.teamName || team.name || 'Unknown Team')}
+                        disabled={draftingPlayerId === playerToDraft.id}
+                        className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-left ${
+                          theme === 'dark' 
+                            ? 'bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-green-500/50' 
+                            : 'bg-gray-50 hover:bg-green-50 border border-gray-200 hover:border-green-300'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold ${theme === 'dark' ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700'}`}>
+                          {(team.teamName || team.name)?.charAt(0) || 'T'}
+                        </div>
+                        <div className="flex-1">
+                          <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                            {team.teamName || team.name}
+                          </p>
+                          <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {team.ageGroup || 'No age group'} • {(team.players || []).length} players
+                          </p>
+                        </div>
+                        <ChevronRight className={`w-5 h-5 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`} />
+                      </button>
+                    ))}
+                  {teams
+                    .filter(t => t.sport?.toLowerCase() === selectedSport?.toLowerCase())
+                    .filter(t => t.ageGroup?.toLowerCase() === playerToDraft.ageGroup?.toLowerCase())
+                    .length === 0 && (
+                    <div className="text-center py-8">
+                      <Users className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+                      <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>No Matching Teams</p>
+                      <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                        No teams found for age group "{playerToDraft.ageGroup}". Create a team with this age group first.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

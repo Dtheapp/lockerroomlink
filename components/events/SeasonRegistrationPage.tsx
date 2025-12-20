@@ -4,7 +4,7 @@
  * Parents select age group, fill out athlete info, and register
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -57,6 +57,14 @@ export default function SeasonRegistrationPage() {
     || (athleteToRegister?.dob 
       ? calculateAgeGroup(typeof athleteToRegister.dob === 'string' ? athleteToRegister.dob : athleteToRegister.dob?.toDate?.()?.toISOString())
       : null);
+  
+  // Get sport-specific program name (e.g., "CYFA" for football instead of "Boys And Girls Club")
+  const programDisplayName = useMemo(() => {
+    if (!program) return '';
+    const sportLower = program.sport?.toLowerCase() || '';
+    const sportNames = (program as any).sportNames as { [key: string]: string } | undefined;
+    return sportNames?.[sportLower] || program.name || 'Unknown Program';
+  }, [program]);
   
   // Form data
   const [formData, setFormData] = useState({
@@ -410,7 +418,7 @@ export default function SeasonRegistrationPage() {
       const input: SeasonRegistrationInput = {
         seasonId: season.id,
         programId: program.id,
-        programName: program.name,
+        programName: programDisplayName,
         seasonName: season.name,
         ageGroupId: selectedAgeGroup.id,
         ageGroupName: selectedAgeGroup.name,
@@ -591,7 +599,7 @@ export default function SeasonRegistrationPage() {
         <div className="max-w-2xl mx-auto px-4 py-6">
           <div className="text-center">
             <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {program.name}
+              {programDisplayName}
             </h1>
             <p className={`text-lg ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
               {season.name} Registration
@@ -793,10 +801,23 @@ export default function SeasonRegistrationPage() {
                     <input
                       type="number"
                       value={formData.preferredJerseyNumber}
-                      onChange={(e) => updateFormData('preferredJerseyNumber', e.target.value)}
-                      placeholder={jerseyRules ? `${jerseyRules.min}-${jerseyRules.max}` : '1-99'}
-                      min={jerseyRules?.min}
-                      max={jerseyRules?.max}
+                      onChange={(e) => {
+                        // Limit to 2 digits max (0-99)
+                        const val = e.target.value;
+                        if (val === '' || (parseInt(val) >= 0 && parseInt(val) <= 99 && val.length <= 2)) {
+                          updateFormData('preferredJerseyNumber', val);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        // Prevent typing if already 2 digits
+                        const val = (e.target as HTMLInputElement).value;
+                        if (val.length >= 2 && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
+                          e.preventDefault();
+                        }
+                      }}
+                      placeholder={jerseyRules ? `${jerseyRules.min}-${jerseyRules.max}` : '0-99'}
+                      min={0}
+                      max={99}
                       className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                     />
                   </div>
@@ -1088,7 +1109,7 @@ export default function SeasonRegistrationPage() {
                   <div>
                     <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Program:</span>
                     <span className={`ml-2 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      {program.name}
+                      {programDisplayName}
                     </span>
                   </div>
                   <div>
@@ -1118,7 +1139,7 @@ export default function SeasonRegistrationPage() {
                   <div className={`text-sm max-h-32 overflow-y-auto mb-4 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                     <p className="mb-2">
                       By checking the box below, I acknowledge that I am the parent/legal guardian of the above-named athlete 
-                      and give permission for their participation in {program.name} {season.name}.
+                      and give permission for their participation in {programDisplayName} {season.name}.
                     </p>
                     <p className="mb-2">
                       I understand that participation in youth sports involves inherent risks, including but not limited to 

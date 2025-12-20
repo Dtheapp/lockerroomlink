@@ -262,25 +262,40 @@ const EventsPage: React.FC = () => {
             seasonsSnap.docs.forEach((seasonDoc) => {
               const seasonData = seasonDoc.data();
               
-              // Check if registration is currently open
+              // Check if season/registration is ended based on status
               const status = seasonData.status;
-              if (status === 'completed' || status === 'ended' || status === 'archived') {
-                return; // Skip ended seasons
+              if (status === 'completed' || status === 'ended' || status === 'archived' || status === 'active') {
+                return; // Skip ended or already active seasons
               }
+              
+              // Helper to parse date from either Timestamp or string
+              const parseDate = (val: any): Date | null => {
+                if (!val) return null;
+                if (val.toDate) return val.toDate(); // Firestore Timestamp
+                if (typeof val === 'string') return new Date(val + 'T23:59:59'); // YYYY-MM-DD string - add end of day
+                return null;
+              };
               
               // Check registration dates
-              const openDate = seasonData.registrationOpenDate?.toDate?.();
-              const closeDate = seasonData.registrationCloseDate?.toDate?.();
+              const openDate = parseDate(seasonData.registrationOpenDate);
+              const closeDate = parseDate(seasonData.registrationCloseDate);
+              const seasonStartDate = parseDate(seasonData.startDate) || parseDate(seasonData.seasonStartDate);
               
-              // Skip if registration hasn't opened yet
-              if (openDate && openDate > now) {
-                return;
-              }
-              
-              // Skip if registration has closed
+              // Skip if registration has DEFINITELY closed
               if (closeDate && closeDate < now) {
+                console.log('[EventsPage] Skipping season - registration closed:', seasonDoc.id, closeDate);
                 return;
               }
+              
+              // Also skip if season has already started AND there's no explicit close date
+              // (implies registration closed when season started)
+              if (!closeDate && seasonStartDate && seasonStartDate < now) {
+                console.log('[EventsPage] Skipping season - season started, no close date:', seasonDoc.id, seasonStartDate);
+                return;
+              }
+              
+              // ALLOW future registrations - they'll be marked as "Opens [date]"
+              // (Don't skip openDate > now anymore)
               
               // Extract age groups - check multiple sources
               // 1. sportsOffered array (new format)
@@ -299,15 +314,21 @@ const EventsPage: React.FC = () => {
                 seasonAgeGroups = programData.ageGroups;
               }
               
+              // Use sport-specific program name if available
+              const sport = seasonData.sport || programData.sport || 'Football';
+              const sportLower = sport.toLowerCase();
+              const sportNames = programData.sportNames as { [key: string]: string } | undefined;
+              const programDisplayName = sportNames?.[sportLower] || programData.name || 'Program';
+              
               // This season has open registration!
               allSeasonRegs.push({
                 id: `season_${seasonDoc.id}`,
                 type: 'season_registration',
                 seasonId: seasonDoc.id,
                 programId: programId,
-                programName: programData.name || 'Program',
+                programName: programDisplayName,
                 seasonName: seasonData.name || 'Season',
-                sport: seasonData.sport || programData.sport || 'Football',
+                sport: sport,
                 ageGroups: seasonAgeGroups,
                 registrationFee: seasonData.registrationFee || 0,
                 registrationOpenDate: openDate,
@@ -783,6 +804,41 @@ const EventsPage: React.FC = () => {
                         {event.title}
                       </h3>
                       
+                      {/* Registration Status & Dates */}
+                      {isSeasonReg && (() => {
+                        const now = new Date();
+                        const openDate = event.startDate?.toDate?.();
+                        const closeDate = event.endDate?.toDate?.();
+                        const opensInFuture = openDate && openDate > now;
+                        const closingSoon = closeDate && closeDate > now && (closeDate.getTime() - now.getTime()) < 7 * 24 * 60 * 60 * 1000; // Within 7 days
+                        
+                        return (
+                          <div className="flex flex-wrap items-center gap-2 mb-2 text-xs">
+                            {opensInFuture ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">
+                                <Clock className="w-3 h-3" />
+                                Opens {openDate?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">
+                                Open Now
+                              </span>
+                            )}
+                            {closeDate && (
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full font-medium ${
+                                closingSoon 
+                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
+                              }`}>
+                                <Clock className="w-3 h-3" />
+                                {closingSoon ? 'Closes ' : 'Until '}
+                                {closeDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
+                      
                       {/* Meta info */}
                       <div className="flex flex-wrap items-center gap-4 text-sm text-zinc-500 dark:text-zinc-400">
                         {event.startDate && (
@@ -938,7 +994,8 @@ const EventsPage: React.FC = () => {
   };
 
   const handleEditEvent = (event: Event) => {
-    navigate(`/events/${event.id}/edit`);
+    // Navigate to event creator in edit mode
+    navigate(`/events/create?edit=${event.id}`);
   };
 
   const handleManageEvent = (event: Event) => {

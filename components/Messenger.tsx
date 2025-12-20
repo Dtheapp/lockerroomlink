@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc, limitToLast, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc, limitToLast, deleteDoc, writeBatch, arrayUnion } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
@@ -62,12 +62,18 @@ const Messenger: React.FC = () => {
   const [deleteChatConfirm, setDeleteChatConfirm] = useState<string | null>(null);
   const [deletingChat, setDeletingChat] = useState(false);
 
-  // Combine regular chats + grievance chats
-  const allChats = [...chats, ...grievanceChats].sort((a, b) => {
-    const aTime = a.updatedAt?.seconds || 0;
-    const bTime = b.updatedAt?.seconds || 0;
-    return bTime - aTime;
-  });
+  // Combine regular chats + grievance chats, filter out hidden ones
+  const allChats = [...chats, ...grievanceChats]
+    .filter(chat => {
+      // Filter out chats that are hidden for this user
+      const hiddenFor = (chat as any).hiddenFor || [];
+      return !hiddenFor.includes(user?.uid);
+    })
+    .sort((a, b) => {
+      const aTime = a.updatedAt?.seconds || 0;
+      const bTime = b.updatedAt?.seconds || 0;
+      return bTime - aTime;
+    });
 
   // Mark conversation as read when opening it
   useEffect(() => {
@@ -385,22 +391,23 @@ const Messenger: React.FC = () => {
     }
   };
 
-  // Delete entire chat conversation
+  // Delete entire chat conversation (soft delete - hides from user's view)
   const handleDeleteChat = async (chatId: string, isGrievance?: boolean) => {
-    if (!chatId) return;
+    if (!chatId || !user?.uid) return;
     
     setDeletingChat(true);
     try {
       const chatCollection = isGrievance ? 'grievance_chats' : 'private_chats';
       
-      // First delete all messages in the chat
-      const messagesRef = collection(db, chatCollection, chatId, 'messages');
-      const messagesSnapshot = await getDocs(messagesRef);
-      const deletePromises = messagesSnapshot.docs.map(msgDoc => deleteDoc(msgDoc.ref));
-      await Promise.all(deletePromises);
+      // Soft delete: Add current user to hiddenFor array
+      // This hides the chat from their view without deleting it for the other person
+      const chatRef = doc(db, chatCollection, chatId);
+      await updateDoc(chatRef, {
+        hiddenFor: arrayUnion(user.uid)
+      });
       
-      // Then delete the chat document itself
-      await deleteDoc(doc(db, chatCollection, chatId));
+      // Remove from local state immediately
+      setAllChats(prev => prev.filter(c => c.id !== chatId));
       
       // Clear active chat if it was the deleted one
       if (activeChat?.id === chatId) {

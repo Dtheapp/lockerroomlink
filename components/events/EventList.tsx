@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { Event, PricingTier, EventStatus, EventType } from '../../types/events';
 import EventCard from './EventCard';
 import EmptyState from '../ui/EmptyState';
+import { toastSuccess, toastError } from '../../services/toast';
 import { 
   Plus, 
   Search, 
@@ -19,6 +20,7 @@ interface EventListProps {
   onCreateEvent?: () => void;
   onViewEvent?: (event: Event) => void;
   onEditEvent?: (event: Event) => void;
+  onDeleteEvent?: (event: Event) => void;
   onDuplicateEvent?: (event: Event) => void;
   onManageEvent?: (event: Event) => void;
   isCoachView?: boolean;
@@ -34,6 +36,7 @@ const EventList: React.FC<EventListProps> = ({
   onCreateEvent,
   onViewEvent,
   onEditEvent,
+  onDeleteEvent,
   onDuplicateEvent,
   onManageEvent,
   isCoachView = false,
@@ -117,6 +120,22 @@ const EventList: React.FC<EventListProps> = ({
     
     fetchEvents();
   }, [teamId]);
+
+  // Handle delete event
+  const handleDeleteEvent = async (event: Event) => {
+    const confirmed = window.confirm(`Are you sure you want to delete "${event.title}"? This cannot be undone.`);
+    if (!confirmed) return;
+    
+    try {
+      await deleteDoc(doc(db, 'events', event.id));
+      setEvents(prev => prev.filter(e => e.id !== event.id));
+      toastSuccess('Event deleted successfully');
+      onDeleteEvent?.(event);
+    } catch (err) {
+      console.error('Error deleting event:', err);
+      toastError('Failed to delete event');
+    }
+  };
 
   // Filter events
   const filteredEvents = events.filter(event => {
@@ -247,8 +266,9 @@ const EventList: React.FC<EventListProps> = ({
               className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
             >
               <option value="all">All Types</option>
+              <option value="practice">Practice</option>
+              <option value="game">Game / Match</option>
               <option value="registration">Registration</option>
-              <option value="game">Game</option>
               <option value="fundraiser">Fundraiser</option>
               <option value="social">Social</option>
               <option value="other">Other</option>
@@ -309,6 +329,7 @@ const EventList: React.FC<EventListProps> = ({
               pricingTiers={pricingTiersMap[event.id] || []}
               onView={() => onViewEvent?.(event)}
               onEdit={() => onEditEvent?.(event)}
+              onDelete={() => handleDeleteEvent(event)}
               onDuplicate={() => onDuplicateEvent?.(event)}
               onManage={() => onManageEvent?.(event)}
               isCoachView={isCoachView}
@@ -326,6 +347,7 @@ const EventList: React.FC<EventListProps> = ({
               pricingTiers={pricingTiersMap[event.id] || []}
               onView={() => onViewEvent?.(event)}
               onEdit={() => onEditEvent?.(event)}
+              onDelete={() => handleDeleteEvent(event)}
               onDuplicate={() => onDuplicateEvent?.(event)}
               onManage={() => onManageEvent?.(event)}
               isCoachView={isCoachView}

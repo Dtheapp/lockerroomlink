@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, query, onSnapshot, orderBy, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import type { PlayerSeasonStats, Player } from '../../types';
 import { Save, TrendingUp, Users, ChevronDown, ChevronUp, Check, Search, Sword, Shield, Target, AlertCircle, AtSign, Trophy, Star } from 'lucide-react';
 import { getStats, getSportConfig, type StatConfig } from '../../config/sportConfig';
@@ -52,6 +53,7 @@ const StatInput: React.FC<StatInputProps> = ({ label, value, onChange, color = '
 
 const CoachStatsEntry: React.FC = () => {
   const { teamData, userData } = useAuth();
+  const { theme } = useTheme();
   const currentYear = new Date().getFullYear();
   
   const [players, setPlayers] = useState<Player[]>([]);
@@ -263,10 +265,12 @@ const CoachStatsEntry: React.FC = () => {
 
   if (!teamData) {
     return (
-      <div className="bg-zinc-900 rounded-xl p-12 text-center border border-zinc-800">
-        <AlertCircle className="w-16 h-16 text-zinc-700 mx-auto mb-4" />
-        <h3 className="text-xl font-bold text-white mb-2">No Team Assigned</h3>
-        <p className="text-zinc-500">Please contact an admin to assign you to a team.</p>
+      <div className={`rounded-xl p-12 text-center border ${
+        theme === 'dark' ? 'bg-zinc-900 border-zinc-800' : 'bg-slate-50 border-slate-200'
+      }`}>
+        <AlertCircle className={`w-16 h-16 mx-auto mb-4 ${theme === 'dark' ? 'text-zinc-700' : 'text-slate-300'}`} />
+        <h3 className={`text-xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>No Team Assigned</h3>
+        <p className={theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}>Please contact an admin to assign you to a team.</p>
       </div>
     );
   }
@@ -278,8 +282,8 @@ const CoachStatsEntry: React.FC = () => {
         <div className="flex items-center gap-3">
           <TrendingUp className="w-6 h-6 text-orange-500" />
           <div>
-            <h2 className="text-2xl font-bold text-white">Stats Entry</h2>
-            <p className="text-sm text-zinc-500">{currentYear} Season</p>
+            <h2 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Stats Entry</h2>
+            <p className={`text-sm ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>{currentYear} Season</p>
           </div>
         </div>
         
@@ -291,7 +295,11 @@ const CoachStatsEntry: React.FC = () => {
             placeholder="Search players..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 pr-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:ring-2 focus:ring-orange-500 outline-none w-64"
+            className={`pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 outline-none w-64 ${
+              theme === 'dark' 
+                ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-500' 
+                : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+            }`}
           />
         </div>
       </div>
@@ -305,7 +313,7 @@ const CoachStatsEntry: React.FC = () => {
       )}
 
       {/* Player Count */}
-      <div className="flex items-center gap-2 text-zinc-400">
+      <div className={`flex items-center gap-2 ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-500'}`}>
         <Users className="w-4 h-4" />
         <span className="text-sm">{filteredPlayers.length} players on roster</span>
       </div>
@@ -316,10 +324,12 @@ const CoachStatsEntry: React.FC = () => {
           <div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-orange-500"></div>
         </div>
       ) : filteredPlayers.length === 0 ? (
-        <div className="bg-zinc-900 rounded-xl p-12 text-center border border-zinc-800">
-          <Users className="w-16 h-16 text-zinc-700 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-white mb-2">No Players Found</h3>
-          <p className="text-zinc-500">
+        <div className={`rounded-xl p-12 text-center border ${
+          theme === 'dark' ? 'bg-zinc-900 border-zinc-800' : 'bg-slate-50 border-slate-200'
+        }`}>
+          <Users className={`w-16 h-16 mx-auto mb-4 ${theme === 'dark' ? 'text-zinc-700' : 'text-slate-300'}`} />
+          <h3 className={`text-xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>No Players Found</h3>
+          <p className={theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}>
             {searchQuery ? 'Try a different search term.' : 'Add players to your roster first.'}
           </p>
         </div>
@@ -336,23 +346,33 @@ const CoachStatsEntry: React.FC = () => {
             return (
               <div 
                 key={player.id}
-                className={`bg-zinc-900 rounded-xl border ${hasChanges ? 'border-orange-500/50' : 'border-zinc-800'} overflow-hidden transition-all`}
+                className={`rounded-xl border overflow-hidden transition-all ${
+                  hasChanges 
+                    ? 'border-orange-500/50' 
+                    : theme === 'dark' ? 'border-zinc-800' : 'border-slate-200'
+                } ${theme === 'dark' ? 'bg-zinc-900' : 'bg-white'}`}
               >
                 {/* Player Header */}
                 <div 
-                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-zinc-800/50 transition-colors"
+                  className={`p-4 flex items-center justify-between cursor-pointer transition-colors ${
+                    theme === 'dark' ? 'hover:bg-zinc-800/50' : 'hover:bg-slate-50'
+                  }`}
                   onClick={() => setExpandedPlayerId(isExpanded ? null : player.id)}
                 >
                   <div className="flex items-center gap-4">
                     {player.photoUrl ? (
-                      <img src={player.photoUrl} alt={player.name} className="w-12 h-12 rounded-full object-cover border-2 border-zinc-700" />
+                      <img src={player.photoUrl} alt={player.name} className={`w-12 h-12 rounded-full object-cover border-2 ${
+                        theme === 'dark' ? 'border-zinc-700' : 'border-slate-200'
+                      }`} />
                     ) : (
-                      <div className="w-12 h-12 bg-zinc-800 rounded-full flex items-center justify-center text-lg font-bold text-zinc-400">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold ${
+                        theme === 'dark' ? 'bg-zinc-800 text-zinc-400' : 'bg-slate-100 text-slate-500'
+                      }`}>
                         {player.name.charAt(0)}
                       </div>
                     )}
                     <div>
-                      <h3 className="font-bold text-white flex items-center gap-2">
+                      <h3 className={`font-bold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                         {player.name}
                         {hasChanges && <span className="text-[10px] bg-orange-500 text-white px-1.5 py-0.5 rounded">Unsaved</span>}
                       </h3>
@@ -392,7 +412,9 @@ const CoachStatsEntry: React.FC = () => {
 
                 {/* Expanded Stats Entry - Dynamic based on sport */}
                 {isExpanded && (
-                  <div className="border-t border-zinc-800 p-4 space-y-4 animate-in slide-in-from-top-2">
+                  <div className={`border-t p-4 space-y-4 animate-in slide-in-from-top-2 ${
+                    theme === 'dark' ? 'border-zinc-800' : 'border-slate-200'
+                  }`}>
                     {/* Games Played (universal) */}
                     <div className="flex items-center gap-4">
                       <div className="w-32">
@@ -431,7 +453,7 @@ const CoachStatsEntry: React.FC = () => {
                     ))}
 
                     {/* Sportsmanship (universal) */}
-                    <div className="pt-3 border-t border-zinc-800">
+                    <div className={`pt-3 border-t ${theme === 'dark' ? 'border-zinc-800' : 'border-slate-200'}`}>
                       <div className="flex items-center justify-between">
                         <div className="w-40">
                           <StatInput 
@@ -449,7 +471,9 @@ const CoachStatsEntry: React.FC = () => {
                           className={`flex items-center gap-2 px-6 py-3 rounded-lg font-bold transition-all ${
                             hasChanges 
                               ? 'bg-orange-600 hover:bg-orange-500 text-white' 
-                              : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
+                              : theme === 'dark' 
+                                ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' 
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
                           } disabled:opacity-50`}
                         >
                           {saving === player.id ? (

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { ChevronDown, Check } from 'lucide-react';
+import { ChevronDown, Check, Users } from 'lucide-react';
 import { getPlayerRegistrationStatus, PlayerRegistrationStatus } from '../services/eventService';
 import type { SportType, Player } from '../types';
 
@@ -25,6 +25,7 @@ const PlayerSportSelector: React.FC = () => {
   } = useAuth();
   const { theme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'sport' | 'athlete'>('sport');
   const [status, setStatus] = useState<PlayerRegistrationStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -153,9 +154,17 @@ const PlayerSportSelector: React.FC = () => {
       >
         <div className="bg-gradient-to-r from-purple-600 via-purple-500 to-indigo-500 p-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-bold">
-              {selectedPlayer?.name?.charAt(0)?.toUpperCase() || '?'}
-            </div>
+            {selectedPlayer?.photoUrl ? (
+              <img 
+                src={selectedPlayer.photoUrl} 
+                alt={selectedPlayer.name} 
+                className="w-10 h-10 rounded-full object-cover border-2 border-white/30"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-bold">
+                {selectedPlayer?.name?.charAt(0)?.toUpperCase() || '?'}
+              </div>
+            )}
             <div className="flex-1 text-left">
               <div className="text-white font-bold truncate">{selectedPlayer?.name || 'Select Athlete'}</div>
               <div className={`text-sm truncate ${statusColor}`}>
@@ -173,59 +182,99 @@ const PlayerSportSelector: React.FC = () => {
           <div className={`absolute top-full left-0 right-0 mt-1 rounded-xl shadow-2xl border z-50 overflow-hidden ${
             theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-slate-200'
           }`}>
-            {/* Sports */}
-            <div className={`px-3 py-2 border-b text-xs font-semibold uppercase ${
-              theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 text-zinc-400' : 'border-slate-200 bg-slate-50 text-slate-500'
-            }`}>
-              🏆 Sport
-            </div>
-            <div className="p-2 space-y-1 max-h-[200px] overflow-y-auto">
-              {SPORTS.map(s => {
-                const st = getStatus(s.sport);
-                const selected = currentSport === s.sport;
-                return (
-                  <button
-                    key={s.sport}
-                    onClick={() => selectSport(s.sport)}
-                    className={`w-full p-2.5 rounded-lg flex items-center gap-3 ${
-                      selected ? 'bg-purple-100 dark:bg-purple-900/40 ring-2 ring-purple-500' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'
-                    }`}
-                  >
-                    <span className="text-xl">{s.emoji}</span>
-                    <div className="flex-1 text-left">
-                      <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{s.label}</div>
-                      <div className={`text-xs ${st.color}`}>{st.label}</div>
-                    </div>
-                    {selected && <Check className="w-4 h-4 text-purple-500" />}
-                  </button>
-                );
-              })}
+            {/* Tabs - Side by Side */}
+            <div className={`flex border-b ${theme === 'dark' ? 'border-zinc-700' : 'border-slate-200'}`}>
+              <button
+                onClick={() => setActiveTab('sport')}
+                className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
+                  activeTab === 'sport'
+                    ? theme === 'dark'
+                      ? 'bg-purple-500/20 text-purple-300 border-b-2 border-purple-500'
+                      : 'bg-purple-50 text-purple-700 border-b-2 border-purple-500'
+                    : theme === 'dark'
+                      ? 'text-zinc-400 hover:text-white'
+                      : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                🏆 Sports
+              </button>
+              <button
+                onClick={() => setActiveTab('athlete')}
+                className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
+                  activeTab === 'athlete'
+                    ? theme === 'dark'
+                      ? 'bg-purple-500/20 text-purple-300 border-b-2 border-purple-500'
+                      : 'bg-purple-50 text-purple-700 border-b-2 border-purple-500'
+                    : theme === 'dark'
+                      ? 'text-zinc-400 hover:text-white'
+                      : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <Users className="w-4 h-4 inline mr-1" />
+                Athletes ({players.length})
+              </button>
             </div>
 
-            {/* Players (only if multiple) */}
-            {players.length > 1 && (
-              <>
-                <div className={`px-3 py-2 border-t border-b text-xs font-semibold uppercase ${
-                  theme === 'dark' ? 'border-zinc-700 bg-zinc-800/50 text-zinc-400' : 'border-slate-200 bg-slate-50 text-slate-500'
-                }`}>
-                  👤 Athlete
+            {/* Tab Content */}
+            <div className="max-h-[300px] overflow-y-auto">
+              {activeTab === 'sport' ? (
+                /* Sports Tab */
+                <div className="p-2 space-y-1">
+                  {SPORTS.map(s => {
+                    const st = getStatus(s.sport);
+                    const selected = currentSport === s.sport;
+                    return (
+                      <button
+                        key={s.sport}
+                        onClick={() => selectSport(s.sport)}
+                        className={`w-full p-2.5 rounded-lg flex items-center gap-3 transition-colors ${
+                          selected 
+                            ? theme === 'dark' 
+                              ? 'bg-purple-500/20 border border-purple-500/30' 
+                              : 'bg-purple-50 border border-purple-200'
+                            : theme === 'dark' 
+                              ? 'hover:bg-zinc-800' 
+                              : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="text-xl">{s.emoji}</span>
+                        <div className="flex-1 text-left">
+                          <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{s.label}</div>
+                          <div className={`text-xs ${st.color}`}>{st.label}</div>
+                        </div>
+                        {selected && <Check className="w-4 h-4 text-purple-500" />}
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="p-2 space-y-1 max-h-[150px] overflow-y-auto">
+              ) : (
+                /* Athletes Tab */
+                <div className="p-2 space-y-1">
                   {players.map(p => {
                     const selected = selectedPlayer?.id === p.id;
                     return (
                       <button
                         key={p.id}
                         onClick={() => selectPlayer(p)}
-                        className={`w-full p-2.5 rounded-lg flex items-center gap-3 ${
-                          selected ? 'bg-purple-100 dark:bg-purple-900/40 ring-2 ring-purple-500' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'
+                        className={`w-full p-2.5 rounded-lg flex items-center gap-3 transition-colors ${
+                          selected 
+                            ? theme === 'dark' 
+                              ? 'bg-purple-500/20 border border-purple-500/30' 
+                              : 'bg-purple-50 border border-purple-200'
+                            : theme === 'dark' 
+                              ? 'hover:bg-zinc-800' 
+                              : 'hover:bg-slate-50'
                         }`}
                       >
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                          selected ? 'bg-purple-500 text-white' : 'bg-slate-200 dark:bg-zinc-700'
-                        }`}>
-                          {p.name?.charAt(0)?.toUpperCase() || '?'}
-                        </div>
+                        {p.photoUrl ? (
+                          <img src={p.photoUrl} alt={p.name} className="w-8 h-8 rounded-full object-cover" />
+                        ) : (
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                            selected ? 'bg-purple-500 text-white' : theme === 'dark' ? 'bg-zinc-700 text-white' : 'bg-slate-200 text-slate-700'
+                          }`}>
+                            {p.name?.charAt(0)?.toUpperCase() || '?'}
+                          </div>
+                        )}
                         <span className={`flex-1 text-left font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                           {p.name}
                         </span>
@@ -234,8 +283,8 @@ const PlayerSportSelector: React.FC = () => {
                     );
                   })}
                 </div>
-              </>
-            )}
+              )}
+            </div>
           </div>
         </>
       )}

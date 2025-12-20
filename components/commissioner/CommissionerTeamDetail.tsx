@@ -40,12 +40,15 @@ import {
   CheckCircle2,
   X,
   UserMinus,
-  Crown
+  Crown,
+  Camera,
+  ImagePlus
 } from 'lucide-react';
+import { uploadFile } from '../../services/storage';
 
 export const CommissionerTeamDetail: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
-  const { userData, user } = useAuth();
+  const { userData, user, programData: authProgramData } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
   
@@ -73,6 +76,11 @@ export const CommissionerTeamDetail: React.FC = () => {
   const [editError, setEditError] = useState('');
   const [editing, setEditing] = useState(false);
   const [programData, setProgramData] = useState<any>(null);
+  
+  // Logo upload state
+  const [editLogo, setEditLogo] = useState<string>('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (!teamId) {
@@ -91,8 +99,8 @@ export const CommissionerTeamDetail: React.FC = () => {
         const teamData = { id: teamDoc.id, ...teamDoc.data() } as Team;
         setTeam(teamData);
         
-        // Check program ownership
-        if (teamData.programId !== userData?.programId) {
+        // Check program ownership (skip if no programData yet - let AuthContext handle)
+        if (authProgramData?.id && teamData.programId !== authProgramData.id) {
           navigate('/commissioner/teams');
           return;
         }
@@ -147,7 +155,7 @@ export const CommissionerTeamDetail: React.FC = () => {
     };
 
     loadTeamData();
-  }, [teamId, userData?.programId, user?.uid, navigate]);
+  }, [teamId, authProgramData?.id, user?.uid, navigate]);
 
   const handleDeleteTeam = async () => {
     if (!teamId) return;
@@ -170,8 +178,37 @@ export const CommissionerTeamDetail: React.FC = () => {
     setEditName(team.name || '');
     setEditTeamId(team.id || '');
     setEditAgeGroup(team.ageGroup || '');
+    setEditLogo(team.logo || '');
+    setLogoFile(null);
     setEditError('');
     setShowEditModal(true);
+  };
+  
+  // Handle logo file selection
+  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setEditError('Please select an image file');
+      return;
+    }
+    
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      setEditError('Image must be under 2MB');
+      return;
+    }
+    
+    setLogoFile(file);
+    // Create preview URL
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setEditLogo(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+    setEditError('');
   };
 
   // Save edited team
@@ -209,6 +246,26 @@ export const CommissionerTeamDetail: React.FC = () => {
         updatedAt: serverTimestamp(),
       };
       
+      // Upload logo if a new file was selected
+      if (logoFile) {
+        setUploadingLogo(true);
+        try {
+          const path = `teams/${teamId}/logo_${Date.now()}`;
+          const result = await uploadFile(logoFile, path);
+          updateData.logo = result.url;
+        } catch (uploadErr) {
+          console.error('Error uploading logo:', uploadErr);
+          setEditError('Failed to upload logo');
+          setEditing(false);
+          setUploadingLogo(false);
+          return;
+        }
+        setUploadingLogo(false);
+      } else if (editLogo && editLogo !== team.logo) {
+        // Logo was cleared
+        updateData.logo = editLogo || null;
+      }
+      
       if (teamIdChanged) {
         // Copy to new ID
         const oldTeamDoc = await getDoc(doc(db, 'teams', team.id!));
@@ -237,7 +294,7 @@ export const CommissionerTeamDetail: React.FC = () => {
         navigate(`/commissioner/teams/${newTeamId}`);
       } else {
         await updateDoc(doc(db, 'teams', team.id!), updateData);
-        setTeam(prev => prev ? { ...prev, name: editName.trim(), ageGroup: editAgeGroup } : null);
+        setTeam(prev => prev ? { ...prev, name: editName.trim(), ageGroup: editAgeGroup, logo: updateData.logo !== undefined ? updateData.logo : prev.logo } : null);
       }
       
       setShowEditModal(false);
@@ -407,12 +464,31 @@ export const CommissionerTeamDetail: React.FC = () => {
         {/* Team Header Card */}
         <div className={`rounded-xl p-4 sm:p-6 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-gray-200 shadow-sm'}`}>
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
-            <div 
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl flex items-center justify-center text-white text-2xl sm:text-3xl font-bold flex-shrink-0"
-              style={{ backgroundColor: team.color || '#6366f1' }}
+            {/* Team Logo/Avatar with click to edit */}
+            <button
+              onClick={handleOpenEdit}
+              className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl flex-shrink-0 group overflow-hidden"
+              title="Click to change logo"
             >
-              {team.name?.charAt(0) || 'T'}
-            </div>
+              {team.logo ? (
+                <img 
+                  src={team.logo} 
+                  alt={team.name} 
+                  className="w-full h-full object-cover rounded-xl"
+                />
+              ) : (
+                <div 
+                  className="w-full h-full rounded-xl flex items-center justify-center text-white text-2xl sm:text-3xl font-bold"
+                  style={{ backgroundColor: team.color || '#6366f1' }}
+                >
+                  {team.name?.charAt(0) || 'T'}
+                </div>
+              )}
+              {/* Hover overlay */}
+              <div className="absolute inset-0 bg-black/50 rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                <Camera className="w-6 h-6 text-white" />
+              </div>
+            </button>
             <div className="flex-1 min-w-0">
               <h2 className={`text-xl sm:text-2xl font-bold truncate ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{team.name}</h2>
               <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 mt-2 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -675,6 +751,65 @@ export const CommissionerTeamDetail: React.FC = () => {
                 <p className="text-xs text-yellow-500 mt-1">⚠️ Changing Team ID will migrate all data to new ID</p>
               </div>
               
+              {/* Team Logo Upload */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
+                  Team Logo
+                </label>
+                <div className="flex items-center gap-4">
+                  {/* Logo Preview */}
+                  <div className="relative">
+                    {editLogo ? (
+                      <img 
+                        src={editLogo} 
+                        alt="Team logo preview" 
+                        className="w-16 h-16 rounded-xl object-cover border-2 border-purple-500"
+                      />
+                    ) : (
+                      <div 
+                        className="w-16 h-16 rounded-xl flex items-center justify-center text-white text-xl font-bold border-2 border-dashed border-gray-400"
+                        style={{ backgroundColor: team?.color || '#6366f1' }}
+                      >
+                        {editName?.charAt(0) || 'T'}
+                      </div>
+                    )}
+                    {editLogo && (
+                      <button
+                        type="button"
+                        onClick={() => { setEditLogo(''); setLogoFile(null); }}
+                        className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Upload Button */}
+                  <label className={`flex-1 cursor-pointer`}>
+                    <div className={`border-2 border-dashed rounded-lg py-3 px-4 text-center transition-colors ${
+                      theme === 'dark' 
+                        ? 'border-gray-600 hover:border-purple-500 hover:bg-purple-500/5' 
+                        : 'border-slate-300 hover:border-purple-400 hover:bg-purple-50'
+                    }`}>
+                      <ImagePlus className={`w-5 h-5 mx-auto mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-slate-500'}`} />
+                      <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
+                        {uploadingLogo ? 'Uploading...' : 'Choose Image'}
+                      </p>
+                      <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-slate-400'}`}>
+                        PNG, JPG up to 2MB
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoSelect}
+                      className="hidden"
+                      disabled={uploadingLogo}
+                    />
+                  </label>
+                </div>
+              </div>
+              
               <div>
                 <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
                   Age Group <span className="text-slate-400 text-xs">(optional)</span>
@@ -728,10 +863,10 @@ export const CommissionerTeamDetail: React.FC = () => {
               </button>
               <button
                 onClick={handleSaveEdit}
-                disabled={editing || !editName.trim()}
+                disabled={editing || uploadingLogo || !editName.trim()}
                 className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {editing ? (
+                {editing || uploadingLogo ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   'Save Changes'

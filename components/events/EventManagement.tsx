@@ -22,7 +22,9 @@ import {
   UserPlus,
   Banknote,
   CreditCard,
-  RefreshCw
+  RefreshCw,
+  Trash2,
+  Edit2
 } from 'lucide-react';
 
 interface RegistrationWithDetails extends Registration {
@@ -55,26 +57,37 @@ const EventManagement: React.FC = () => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const [eventData, tiersData, regsData] = await Promise.all([
-          eventService.getEvent(eventId),
-          eventService.getPricingTiersByEvent(eventId),
-          eventService.getRegistrationsByEvent(eventId)
-        ]);
-
+        // Load event first
+        const eventData = await eventService.getEvent(eventId);
+        
         if (!eventData) {
           setError('Event not found');
           return;
         }
 
         setEvent(eventData);
-        setPricingTiers(tiersData);
+        
+        // Try to load pricing tiers and registrations (may fail for simple events)
+        try {
+          const [tiersData, regsData] = await Promise.all([
+            eventService.getPricingTiersByEvent(eventId),
+            eventService.getRegistrationsByEvent(eventId)
+          ]);
+          
+          setPricingTiers(tiersData);
 
-        // Enhance registrations with tier names
-        const enhancedRegs = regsData.map(reg => ({
-          ...reg,
-          pricingTierName: tiersData.find(t => t.id === reg.pricingTierId)?.name || 'Unknown'
-        }));
-        setRegistrations(enhancedRegs);
+          // Enhance registrations with tier names
+          const enhancedRegs = regsData.map(reg => ({
+            ...reg,
+            pricingTierName: tiersData.find(t => t.id === reg.pricingTierId)?.name || 'Unknown'
+          }));
+          setRegistrations(enhancedRegs);
+        } catch (subErr) {
+          // It's okay if pricing/registrations fail - might be a simple event
+          console.log('Could not load pricing/registrations (may be a simple event):', subErr);
+          setPricingTiers([]);
+          setRegistrations([]);
+        }
       } catch (err) {
         console.error('Error loading event data:', err);
         setError('Failed to load event data');
@@ -276,12 +289,31 @@ const EventManagement: React.FC = () => {
             {formatDate(event.eventStartDate)} • {event.location.name || 'No location'}
           </p>
         </div>
-        <Link
-          to={`/events/${eventId}/edit`}
-          className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
-        >
-          Edit Event
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            to={`/events/${eventId}/edit`}
+            className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
+          >
+            <Edit2 className="w-4 h-4" />
+            Edit
+          </Link>
+          <button
+            onClick={async () => {
+              if (!window.confirm('Are you sure you want to delete this event? This cannot be undone.')) return;
+              try {
+                await eventService.deleteEvent(eventId!);
+                navigate('/events');
+              } catch (err) {
+                console.error('Error deleting event:', err);
+                setError('Failed to delete event');
+              }
+            }}
+            className="px-4 py-2 text-sm text-red-600 dark:text-red-400 border border-red-300 dark:border-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}

@@ -51,6 +51,7 @@ const Profile: React.FC = () => {
     heightFt: '',
     heightIn: '',
     weight: '',
+    helmetSize: '',
     shirtSize: '',
     pantSize: ''
   });
@@ -105,8 +106,10 @@ const Profile: React.FC = () => {
     name: '',
     username: '',
     dob: '',
-    height: '',
+    heightFt: '',
+    heightIn: '',
     weight: '',
+    helmetSize: '',
     shirtSize: '',
     pantSize: '',
     teamId: '', // NEW: Team selection for changing teams
@@ -273,11 +276,64 @@ const Profile: React.FC = () => {
   }, [userData?.role, userData?.uid, userData?.teamIds, userData?.teamId, teamData]);
 
   // 2. Load My Athletes from Context (already loaded in AuthContext for parents)
+  // ENRICH with roster data (number, position) if they're on a team
   useEffect(() => {
-      if (userData?.role === 'Parent') {
+      if (userData?.role === 'Parent' && contextPlayers.length > 0) {
+          const enrichWithRosterData = async () => {
+              const enriched = await Promise.all(contextPlayers.map(async (player) => {
+                  // If player is on a team, look up roster for coach-assigned fields
+                  if (player.teamId) {
+                      try {
+                          let rosterData: any = null;
+                          
+                          // Method 1: Direct lookup by rosterPlayerId
+                          if (player.rosterPlayerId) {
+                              const rosterDoc = await getDoc(doc(db, 'teams', player.teamId, 'players', player.rosterPlayerId));
+                              if (rosterDoc.exists()) {
+                                  rosterData = rosterDoc.data();
+                              }
+                          }
+                          
+                          // Method 2: Fallback - search roster by athleteId
+                          if (!rosterData) {
+                              const rosterQuery = query(
+                                  collection(db, 'teams', player.teamId, 'players'),
+                                  where('athleteId', '==', player.id)
+                              );
+                              const rosterSnap = await getDocs(rosterQuery);
+                              if (!rosterSnap.empty) {
+                                  rosterData = rosterSnap.docs[0].data();
+                              }
+                          }
+                          
+                          if (rosterData) {
+                              console.log('[Profile] Enriching player from roster:', {
+                                  playerId: player.id,
+                                  rosterNumber: rosterData.number,
+                                  rosterPosition: rosterData.position
+                              });
+                              return {
+                                  ...player,
+                                  // Coach-assigned fields from roster (if not already on athlete profile)
+                                  number: player.number || rosterData.number || 0,
+                                  position: player.position || rosterData.position || 'TBD',
+                                  isStarter: player.isStarter ?? rosterData.isStarter ?? false,
+                                  isCaptain: player.isCaptain ?? rosterData.isCaptain ?? false,
+                              };
+                          }
+                      } catch (err) {
+                          console.log('[Profile] Could not enrich from roster:', err);
+                      }
+                  }
+                  return player;
+              }));
+              setMyAthletes(enriched);
+          };
+          enrichWithRosterData();
+      } else {
           setMyAthletes(contextPlayers);
       }
-  }, [userData, contextPlayers]);
+  }, [userData?.role, contextPlayers]);
 
   // 3. Load all teams for team selection
   useEffect(() => {
@@ -609,6 +665,23 @@ const Profile: React.FC = () => {
 
   const openEditModal = (player: Player) => {
       setSelectedAthlete(player);
+      
+      // Parse existing height string like "4 ft 6 in" into separate ft/in values
+      let heightFt = '';
+      let heightIn = '';
+      if (player.height) {
+        const heightMatch = player.height.match(/(\d+)\s*ft\s*(\d+)\s*in/i);
+        if (heightMatch) {
+          heightFt = heightMatch[1];
+          heightIn = heightMatch[2];
+        } else {
+          // Try simple number parsing if format is different
+          const parts = player.height.replace(/[^\d\s]/g, '').trim().split(/\s+/);
+          if (parts.length >= 1) heightFt = parts[0];
+          if (parts.length >= 2) heightIn = parts[1];
+        }
+      }
+      
       setEditForm({
         firstName: player.firstName || player.name?.split(' ')[0] || '',
         lastName: player.lastName || player.name?.split(' ').slice(1).join(' ') || '',
@@ -617,8 +690,10 @@ const Profile: React.FC = () => {
         name: player.name || '',
         username: player.username || '',
         dob: player.dob || '',
-        height: player.height || '',
+        heightFt,
+        heightIn,
         weight: player.weight || '',
+        helmetSize: player.helmetSize || '',
         shirtSize: player.shirtSize || '',
         pantSize: player.pantSize || '',
         teamId: player.teamId || '',
@@ -663,113 +738,37 @@ const Profile: React.FC = () => {
               bloodType: editForm.bloodType
           };
           
-          // Determine if this is a new team assignment or team change
-          const hadNoTeam = !selectedAthlete.teamId;
-          const isTeamChanging = editForm.teamId && editForm.teamId !== selectedAthlete.teamId;
-          const isAssigningToTeam = hadNoTeam && editForm.teamId;
+          // NEW ARCHITECTURE: Parent ALWAYS writes to athlete profile (players/{id})
+          // Roster doc is read-only for parents - only coaches write to it
+          // The athlete profile is the SOURCE OF TRUTH for parent-editable fields
           
-          if (isAssigningToTeam) {
-            // Player had no team, now assigning to a team
-            const newPlayerData = {
-              firstName: editForm.firstName,
-              lastName: editForm.lastName,
-              nickname: editForm.nickname || undefined,
-              gender: editForm.gender || undefined,
-              name: `${editForm.firstName} ${editForm.lastName}`.trim() || editForm.name,
-              username: formatUsername(editForm.username),
-              dob: editForm.dob,
-              height: editForm.height,
-              weight: editForm.weight,
-              shirtSize: editForm.shirtSize,
-              pantSize: editForm.pantSize,
-              bio: editForm.bio || '',
-              medical: medicalData,
-              parentId: user?.uid,
-              teamId: editForm.teamId,
-              number: 0, // Coach will assign
-              position: 'TBD',
-              stats: selectedAthlete.stats || { td: 0, tkl: 0 },
-              photoUrl: selectedAthlete.photoUrl || null,
-              createdAt: serverTimestamp()
-            };
-            
-            // Create player in new team
-            await addDoc(collection(db, 'teams', editForm.teamId, 'players'), newPlayerData);
-            
-            // Delete from top-level players collection
-            await deleteDoc(doc(db, 'players', selectedAthlete.id));
-            
-            // Reload page to refresh context
-            window.location.reload();
-          } else if (isTeamChanging && selectedAthlete.teamId) {
-            // Move player to new team
-            // 1. Create player in new team
-            const newPlayerData = {
-              firstName: editForm.firstName,
-              lastName: editForm.lastName,
-              nickname: editForm.nickname || undefined,
-              gender: editForm.gender || undefined,
-              name: `${editForm.firstName} ${editForm.lastName}`.trim() || editForm.name,
-              username: formatUsername(editForm.username),
-              dob: editForm.dob,
-              height: editForm.height,
-              weight: editForm.weight,
-              shirtSize: editForm.shirtSize,
-              pantSize: editForm.pantSize,
-              bio: editForm.bio || '',
-              medical: medicalData,
-              parentId: user?.uid,
-              teamId: editForm.teamId,
-              number: 0, // Reset - coach will assign
-              position: 'TBD',
-              stats: selectedAthlete.stats || { td: 0, tkl: 0 },
-              photoUrl: selectedAthlete.photoUrl || null
-            };
-            
-            await addDoc(collection(db, 'teams', editForm.teamId, 'players'), newPlayerData);
-            
-            // 2. Delete player from old team
-            await deleteDoc(doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id));
-            
-            // Reload page to refresh context
-            window.location.reload();
-          } else if (selectedAthlete.teamId) {
-            // Same team - just update
-            const playerRef = doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id);
-            await updateDoc(playerRef, { 
-              firstName: editForm.firstName,
-              lastName: editForm.lastName,
-              nickname: editForm.nickname || '',
-              gender: editForm.gender || '',
-              name: `${editForm.firstName} ${editForm.lastName}`.trim() || editForm.name,
-              username: formatUsername(editForm.username),
-              dob: editForm.dob,
-              height: editForm.height,
-              weight: editForm.weight,
-              shirtSize: editForm.shirtSize,
-              pantSize: editForm.pantSize,
-              bio: editForm.bio || '',
-              medical: medicalData 
-            });
-          } else {
-            // No team and not assigning to one - update top-level player
-            const playerRef = doc(db, 'players', selectedAthlete.id);
-            await updateDoc(playerRef, { 
-              firstName: editForm.firstName,
-              lastName: editForm.lastName,
-              nickname: editForm.nickname || '',
-              gender: editForm.gender || '',
-              name: `${editForm.firstName} ${editForm.lastName}`.trim() || editForm.name,
-              username: formatUsername(editForm.username),
-              dob: editForm.dob,
-              height: editForm.height,
-              weight: editForm.weight,
-              shirtSize: editForm.shirtSize,
-              pantSize: editForm.pantSize,
-              bio: editForm.bio || '',
-              medical: medicalData 
-            });
-          }
+          // Combine height ft/in into formatted string
+          const heightStr = editForm.heightFt || editForm.heightIn 
+            ? `${editForm.heightFt || 0} ft ${editForm.heightIn || 0} in`
+            : '';
+          
+          const updateData = {
+            firstName: editForm.firstName,
+            lastName: editForm.lastName,
+            nickname: editForm.nickname || '',
+            gender: editForm.gender || '',
+            name: `${editForm.firstName} ${editForm.lastName}`.trim() || editForm.name,
+            username: formatUsername(editForm.username),
+            dob: editForm.dob,
+            height: heightStr,
+            weight: editForm.weight,
+            helmetSize: editForm.helmetSize,
+            shirtSize: editForm.shirtSize,
+            pantSize: editForm.pantSize,
+            bio: editForm.bio || '',
+            medical: medicalData,
+            updatedAt: serverTimestamp()
+          };
+          
+          // Always update the athlete profile (top-level players collection)
+          const playerRef = doc(db, 'players', selectedAthlete.id);
+          await updateDoc(playerRef, updateData);
+          console.log('[Profile] ✅ Saved athlete profile:', selectedAthlete.id);
           
           setIsEditModalOpen(false);
           setSelectedAthlete(null);
@@ -840,6 +839,7 @@ const Profile: React.FC = () => {
         parentId: user.uid,
         height: heightStr,
         weight: newAthleteForm.weight,
+        helmetSize: newAthleteForm.helmetSize,
         shirtSize: newAthleteForm.shirtSize,
         pantSize: newAthleteForm.pantSize,
         number: 0, // Placeholder - coach will assign
@@ -854,7 +854,7 @@ const Profile: React.FC = () => {
       await addDoc(collection(db, 'players'), playerData);
       
       // Reset form and close modal
-      setNewAthleteForm({ firstName: '', lastName: '', nickname: '', gender: '', username: '', dob: '', heightFt: '', heightIn: '', weight: '', shirtSize: '', pantSize: '' });
+      setNewAthleteForm({ firstName: '', lastName: '', nickname: '', gender: '', username: '', dob: '', heightFt: '', heightIn: '', weight: '', helmetSize: '', shirtSize: '', pantSize: '' });
       setUsernameError(null);
       setIsAddAthleteModalOpen(false);
       
@@ -993,18 +993,18 @@ const Profile: React.FC = () => {
     
     setUploadingPhoto(true);
     try {
-      // Upload to Firebase Storage and save url + storage path on player document
-      const storagePath = selectedAthlete.teamId 
-        ? `teams/${selectedAthlete.teamId}/players/${selectedAthlete.id}/photo-${Date.now()}-${file.name}`
-        : `players/${selectedAthlete.id}/photo-${Date.now()}-${file.name}`;
+      // ALWAYS upload to top-level players collection (athlete profile)
+      // The roster just displays this photo - we don't store it on the team player doc
+      const storagePath = `players/${selectedAthlete.id}/photo-${Date.now()}-${file.name}`;
       const uploaded = await uploadFile(file, storagePath);
       
-      // Update correct document based on team assignment
-      const playerRef = selectedAthlete.teamId 
-        ? doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id)
-        : doc(db, 'players', selectedAthlete.id);
+      // ALWAYS update the top-level player document (athlete profile)
+      // Parent owns this document - permissions are already set correctly
+      const playerRef = doc(db, 'players', selectedAthlete.id);
       await updateDoc(playerRef, { photoUrl: uploaded.url, photoPath: uploaded.path });
       setSelectedAthlete({ ...selectedAthlete, photoUrl: uploaded.url, photoPath: uploaded.path });
+      
+      console.log('✅ Photo uploaded to athlete profile:', selectedAthlete.id);
     } catch (error) {
       console.error('Error uploading photo:', error);
       alert('Failed to upload photo. Please try again.');
@@ -1451,7 +1451,10 @@ const Profile: React.FC = () => {
                                     {/* Info */}
                                     <div className="flex-1 min-w-0">
                                         <h3 className="text-xl font-bold text-slate-900 dark:text-white truncate flex items-center gap-1.5">
-                                          {player.name}
+                                          {player.nickname 
+                                            ? `${player.firstName || player.name?.split(' ')[0]} "${player.nickname}" ${player.lastName || player.name?.split(' ').slice(1).join(' ')}`
+                                            : player.name
+                                          }
                                           {isCaptain && <Crown className="w-5 h-5 text-amber-500 flex-shrink-0" />}
                                         </h3>
                                         {/* Username */}
@@ -1708,7 +1711,7 @@ const Profile: React.FC = () => {
                                       {player.weight && (
                                         <div>
                                           <span className="text-slate-500">Weight:</span>
-                                          <span className="ml-1 font-bold text-slate-900 dark:text-white">{player.weight}</span>
+                                          <span className="ml-1 font-bold text-slate-900 dark:text-white">{player.weight} lbs</span>
                                         </div>
                                       )}
                                     </div>
@@ -1716,10 +1719,16 @@ const Profile: React.FC = () => {
                                 )}
 
                                 {/* Uniform Sizes */}
-                                {(player.shirtSize || player.pantSize) && (
+                                {(player.helmetSize || player.shirtSize || player.pantSize) && (
                                   <div className="mt-3 bg-purple-50 dark:bg-purple-900/10 p-2 rounded border border-purple-200 dark:border-purple-900/30">
                                     <p className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider mb-1">Uniform</p>
                                     <div className="flex justify-around text-xs">
+                                      {player.helmetSize && (
+                                        <div>
+                                          <span className="text-slate-500">Helmet:</span>
+                                          <span className="ml-1 font-bold text-slate-900 dark:text-white">{player.helmetSize}</span>
+                                        </div>
+                                      )}
                                       {player.shirtSize && (
                                         <div>
                                           <span className="text-slate-500">Shirt:</span>
@@ -2172,21 +2181,47 @@ const Profile: React.FC = () => {
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                               <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Height</label>
-                              <input 
-                                value={editForm.height} 
-                                onChange={e => setEditForm({...editForm, height: e.target.value})} 
-                                placeholder="4 ft 6 in"
-                                className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
-                              />
+                              <div className="flex gap-2">
+                                <div className="flex-1 relative">
+                                  <input 
+                                    type="number"
+                                    min="0"
+                                    max="8"
+                                    value={editForm.heightFt} 
+                                    onChange={e => setEditForm({...editForm, heightFt: e.target.value})} 
+                                    placeholder="4"
+                                    className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 pr-8 text-slate-900 dark:text-white" 
+                                  />
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">ft</span>
+                                </div>
+                                <div className="flex-1 relative">
+                                  <input 
+                                    type="number"
+                                    min="0"
+                                    max="11"
+                                    value={editForm.heightIn} 
+                                    onChange={e => setEditForm({...editForm, heightIn: e.target.value})} 
+                                    placeholder="6"
+                                    className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 pr-8 text-slate-900 dark:text-white" 
+                                  />
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">in</span>
+                                </div>
+                              </div>
                           </div>
                           <div>
                               <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Weight</label>
-                              <input 
-                                value={editForm.weight} 
-                                onChange={e => setEditForm({...editForm, weight: e.target.value})} 
-                                placeholder="85 lbs"
-                                className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
-                              />
+                              <div className="relative">
+                                <input 
+                                  type="number"
+                                  min="0"
+                                  max="400"
+                                  value={editForm.weight} 
+                                  onChange={e => setEditForm({...editForm, weight: e.target.value})} 
+                                  placeholder="85"
+                                  className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 pr-10 text-slate-900 dark:text-white" 
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">lbs</span>
+                              </div>
                           </div>
                         </div>
                       </div>
@@ -2194,7 +2229,26 @@ const Profile: React.FC = () => {
                       {/* Uniform Sizes */}
                       <div>
                         <p className="text-xs font-bold text-purple-600 dark:text-purple-400 mb-3 uppercase tracking-wider">Uniform Sizing</p>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Helmet Size</label>
+                              <select 
+                                value={editForm.helmetSize} 
+                                onChange={e => setEditForm({...editForm, helmetSize: e.target.value})} 
+                                className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white"
+                              >
+                                <option value="">Select size...</option>
+                                <option value="Youth S">Youth S</option>
+                                <option value="Youth M">Youth M</option>
+                                <option value="Youth L">Youth L</option>
+                                <option value="Youth XL">Youth XL</option>
+                                <option value="Adult S">Adult S</option>
+                                <option value="Adult M">Adult M</option>
+                                <option value="Adult L">Adult L</option>
+                                <option value="Adult XL">Adult XL</option>
+                                <option value="Adult 2XL">Adult 2XL</option>
+                              </select>
+                          </div>
                           <div>
                               <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Shirt Size</label>
                               <select 
@@ -2508,7 +2562,26 @@ const Profile: React.FC = () => {
               {/* Uniform Sizes */}
               <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
                 <p className="text-xs font-bold text-purple-600 dark:text-purple-400 mb-3 uppercase tracking-wider">Uniform Sizing (Optional)</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Helmet Size</label>
+                    <select 
+                      value={newAthleteForm.helmetSize} 
+                      onChange={e => setNewAthleteForm({...newAthleteForm, helmetSize: e.target.value})} 
+                      className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white"
+                    >
+                      <option value="">Select size...</option>
+                      <option value="Youth S">Youth S</option>
+                      <option value="Youth M">Youth M</option>
+                      <option value="Youth L">Youth L</option>
+                      <option value="Youth XL">Youth XL</option>
+                      <option value="Adult S">Adult S</option>
+                      <option value="Adult M">Adult M</option>
+                      <option value="Adult L">Adult L</option>
+                      <option value="Adult XL">Adult XL</option>
+                      <option value="Adult 2XL">Adult 2XL</option>
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Shirt Size</label>
                     <select 

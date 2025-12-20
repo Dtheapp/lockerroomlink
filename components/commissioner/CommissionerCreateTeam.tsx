@@ -100,7 +100,7 @@ export const CommissionerCreateTeam: React.FC = () => {
         color: programData?.primaryColor || '#f97316',
         ownerId: user.uid,
         ownerName: userData.name || 'Unknown',
-        programId: programData?.id || userData?.programId || null,
+        programId: programData?.id || null,
         programName: programData?.name || '',
         createdBy: user.uid,
         createdAt: serverTimestamp(),

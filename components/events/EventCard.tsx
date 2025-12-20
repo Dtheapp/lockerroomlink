@@ -7,8 +7,8 @@ import {
   Clock,
   Eye,
   Edit2,
+  Trash2,
   Copy,
-  MoreVertical,
   CheckCircle,
   PauseCircle,
   XCircle,
@@ -21,6 +21,7 @@ interface EventCardProps {
   pricingTiers?: PricingTier[];
   onView?: () => void;
   onEdit?: () => void;
+  onDelete?: () => void;
   onDuplicate?: () => void;
   onManage?: () => void;
   isCoachView?: boolean; // Show edit/manage options
@@ -49,6 +50,54 @@ const formatDate = (timestamp: any): string => {
     day: 'numeric',
     year: 'numeric'
   });
+};
+
+// Format time for display from Timestamp
+const formatTime = (timestamp: any): string => {
+  if (!timestamp) return '';
+  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  return date.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit',
+    hour12: true
+  });
+};
+
+// Format time string (HH:MM) to 12-hour format
+const formatTimeString = (timeStr: string | undefined): string => {
+  if (!timeStr) return '';
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  if (isNaN(hours) || isNaN(minutes)) return '';
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  return `${hour12}:${String(minutes).padStart(2, '0')} ${period}`;
+};
+
+// Get display time - prefer eventStartTime string over Timestamp time
+const getDisplayTime = (event: Event): string => {
+  // First check for explicit time string (games/practices from Schedule Builder)
+  if ((event as any).eventStartTime) {
+    return formatTimeString((event as any).eventStartTime);
+  }
+  // Fall back to Timestamp time
+  return formatTime(event.eventStartDate);
+};
+
+// Format date with time
+const formatDateTime = (timestamp: any): string => {
+  if (!timestamp) return '';
+  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  const dateStr = date.toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric',
+    year: 'numeric'
+  });
+  const timeStr = date.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit',
+    hour12: true
+  });
+  return `${dateStr} at ${timeStr}`;
 };
 
 // Get status badge style and text
@@ -102,6 +151,8 @@ const getStatusBadge = (status: EventStatus): { bg: string; text: string; icon: 
 // Get event type badge style
 const getTypeBadge = (type: string): { bg: string; text: string } => {
   switch (type) {
+    case 'practice':
+      return { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-800 dark:text-blue-400' };
     case 'registration':
       return { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-800 dark:text-purple-400' };
     case 'game':
@@ -120,6 +171,7 @@ const EventCard: React.FC<EventCardProps> = ({
   pricingTiers = [],
   onView,
   onEdit,
+  onDelete,
   onDuplicate,
   onManage,
   isCoachView = false,
@@ -166,6 +218,12 @@ const EventCard: React.FC<EventCardProps> = ({
                 <Calendar className="w-3.5 h-3.5" />
                 {formatDate(event.eventStartDate)}
               </span>
+              {getDisplayTime(event) && (
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  {getDisplayTime(event)}
+                </span>
+              )}
               {event.type === 'registration' && event.maxCapacity && (
                 <span className="flex items-center gap-1">
                   <Users className="w-3.5 h-3.5" />
@@ -175,8 +233,9 @@ const EventCard: React.FC<EventCardProps> = ({
             </div>
           </div>
           
-          {isCoachView && (
-            <div className="flex items-center gap-2 ml-4">
+          {/* Hide edit/delete for games - managed by commissioner Schedule Builder */}
+          {isCoachView && event.type !== 'game' && (
+            <div className="flex items-center gap-1 ml-4">
               {onEdit && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onEdit(); }}
@@ -193,6 +252,15 @@ const EventCard: React.FC<EventCardProps> = ({
                   title="Duplicate"
                 >
                   <Copy className="w-4 h-4" />
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                  className="p-2 text-gray-500 hover:text-red-600 dark:hover:text-red-400"
+                  title="Delete"
+                >
+                  <Trash2 className="w-4 h-4" />
                 </button>
               )}
             </div>
@@ -227,41 +295,36 @@ const EventCard: React.FC<EventCardProps> = ({
             </span>
           </div>
           
-          {isCoachView && (
-            <div className="relative group">
-              <button className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
-                <MoreVertical className="w-4 h-4" />
-              </button>
-              {/* Dropdown menu */}
-              <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-                {onEdit && (
-                  <button
-                    onClick={onEdit}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                    Edit
-                  </button>
-                )}
-                {onDuplicate && (
-                  <button
-                    onClick={onDuplicate}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-                  >
-                    <Copy className="w-4 h-4" />
-                    Duplicate
-                  </button>
-                )}
-                {onManage && (
-                  <button
-                    onClick={onManage}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-                  >
-                    <Users className="w-4 h-4" />
-                    Manage
-                  </button>
-                )}
-              </div>
+          {/* Hide edit/delete for games - managed by commissioner Schedule Builder */}
+          {isCoachView && event.type !== 'game' && (
+            <div className="flex items-center gap-1">
+              {onEdit && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                  className="p-2 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  title="Edit Event"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+              )}
+              {onDuplicate && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+                  className="p-2 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  title="Duplicate Event"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                  className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  title="Delete Event"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -285,6 +348,14 @@ const EventCard: React.FC<EventCardProps> = ({
             <Calendar className="w-4 h-4 text-gray-400" />
             <span>{formatDate(event.eventStartDate)}</span>
           </div>
+          
+          {/* Time */}
+          {getDisplayTime(event) && (
+            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+              <Clock className="w-4 h-4 text-gray-400" />
+              <span>{getDisplayTime(event)}</span>
+            </div>
+          )}
           
           {/* Location */}
           {event.location?.name && (

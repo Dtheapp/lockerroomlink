@@ -37,7 +37,7 @@ import {
 
 export const CommissionerAssignCoach: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
-  const { userData } = useAuth();
+  const { userData, programData } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
   
@@ -70,7 +70,7 @@ export const CommissionerAssignCoach: React.FC = () => {
         setTeam(teamData);
         
         // Check program ownership
-        if (teamData.programId !== userData?.programId) {
+        if (teamData.programId !== programData?.id) {
           navigate('/commissioner/teams');
           return;
         }
@@ -106,7 +106,7 @@ export const CommissionerAssignCoach: React.FC = () => {
     };
 
     loadData();
-  }, [teamId, userData?.programId, navigate]);
+  }, [teamId, programData?.id, navigate]);
 
   const handleAssignCoach = async (coach: UserProfile, setAsHeadCoach: boolean = false) => {
     if (!teamId || assigning) return;

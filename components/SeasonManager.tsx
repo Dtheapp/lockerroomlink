@@ -58,7 +58,7 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
   onSeasonChange,
   onNavigateToDesignStudio
 }) => {
-  const { userData } = useAuth();
+  const { userData, programData } = useAuth();
   const { theme } = useTheme();
   
   // State
@@ -162,8 +162,8 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
   // Fetch draft pool players for team's age group from program
   useEffect(() => {
     const loadDraftPoolPlayers = async () => {
-      // Try to get programId from multiple sources
-      let effectiveProgramId = programId || userData?.programId;
+      // Try to get programId from prop or programData
+      let effectiveProgramId = programId || programData?.id;
       
       // If no programId, try to get from the team's current/active season
       if (!effectiveProgramId && seasons.length > 0) {
@@ -260,7 +260,7 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
     };
     
     loadDraftPoolPlayers();
-  }, [programId, userData?.programId, ageGroup, ageGroups, leagueId, seasons]);
+  }, [programId, programData?.id, ageGroup, ageGroups, leagueId, seasons]);
   
   // Get current season
   const currentSeason = seasons.find(s => s.id === currentSeasonId);

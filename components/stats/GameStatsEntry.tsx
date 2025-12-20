@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, query, onSnapshot, orderBy, doc, setDoc, deleteDoc, writeBatch, serverTimestamp, where, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { useUnsavedChanges } from '../../contexts/UnsavedChangesContext';
 import type { Game, GamePlayerStats, Player, PlayerSeasonStats } from '../../types';
 import { Plus, Trophy, Calendar, MapPin, Users, ChevronDown, ChevronUp, Save, Trash2, X, Sword, Shield, Target, Check, Edit2, TrendingUp, UserCheck, AtSign, Zap, Star, AlertTriangle } from 'lucide-react';
@@ -105,6 +106,7 @@ const ScoreInput: React.FC<{ label: string; value: number; onChange: (val: numbe
 
 const GameStatsEntry: React.FC = () => {
   const { teamData, userData } = useAuth();
+  const { theme } = useTheme();
   const { setHasUnsavedChanges } = useUnsavedChanges();
   const currentYear = new Date().getFullYear();
   
@@ -782,10 +784,14 @@ const GameStatsEntry: React.FC = () => {
           <div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-orange-500"></div>
         </div>
       ) : games.length === 0 ? (
-        <div className="bg-zinc-900 rounded-xl p-12 text-center border border-zinc-800">
-          <Calendar className="w-16 h-16 text-zinc-700 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-white mb-2">No Games Yet</h3>
-          <p className="text-zinc-500">Click "Add Game" to start tracking game stats.</p>
+        <div className={`rounded-xl p-12 text-center border ${
+          theme === 'dark' 
+            ? 'bg-zinc-900 border-zinc-800' 
+            : 'bg-slate-50 border-slate-200'
+        }`}>
+          <Calendar className={`w-16 h-16 mx-auto mb-4 ${theme === 'dark' ? 'text-zinc-700' : 'text-slate-300'}`} />
+          <h3 className={`text-xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>No Games Yet</h3>
+          <p className={theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}>Click "Add Game" to start tracking game stats.</p>
         </div>
       ) : (
         <div className="space-y-4">

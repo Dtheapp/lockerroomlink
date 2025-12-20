@@ -60,6 +60,15 @@ export async function createProgramSeason(
   const seasonRef = doc(collection(db, 'programs', programId, 'seasons'));
   const seasonId = seasonRef.id;
   
+  // Build ageGroupsDraftActive object - all age groups start with draft active
+  const ageGroupsDraftActive: Record<string, boolean> = {};
+  for (const sportConfig of seasonData.sportsOffered) {
+    for (const division of sportConfig.ageGroups) {
+      // Use the label as the key (e.g., "6U", "7U-8U")
+      ageGroupsDraftActive[division.label] = true;
+    }
+  }
+  
   const season: ProgramSeason = {
     ...seasonData,
     id: seasonId,
@@ -68,6 +77,7 @@ export async function createProgramSeason(
     totalRegistrations: 0,
     totalPools: 0,
     poolsReadyForDraft: 0,
+    ageGroupsDraftActive, // Track which age groups still have players to draft
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp
   };

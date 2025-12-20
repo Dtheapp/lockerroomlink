@@ -19,7 +19,7 @@ export interface TeamLocation {
 // EVENTS
 // =============================================================================
 
-export type EventType = 'registration' | 'game' | 'fundraiser' | 'social' | 'other';
+export type EventType = 'registration' | 'practice' | 'game' | 'fundraiser' | 'social' | 'other';
 export type EventStatus = 'draft' | 'active' | 'paused' | 'closed' | 'cancelled';
 
 export interface EventLocation {
@@ -78,6 +78,7 @@ export interface Event {
   // Dates
   eventStartDate: Timestamp;           // When the event/season starts
   eventEndDate: Timestamp;             // When the event/season ends
+  eventStartTime?: string;             // Time in HH:MM format (for games/practices)
   registrationOpenDate?: Timestamp;    // When signups open (for registration type)
   registrationCloseDate?: Timestamp;   // When signups close
   

@@ -42,6 +42,15 @@ const Layout: React.FC = () => {
     // Messenger handles its own read status per conversation
   }, [location.pathname]);
 
+  // Scroll to top on every route change
+  useEffect(() => {
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTo({ top: 0, behavior: 'instant' });
+    }
+    // Also scroll window in case content is outside the ref
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [location.pathname]);
+
   // Handle navigation click with unsaved changes check
   const handleNavClick = (e: React.MouseEvent, path: string) => {
     // If navigating to the same page, no need to check

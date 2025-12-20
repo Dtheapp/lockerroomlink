@@ -216,6 +216,78 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children }
   // But first check if they have ANY active team they could switch to
   const hasActiveTeam = sportContexts.some(c => c.status === 'active');
   
+  // Check if user selected a specific sport but isn't on a team for it
+  const selectedSportNotOnTeam = selectedSportContext?.sport && selectedSportContext?.status === 'none';
+  
+  // Get sport emoji for the selected sport
+  const getSelectedSportEmoji = () => {
+    if (!selectedSportContext?.sport) return '🎯';
+    return {
+      football: '🏈',
+      basketball: '🏀',
+      soccer: '⚽',
+      baseball: '⚾',
+      hockey: '🏒',
+      volleyball: '🏐',
+      lacrosse: '🥍',
+      softball: '🥎',
+      tennis: '🎾',
+      swimming: '🏊',
+      track: '🏃',
+      wrestling: '🤼',
+      gymnastics: '🤸',
+      cheerleading: '📣',
+      esports: '🎮',
+    }[selectedSportContext.sport] || '🎯';
+  };
+  
+  const formatSportName = (sport: string) => sport.charAt(0).toUpperCase() + sport.slice(1);
+  
+  // Sport-specific message when user selected a sport they're not on a team for
+  if (selectedSportNotOnTeam) {
+    const isParent = userData?.role === 'Parent';
+    const sportName = formatSportName(selectedSportContext.sport);
+    const sportEmoji = getSelectedSportEmoji();
+    
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-zinc-900 dark:to-zinc-950 rounded-2xl p-8 max-w-lg text-center border border-amber-200 dark:border-amber-900/30 shadow-xl">
+          <div className="w-20 h-20 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-amber-500/30">
+            <span className="text-4xl">{sportEmoji}</span>
+          </div>
+          
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">
+            {isParent ? `Register Your Athlete for ${sportName}` : `Join a ${sportName} Team`}
+          </h2>
+          
+          <p className="text-slate-600 dark:text-zinc-400 mb-6 text-lg">
+            {isParent 
+              ? `Your athlete isn't on a ${sportName.toLowerCase()} team yet. Browse events to find registration opportunities.`
+              : `You're not on a ${sportName.toLowerCase()} team yet. Browse events to find open tryouts or registration.`
+            }
+          </p>
+          
+          {hasActiveTeam && (
+            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-900/30 rounded-xl p-4 mb-6">
+              <div className="flex items-center gap-2 text-purple-700 dark:text-purple-400 text-sm">
+                <Trophy className="w-4 h-4 flex-shrink-0" />
+                <span>You're on a team for another sport. Use the sport selector above to switch.</span>
+              </div>
+            </div>
+          )}
+          
+          <a 
+            href="#/events" 
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white px-8 py-4 rounded-xl font-bold transition-all shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50"
+          >
+            <Calendar className="w-5 h-5" /> Find {sportName} Events
+          </a>
+        </div>
+      </div>
+    );
+  }
+  
+  // No sport selected but has active teams - prompt to select one
   if (hasActiveTeam) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">

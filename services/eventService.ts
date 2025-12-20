@@ -898,11 +898,13 @@ export async function getPlayerRegistrationStatus(
   if (currentTeamId) {
     const teamDoc = await getDoc(doc(db, 'teams', currentTeamId));
     if (teamDoc.exists()) {
-      console.log('[PlayerStatus] Player is on team:', currentTeamId);
+      const teamData = teamDoc.data();
+      console.log('[PlayerStatus] Player is on team:', currentTeamId, 'sport:', teamData.sport);
       return {
         status: 'on-team',
         teamId: currentTeamId,
-        teamName: teamDoc.data().name || 'Unknown Team'
+        teamName: teamData.name || 'Unknown Team',
+        sport: teamData.sport || 'football'
       };
     }
   }
@@ -927,18 +929,30 @@ export async function getPlayerRegistrationStatus(
           const programDoc = await getDoc(doc(db, 'programs', playerData.draftPoolProgramId));
           if (programDoc.exists()) {
             const programData = programDoc.data();
-            programName = programData.name || 'Unknown Program';
             sport = programData.sport || 'football'; // Default to football
             console.log('[PlayerStatus] Program sport:', programData.sport, '-> using:', sport);
+            
+            // Use sport-specific name if available, otherwise fall back to org name
+            const sportLower = sport.toLowerCase();
+            const sportNames = programData.sportNames as { [key: string]: string } | undefined;
+            programName = sportNames?.[sportLower] || programData.name || 'Unknown Program';
+            console.log('[PlayerStatus] Program name for sport:', programName);
           }
           // Also get season name
           const seasonDoc = await getDoc(doc(db, 'programs', playerData.draftPoolProgramId, 'seasons', playerData.draftPoolSeasonId));
           if (seasonDoc.exists()) {
             seasonName = seasonDoc.data().name || '';
-            // Season might also have sport field
+            // Season might also have sport field - update sport-specific name if different
             if (seasonDoc.data().sport) {
               sport = seasonDoc.data().sport;
               console.log('[PlayerStatus] Using season sport instead:', sport);
+              // Re-check sport-specific name with the season's sport
+              const programDoc2 = await getDoc(doc(db, 'programs', playerData.draftPoolProgramId));
+              if (programDoc2.exists()) {
+                const sportLower = sport.toLowerCase();
+                const sportNames = programDoc2.data().sportNames as { [key: string]: string } | undefined;
+                programName = sportNames?.[sportLower] || programDoc2.data().name || programName;
+              }
             }
           }
         } catch (err) {

@@ -6,6 +6,7 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { ArrowLeft, Save, Loader2, X, Plus } from 'lucide-react';
 import { toastSuccess, toastError } from '../../services/toast';
+import type { SportType } from '../../types';
 
 // Age groups by program type
 const AGE_GROUPS_BY_TYPE = {
@@ -16,19 +17,26 @@ const AGE_GROUPS_BY_TYPE = {
   adult: ['18+'],
 };
 
+// Sport-specific age group structure
+interface SportAgeGroups {
+  sport: SportType;
+  ageGroups: string[];
+}
+
 const AgeGroupsManager: React.FC = () => {
   const navigate = useNavigate();
   const { programData, userData } = useAuth();
   const { theme } = useTheme();
   
   // Get selected sport from localStorage
-  const selectedSport = localStorage.getItem('commissioner_selected_sport') || 'Football';
+  const selectedSport = (localStorage.getItem('commissioner_selected_sport') || 'Football').toLowerCase() as SportType;
+  const selectedSportDisplay = selectedSport.charAt(0).toUpperCase() + selectedSport.slice(1);
   
   // Get program type from programData
   const programType = ((programData as any)?.programType || 'youth') as keyof typeof AGE_GROUPS_BY_TYPE;
   const availableAgeGroups = AGE_GROUPS_BY_TYPE[programType] || AGE_GROUPS_BY_TYPE.youth;
   
-  // Created age groups (the ones we'll save)
+  // Created age groups FOR THIS SPORT (the ones we'll save)
   const [createdGroups, setCreatedGroups] = useState<string[]>([]);
   
   // Currently selected ages for creating a new group
@@ -37,18 +45,23 @@ const AgeGroupsManager: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   
-  // Load existing age groups from programData
+  // Load existing age groups for THIS SPORT from programData.sportConfigs
   useEffect(() => {
-    const ags = (programData as any)?.ageGroups;
-    if (ags && ags.length > 0) {
-      setCreatedGroups(ags);
+    const sportConfigs: SportAgeGroups[] = (programData as any)?.sportConfigs || [];
+    const currentSportConfig = sportConfigs.find(sc => sc.sport?.toLowerCase() === selectedSport.toLowerCase());
+    
+    if (currentSportConfig?.ageGroups?.length > 0) {
+      setCreatedGroups(currentSportConfig.ageGroups);
+    } else {
+      // No sport-specific config exists - start fresh (don't use legacy)
+      setCreatedGroups([]);
     }
     
     // Auto-select 18+ for adult programs
     if (programType === 'adult') {
       setCreatedGroups(['18+']);
     }
-  }, [(programData as any)?.ageGroups, programType]);
+  }, [(programData as any)?.sportConfigs, selectedSport, programType]);
   
   // Toggle age in pending selection
   const togglePendingAge = (ag: string) => {
@@ -98,18 +111,15 @@ const AgeGroupsManager: React.FC = () => {
     setHasChanges(true);
   };
   
-  // Save all groups to Firebase
+  // Save all groups to Firebase - PER SPORT
   const handleSave = async () => {
-    const programId = programData?.id || userData?.programId;
+    const programId = programData?.id;
     if (!programId) {
       toastError('No program found');
       return;
     }
     
-    if (createdGroups.length === 0) {
-      toastError('Create at least one age group');
-      return;
-    }
+    // Allow saving with 0 age groups (to clear a sport's config)
     
     setSaving(true);
     try {
@@ -119,11 +129,28 @@ const AgeGroupsManager: React.FC = () => {
         return getFirstNum(a) - getFirstNum(b);
       });
       
+      // Get existing sportConfigs or create new array
+      const existingConfigs: SportAgeGroups[] = (programData as any)?.sportConfigs || [];
+      
+      // Update or add config for current sport (case-insensitive comparison)
+      const otherConfigs = existingConfigs.filter(sc => sc.sport?.toLowerCase() !== selectedSport.toLowerCase());
+      const newConfigs: SportAgeGroups[] = [
+        ...otherConfigs,
+        { sport: selectedSport.toLowerCase() as SportType, ageGroups: sorted }
+      ];
+      
+      // Also update legacy ageGroups for backward compatibility (merge all sports)
+      const allAgeGroups = [...new Set(newConfigs.flatMap(c => c.ageGroups))].sort((a, b) => {
+        const getFirstNum = (s: string) => parseInt(s.replace('U', '').split('-')[0]) || 0;
+        return getFirstNum(a) - getFirstNum(b);
+      });
+      
       await updateDoc(doc(db, 'programs', programId), {
-        ageGroups: sorted,
+        sportConfigs: newConfigs,
+        ageGroups: allAgeGroups, // Keep legacy field for backward compat
         updatedAt: serverTimestamp(),
       });
-      toastSuccess('Age groups saved!');
+      toastSuccess(`Age groups for ${selectedSportDisplay} saved!`);
       setHasChanges(false);
       navigate('/commissioner');
     } catch (error) {
@@ -163,9 +190,9 @@ const AgeGroupsManager: React.FC = () => {
                 <ArrowLeft className="w-5 h-5 text-white" />
               </button>
               <div>
-                <h1 className="text-2xl font-bold text-white">Age Groups</h1>
+                <h1 className="text-2xl font-bold text-white">{selectedSportDisplay} Age Groups</h1>
                 <p className="text-white/80 text-sm">
-                  Create age groups for {selectedSport}
+                  Configure age divisions for {selectedSportDisplay}
                 </p>
               </div>
             </div>
@@ -304,37 +331,41 @@ const AgeGroupsManager: React.FC = () => {
           </div>
         )}
         
-        {/* Save Button - Fixed at bottom */}
-        {createdGroups.length > 0 && (
-          <div className={`sticky bottom-4 p-4 rounded-xl shadow-lg ${
-            theme === 'dark' ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-slate-200'
-          }`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-                  {createdGroups.length} age group{createdGroups.length !== 1 ? 's' : ''} ready
-                </p>
-                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
-                  {createdGroups.join(', ')}
-                </p>
-              </div>
-              <button
-                onClick={handleSave}
-                disabled={saving || !hasChanges}
-                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-colors ${
-                  hasChanges
-                    ? 'bg-green-600 hover:bg-green-700 text-white'
-                    : theme === 'dark'
-                      ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                }`}
-              >
-                {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                Save Age Groups
-              </button>
+        {/* Save Button - Always show, even with 0 age groups */}
+        <div className={`sticky bottom-4 p-4 rounded-xl shadow-lg ${
+          theme === 'dark' ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-slate-200'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                {createdGroups.length === 0 
+                  ? 'No age groups configured' 
+                  : `${createdGroups.length} age group${createdGroups.length !== 1 ? 's' : ''} ready`
+                }
+              </p>
+              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                {createdGroups.length === 0 
+                  ? `Select ages above to create groups for ${selectedSportDisplay}`
+                  : createdGroups.join(', ')
+                }
+              </p>
             </div>
+            <button
+              onClick={handleSave}
+              disabled={saving || !hasChanges}
+              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-colors ${
+                hasChanges
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : theme === 'dark'
+                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+              Save Age Groups
+            </button>
           </div>
-        )}
+        </div>
         
         {/* Tip */}
         <p className={`text-center text-sm ${theme === 'dark' ? 'text-gray-500' : 'text-slate-500'}`}>

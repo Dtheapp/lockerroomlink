@@ -144,6 +144,9 @@ export interface Program {
   id?: string;
   name: string;              // e.g., "CYFL Tigers", "Arlington Youth Sports"
   
+  // Per-sport program names (e.g., CYFA for football, CYBA for basketball)
+  sportNames?: { [sport: string]: string };  // { football: 'CYFA', basketball: 'CYBA' }
+  
   // Sports offered by this program (multi-sport support)
   sports?: SportType[];              // ["football", "basketball", "cheer"]
   sport?: SportType;                 // Legacy: Primary sport (for backward compat)
@@ -768,6 +771,9 @@ export interface ProgramSeason {
   totalPools: number;
   poolsReadyForDraft: number;
   
+  // Schedule status
+  scheduleBuilt?: boolean;             // True after first schedule save
+  
   // Metadata
   createdBy: string;
   createdAt: Timestamp | Date;
@@ -1074,6 +1080,7 @@ export type AgeGroup = typeof AGE_GROUPS[number];
 export interface Team {
   id: string;
   name: string;
+  logo?: string; // Team logo URL
   sport?: SportType; // Sport type for multi-sport support (default: 'football')
   ageGroup?: string; // Primary age group for the team (e.g., "8U", "10U", "12U")
   ageGroups?: string[]; // For multi-grade teams (e.g., ["8U", "9U"])
@@ -1118,6 +1125,7 @@ export interface Team {
   
   // --- LEAGUE & PROGRAM FIELDS ---
   programId?: string;                   // Which program owns this team
+  programName?: string;                 // Name of the program (denormalized for display, sport-specific)
   leagueId?: string;                    // Which league (if any)
   leagueName?: string;                  // Name of the league (denormalized for display)
   linkedCheerTeamId?: string;           // For sports teams - linked cheer team
@@ -1179,6 +1187,7 @@ export interface Player {
   bio?: string;
   
   // NEW: Uniform Sizes
+  helmetSize?: string; // e.g. "Youth S", "Youth M", "Adult L"
   shirtSize?: string; // e.g. "Youth Large", "Adult M"
   pantSize?: string; // e.g. "Youth Small", "Adult L"
   
@@ -1190,8 +1199,8 @@ export interface Player {
   photoUrl?: string; // Player headshot photo
   photoPath?: string;
   
-  // Link to Parent
-  parentId?: string | null; // null when released
+  // Coach Notes - shared with all coaching staff and commissioners (private from parents)
+  coachNotes?: string;
   
   // Released Player (independent account)
   released?: boolean; // True when parent releases player to their own account
@@ -1201,7 +1210,16 @@ export interface Player {
   
   // Personal & Medical
   dob?: string;
+  dateOfBirth?: string; // Alias for dob (used by draft system)
   medical?: MedicalInfo; 
+  
+  // Link to Parent (multiple alias fields for compatibility)
+  parentId?: string | null; // null when released
+  parentUserId?: string | null; // Alias for parentId (used by registration/draft)
+  parentName?: string; // Parent's display name
+  parentEmail?: string; // Parent's email
+  parentPhone?: string; // Parent's phone
+  athleteId?: string; // Reference to top-level players/{id} document
 
   // Game Stats
   stats: {

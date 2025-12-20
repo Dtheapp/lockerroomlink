@@ -60,11 +60,12 @@ const SPORT_ICONS: Record<SportType, string> = {
 
 interface Props {
   programId?: string;
+  selectedSport?: string; // If provided, only show this sport (from dropdown filter)
   onComplete?: (seasonId: string) => void;
   onCancel?: () => void;
 }
 
-export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgramId, onComplete, onCancel }) => {
+export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgramId, selectedSport: propSelectedSport, onComplete, onCancel }) => {
   const { user, userData } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
@@ -128,9 +129,12 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
         if (programDoc.exists()) {
           setProgram({ id: programDoc.id, ...programDoc.data() } as Program);
           
-          // Pre-select all sports the program offers
+          // Pre-select sport based on filter or all sports
           const programData = programDoc.data();
-          if (programData.sports) {
+          if (propSelectedSport) {
+            // If sport filter is active, only use that sport
+            setSelectedSports([propSelectedSport.toLowerCase() as SportType]);
+          } else if (programData.sports) {
             setSelectedSports(programData.sports);
           } else if (programData.sport) {
             setSelectedSports([programData.sport]);
@@ -198,9 +202,12 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
     loadTeams();
   }, [programId]);
   
-  // Get teams for a specific age group
-  const getTeamsForAgeGroup = (ageGroup: string): Team[] => {
+  // Get teams for a specific age group AND sport
+  const getTeamsForAgeGroup = (ageGroup: string, sport?: string): Team[] => {
     return teams.filter(t => {
+      // Filter by sport if provided
+      if (sport && t.sport?.toLowerCase() !== sport.toLowerCase()) return false;
+      
       // Check if team's ageGroup matches
       if (t.ageGroup === ageGroup) return true;
       // Check if ageGroups array contains the age group
@@ -212,6 +219,13 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
       }
       return false;
     });
+  };
+  
+  // Get age groups for a specific sport from sportConfigs ONLY - no fallback to legacy
+  const getAgeGroupsForSport = (sport: string): string[] => {
+    const sportConfigs = (program as any)?.sportConfigs || [];
+    const sportConfig = sportConfigs.find((sc: any) => sc.sport?.toLowerCase() === sport.toLowerCase());
+    return sportConfig?.ageGroups || [];
   };
   
   // Untie a team from an age group (doesn't delete the team)
@@ -341,12 +355,15 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
           setError('Please select at least one sport for this season');
           return false;
         }
-        // Check all age groups have at least one team
-        const programAgeGroups: string[] = (program as any)?.ageGroups || [];
-        const uncoveredGroups = programAgeGroups.filter(ag => getTeamsForAgeGroup(ag).length === 0);
-        if (uncoveredGroups.length > 0) {
-          setError(`${uncoveredGroups.length} age group${uncoveredGroups.length > 1 ? 's' : ''} still need teams: ${uncoveredGroups.join(', ')}`);
-          return false;
+        // Check all age groups for EACH selected sport have at least one team
+        for (const sport of selectedSports) {
+          const sportAgeGroups = getAgeGroupsForSport(sport);
+          const uncoveredGroups = sportAgeGroups.filter(ag => getTeamsForAgeGroup(ag, sport).length === 0);
+          if (uncoveredGroups.length > 0) {
+            const sportName = sport.charAt(0).toUpperCase() + sport.slice(1);
+            setError(`${sportName}: ${uncoveredGroups.length} age group${uncoveredGroups.length > 1 ? 's' : ''} still need teams: ${uncoveredGroups.join(', ')}`);
+            return false;
+          }
         }
         return true;
         
@@ -387,14 +404,14 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
     );
   };
   
-  // Calculate total pools that will be created
+  // Calculate total pools that will be created (sport-specific age groups)
   const getTotalPools = (): number => {
-    // Use program.ageGroups (flat array from AgeGroupsManager)
-    const programAgeGroups = (program as any)?.ageGroups || [];
-    if (programAgeGroups.length === 0) return 0;
-    
-    // Each selected sport gets pools for each age group
-    return selectedSports.length * programAgeGroups.length;
+    let total = 0;
+    for (const sport of selectedSports) {
+      const sportAgeGroups = getAgeGroupsForSport(sport);
+      total += sportAgeGroups.length;
+    }
+    return total;
   };
   
   // Create the season
@@ -405,12 +422,13 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
     setError('');
     
     try {
-      // Build sports offered using program's ageGroups (from AgeGroupsManager)
-      const programAgeGroups: string[] = (program as any)?.ageGroups || [];
-      
+      // Build sports offered using SPORT-SPECIFIC ageGroups from sportConfigs
       const sportsOffered: SportAgeGroupConfig[] = selectedSports.map(sport => {
+        // Get age groups for THIS sport
+        const sportAgeGroups = getAgeGroupsForSport(sport);
+        
         // Convert flat ageGroups array to AgeGroupDivision format
-        const ageGroupDivisions = programAgeGroups.map(ag => ({
+        const ageGroupDivisions = sportAgeGroups.map(ag => ({
           id: `${sport}-${ag}`.toLowerCase().replace(/[^a-z0-9]/g, '-'),
           label: ag,
           type: ag.includes('-') ? 'combined' as const : 'single' as const,
@@ -506,7 +524,7 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
             </button>
           )}
           <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Create New Season
+            Create New {propSelectedSport ? `${propSelectedSport.charAt(0).toUpperCase()}${propSelectedSport.slice(1).toLowerCase()} ` : ''}Season
           </h1>
           <p className={`${isDark ? 'text-slate-400' : 'text-gray-600'}`}>
             {program.name} • Set up registration for your upcoming season
@@ -701,46 +719,73 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
               </div>
               
               <div className="space-y-4">
-                {(program.sports || [program.sport]).filter(Boolean).map(sport => {
+                {/* Filter to only show the selected sport if one is passed from dropdown */}
+                {(program.sports || [program.sport])
+                  .filter(Boolean)
+                  .filter(sport => !propSelectedSport || sport.toLowerCase() === propSelectedSport.toLowerCase())
+                  .map(sport => {
                   const isSelected = selectedSports.includes(sport as SportType);
-                  const programAgeGroups: string[] = (program as any)?.ageGroups || [];
-                  const coveredGroups = programAgeGroups.filter(ag => getTeamsForAgeGroup(ag).length > 0);
+                  // Get sport-specific age groups
+                  const sportAgeGroups: string[] = getAgeGroupsForSport(sport);
+                  const coveredGroups = sportAgeGroups.filter(ag => getTeamsForAgeGroup(ag, sport).length > 0);
                   
                   return (
                     <div key={sport} className="space-y-3">
-                      {/* Sport Header */}
-                      <button
-                        onClick={() => toggleSport(sport as SportType)}
-                        className={`w-full p-4 rounded-xl border-2 flex items-center justify-between transition-all ${
-                          isSelected
-                            ? 'border-purple-500 bg-purple-500/20'
-                            : isDark
-                              ? 'border-white/10 bg-white/5 hover:border-white/30'
-                              : 'border-gray-200 bg-white hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl">{SPORT_ICONS[sport as SportType]}</span>
-                          <div className="text-left">
-                            <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                              {sport?.charAt(0).toUpperCase()}{sport?.slice(1)}
-                            </div>
-                            <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                              {coveredGroups.length}/{programAgeGroups.length} age groups have teams
+                      {/* Sport Header - Non-clickable when single sport is filtered */}
+                      {propSelectedSport ? (
+                        // Single sport mode - just show header, no toggle
+                        <div className={`w-full p-4 rounded-xl border-2 flex items-center justify-between border-purple-500 bg-purple-500/20`}>
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">{SPORT_ICONS[sport as SportType]}</span>
+                            <div className="text-left">
+                              <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                {sport?.charAt(0).toUpperCase()}{sport?.slice(1)}
+                              </div>
+                              <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+                                {coveredGroups.length}/{sportAgeGroups.length} age groups have teams
+                              </div>
                             </div>
                           </div>
+                          
+                          <div className="w-6 h-6 rounded-full bg-purple-600 border-2 border-purple-600 flex items-center justify-center">
+                            <Check className="w-4 h-4 text-white" />
+                          </div>
                         </div>
-                        
-                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                          isSelected
-                            ? 'bg-purple-600 border-purple-600'
-                            : isDark
-                              ? 'border-white/30'
-                              : 'border-gray-300'
-                        }`}>
-                          {isSelected && <Check className="w-4 h-4 text-white" />}
-                        </div>
-                      </button>
+                      ) : (
+                        // Multi-sport mode - allow toggling
+                        <button
+                          onClick={() => toggleSport(sport as SportType)}
+                          className={`w-full p-4 rounded-xl border-2 flex items-center justify-between transition-all ${
+                            isSelected
+                              ? 'border-purple-500 bg-purple-500/20'
+                              : isDark
+                                ? 'border-white/10 bg-white/5 hover:border-white/30'
+                                : 'border-gray-200 bg-white hover:border-gray-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">{SPORT_ICONS[sport as SportType]}</span>
+                            <div className="text-left">
+                              <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                {sport?.charAt(0).toUpperCase()}{sport?.slice(1)}
+                              </div>
+                              <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+                                {coveredGroups.length}/{sportAgeGroups.length} age groups have teams
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                            isSelected
+                              ? 'bg-purple-600 border-purple-600'
+                              : isDark
+                                ? 'border-white/30'
+                                : 'border-gray-300'
+                          }`}>
+                            {isSelected && <Check className="w-4 h-4 text-white" />}
+                          </div>
+                        </button>
+                      )}
                       
                       {/* Age Groups Grid - Show when sport is selected */}
                       {isSelected && (
@@ -749,8 +794,8 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
                             Click an age group to see teams • Green = has team(s)
                           </p>
                           <div className="flex flex-wrap gap-2">
-                            {programAgeGroups.map((ag: string) => {
-                              const teamsForGroup = getTeamsForAgeGroup(ag);
+                            {sportAgeGroups.map((ag: string) => {
+                              const teamsForGroup = getTeamsForAgeGroup(ag, sport);
                               const hasTeams = teamsForGroup.length > 0;
                               
                               return (
@@ -789,9 +834,9 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
                           {/* Coverage summary */}
                           <div className={`mt-3 pt-3 border-t flex items-center justify-between ${isDark ? 'border-white/10' : 'border-gray-200'}`}>
                             <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                              {coveredGroups.length === programAgeGroups.length 
+                              {coveredGroups.length === sportAgeGroups.length 
                                 ? '✅ All age groups have at least 1 team'
-                                : `⚠️ ${programAgeGroups.length - coveredGroups.length} age group(s) need teams`
+                                : `⚠️ ${sportAgeGroups.length - coveredGroups.length} age group(s) need teams`
                               }
                             </span>
                             <button

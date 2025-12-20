@@ -139,6 +139,8 @@ const CommissionerTeamDetail = lazyWithRetry(() => import('./components/commissi
 const CommissionerAssignCoach = lazyWithRetry(() => import('./components/commissioner/CommissionerAssignCoach'));
 const CommissionerGrievances = lazyWithRetry(() => import('./components/commissioner/CommissionerGrievances'));
 const CommissionerInfractions = lazyWithRetry(() => import('./components/commissioner/CommissionerInfractions'));
+const CommissionerSchedule = lazyWithRetry(() => import('./components/commissioner/CommissionerSchedule'));
+const ScheduleBuilder = lazyWithRetry(() => import('./components/commissioner/ScheduleBuilder'));
 const TeamScheduleView = lazyWithRetry(() => import('./components/commissioner/TeamScheduleView'));
 const CommissionerRoster = lazyWithRetry(() => import('./components/commissioner/CommissionerRoster'));
 const CommissionerTeamChat = lazyWithRetry(() => import('./components/commissioner/CommissionerTeamChat'));
@@ -358,6 +360,8 @@ const AppContent: React.FC = () => {
                 <Route path="commissioner/chat" element={<CommissionerTeamChat />} />
                 <Route path="commissioner/grievances" element={<CommissionerGrievances />} />
                 <Route path="commissioner/infractions" element={<CommissionerInfractions />} />
+                <Route path="commissioner/schedule/:seasonId" element={<CommissionerSchedule />} />
+                <Route path="commissioner/schedule-builder/:seasonId" element={<ScheduleBuilder />} />
                 <Route path="team/:teamId" element={<CommissionerTeamDetail />} />
                 <Route path="profile" element={<Profile />} />
                 <Route path="notifications" element={<NotificationsPage />} />

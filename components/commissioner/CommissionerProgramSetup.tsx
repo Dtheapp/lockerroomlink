@@ -13,7 +13,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { doc, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
+import { useUnsavedChanges } from '../../contexts/UnsavedChangesContext';
+import { doc, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, writeBatch, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../services/firebase';
 import { 
@@ -32,6 +33,7 @@ import {
   Users, 
   ChevronRight, 
   ChevronLeft,
+  ChevronDown,
   Check,
   Plus,
   X,
@@ -65,6 +67,7 @@ interface Props {
 export const CommissionerProgramSetup: React.FC<Props> = ({ programId: propProgramId, onComplete, onCancel }) => {
   const { user, userData } = useAuth();
   const { theme } = useTheme();
+  const { setHasUnsavedChanges } = useUnsavedChanges();
   const navigate = useNavigate();
   const { programId: routeProgramId } = useParams<{ programId: string }>();
   const [searchParams] = useSearchParams();
@@ -86,6 +89,23 @@ export const CommissionerProgramSetup: React.FC<Props> = ({ programId: propProgr
   const [step, setStep] = useState(1);
   const TOTAL_STEPS = 1;
   
+  // Track if form has been modified
+  const [hasChanges, setHasChanges] = useState(false);
+  
+  // Collapse state for sport-specific names section
+  const [sportNamesExpanded, setSportNamesExpanded] = useState(false);
+  
+  // Store original values to detect changes
+  const [originalValues, setOriginalValues] = useState<{
+    programName: string;
+    sportNames: { [sport: string]: string };
+    programType: string;
+    programCity: string;
+    programState: string;
+    primaryColor: string;
+    secondaryColor: string;
+  } | null>(null);
+  
   // Step 1: Program Info
   const [programName, setProgramName] = useState('');
   const [programType, setProgramType] = useState<'youth' | 'middleschool' | 'highschool' | 'college' | 'adult'>('youth');
@@ -102,6 +122,9 @@ export const CommissionerProgramSetup: React.FC<Props> = ({ programId: propProgr
   
   // Step 2: Sports Selection
   const [selectedSports, setSelectedSports] = useState<SportType[]>([]);
+  
+  // Per-sport program names (e.g., CYFA for football, CYBA for basketball)
+  const [sportNames, setSportNames] = useState<{ [sport: string]: string }>({});
   
   // Step 3: Age Group Configuration per sport
   const [sportConfigs, setSportConfigs] = useState<Map<SportType, AgeGroupDivision[]>>(new Map());
@@ -195,12 +218,29 @@ export const CommissionerProgramSetup: React.FC<Props> = ({ programId: propProgr
           setSecondaryColor(data.secondaryColor || '#1e293b');
           setLogoUrl(data.logoUrl || '');
           
-          // Load sports
-          if (data.sports?.length) {
-            setSelectedSports(data.sports);
-          } else if (data.sport) {
-            setSelectedSports([data.sport]);
+          // Load per-sport names
+          if (data.sportNames) {
+            setSportNames(data.sportNames);
           }
+          
+          // Load ALL sports the program offers (from sports array or sportConfigs)
+          let programSports: SportType[] = [];
+          
+          if (data.sports?.length) {
+            // Use sports array (normalized to lowercase)
+            programSports = data.sports.map((s: string) => s.toLowerCase() as SportType);
+          } else if (data.sportConfigs?.length) {
+            // Extract sports from sportConfigs
+            programSports = data.sportConfigs.map((sc: any) => (sc.sport || '').toLowerCase() as SportType).filter(Boolean);
+          } else if (data.sport) {
+            // Legacy: single sport
+            programSports = [data.sport.toLowerCase() as SportType];
+          }
+          
+          // Remove duplicates
+          programSports = [...new Set(programSports)];
+          
+          setSelectedSports(programSports);
           
           // Load sport configs - stored as array of { sport, ageGroups }
           if (data.sportConfigs && Array.isArray(data.sportConfigs)) {
@@ -223,6 +263,47 @@ export const CommissionerProgramSetup: React.FC<Props> = ({ programId: propProgr
     
     loadProgram();
   }, [editingProgramId]);
+  
+  // Capture original values after loading (for change detection)
+  useEffect(() => {
+    if (loading || !isEditing) return;
+    // Only set once after loading completes
+    if (originalValues === null) {
+      setOriginalValues({
+        programName,
+        sportNames: { ...sportNames },
+        programType,
+        programCity,
+        programState,
+        primaryColor,
+        secondaryColor
+      });
+    }
+  }, [loading, isEditing, programName, sportNames, programType, programCity, programState, primaryColor, secondaryColor, originalValues]);
+  
+  // Detect changes by comparing current values to original
+  useEffect(() => {
+    if (!originalValues || !isEditing) return;
+    
+    const hasFormChanges = 
+      programName !== originalValues.programName ||
+      programType !== originalValues.programType ||
+      programCity !== originalValues.programCity ||
+      programState !== originalValues.programState ||
+      primaryColor !== originalValues.primaryColor ||
+      secondaryColor !== originalValues.secondaryColor ||
+      JSON.stringify(sportNames) !== JSON.stringify(originalValues.sportNames);
+    
+    setHasChanges(hasFormChanges);
+    setHasUnsavedChanges(hasFormChanges);
+  }, [programName, sportNames, programType, programCity, programState, primaryColor, secondaryColor, originalValues, isEditing, setHasUnsavedChanges]);
+  
+  // Clean up unsaved changes flag on unmount
+  useEffect(() => {
+    return () => {
+      setHasUnsavedChanges(false);
+    };
+  }, [setHasUnsavedChanges]);
   
   // Zipcode lookup function
   const lookupZipcode = async (zipcode: string) => {
@@ -542,10 +623,149 @@ export const CommissionerProgramSetup: React.FC<Props> = ({ programId: propProgr
     setError('');
     
     try {
-      // Update just the basic info fields
+      // Generate new program ID from the updated org name
+      const newProgramId = programName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const oldProgramId = editingProgramId;
+      const isProgramIdChanging = newProgramId !== oldProgramId;
+      
+      // Normalize sportNames keys to lowercase before saving
+      const normalizedSportNames: { [key: string]: string } = {};
+      Object.entries(sportNames).forEach(([key, value]) => {
+        if (value && value.trim()) {  // Only save non-empty values
+          normalizedSportNames[key.toLowerCase()] = value.trim();
+        }
+      });
+      
+      // If the program ID is changing, we need to migrate everything
+      if (isProgramIdChanging) {
+        console.log(`🔄 Migrating program from "${oldProgramId}" to "${newProgramId}"...`);
+        
+        // 1. Get the old program data
+        const oldProgramDoc = await getDoc(doc(db, 'programs', oldProgramId));
+        if (!oldProgramDoc.exists()) {
+          throw new Error('Program not found');
+        }
+        const oldData = oldProgramDoc.data();
+        
+        // 2. Create new program document with new ID
+        const newProgramData = {
+          ...oldData,
+          name: programName.trim(),
+          sports: selectedSports.map(s => s.toLowerCase()),
+          sportNames: normalizedSportNames,
+          programType,
+          city: programCity.trim(),
+          state: programState.trim(),
+          primaryColor,
+          secondaryColor,
+          logoUrl: logoUrl || '',
+          updatedAt: serverTimestamp()
+        };
+        await setDoc(doc(db, 'programs', newProgramId), newProgramData);
+        console.log(`✅ Created new program document: ${newProgramId}`);
+        
+        // 3. Move all seasons to new program (copy then delete)
+        const seasonsSnap = await getDocs(collection(db, 'programs', oldProgramId, 'seasons'));
+        for (const seasonDoc of seasonsSnap.docs) {
+          const seasonData = seasonDoc.data();
+          const seasonSport = (seasonData.sport || '').toLowerCase();
+          const nameForSeason = normalizedSportNames[seasonSport] || programName.trim();
+          
+          // Copy season to new location
+          await setDoc(doc(db, 'programs', newProgramId, 'seasons', seasonDoc.id), {
+            ...seasonData,
+            programId: newProgramId,
+            programName: nameForSeason,
+            updatedAt: serverTimestamp()
+          });
+          
+          // Copy draftPool subcollection
+          const draftPoolSnap = await getDocs(collection(db, 'programs', oldProgramId, 'seasons', seasonDoc.id, 'draftPool'));
+          for (const dpDoc of draftPoolSnap.docs) {
+            await setDoc(doc(db, 'programs', newProgramId, 'seasons', seasonDoc.id, 'draftPool', dpDoc.id), dpDoc.data());
+          }
+          
+          // Delete old season and its draftPool
+          for (const dpDoc of draftPoolSnap.docs) {
+            await deleteDoc(doc(db, 'programs', oldProgramId, 'seasons', seasonDoc.id, 'draftPool', dpDoc.id));
+          }
+          await deleteDoc(doc(db, 'programs', oldProgramId, 'seasons', seasonDoc.id));
+        }
+        console.log(`✅ Migrated ${seasonsSnap.docs.length} seasons`);
+        
+        // 4. Update all teams with new programId
+        const teamsQuery = query(collection(db, 'teams'), where('programId', '==', oldProgramId));
+        const teamsSnap = await getDocs(teamsQuery);
+        const teamBatch = writeBatch(db);
+        teamsSnap.docs.forEach(teamDoc => {
+          const teamData = teamDoc.data();
+          const teamSport = (teamData.sport || '').toLowerCase();
+          const nameForTeam = normalizedSportNames[teamSport] || programName.trim();
+          teamBatch.update(teamDoc.ref, {
+            programId: newProgramId,
+            programName: nameForTeam,
+            updatedAt: serverTimestamp()
+          });
+        });
+        await teamBatch.commit();
+        console.log(`✅ Updated ${teamsSnap.docs.length} teams`);
+        
+        // 5. Update all users with this programId
+        const usersQuery = query(collection(db, 'users'), where('programId', '==', oldProgramId));
+        const usersSnap = await getDocs(usersQuery);
+        const userBatch = writeBatch(db);
+        usersSnap.docs.forEach(userDoc => {
+          userBatch.update(userDoc.ref, {
+            programId: newProgramId,
+            orgName: programName.trim(),
+            updatedAt: serverTimestamp()
+          });
+        });
+        await userBatch.commit();
+        console.log(`✅ Updated ${usersSnap.docs.length} users`);
+        
+        // 6. Update all players in draft pool with new programId
+        const playersQuery = query(collection(db, 'players'), where('draftPoolProgramId', '==', oldProgramId));
+        const playersSnap = await getDocs(playersQuery);
+        const playerBatch = writeBatch(db);
+        playersSnap.docs.forEach(playerDoc => {
+          playerBatch.update(playerDoc.ref, {
+            draftPoolProgramId: newProgramId,
+            draftPoolUpdatedAt: serverTimestamp()
+          });
+        });
+        await playerBatch.commit();
+        console.log(`✅ Updated ${playersSnap.docs.length} draft pool players`);
+        
+        // 7. Delete the old program document
+        await deleteDoc(doc(db, 'programs', oldProgramId));
+        console.log(`✅ Deleted old program document: ${oldProgramId}`);
+        
+        // Update current user profile
+        if (user?.uid) {
+          await setDoc(doc(db, 'users', user.uid), {
+            programId: newProgramId,
+            orgName: programName.trim(),
+            orgCity: programCity.trim(),
+            orgState: programState.trim(),
+            orgZipcode: programZipcode.trim(),
+            primaryColor,
+            secondaryColor,
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+        }
+        
+        toastSuccess(`Program renamed to "${programName.trim()}"!`);
+        navigate('/commissioner');
+        return;
+      }
+      
+      // If program ID is NOT changing, just update the existing document
       await setDoc(doc(db, 'programs', editingProgramId), {
         name: programName.trim(),
-        programType, // youth, highschool, college, adult
+        sports: selectedSports.map(s => s.toLowerCase()),
+        sportNames: normalizedSportNames,
+        programType,
         city: programCity.trim(),
         state: programState.trim(),
         primaryColor,
@@ -554,9 +774,10 @@ export const CommissionerProgramSetup: React.FC<Props> = ({ programId: propProgr
         updatedAt: serverTimestamp()
       }, { merge: true });
       
-      // Also update user profile with org info
+      // Also update user profile with org info AND programId
       if (user?.uid) {
         await setDoc(doc(db, 'users', user.uid), {
+          programId: editingProgramId,
           orgName: programName.trim(),
           orgCity: programCity.trim(),
           orgState: programState.trim(),
@@ -567,7 +788,67 @@ export const CommissionerProgramSetup: React.FC<Props> = ({ programId: propProgr
         }, { merge: true });
       }
       
+      // Update all teams in this program with BOTH programId AND programName (use sport-specific name if available)
+      try {
+        const teamsQuery = query(
+          collection(db, 'teams'),
+          where('programId', '==', editingProgramId)
+        );
+        const teamsSnap = await getDocs(teamsQuery);
+        
+        // Normalize sportNames keys to lowercase for consistent lookup
+        const normalizedSportNames: { [key: string]: string } = {};
+        Object.entries(sportNames).forEach(([key, value]) => {
+          normalizedSportNames[key.toLowerCase()] = value;
+        });
+        
+        const batch = writeBatch(db);
+        teamsSnap.docs.forEach(teamDoc => {
+          const teamData = teamDoc.data();
+          const teamSport = (teamData.sport || '').toLowerCase();
+          // Use sport-specific name if available, otherwise fall back to main program name
+          const nameForTeam = normalizedSportNames[teamSport] || programName.trim();
+          batch.update(teamDoc.ref, {
+            programId: editingProgramId,   // Ensure programId is always set
+            programName: nameForTeam,       // Sport-specific or default program name
+            updatedAt: serverTimestamp()
+          });
+        });
+        await batch.commit();
+        console.log(`✅ Updated ${teamsSnap.docs.length} teams with programId "${editingProgramId}" and sport-specific program names`);
+      } catch (teamErr) {
+        console.error('⚠️ Failed to update team program info (non-fatal):', teamErr);
+      }
+      
+      // Also update all seasons under this program with the sport-specific programName
+      try {
+        const seasonsSnap = await getDocs(collection(db, 'programs', editingProgramId, 'seasons'));
+        
+        // Normalize sportNames keys to lowercase for consistent lookup
+        const normalizedSportNames: { [key: string]: string } = {};
+        Object.entries(sportNames).forEach(([key, value]) => {
+          if (value.trim()) normalizedSportNames[key.toLowerCase()] = value.trim();
+        });
+        
+        const batch = writeBatch(db);
+        seasonsSnap.docs.forEach(seasonDoc => {
+          const seasonData = seasonDoc.data();
+          const seasonSport = (seasonData.sport || '').toLowerCase();
+          // Use sport-specific name if available, otherwise fall back to main program name
+          const nameForSeason = normalizedSportNames[seasonSport] || programName.trim();
+          batch.update(seasonDoc.ref, {
+            programName: nameForSeason,
+            updatedAt: serverTimestamp()
+          });
+        });
+        await batch.commit();
+        console.log(`✅ Updated ${seasonsSnap.docs.length} seasons with sport-specific program names`);
+      } catch (seasonErr) {
+        console.error('⚠️ Failed to update season program names (non-fatal):', seasonErr);
+      }
+      
       toastSuccess('Program info updated!');
+      setHasUnsavedChanges(false);  // Clear unsaved changes before navigating
       navigate('/commissioner');
       
     } catch (err: any) {
@@ -1028,6 +1309,71 @@ export const CommissionerProgramSetup: React.FC<Props> = ({ programId: propProgr
                   } focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
                 />
               </div>
+              
+              {/* Sport-Specific Names - Collapsible section showing ALL sports */}
+              {isEditing && (
+                <div className={`rounded-lg overflow-hidden ${isDark ? 'bg-white/5 border border-white/10' : 'bg-gray-50 border border-gray-200'}`}>
+                  {/* Collapsible Header */}
+                  <button
+                    type="button"
+                    onClick={() => setSportNamesExpanded(!sportNamesExpanded)}
+                    className={`w-full p-3 sm:p-4 flex items-center justify-between transition-colors ${
+                      isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100'
+                    }`}
+                  >
+                    <div>
+                      <p className={`text-sm font-medium text-left ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
+                        Sport-Specific Program Names (Optional)
+                      </p>
+                      <p className={`text-xs text-left ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>
+                        Set a different program name for each sport. Leave blank to use the main program name.
+                      </p>
+                    </div>
+                    <ChevronDown className={`w-5 h-5 flex-shrink-0 transition-transform ${
+                      sportNamesExpanded ? 'rotate-180' : ''
+                    } ${isDark ? 'text-slate-400' : 'text-gray-500'}`} />
+                  </button>
+                  
+                  {/* Collapsible Content */}
+                  {sportNamesExpanded && (
+                    <div className={`px-3 sm:px-4 pb-3 sm:pb-4 pt-0 border-t ${isDark ? 'border-white/10' : 'border-gray-200'}`}>
+                      <div className="space-y-2 pt-3">
+                        {SPORTS_CONFIG.map((config) => {
+                          const sportLower = config.sport.toLowerCase();
+                          const isOffered = selectedSports.some(s => s.toLowerCase() === sportLower);
+                          return (
+                            <div key={config.sport} className={`flex items-center gap-2 ${!isOffered ? 'opacity-50' : ''}`}>
+                              <span className="text-lg flex-shrink-0">{config.icon}</span>
+                              <span className={`w-20 sm:w-24 text-xs sm:text-sm flex-shrink-0 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
+                                {config.label}:
+                              </span>
+                              <input
+                                type="text"
+                                value={sportNames[sportLower] || sportNames[config.sport] || ''}
+                                onChange={(e) => setSportNames(prev => ({
+                                  ...prev,
+                                  [sportLower]: e.target.value
+                                }))}
+                                placeholder={programName || config.label}
+                                className={`flex-1 min-w-0 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-sm ${
+                                  isDark 
+                                    ? 'bg-white/5 border-white/10 text-white placeholder-slate-500' 
+                                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                                } focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
+                              />
+                              {!isOffered && (
+                                <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>
+                                  (not offered)
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               
               {/* Program Type */}
               <div>

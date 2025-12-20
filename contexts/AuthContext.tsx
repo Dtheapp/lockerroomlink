@@ -165,40 +165,60 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('[SportContexts] playerDoc.exists():', playerDoc.exists());
       if (playerDoc.exists()) {
         const playerData = playerDoc.data();
-        console.log('[SportContexts] Player draft pool data:', playerData.draftPoolStatus, playerData.draftPoolProgramId, playerData.draftPoolSeasonId);
+        console.log('[SportContexts] Player draft pool data:', playerData.draftPoolStatus, playerData.draftPoolProgramId, playerData.draftPoolSeasonId, playerData.draftPoolSport);
         
         // Check for PROGRAM-based draft pool (new system) - uses programId/seasonId
         if (playerData.draftPoolStatus === 'waiting' && playerData.draftPoolProgramId && playerData.draftPoolSeasonId) {
-          // Get the program to find out what sport
-          const programDoc = await getDoc(doc(db, 'programs', playerData.draftPoolProgramId));
-          if (programDoc.exists()) {
-            const programData = programDoc.data();
-            const sport = (programData.sport || 'football') as SportType;
-            
-            // Get season name for display
-            let seasonName = '';
-            try {
-              const seasonDoc = await getDoc(doc(db, 'programs', playerData.draftPoolProgramId, 'seasons', playerData.draftPoolSeasonId));
-              if (seasonDoc.exists()) {
-                seasonName = seasonDoc.data().name || '';
+          // First, try to get sport from player's draftPoolSport (new field)
+          // If not available, fall back to program's sport field
+          let sport: SportType = (playerData.draftPoolSport || 'football') as SportType;
+          let programName = 'Unknown Program';
+          let seasonName = '';
+          
+          // Try to get the program - but don't fail if it doesn't exist
+          try {
+            const programDoc = await getDoc(doc(db, 'programs', playerData.draftPoolProgramId));
+            if (programDoc.exists()) {
+              const programData = programDoc.data();
+              // Use player's sport if available, otherwise use program's sport
+              if (!playerData.draftPoolSport) {
+                sport = (programData.sport || 'football') as SportType;
               }
-            } catch (e) {
-              console.log('Could not fetch season name');
+              
+              // Use sport-specific name if available, otherwise fall back to org name
+              const sportLower = sport.toLowerCase();
+              const sportNames = programData.sportNames as { [key: string]: string } | undefined;
+              programName = sportNames?.[sportLower] || programData.name || 'Unknown Program';
+              
+              // Get season name for display
+              try {
+                const seasonDoc = await getDoc(doc(db, 'programs', playerData.draftPoolProgramId, 'seasons', playerData.draftPoolSeasonId));
+                if (seasonDoc.exists()) {
+                  seasonName = seasonDoc.data().name || '';
+                }
+              } catch (e) {
+                console.log('Could not fetch season name');
+              }
+            } else {
+              console.log('⚠️ Program not found for draftPoolProgramId:', playerData.draftPoolProgramId);
+              // Program doesn't exist - still add context with Unknown Program
             }
-            
-            // Only add if not already in this sport
-            if (!sportsFound.has(sport)) {
-              sportsFound.add(sport);
-              contexts.push({
-                sport,
-                status: 'draft_pool',
-                draftPoolProgramId: playerData.draftPoolProgramId,
-                draftPoolSeasonId: playerData.draftPoolSeasonId,
-                draftPoolTeamName: seasonName ? `${programData.name} - ${seasonName}` : programData.name || 'Unknown Program',
-                draftPoolAgeGroup: playerData.draftPoolAgeGroup,
-              });
-              console.log('✅ Found program-based draft pool context:', sport, programData.name);
-            }
+          } catch (e) {
+            console.log('⚠️ Error fetching program:', e);
+          }
+          
+          // Only add if not already in this sport
+          if (!sportsFound.has(sport)) {
+            sportsFound.add(sport);
+            contexts.push({
+              sport,
+              status: 'draft_pool',
+              draftPoolProgramId: playerData.draftPoolProgramId,
+              draftPoolSeasonId: playerData.draftPoolSeasonId,
+              draftPoolTeamName: seasonName ? `${programName} - ${seasonName}` : programName,
+              draftPoolAgeGroup: playerData.draftPoolAgeGroup,
+            });
+            console.log('✅ Found program-based draft pool context:', sport, programName);
           }
         }
         
@@ -348,6 +368,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     let unsubscribeUserDoc: () => void;
     let unsubscribeTeamDoc: () => void;
     let unsubscribeProgramDoc: () => void;
+    let unsubscribePlayersDoc: () => void;
 
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
@@ -372,95 +393,106 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 // PARENT FLOW: Load their players from all teams AND top-level players collection
                 if (profile.role === 'Parent') {
                     try {
-                        const allPlayers: Player[] = [];
-                        
-                        // 1. Query top-level 'players' collection for unassigned players
+                        // Set up real-time listener for top-level players collection
                         const topLevelPlayersQuery = query(
                             collection(db, 'players'),
                             where('parentId', '==', firebaseUser.uid)
                         );
-                        const topLevelSnapshot = await getDocs(topLevelPlayersQuery);
-                        topLevelSnapshot.docs.forEach(playerDoc => {
-                            allPlayers.push({ 
-                                id: playerDoc.id, 
-                                teamId: playerDoc.data().teamId || null, // May be null for unassigned players
-                                ...playerDoc.data() 
-                            } as Player);
-                        });
                         
-                        // 2. Query all teams' player collections for this parent
-                        const teamsSnapshot = await getDocs(collection(db, 'teams'));
+                        // Unsubscribe from previous players listener if exists
+                        if (unsubscribePlayersDoc) unsubscribePlayersDoc();
                         
-                        for (const teamDoc of teamsSnapshot.docs) {
-                            const playersQuery = query(
-                                collection(db, 'teams', teamDoc.id, 'players'),
-                                where('parentId', '==', firebaseUser.uid)
-                            );
-                            const playersSnapshot = await getDocs(playersQuery);
-                            playersSnapshot.docs.forEach(playerDoc => {
-                                // Avoid duplicates (in case player exists in both places)
-                                if (!allPlayers.find(p => p.id === playerDoc.id)) {
-                                    allPlayers.push({ 
-                                        id: playerDoc.id, 
-                                        teamId: teamDoc.id,
-                                        ...playerDoc.data() 
-                                    } as Player);
+                        unsubscribePlayersDoc = onSnapshot(topLevelPlayersQuery, async (topLevelSnapshot) => {
+                            const allPlayers: Player[] = [];
+                            
+                            // 1. Get players from top-level collection
+                            topLevelSnapshot.docs.forEach(playerDoc => {
+                                allPlayers.push({ 
+                                    id: playerDoc.id, 
+                                    teamId: playerDoc.data().teamId || null,
+                                    ...playerDoc.data() 
+                                } as Player);
+                            });
+                            
+                            // 2. Query all teams' player collections for this parent (still one-time, less critical)
+                            try {
+                                const teamsSnapshot = await getDocs(collection(db, 'teams'));
+                                
+                                for (const teamDoc of teamsSnapshot.docs) {
+                                    const playersQuery = query(
+                                        collection(db, 'teams', teamDoc.id, 'players'),
+                                        where('parentId', '==', firebaseUser.uid)
+                                    );
+                                    const playersSnapshot = await getDocs(playersQuery);
+                                    playersSnapshot.docs.forEach(playerDoc => {
+                                        // Avoid duplicates (in case player exists in both places)
+                                        if (!allPlayers.find(p => p.id === playerDoc.id)) {
+                                            allPlayers.push({ 
+                                                id: playerDoc.id, 
+                                                teamId: teamDoc.id,
+                                                ...playerDoc.data() 
+                                            } as Player);
+                                        }
+                                    });
                                 }
-                            });
-                        }
-                        
-                        setPlayers(allPlayers);
-                        
-                        // Auto-select player (prefer assigned players over unassigned)
-                        if (allPlayers.length > 0) {
-                            // Sort: assigned players first, then unassigned
-                            const sortedPlayers = [...allPlayers].sort((a, b) => {
-                                if (a.teamId && !b.teamId) return -1;
-                                if (!a.teamId && b.teamId) return 1;
-                                return 0;
-                            });
-                            
-                            let playerToSelect = sortedPlayers[0];
-                            
-                            // If user has a saved selectedPlayerId, try to find it
-                            if (profile.selectedPlayerId) {
-                                const saved = allPlayers.find(p => p.id === profile.selectedPlayerId);
-                                if (saved) playerToSelect = saved;
+                            } catch (teamErr) {
+                                console.error('Error loading team players:', teamErr);
                             }
                             
-                            setSelectedPlayerState(playerToSelect);
-                            
-                            // Compute sport contexts for the selected player (for dropdown options only)
-                            // Actual auto-selection happens in PlayerSportSelector which uses getPlayerRegistrationStatus
-                            computeSportContexts(playerToSelect).then(contexts => {
-                                console.log('[AuthContext] Computed sport contexts:', contexts);
-                                setSportContexts(contexts);
-                            });
-                            
-                            // Load team data for selected player (only if they have a team)
-                            if (playerToSelect.teamId) {
-                                if (unsubscribeTeamDoc) unsubscribeTeamDoc();
-                                const teamDocRef = doc(db, 'teams', playerToSelect.teamId);
-                                unsubscribeTeamDoc = onSnapshot(teamDocRef, (teamSnap) => {
-                                    if (teamSnap.exists()) {
-                                        setTeamData({ id: teamSnap.id, ...teamSnap.data() } as Team);
-                                    } else {
-                                        setTeamData(null);
-                                    }
-                                    setLoading(false);
+                            setPlayers(allPlayers);
+                            console.log('📋 [AuthContext] Players updated in real-time:', allPlayers.length);
+                        
+                            // Auto-select player (prefer assigned players over unassigned)
+                            if (allPlayers.length > 0) {
+                                // Sort: assigned players first, then unassigned
+                                const sortedPlayers = [...allPlayers].sort((a, b) => {
+                                    if (a.teamId && !b.teamId) return -1;
+                                    if (!a.teamId && b.teamId) return 1;
+                                    return 0;
                                 });
+                                
+                                let playerToSelect = sortedPlayers[0];
+                                
+                                // If user has a saved selectedPlayerId, try to find it
+                                if (profile.selectedPlayerId) {
+                                    const saved = allPlayers.find(p => p.id === profile.selectedPlayerId);
+                                    if (saved) playerToSelect = saved;
+                                }
+                                
+                                setSelectedPlayerState(playerToSelect);
+                                
+                                // Compute sport contexts for the selected player (for dropdown options only)
+                                // Actual auto-selection happens in PlayerSportSelector which uses getPlayerRegistrationStatus
+                                computeSportContexts(playerToSelect).then(contexts => {
+                                    console.log('[AuthContext] Computed sport contexts:', contexts);
+                                    setSportContexts(contexts);
+                                });
+                                
+                                // Load team data for selected player (only if they have a team)
+                                if (playerToSelect.teamId) {
+                                    if (unsubscribeTeamDoc) unsubscribeTeamDoc();
+                                    const teamDocRef = doc(db, 'teams', playerToSelect.teamId);
+                                    unsubscribeTeamDoc = onSnapshot(teamDocRef, (teamSnap) => {
+                                        if (teamSnap.exists()) {
+                                            setTeamData({ id: teamSnap.id, ...teamSnap.data() } as Team);
+                                        } else {
+                                            setTeamData(null);
+                                        }
+                                        setLoading(false);
+                                    });
+                                } else {
+                                    // Player has no team yet
+                                    setTeamData(null);
+                                    setLoading(false);
+                                }
                             } else {
-                                // Player has no team yet
+                                // No players yet
                                 setTeamData(null);
                                 setLoading(false);
                             }
-                        } else {
-                            // No players yet
-                            setTeamData(null);
-                            setLoading(false);
-                        }
+                        }); // End of onSnapshot callback
                     } catch (error) {
-                        console.error('Error loading parent players:', error);
+                        console.error('Error setting up players listener:', error);
                         setLoading(false);
                     }
                 }
@@ -766,6 +798,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (unsubscribeUserDoc) unsubscribeUserDoc();
         if (unsubscribeTeamDoc) unsubscribeTeamDoc();
         if (unsubscribeProgramDoc) unsubscribeProgramDoc();
+        if (unsubscribePlayersDoc) unsubscribePlayersDoc();
       }
     });
 
@@ -774,6 +807,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (unsubscribeUserDoc) unsubscribeUserDoc();
       if (unsubscribeTeamDoc) unsubscribeTeamDoc();
       if (unsubscribeProgramDoc) unsubscribeProgramDoc();
+      if (unsubscribePlayersDoc) unsubscribePlayersDoc();
     };
   }, []);
 

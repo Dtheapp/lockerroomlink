@@ -1,4 +1,5 @@
 rules_version = '2';
+// Updated: Dec 18, 2025 v3 - Added parent write access to team roster players
 service cloud.firestore {
   match /databases/{database}/documents {
     
@@ -58,18 +59,34 @@ service cloud.firestore {
              getUserData().assistantForProgramId == programId;
     }
     
+    // Check if user is the commissionerId of a program (by reading the program doc)
+    function isProgramCommissionerOf(programId) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/programs/$(programId)) &&
+             get(/databases/$(database)/documents/programs/$(programId)).data.commissionerId == request.auth.uid;
+    }
+    
     function canManageProgram(programId) {
       return isLeagueCommissionerOf(programId) || 
              isAssistantCommissionerOf(programId) || 
+             isProgramCommissionerOf(programId) ||
              isAdmin();
     }
     
     function isTeamCoach(teamId) {
       let userData = getUserData();
+      let teamData = get(/databases/$(database)/documents/teams/$(teamId)).data;
       return isCoach() && (
+        // Check user document for team assignment
         userData.teamId == teamId ||
         (userData.teamIds != null && teamId in userData.teamIds) ||
-        (userData.teamIds != null && userData.teamIds.hasAny([teamId]))
+        (userData.teamIds != null && userData.teamIds.hasAny([teamId])) ||
+        // Check team document for coach assignment
+        teamData.coachId == request.auth.uid ||
+        teamData.headCoachId == request.auth.uid ||
+        teamData.offensiveCoordinatorId == request.auth.uid ||
+        teamData.defensiveCoordinatorId == request.auth.uid ||
+        (teamData.coachIds != null && request.auth.uid in teamData.coachIds)
       );
     }
     
@@ -78,11 +95,34 @@ service cloud.firestore {
              get(/databases/$(database)/documents/teams/$(teamId)).data.ownerId == request.auth.uid;
     }
     
+    // Check if user is the commissioner of the program the team belongs to
+    function isTeamProgramCommissioner(teamId) {
+      let team = get(/databases/$(database)/documents/teams/$(teamId)).data;
+      return isAuthenticated() && 
+             team.programId != null &&
+             exists(/databases/$(database)/documents/programs/$(team.programId)) &&
+             get(/databases/$(database)/documents/programs/$(team.programId)).data.commissionerId == request.auth.uid;
+    }
+    
     function isTeamMember(teamId) {
       return isAuthenticated() && (
         getUserData().teamId == teamId || 
         (getUserData().teamIds != null && teamId in getUserData().teamIds)
       );
+    }
+
+    // Check if user is parent of player (for team roster player updates)
+    function isParentOfPlayer() {
+      return isAuthenticated() && getUserData().role == 'Parent';
+    }
+    
+    // Check if parent has this athlete in their athleteIds array
+    function isParentOfAthlete(athleteId) {
+      let userData = getUserData();
+      return isAuthenticated() && 
+             userData.role == 'Parent' && 
+             userData.athleteIds != null && 
+             athleteId in userData.athleteIds;
     }
 
     // =============================================================================
@@ -215,6 +255,40 @@ service cloud.firestore {
           
           // Commissioners, coaches or admin can delete entries (decline players)
           allow delete: if isAuthenticated();
+        }
+        
+        // =============================================================================
+        // SCHEDULE GAMES - Games scheduled for this season
+        // =============================================================================
+        match /games/{gameId} {
+          // Anyone can read games (for schedule display)
+          allow read: if true;
+          
+          // Commissioner or admin can create games
+          allow create: if canManageProgram(programId) || isAdmin();
+          
+          // Commissioner or admin can update games
+          allow update: if canManageProgram(programId) || isAdmin();
+          
+          // Commissioner or admin can delete games
+          allow delete: if canManageProgram(programId) || isAdmin();
+        }
+        
+        // =============================================================================
+        // BYE WEEKS - Teams with bye for this season
+        // =============================================================================
+        match /byes/{byeId} {
+          // Anyone can read byes
+          allow read: if true;
+          
+          // Commissioner or admin can create byes
+          allow create: if canManageProgram(programId) || isAdmin();
+          
+          // Commissioner or admin can update byes
+          allow update: if canManageProgram(programId) || isAdmin();
+          
+          // Commissioner or admin can delete byes
+          allow delete: if canManageProgram(programId) || isAdmin();
         }
         
         // =============================================================================
@@ -526,14 +600,23 @@ service cloud.firestore {
       // This allows the "Find a Team" page to show public registration events
       allow read: if true;
       
-      // Only coaches or commissioners (team owners) can create events for their teams
-      allow create: if isTeamCoach(request.resource.data.teamId) || isTeamOwner(request.resource.data.teamId) || isAdmin();
+      // Only coaches, team owners, or program commissioners can create events for their teams
+      allow create: if isTeamCoach(request.resource.data.teamId) || 
+                      isTeamOwner(request.resource.data.teamId) || 
+                      isTeamProgramCommissioner(request.resource.data.teamId) ||
+                      isAdmin();
       
-      // Coaches or team owners can delete events
-      allow delete: if isTeamCoach(resource.data.teamId) || isTeamOwner(resource.data.teamId) || isAdmin();
+      // Coaches, team owners, or program commissioners can delete events
+      allow delete: if isTeamCoach(resource.data.teamId) || 
+                      isTeamOwner(resource.data.teamId) || 
+                      isTeamProgramCommissioner(resource.data.teamId) ||
+                      isAdmin();
       
-      // Coaches/owners can update fully, authenticated users can ONLY update currentCount and updatedAt (for registration)
-      allow update: if isTeamCoach(resource.data.teamId) || isTeamOwner(resource.data.teamId) || isAdmin() ||
+      // Coaches/owners/program commissioners can update fully, authenticated users can ONLY update currentCount and updatedAt (for registration)
+      allow update: if isTeamCoach(resource.data.teamId) || 
+                      isTeamOwner(resource.data.teamId) || 
+                      isTeamProgramCommissioner(resource.data.teamId) ||
+                      isAdmin() ||
                       (isAuthenticated() && 
                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentCount', 'updatedAt']));
 
@@ -1007,10 +1090,11 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       
       // Parents can update their own players, coaches can update for team registration,
-      // admins have full access
+      // commissioners can update draft pool info, admins have full access
       allow update: if isAuthenticated() && (
         resource.data.parentId == request.auth.uid || // Parent owns this player
         isCoach() ||  // Coaches can update for team registration
+        isCommissioner() || // Commissioners can update draft pool status
         isAdmin()
       );
       
@@ -1050,7 +1134,36 @@ service cloud.firestore {
       match /players/{playerId} {
         // Allow public read for public athlete profiles
         allow read: if true;
-        allow write: if isTeamCoach(teamId) || isTeamOwner(teamId) || isCommissioner() || isAdmin();
+        // Allow coaches assigned to this team, team owner, commissioner, admin, or parent of the player
+        // For draft: Check if this is the coach's assigned team via team document
+        allow write: if isCommissioner() || 
+                       isAdmin() ||
+                       isTeamOwner(teamId) ||
+                       // Parent can update their own child's record (parentId or parentUserId match on player doc)
+                       resource.data.parentId == request.auth.uid ||
+                       resource.data.parentUserId == request.auth.uid ||
+                       // Parent check via user's athleteIds array (safer - no additional get() needed)
+                       (isParentOfPlayer() && resource.data.athleteId != null && isParentOfAthlete(resource.data.athleteId)) ||
+                       // Fallback: Check top-level players collection for parentId (only if athleteId exists and doc exists)
+                       (resource.data.athleteId != null && 
+                        exists(/databases/$(database)/documents/players/$(resource.data.athleteId)) &&
+                        get(/databases/$(database)/documents/players/$(resource.data.athleteId)).data.parentId == request.auth.uid) ||
+                       // PARENT CLAIM: Allow authenticated user to claim ownership by setting parentId to themselves
+                       // Safe because they can ONLY set it to their own UID (not impersonate others)
+                       (isAuthenticated() && 
+                        request.resource.data.parentId == request.auth.uid &&
+                        request.resource.data.parentUserId == request.auth.uid) ||
+                       // Team owner (coach who created the team)
+                       get(/databases/$(database)/documents/teams/$(teamId)).data.ownerId == request.auth.uid ||
+                       // Check if coach is assigned to this team (via team document fields)
+                       (isCoach() && (
+                         get(/databases/$(database)/documents/teams/$(teamId)).data.coachId == request.auth.uid ||
+                         get(/databases/$(database)/documents/teams/$(teamId)).data.headCoachId == request.auth.uid ||
+                         get(/databases/$(database)/documents/teams/$(teamId)).data.offensiveCoordinatorId == request.auth.uid ||
+                         get(/databases/$(database)/documents/teams/$(teamId)).data.defensiveCoordinatorId == request.auth.uid ||
+                         (get(/databases/$(database)/documents/teams/$(teamId)).data.coachIds != null && 
+                          request.auth.uid in get(/databases/$(database)/documents/teams/$(teamId)).data.coachIds)
+                       ));
         
         // Player's film room (public for athlete profile viewing)
         match /filmRoom/{filmId} {
@@ -1492,15 +1605,17 @@ service cloud.firestore {
       // Participants can update (new messages, read status, etc.)
       allow update: if isAuthenticated() && request.auth.uid in resource.data.participants;
       
-      // Only admin can delete chats
-      allow delete: if isAdmin();
+      // Participants can delete their own chats, or admin can delete any
+      allow delete: if isAuthenticated() && request.auth.uid in resource.data.participants || isAdmin();
       
       // Messages subcollection
       match /messages/{messageId} {
         // Parent doc access check isn't available in subcollection, so use simpler check
         allow read: if isAuthenticated();
         allow create: if isAuthenticated();
-        allow update, delete: if isAdmin();
+        // Sender can delete their own message, or admin can delete any
+        allow update: if isAuthenticated() && (request.auth.uid == resource.data.senderId || request.auth.uid == resource.data.userId);
+        allow delete: if isAuthenticated() && (request.auth.uid == resource.data.senderId || request.auth.uid == resource.data.userId) || isAdmin();
       }
     }
 

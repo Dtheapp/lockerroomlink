@@ -45,11 +45,53 @@ const formatDate = (timestamp: any): string => {
   });
 };
 
-// Format date range
-const formatDateRange = (start: any, end: any): string => {
-  const startStr = formatDate(start);
-  const endStr = formatDate(end);
-  if (startStr === endStr) return startStr;
+// Format time for display
+const formatTime = (timestamp: any): string => {
+  if (!timestamp) return '';
+  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  return date.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit',
+    hour12: true
+  });
+};
+
+// Format time string (HH:MM) to 12-hour format
+const formatTimeString = (timeStr: string | undefined): string => {
+  if (!timeStr) return '';
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  if (isNaN(hours) || isNaN(minutes)) return '';
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  return `${hour12}:${String(minutes).padStart(2, '0')} ${period}`;
+};
+
+// Format date with time
+const formatDateWithTime = (timestamp: any, eventStartTime?: string): string => {
+  if (!timestamp) return '';
+  const dateStr = formatDate(timestamp);
+  // Use explicit time string if available (for games/practices)
+  if (eventStartTime) {
+    const timeStr = formatTimeString(eventStartTime);
+    if (timeStr) return `${dateStr} at ${timeStr}`;
+  }
+  const timeStr = formatTime(timestamp);
+  if (!timeStr) return dateStr;
+  return `${dateStr} at ${timeStr}`;
+};
+
+// Format date range - accepts optional eventStartTime for games/practices
+const formatDateRange = (start: any, end: any, eventStartTime?: string): string => {
+  const startStr = formatDateWithTime(start, eventStartTime);
+  const endStr = formatDateWithTime(end);
+  if (!startStr) return '';
+  if (!endStr || startStr === endStr) return startStr;
+  // If same day, just show end time
+  const startDate = formatDate(start);
+  const endDate = formatDate(end);
+  if (startDate === endDate) {
+    return `${startStr} - ${formatTime(end)}`;
+  }
   return `${startStr} - ${endStr}`;
 };
 
@@ -282,7 +324,7 @@ const EventDetails: React.FC<EventDetailsProps> = ({
             {/* Date */}
             <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
               <Calendar className="w-5 h-5 text-indigo-500" />
-              <span>{formatDateRange(event.eventStartDate, event.eventEndDate)}</span>
+              <span>{formatDateRange(event.eventStartDate, event.eventEndDate, (event as any).eventStartTime)}</span>
             </div>
             
             {/* Location */}

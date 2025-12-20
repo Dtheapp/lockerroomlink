@@ -164,10 +164,15 @@ export async function createSeason(input: CreateSeasonInput): Promise<string> {
     registrationCounts[ag.id] = 0;
   });
   
+  // Use sport-specific program name if available
+  const sportLower = program.sport?.toLowerCase() || '';
+  const sportNames = (program as any).sportNames as { [key: string]: string } | undefined;
+  const programDisplayName = sportNames?.[sportLower] || program.name || 'Unknown Program';
+  
   const season: Omit<Season, 'id'> & { id: string } = {
     id: seasonRef.id,
     programId: program.id,
-    programName: program.name,
+    programName: programDisplayName,
     name: input.name,
     sport: program.sport,
     status: 'setup',
@@ -394,6 +399,36 @@ export async function registerForSeason(input: SeasonRegistrationInput): Promise
     }
   }
   
+  // Check for duplicate registration - prevent same athlete registering twice for same season
+  if (input.athleteId) {
+    // Check by athleteId in draftPool
+    const existingByAthleteId = query(
+      collection(db, 'programs', input.programId, 'seasons', input.seasonId, 'draftPool'),
+      where('athleteId', '==', input.athleteId)
+    );
+    const existingSnap = await getDocs(existingByAthleteId);
+    if (!existingSnap.empty) {
+      throw new Error('This athlete is already registered for this season');
+    }
+  } else {
+    // Check by name + DOB combination for unlinked athletes
+    const existingByName = query(
+      collection(db, 'programs', input.programId, 'seasons', input.seasonId, 'draftPool'),
+      where('athleteFirstName', '==', input.athleteFirstName),
+      where('athleteLastName', '==', input.athleteLastName)
+    );
+    const existingNameSnap = await getDocs(existingByName);
+    // Filter by DOB match
+    const dobMatch = existingNameSnap.docs.find(doc => {
+      const data = doc.data();
+      const existingDOB = data.athleteDOB?.toDate?.() || new Date(data.athleteDOB);
+      return existingDOB.getTime() === input.athleteDOB.getTime();
+    });
+    if (dobMatch) {
+      throw new Error('This athlete is already registered for this season');
+    }
+  }
+  
   // Calculate athlete age
   const athleteDOB = input.athleteDOB;
   const today = new Date();
@@ -487,6 +522,7 @@ export async function registerForSeason(input: SeasonRegistrationInput): Promise
     registrationId: registrationRef.id,
     seasonId: input.seasonId,
     programId: input.programId,
+    sport: input.sport?.toLowerCase() || 'football',
     ageGroupId: input.ageGroupId,
     ageGroupName: input.ageGroupName,
     
@@ -548,6 +584,7 @@ export async function registerForSeason(input: SeasonRegistrationInput): Promise
         draftPoolProgramId: input.programId,
         draftPoolSeasonId: input.seasonId,
         draftPoolEntryId: draftPoolRef.id,
+        draftPoolSport: input.sport?.toLowerCase() || 'football',
         draftPoolAgeGroup: input.ageGroupName,
         draftPoolUpdatedAt: serverTimestamp(),
       });

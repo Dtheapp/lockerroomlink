@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc, getDocs, where, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc, getDocs, getDoc, where, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { sanitizeText, sanitizeNumber, sanitizeDate } from '../services/sanitize';
 import { calculateAgeGroup } from '../services/ageValidator';
@@ -53,7 +53,7 @@ const playerAgeGroupFitsTeam = (playerAgeGroup: string | null, teamAgeGroup: str
 };
 
 const Roster: React.FC = () => {
-  const { userData, teamData } = useAuth();
+  const { user, userData, teamData } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [roster, setRoster] = useState<Player[]>([]);
@@ -158,6 +158,15 @@ const Roster: React.FC = () => {
   const [isEditingContact, setIsEditingContact] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   
+  // Edit height in ft/in (parsed from player.height)
+  const [editHeightFt, setEditHeightFt] = useState('');
+  const [editHeightIn, setEditHeightIn] = useState('');
+  
+  // Coach Notes Modal state
+  const [editingNotesPlayer, setEditingNotesPlayer] = useState<Player | null>(null);
+  const [notesInput, setNotesInput] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
+  
   // Loading states for async operations
   const [addingPlayer, setAddingPlayer] = useState(false);
   const [linkingParent, setLinkingParent] = useState(false);
@@ -190,9 +199,11 @@ const Roster: React.FC = () => {
     tkl: '0', 
     dob: '', 
     teamId: '', // NEW: Team selection for parents
+    helmetSize: '', // For uniforms: helmet sizing
     shirtSize: '', // For parents: uniform sizing
     pantSize: '', // For parents: uniform sizing
-    height: '', // Player height
+    heightFt: '', // Player height feet
+    heightIn: '', // Player height inches
     weight: '' // Player weight
   });
   const [selectedPlayerId, setSelectedPlayerId] = useState('');
@@ -232,9 +243,73 @@ const Roster: React.FC = () => {
     setLoading(true);
 
     const rosterQuery = query(collection(db, 'teams', teamData.id, 'players'), orderBy('number'));
-    const unsubRoster = onSnapshot(rosterQuery, (snapshot) => {
+    const unsubRoster = onSnapshot(rosterQuery, async (snapshot) => {
       const playersData = snapshot.docs.map(docSnap => ({ id: docSnap.id, teamId: teamData.id, ...docSnap.data() } as Player));
-      setRoster(playersData);
+      
+      // LIVE ATHLETE DATA: Look up athlete profiles to get live photo, username, etc.
+      // This ensures parent's updates to their athlete profile are reflected in roster
+      const enrichedPlayers = await Promise.all(playersData.map(async (player) => {
+        if (player.athleteId) {
+          try {
+            const athleteDoc = await getDoc(doc(db, 'players', player.athleteId));
+            if (athleteDoc.exists()) {
+              const athleteData = athleteDoc.data();
+              
+              // Handle DOB - could be string, Firestore Timestamp, or nested
+              let dobValue = athleteData.dob || athleteData.dateOfBirth || player.dob || player.dateOfBirth;
+              // If it's a Firestore Timestamp, convert to string
+              if (dobValue && typeof dobValue === 'object' && dobValue.toDate) {
+                dobValue = dobValue.toDate().toISOString().split('T')[0];
+              }
+              
+              console.log('[Roster] Enriching player from athlete profile:', {
+                playerId: player.id,
+                athleteId: player.athleteId,
+                athleteDob: athleteData.dob,
+                athleteDateOfBirth: athleteData.dateOfBirth,
+                rosterDob: player.dob,
+                resolvedDob: dobValue,
+              });
+              // Merge athlete profile data - athlete profile is SOURCE OF TRUTH for parent-editable fields
+              // Roster doc only stores coach-editable fields (number, position, isStarter, isCaptain)
+              return {
+                ...player,
+                // FROM ATHLETE PROFILE (parent controls):
+                photoUrl: athleteData.photoUrl || player.photoUrl,
+                username: athleteData.username || player.username,
+                dob: dobValue,
+                dateOfBirth: dobValue,
+                nickname: athleteData.nickname || player.nickname,
+                firstName: athleteData.firstName || player.firstName,
+                lastName: athleteData.lastName || player.lastName,
+                name: athleteData.name || player.name,
+                gender: athleteData.gender || player.gender,
+                height: athleteData.height || player.height,
+                weight: athleteData.weight || player.weight,
+                helmetSize: athleteData.helmetSize || player.helmetSize,
+                shirtSize: athleteData.shirtSize || player.shirtSize,
+                pantSize: athleteData.pantSize || player.pantSize,
+                bio: athleteData.bio || player.bio,
+                medical: athleteData.medical || player.medical,
+                // Keep roster-specific fields from roster doc (coach controls):
+                number: player.number,
+                position: player.position,
+                isStarter: player.isStarter,
+                isCaptain: player.isCaptain,
+              };
+            } else {
+              console.log('[Roster] Athlete profile NOT FOUND for:', player.athleteId);
+            }
+          } catch (err) {
+            console.log('Could not fetch athlete profile for', player.athleteId, err);
+          }
+        } else {
+          console.log('[Roster] Player has no athleteId:', player.id, player.name);
+        }
+        return player;
+      }));
+      
+      setRoster(enrichedPlayers);
       setLoading(false);
     });
 
@@ -331,12 +406,17 @@ const Roster: React.FC = () => {
         parentId: isParent ? userData?.uid : undefined,
         medical: { allergies: 'None', conditions: 'None', medications: 'None', bloodType: '' }
       };
+      
+      // Combine height ft/in into formatted string
+      const heightStr = newPlayer.heightFt || newPlayer.heightIn 
+        ? `${newPlayer.heightFt || 0} ft ${newPlayer.heightIn || 0} in`
+        : '';
 
       if (isParent) {
         // Parents only provide uniform sizes
         playerData.shirtSize = sanitizeText(newPlayer.shirtSize, 20);
         playerData.pantSize = sanitizeText(newPlayer.pantSize, 20);
-        playerData.height = sanitizeText(newPlayer.height, 10);
+        playerData.height = heightStr;
         playerData.weight = sanitizeText(newPlayer.weight, 10);
         // Initialize stats and position as empty - coach will fill
         playerData.stats = { td: 0, tkl: 0 };
@@ -349,12 +429,12 @@ const Roster: React.FC = () => {
         playerData.stats = { td: sanitizeNumber(newPlayer.td, 0, 999), tkl: sanitizeNumber(newPlayer.tkl, 0, 999) };
         playerData.shirtSize = sanitizeText(newPlayer.shirtSize, 20);
         playerData.pantSize = sanitizeText(newPlayer.pantSize, 20);
-        playerData.height = sanitizeText(newPlayer.height, 10);
+        playerData.height = heightStr;
         playerData.weight = sanitizeText(newPlayer.weight, 10);
       }
 
       await addDoc(collection(db, 'teams', targetTeamId, 'players'), playerData);
-      setNewPlayer({ firstName: '', lastName: '', nickname: '', gender: '', name: '', number: '', position: '', td: '0', tkl: '0', dob: '', teamId: '', shirtSize: '', pantSize: '', height: '', weight: '' });
+      setNewPlayer({ firstName: '', lastName: '', nickname: '', gender: '', name: '', number: '', position: '', td: '0', tkl: '0', dob: '', teamId: '', helmetSize: '', shirtSize: '', pantSize: '', heightFt: '', heightIn: '', weight: '' });
       setIsAddModalOpen(false);
       
       // For parents, reload the AuthContext to pick up the new player
@@ -793,17 +873,49 @@ const Roster: React.FC = () => {
     
     setUploadingPhoto(true);
     try {
-      // Resize and compress the image
+      const playerRef = doc(db, 'teams', editingPlayer.teamId, 'players', editingPlayer.id);
+      
+      // Resize and compress the image FIRST
       const resizedBase64 = await resizeImage(file, 200, 200); // 200x200 for headshot
       
-      // Update player with photo
-      const playerRef = doc(db, 'teams', editingPlayer.teamId, 'players', editingPlayer.id);
-      await updateDoc(playerRef, { photoUrl: resizedBase64 });
+      // Build update payload - always include parentId/parentUserId if parent is uploading
+      // This ensures the Firestore rule "PARENT CLAIM" passes
+      const updatePayload: Record<string, any> = { photoUrl: resizedBase64 };
+      
+      if (isParent && user?.uid) {
+        // Always include parentId in the update - the Firestore rule allows setting it to your own UID
+        updatePayload.parentId = user.uid;
+        updatePayload.parentUserId = user.uid;
+        console.log('📸 Parent uploading photo - including parentId claim in update');
+      }
+      
+      // Single atomic update with both photo and parentId (if applicable)
+      await updateDoc(playerRef, updatePayload);
+      
+      // SYNC TO ATHLETE PROFILE: Also update top-level player doc so parent sees the photo
+      const athleteId = editingPlayer.athleteId;
+      if (athleteId) {
+        try {
+          const athleteRef = doc(db, 'players', athleteId);
+          await updateDoc(athleteRef, { photoUrl: resizedBase64, updatedAt: serverTimestamp() });
+          console.log('📸 ✅ Photo synced to athlete profile:', athleteId);
+        } catch (syncErr) {
+          console.log('📸 Could not sync photo to athlete profile:', syncErr);
+        }
+      }
       
       // Update local state
-      setEditingPlayer({ ...editingPlayer, photoUrl: resizedBase64 });
-    } catch (error) {
-      console.error('Error uploading photo:', error);
+      setEditingPlayer({ 
+        ...editingPlayer, 
+        photoUrl: resizedBase64,
+        ...(isParent && user?.uid ? { parentId: user.uid, parentUserId: user.uid } : {})
+      });
+      
+      console.log('✅ Photo uploaded successfully!');
+    } catch (error: any) {
+      console.error('❌ Error uploading photo:', error);
+      console.error('Error code:', error?.code);
+      console.error('Error message:', error?.message);
       alert('Failed to upload photo. Please try again.');
     } finally {
       setUploadingPhoto(false);
@@ -874,6 +986,28 @@ const Roster: React.FC = () => {
     }
   };
 
+  // Handle saving coach notes
+  const handleSaveNotes = async () => {
+    if (!editingNotesPlayer || !editingNotesPlayer.teamId || savingNotes) return;
+    
+    setSavingNotes(true);
+    try {
+      const playerRef = doc(db, 'teams', editingNotesPlayer.teamId, 'players', editingNotesPlayer.id);
+      await updateDoc(playerRef, {
+        coachNotes: notesInput,
+        updatedAt: serverTimestamp()
+      });
+      console.log('[Roster] ✅ Saved coach notes');
+      setEditingNotesPlayer(null);
+      setNotesInput('');
+    } catch (error) {
+      console.error('Error saving notes:', error);
+      alert('Failed to save notes.');
+    } finally {
+      setSavingNotes(false);
+    }
+  };
+
   const handleUpdatePlayer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPlayer || !editingPlayer.teamId || savingPlayer) {
@@ -884,40 +1018,109 @@ const Roster: React.FC = () => {
     console.log('[Roster] Saving player update:', { 
       playerId: editingPlayer.id, 
       teamId: editingPlayer.teamId,
-      nickname: editingPlayer.nickname 
+      nickname: editingPlayer.nickname,
+      athleteId: editingPlayer.athleteId,
+      isStaff
     });
     
     setSavingPlayer(true);
     try {
       const playerRef = doc(db, 'teams', editingPlayer.teamId, 'players', editingPlayer.id);
-      const updateData: any = {
-        firstName: editingPlayer.firstName || editingPlayer.name?.split(' ')[0] || '',
-        lastName: editingPlayer.lastName || editingPlayer.name?.split(' ').slice(1).join(' ') || '',
-        nickname: editingPlayer.nickname || '',
-        name: editingPlayer.name,
-        dob: editingPlayer.dob,
-        gender: editingPlayer.gender || '',
-        shirtSize: editingPlayer.shirtSize || '',
-        pantSize: editingPlayer.pantSize || '',
-        height: editingPlayer.height || '',
-        weight: editingPlayer.weight || ''
-      };
+      const athleteId = editingPlayer.athleteId;
       
-      // Coaches can also edit jersey number, position, and designations
+      // ARCHITECTURE: 
+      // - Athlete Profile (`players/{athleteId}`) = Source of truth for parent-editable fields
+      // - Roster Doc (`teams/{teamId}/players/{id}`) = Only stores coach-assigned fields
+      
+      // COACH-EDITABLE FIELDS:
+      // Coach can set: number, position, starter, captain + nickname, height, weight, coach notes
+      // Coach CANNOT change: first name, last name, dob, gender, uniform sizes (parent-only)
       if (isStaff) {
-        updateData.number = editingPlayer.number || 0;
-        updateData.position = editingPlayer.position || 'TBD';
-        updateData.isStarter = editingPlayer.isStarter || false;
-        updateData.isCaptain = editingPlayer.isCaptain || false;
+        // Combine height ft/in into formatted string
+        const heightStr = editHeightFt || editHeightIn 
+          ? `${editHeightFt || 0} ft ${editHeightIn || 0} in`
+          : '';
+        
+        const rosterUpdateData: any = {
+          number: editingPlayer.number || 0,
+          position: editingPlayer.position || 'TBD',
+          isStarter: editingPlayer.isStarter || false,
+          isCaptain: editingPlayer.isCaptain || false,
+          // Coach can also help set these if parent hasn't:
+          nickname: editingPlayer.nickname || '',
+          height: heightStr,
+          weight: editingPlayer.weight || '',
+          // NOTE: Uniform sizes (helmet, shirt, pants) are PARENT-ONLY - pulled from athlete profile
+          // Coach notes - shared with all coaching staff
+          coachNotes: editingPlayer.coachNotes || '',
+          updatedAt: serverTimestamp()
+        };
+        console.log('[Roster] Coach updating roster doc:', rosterUpdateData);
+        await updateDoc(playerRef, rosterUpdateData);
+        
+        // Also sync coach fields to athlete profile for display in "My Athletes"
+        if (athleteId) {
+          try {
+            const athleteRef = doc(db, 'players', athleteId);
+            const athleteSnap = await getDoc(athleteRef);
+            if (athleteSnap.exists()) {
+              await updateDoc(athleteRef, {
+                number: editingPlayer.number || 0,
+                position: editingPlayer.position || 'TBD',
+                isStarter: editingPlayer.isStarter || false,
+                isCaptain: editingPlayer.isCaptain || false,
+                // Sync these too so parent sees them
+                nickname: editingPlayer.nickname || '',
+                height: heightStr,
+                weight: editingPlayer.weight || '',
+                // NOTE: Uniform sizes NOT synced - parent controls those
+                updatedAt: serverTimestamp()
+              });
+              console.log('[Roster] ✅ Synced coach fields to athlete profile');
+            }
+          } catch (syncErr) {
+            console.log('[Roster] Could not sync to athlete profile:', syncErr);
+          }
+        }
       }
       
-      console.log('[Roster] Update data:', updateData);
-      await updateDoc(playerRef, updateData);
+      // PARENT-EDITABLE FIELDS (stored on athlete profile, roster is just reference):
+      // Parents can edit: name, nickname, dob, height, weight, shirt/pant size, bio, medical
+      if (!isStaff && athleteId) {
+        const athleteRef = doc(db, 'players', athleteId);
+        const athleteUpdateData: any = {
+          firstName: editingPlayer.firstName || editingPlayer.name?.split(' ')[0] || '',
+          lastName: editingPlayer.lastName || editingPlayer.name?.split(' ').slice(1).join(' ') || '',
+          nickname: editingPlayer.nickname || '',
+          name: editingPlayer.name || '',
+          gender: editingPlayer.gender || '',
+          shirtSize: editingPlayer.shirtSize || '',
+          pantSize: editingPlayer.pantSize || '',
+          height: editingPlayer.height || '',
+          weight: editingPlayer.weight || '',
+          bio: editingPlayer.bio || '',
+          medical: editingPlayer.medical || '',
+          updatedAt: serverTimestamp()
+        };
+        if (editingPlayer.dob) {
+          athleteUpdateData.dob = editingPlayer.dob;
+        }
+        console.log('[Roster] Parent updating athlete profile:', athleteUpdateData);
+        await updateDoc(athleteRef, athleteUpdateData);
+        console.log('[Roster] ✅ Saved to athlete profile');
+      }
+      
       console.log('[Roster] Player saved successfully!');
       setEditingPlayer(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating player:', error);
-      alert('Failed to update player information.');
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      if (error.code === 'permission-denied') {
+        alert('Permission denied. You may not have access to edit this player.');
+      } else {
+        alert('Failed to update player information: ' + (error.message || 'Unknown error'));
+      }
     } finally {
       setSavingPlayer(false);
     }
@@ -1366,7 +1569,12 @@ const Roster: React.FC = () => {
         <>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {paginatedRoster.map(player => {
-            const hasMedicalAlert = player.medical && (player.medical.allergies !== 'None' || player.medical.conditions !== 'None');
+            // Medical alert: check if ANY medical info is set and not 'None' or empty
+            const hasMedicalAlert = player.medical && (
+              (player.medical.allergies && player.medical.allergies !== 'None' && player.medical.allergies.trim() !== '') ||
+              (player.medical.conditions && player.medical.conditions !== 'None' && player.medical.conditions.trim() !== '') ||
+              (player.medical.medications && player.medical.medications !== 'None' && player.medical.medications.trim() !== '')
+            );
             const parent = getParentInfo(player.parentId);
             const isStarter = player.isStarter;
             const isCaptain = player.isCaptain;
@@ -1392,6 +1600,50 @@ const Roster: React.FC = () => {
                       </div>
                     )}
                     
+                    {/* Top Right: Edit Pencil + Medical/Phone icons */}
+                    <div className="absolute top-2 right-2 flex gap-1">
+                        {/* Edit Player Button */}
+                        {(isStaff || (isParent && player.parentId === userData?.uid)) && (
+                          <button 
+                            onClick={() => {
+                              // Parse height string into ft/in
+                              let ft = '';
+                              let inches = '';
+                              if (player.height) {
+                                const heightMatch = player.height.match(/(\d+)\s*ft\s*(\d+)\s*in/i);
+                                if (heightMatch) {
+                                  ft = heightMatch[1];
+                                  inches = heightMatch[2];
+                                }
+                              }
+                              setEditHeightFt(ft);
+                              setEditHeightIn(inches);
+                              setEditingPlayer(player);
+                            }}
+                            className={`p-1.5 rounded-full transition-colors ${
+                              theme === 'dark' 
+                                ? 'text-zinc-400 hover:text-white hover:bg-white/10' 
+                                : 'text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100'
+                            }`}
+                            title="Edit Player"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+                        {/* Medical Alert */}
+                        {hasMedicalAlert && isStaff && (
+                            <button onClick={() => setViewMedical(player)} className="text-red-500 hover:text-red-400 bg-red-500/10 p-1.5 rounded-full animate-pulse">
+                                <AlertCircle className="w-4 h-4" />
+                            </button>
+                        )}
+                        {/* Phone */}
+                        {parent && isStaff && (
+                            <button onClick={() => openContact(player.parentId)} className="text-cyan-500 hover:text-cyan-400 bg-cyan-500/10 p-1.5 rounded-full">
+                                <Phone className="w-4 h-4" />
+                            </button>
+                        )}
+                    </div>
+
                     {/* Player Photo */}
                     <div className={`flex justify-center ${isStarter ? 'mt-6' : 'mt-2'} mb-3`}>
                       {player.photoUrl ? (
@@ -1419,22 +1671,8 @@ const Roster: React.FC = () => {
                       )}
                     </div>
                     
-                    {/* Action buttons - top right */}
-                    <div className="absolute top-2 right-2 flex gap-1">
-                        {/* PRIVACY FIX: Only Coaches/Staff can see the Medical Alert Button */}
-                        {hasMedicalAlert && isStaff && (
-                            <button onClick={() => setViewMedical(player)} className="text-red-500 hover:text-red-400 bg-red-500/10 p-1.5 rounded-full animate-pulse">
-                                <AlertCircle className="w-4 h-4" />
-                            </button>
-                        )}
-                        {parent && isStaff && (
-                            <button onClick={() => openContact(player.parentId)} className="text-cyan-500 hover:text-cyan-400 bg-cyan-500/10 p-1.5 rounded-full">
-                                <Phone className="w-4 h-4" />
-                            </button>
-                        )}
-                    </div>
-
-                    <div className="text-center mb-4">
+                    {/* Name & Basic Info */}
+                    <div className="text-center mb-3">
                         <h3 className={`text-xl font-bold truncate flex items-center justify-center gap-1.5 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
                           {player.nickname ? (
                             <span>{player.firstName || player.name?.split(' ')[0]} <span className="text-orange-500">"{player.nickname}"</span> {player.lastName || player.name?.split(' ').slice(1).join(' ')}</span>
@@ -1458,13 +1696,13 @@ const Roster: React.FC = () => {
                           {player.photoUrl && <span>#{player.number} <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}>|</span> </span>}{player.position}
                         </p>
                         <div className={`flex items-center justify-center gap-2 mt-1 flex-wrap`}>
-                          <span className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}`}>DOB: {player.dob || '--'}</span>
-                          {player.dob && calculateAgeGroup(player.dob) && (
+                          <span className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}`}>DOB: {player.dob || player.dateOfBirth || '--'}</span>
+                          {(player.dob || player.dateOfBirth) && calculateAgeGroup(player.dob || player.dateOfBirth) && (
                             <span className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs px-2 py-0.5 rounded font-bold">
-                              {calculateAgeGroup(player.dob)}
+                              {calculateAgeGroup(player.dob || player.dateOfBirth)}
                             </span>
                           )}
-                          {player.dob && !calculateAgeGroup(player.dob) && (
+                          {(player.dob || player.dateOfBirth) && !calculateAgeGroup(player.dob || player.dateOfBirth) && (
                             <span className="bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs px-2 py-0.5 rounded">
                               18+
                             </span>
@@ -1472,31 +1710,19 @@ const Roster: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Quick Stats with View Stats Button */}
-                    <div className="mt-auto mb-4">
-                      <div className={`flex justify-center gap-4 p-2 rounded-t-lg border border-b-0 ${
-                        theme === 'dark' ? 'bg-black/20 border-white/10' : 'bg-zinc-50 border-zinc-200'
+                    {/* Player Bio - TOP SECTION (visible to everyone) */}
+                    {player.bio && (
+                      <div className={`mb-3 p-2 rounded border ${
+                        theme === 'dark' ? 'bg-purple-900/10 border-purple-900/30' : 'bg-purple-50 border-purple-200'
                       }`}>
-                        <div className={`flex items-center gap-1 text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                            <Sword className="w-3 h-3 text-orange-500" /> <span className="font-bold">{player.stats?.td || 0}</span> TD
-                        </div>
-                        <div className={`flex items-center gap-1 text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                            <Shield className="w-3 h-3 text-cyan-500" /> <span className="font-bold">{player.stats?.tkl || 0}</span> TKL
-                        </div>
+                        <p className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider mb-1">Bio</p>
+                        <p className={`text-xs leading-relaxed ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                          {player.bio}
+                        </p>
                       </div>
-                      <button
-                        onClick={() => setViewStatsPlayer(player)}
-                        className={`w-full flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-b-lg border border-t-0 transition-colors ${
-                          theme === 'dark' 
-                            ? 'text-orange-400 bg-orange-900/20 hover:bg-orange-900/30 border-orange-900/30' 
-                            : 'text-orange-600 bg-orange-50 hover:bg-orange-100 border-orange-200'
-                        }`}
-                      >
-                        <Eye className="w-3 h-3" /> View Stats History
-                      </button>
-                    </div>
+                    )}
 
-                    {/* Height & Weight - Visible to everyone */}
+                    {/* Height & Weight */}
                     {(player.height || player.weight) && (
                       <div className={`mb-3 p-2 rounded border ${
                         theme === 'dark' ? 'bg-cyan-900/10 border-cyan-900/30' : 'bg-cyan-50 border-cyan-200'
@@ -1512,20 +1738,26 @@ const Roster: React.FC = () => {
                           {player.weight && (
                             <div>
                               <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}>Weight:</span>
-                              <span className={`ml-1 font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{player.weight}</span>
+                              <span className={`ml-1 font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{player.weight} lbs</span>
                             </div>
                           )}
                         </div>
                       </div>
                     )}
 
-                    {/* Uniform Sizes - Visible to both Parents and Coaches */}
-                    {(player.shirtSize || player.pantSize) && (
+                    {/* Uniform Sizes */}
+                    {(player.helmetSize || player.shirtSize || player.pantSize) && (
                       <div className={`mb-3 p-2 rounded border ${
                         theme === 'dark' ? 'bg-orange-900/10 border-orange-900/30' : 'bg-orange-50 border-orange-200'
                       }`}>
                         <p className="text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider mb-1">Uniform</p>
                         <div className="flex justify-around text-xs">
+                          {player.helmetSize && (
+                            <div>
+                              <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}>Helmet:</span>
+                              <span className={`ml-1 font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{player.helmetSize}</span>
+                            </div>
+                          )}
                           {player.shirtSize && (
                             <div>
                               <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}>Shirt:</span>
@@ -1542,37 +1774,92 @@ const Roster: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Parent: Edit their own child */}
-                    {isParent && player.parentId === userData?.uid && (
-                      <div className={`flex justify-center pt-3 mt-2 ${theme === 'dark' ? 'border-t border-white/10' : 'border-t border-zinc-200'}`}>
-                        <button 
-                          onClick={() => setEditingPlayer(player)} 
-                          className="text-xs flex items-center gap-1 text-orange-600 hover:text-orange-500 dark:text-orange-400 dark:hover:text-orange-300 font-bold"
-                        >
-                          <Edit2 className="w-3 h-3" /> Edit Player Info
-                        </button>
+                    {/* Coach Notes - Only visible to coaches/commissioners */}
+                    {isStaff && (
+                      <div 
+                        onClick={() => {
+                          setEditingNotesPlayer(player);
+                          setNotesInput(player.coachNotes || '');
+                        }}
+                        className={`mb-3 p-2 rounded border cursor-pointer transition-all hover:scale-[1.02] ${
+                          player.coachNotes 
+                            ? (theme === 'dark' ? 'bg-blue-900/10 border-blue-900/30 hover:border-blue-500/50' : 'bg-blue-50 border-blue-200 hover:border-blue-400')
+                            : (theme === 'dark' ? 'bg-zinc-800/50 border-dashed border-zinc-700 hover:border-blue-500/50' : 'bg-zinc-50 border-dashed border-zinc-300 hover:border-blue-400')
+                        }`}
+                      >
+                        <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                          📝 Coach Notes
+                          <Edit2 className="w-2.5 h-2.5 opacity-50" />
+                        </p>
+                        {player.coachNotes ? (
+                          <p className={`text-xs leading-relaxed ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                            {player.coachNotes}
+                          </p>
+                        ) : (
+                          <p className={`text-xs italic ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                            + Add notes about this player...
+                          </p>
+                        )}
                       </div>
                     )}
 
-                    {/* Coach/Admin controls */}
-                    {isStaff && (
-                        <div className={`border-t pt-3 mt-2 space-y-2 ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
-                            <div className="flex justify-between items-center">
-                                {!player.parentId ? (
-                                    <button onClick={() => { setSelectedPlayerId(player.id); setIsLinkModalOpen(true); }} className={`text-xs flex items-center gap-1 ${theme === 'dark' ? 'text-zinc-400 hover:text-white' : 'text-zinc-400 hover:text-zinc-900'}`}><LinkIcon className="w-3 h-3" /> Link Parent</button>
-                                ) : (
-                                    <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><User className="w-3 h-3"/> {parent?.name || 'Linked'}</span>
-                                )}
-                                <button onClick={() => setDeletePlayerConfirm({ id: player.id, name: player.name, number: String(player.number) })} className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 flex items-center gap-1"><Trash2 className="w-3 h-3" /> Remove</button>
-                            </div>
-                            <button 
-                              onClick={() => setEditingPlayer(player)} 
-                              className="w-full text-xs flex items-center justify-center gap-1 text-orange-600 hover:text-orange-500 dark:text-orange-400 dark:hover:text-orange-300 font-bold"
-                            >
-                              <Edit2 className="w-3 h-3" /> Edit Player
-                            </button>
+                    {/* BOTTOM ACTION BOX - Stats + Parent + Remove */}
+                    <div className={`mt-auto pt-3 border-t rounded-lg ${theme === 'dark' ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-zinc-50'}`}>
+                      {/* Stats Row */}
+                      <div className="flex justify-center gap-4 px-2 pb-2">
+                        <div className={`flex items-center gap-1 text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                            <Sword className="w-3 h-3 text-orange-500" /> <span className="font-bold">{player.stats?.td || 0}</span> TD
                         </div>
-                    )}
+                        <div className={`flex items-center gap-1 text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                            <Shield className="w-3 h-3 text-cyan-500" /> <span className="font-bold">{player.stats?.tkl || 0}</span> TKL
+                        </div>
+                      </div>
+                      
+                      {/* View Stats Button */}
+                      <button
+                        onClick={() => setViewStatsPlayer(player)}
+                        className={`w-full flex items-center justify-center gap-1.5 text-xs font-bold py-2 border-t transition-colors ${
+                          theme === 'dark' 
+                            ? 'text-orange-400 hover:bg-orange-900/20 border-white/10' 
+                            : 'text-orange-600 hover:bg-orange-100 border-zinc-200'
+                        }`}
+                      >
+                        <Eye className="w-3 h-3" /> View Stats History
+                      </button>
+                      
+                      {/* Parent/Remove Row (for coaches) */}
+                      {isStaff && (
+                        <div className={`flex justify-between items-center px-3 py-2 border-t ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
+                          {!player.parentId && !player.parentUserId ? (
+                            <button onClick={() => { setSelectedPlayerId(player.id); setIsLinkModalOpen(true); }} className={`text-xs flex items-center gap-1 ${theme === 'dark' ? 'text-zinc-400 hover:text-white' : 'text-zinc-400 hover:text-zinc-900'}`}>
+                              <LinkIcon className="w-3 h-3" /> Link Parent
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={() => openContact(player.parentId || player.parentUserId)}
+                              className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 hover:text-emerald-500 dark:hover:text-emerald-300 hover:underline cursor-pointer"
+                            >
+                              <User className="w-3 h-3"/> {parent?.name || player.parentName || 'Parent'}
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => setDeletePlayerConfirm({ id: player.id, name: player.name, number: String(player.number) })} 
+                            className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3 h-3" /> Remove
+                          </button>
+                        </div>
+                      )}
+                      
+                      {/* Parent: Link to their parent contact */}
+                      {isParent && player.parentId === userData?.uid && (
+                        <div className={`flex justify-center px-3 py-2 border-t ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
+                          <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                            <User className="w-3 h-3"/> Your Athlete
+                          </span>
+                        </div>
+                      )}
+                    </div>
                 </GlassCard>
             );
           })}
@@ -1707,9 +1994,23 @@ const Roster: React.FC = () => {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg shadow-orange-500/25">
-                      {coach.name?.charAt(0).toUpperCase() || 'C'}
-                    </div>
+                    {coach.photoUrl ? (
+                      <img 
+                        src={coach.photoUrl} 
+                        alt={coach.name}
+                        className={`w-10 h-10 rounded-full object-cover border-2 shadow-lg ${
+                          isHC ? 'border-orange-500 shadow-orange-500/25' : 'border-white/20'
+                        }`}
+                      />
+                    ) : (
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-lg ${
+                        isHC 
+                          ? 'bg-gradient-to-br from-orange-500 to-amber-600 shadow-orange-500/25' 
+                          : 'bg-gradient-to-br from-orange-500 to-orange-600 shadow-orange-500/25'
+                      }`}>
+                        {coach.name?.charAt(0).toUpperCase() || 'C'}
+                      </div>
+                    )}
                     <div>
                       <p className={`font-bold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
                         {coach.name}
@@ -1720,6 +2021,13 @@ const Roster: React.FC = () => {
                       <p className="text-xs text-zinc-500">@{coach.username || coach.email}</p>
                       {/* Coordinator badges */}
                       <div className="flex gap-1 mt-1">
+                        {isHC && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 ${
+                            theme === 'dark' ? 'bg-orange-900/30 text-orange-400' : 'bg-orange-100 text-orange-700'
+                          }`}>
+                            <Crown className="w-2.5 h-2.5" /> HC
+                          </span>
+                        )}
                         {isOC && (
                           <span className={`text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 ${
                             theme === 'dark' ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-700'
@@ -2392,25 +2700,87 @@ const Roster: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Height</label>
-                      <input name="height" value={newPlayer.height} onChange={handleInputChange} placeholder="4 ft 6 in" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
-                        theme === 'dark' 
-                          ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
-                          : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
-                      }`} />
+                      <div className="flex gap-2">
+                        <div className="flex-1 relative">
+                          <input 
+                            type="number"
+                            min="0"
+                            max="8"
+                            name="heightFt"
+                            value={newPlayer.heightFt} 
+                            onChange={handleInputChange}
+                            placeholder="4"
+                            className={`w-full p-3 pr-8 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                              theme === 'dark' 
+                                ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                                : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                            }`}
+                          />
+                          <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-sm ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>ft</span>
+                        </div>
+                        <div className="flex-1 relative">
+                          <input 
+                            type="number"
+                            min="0"
+                            max="11"
+                            name="heightIn"
+                            value={newPlayer.heightIn} 
+                            onChange={handleInputChange}
+                            placeholder="6"
+                            className={`w-full p-3 pr-8 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                              theme === 'dark' 
+                                ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                                : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                            }`}
+                          />
+                          <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-sm ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>in</span>
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Weight</label>
-                      <input name="weight" value={newPlayer.weight} onChange={handleInputChange} placeholder="85 lbs" className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
-                        theme === 'dark' 
-                          ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
-                          : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
-                      }`} />
+                      <div className="relative">
+                        <input 
+                          type="number"
+                          min="0"
+                          max="400"
+                          name="weight" 
+                          value={newPlayer.weight} 
+                          onChange={handleInputChange} 
+                          placeholder="85" 
+                          className={`w-full p-3 pr-10 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                            theme === 'dark' 
+                              ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-orange-500/50' 
+                              : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500'
+                          }`}
+                        />
+                        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-sm ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>lbs</span>
+                      </div>
                     </div>
                   </div>
                 </div>
                 <div className={`pt-2 border-t ${theme === 'dark' ? 'border-white/10' : 'border-zinc-200'}`}>
                   <p className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-3 uppercase tracking-wider">Uniform Sizing</p>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Helmet Size</label>
+                      <select name="helmetSize" value={newPlayer.helmetSize} onChange={handleInputChange} className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
+                        theme === 'dark' 
+                          ? 'bg-black/30 border-white/10 text-white focus:border-orange-500/50' 
+                          : 'bg-zinc-50 border-zinc-300 text-zinc-900 focus:border-orange-500'
+                      }`}>
+                        <option value="">Select size...</option>
+                        <option value="Youth S">Youth S</option>
+                        <option value="Youth M">Youth M</option>
+                        <option value="Youth L">Youth L</option>
+                        <option value="Youth XL">Youth XL</option>
+                        <option value="Adult S">Adult S</option>
+                        <option value="Adult M">Adult M</option>
+                        <option value="Adult L">Adult L</option>
+                        <option value="Adult XL">Adult XL</option>
+                        <option value="Adult 2XL">Adult 2XL</option>
+                      </select>
+                    </div>
                     <div>
                       <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Shirt Size</label>
                       <select name="shirtSize" value={newPlayer.shirtSize} onChange={handleInputChange} className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-orange-500/50 outline-none transition-all ${
@@ -2810,8 +3180,10 @@ const Roster: React.FC = () => {
                       firstName: e.target.value,
                       name: `${e.target.value} ${editingPlayer.lastName || editingPlayer.name?.split(' ').slice(1).join(' ') || ''}`.trim()
                     })}
-                    className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                    className={`w-full p-3 rounded border text-zinc-900 dark:text-white ${isStaff ? 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 cursor-not-allowed' : 'bg-zinc-50 dark:bg-black border-zinc-300 dark:border-zinc-800'}`}
                     required
+                    disabled={isStaff}
+                    title={isStaff ? 'Only parents can change names' : ''}
                   />
                 </div>
                 <div>
@@ -2824,11 +3196,17 @@ const Roster: React.FC = () => {
                       lastName: e.target.value,
                       name: `${editingPlayer.firstName || editingPlayer.name?.split(' ')[0] || ''} ${e.target.value}`.trim()
                     })}
-                    className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                    className={`w-full p-3 rounded border text-zinc-900 dark:text-white ${isStaff ? 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 cursor-not-allowed' : 'bg-zinc-50 dark:bg-black border-zinc-300 dark:border-zinc-800'}`}
                     required
+                    disabled={isStaff}
+                    title={isStaff ? 'Only parents can change names' : ''}
                   />
                 </div>
               </div>
+              
+              {isStaff && (
+                <p className="text-[10px] text-zinc-500 -mt-2">Names can only be changed by parents</p>
+              )}
               
               <div>
                 <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Nickname (optional)</label>
@@ -2967,70 +3345,91 @@ const Roster: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Height</label>
-                    <input 
-                      type="text"
-                      value={editingPlayer.height || ''}
-                      onChange={(e) => setEditingPlayer({...editingPlayer, height: e.target.value})}
-                      placeholder="4 ft 6 in"
-                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
-                    />
+                    <div className="flex gap-2">
+                      <div className="flex-1 relative">
+                        <input 
+                          type="number"
+                          min="0"
+                          max="8"
+                          value={editHeightFt}
+                          onChange={(e) => setEditHeightFt(e.target.value)}
+                          placeholder="4"
+                          className="w-full bg-zinc-50 dark:bg-black p-3 pr-8 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">ft</span>
+                      </div>
+                      <div className="flex-1 relative">
+                        <input 
+                          type="number"
+                          min="0"
+                          max="11"
+                          value={editHeightIn}
+                          onChange={(e) => setEditHeightIn(e.target.value)}
+                          placeholder="6"
+                          className="w-full bg-zinc-50 dark:bg-black p-3 pr-8 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">in</span>
+                      </div>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Weight</label>
-                    <input 
-                      type="text"
-                      value={editingPlayer.weight || ''}
-                      onChange={(e) => setEditingPlayer({...editingPlayer, weight: e.target.value})}
-                      placeholder="85 lbs"
-                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
-                    />
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        min="0"
+                        max="400"
+                        value={editingPlayer.weight || ''}
+                        onChange={(e) => setEditingPlayer({...editingPlayer, weight: e.target.value})}
+                        placeholder="85"
+                        className="w-full bg-zinc-50 dark:bg-black p-3 pr-10 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">lbs</span>
+                    </div>
                   </div>
                 </div>
               </div>
 
               <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800">
-                <p className="text-xs font-bold text-purple-600 dark:text-purple-400 mb-3 uppercase tracking-wider">Uniform Sizing</p>
-                <div className="grid grid-cols-2 gap-4">
+                <p className="text-xs font-bold text-purple-600 dark:text-purple-400 mb-3 uppercase tracking-wider">Uniform Sizing (Read-Only from Parent)</p>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Helmet Size</label>
+                    <div className="w-full bg-zinc-100 dark:bg-zinc-900 p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300">
+                      {editingPlayer.helmetSize || 'Not set'}
+                    </div>
+                  </div>
                   <div>
                     <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Shirt Size</label>
-                    <select 
-                      value={editingPlayer.shirtSize || ''}
-                      onChange={(e) => setEditingPlayer({...editingPlayer, shirtSize: e.target.value})}
-                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
-                    >
-                      <option value="">Select size...</option>
-                      <option value="Youth S">Youth S</option>
-                      <option value="Youth M">Youth M</option>
-                      <option value="Youth L">Youth L</option>
-                      <option value="Youth XL">Youth XL</option>
-                      <option value="Adult S">Adult S</option>
-                      <option value="Adult M">Adult M</option>
-                      <option value="Adult L">Adult L</option>
-                      <option value="Adult XL">Adult XL</option>
-                      <option value="Adult 2XL">Adult 2XL</option>
-                    </select>
+                    <div className="w-full bg-zinc-100 dark:bg-zinc-900 p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300">
+                      {editingPlayer.shirtSize || 'Not set'}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Pants Size</label>
-                    <select 
-                      value={editingPlayer.pantSize || ''}
-                      onChange={(e) => setEditingPlayer({...editingPlayer, pantSize: e.target.value})}
-                      className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white"
-                    >
-                      <option value="">Select size...</option>
-                      <option value="Youth S">Youth S</option>
-                      <option value="Youth M">Youth M</option>
-                      <option value="Youth L">Youth L</option>
-                      <option value="Youth XL">Youth XL</option>
-                      <option value="Adult S">Adult S</option>
-                      <option value="Adult M">Adult M</option>
-                      <option value="Adult L">Adult L</option>
-                      <option value="Adult XL">Adult XL</option>
-                      <option value="Adult 2XL">Adult 2XL</option>
-                    </select>
+                    <div className="w-full bg-zinc-100 dark:bg-zinc-900 p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300">
+                      {editingPlayer.pantSize || 'Not set'}
+                    </div>
                   </div>
                 </div>
               </div>
+
+              {/* COACH-ONLY: Coach Notes (shared with all coaching staff) */}
+              {isStaff && (
+                <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800">
+                  <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                    📝 Coach Notes
+                  </p>
+                  <textarea 
+                    value={editingPlayer.coachNotes || ''}
+                    onChange={(e) => setEditingPlayer({...editingPlayer, coachNotes: e.target.value})}
+                    placeholder="Add private notes about this player (visible to all coaches and commissioners)..."
+                    rows={3}
+                    className="w-full bg-zinc-50 dark:bg-black p-3 rounded border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 resize-none"
+                  />
+                  <p className="text-[10px] text-zinc-500 mt-1">Only visible to coaching staff and commissioners</p>
+                </div>
+              )}
 
               <div className="flex justify-end gap-4 mt-6">
                 <button 
@@ -3054,6 +3453,66 @@ const Roster: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* COACH NOTES MODAL */}
+      {editingNotesPlayer && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className={`p-6 rounded-xl w-full max-w-md border shadow-2xl ${theme === 'dark' ? 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border-white/10' : 'bg-white border-zinc-200'}`}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-blue-500/10 rounded-full flex items-center justify-center">
+                <Edit2 className="w-5 h-5 text-blue-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Coach Notes</h3>
+                <p className="text-sm text-slate-500 dark:text-zinc-400">
+                  {editingNotesPlayer.nickname 
+                    ? `${editingNotesPlayer.firstName || editingNotesPlayer.name?.split(' ')[0]} "${editingNotesPlayer.nickname}" ${editingNotesPlayer.lastName || ''}`
+                    : editingNotesPlayer.name
+                  }
+                </p>
+              </div>
+            </div>
+            
+            <textarea 
+              value={notesInput}
+              onChange={(e) => setNotesInput(e.target.value)}
+              placeholder="Add private notes about this player (visible to all coaches and commissioners)..."
+              rows={5}
+              className={`w-full p-3 rounded-lg border resize-none ${
+                theme === 'dark' 
+                  ? 'bg-black border-zinc-800 text-white placeholder-zinc-500 focus:border-blue-500' 
+                  : 'bg-zinc-50 border-zinc-300 text-zinc-900 placeholder-zinc-400 focus:border-blue-500'
+              } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+              autoFocus
+            />
+            <p className="text-[10px] text-zinc-500 mt-2 mb-4">Only visible to coaching staff and commissioners</p>
+            
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => {
+                  setEditingNotesPlayer(null);
+                  setNotesInput('');
+                }}
+                className="px-4 py-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white font-medium"
+                disabled={savingNotes}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveNotes}
+                disabled={savingNotes}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold disabled:opacity-50 flex items-center gap-2"
+              >
+                {savingNotes ? (
+                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saving...</>
+                ) : (
+                  'Save Notes'
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
