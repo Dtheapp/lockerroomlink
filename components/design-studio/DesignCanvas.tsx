@@ -23,6 +23,7 @@ interface DesignCanvasProps {
   onAddElementAt: (type: 'text' | 'image' | 'shape', position: Position) => void;
   onColorSampled?: (color: string) => void;
   onOpenImageEditor?: (elementId: string) => void;
+  onSaveHistory?: () => void; // Called when drag/resize starts to save undo state
 }
 
 const DesignCanvas: React.FC<DesignCanvasProps> = ({
@@ -41,13 +42,14 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
   onAddElementAt,
   onColorSampled,
   onOpenImageEditor,
+  onSaveHistory,
 }) => {
   const { theme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [dragStart, setDragStart] = useState<Position>({ x: 0, y: 0 });
-  const [elementStart, setElementStart] = useState<{ position: Position; size: { width: number; height: number } }>({
+  const [elementStart, setElementStart] = useState<{ position: Position; size: { width: number; height: number }; fontSize?: number }>({
     position: { x: 0, y: 0 },
     size: { width: 0, height: 0 },
   });
@@ -171,6 +173,9 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
     const element = elements.find(el => el.id === id);
     if (!element || element.locked) return;
 
+    // Save history BEFORE starting the drag operation
+    onSaveHistory?.();
+    
     setIsDragging(true);
     setActiveElementId(id);
     setDragStart({ x: e.clientX, y: e.clientY });
@@ -196,11 +201,18 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
     const element = elements.find(el => el.id === id);
     if (!element || element.locked) return;
 
+    // Save history BEFORE starting the resize operation
+    onSaveHistory?.();
+    
     setIsResizing(true);
     setActiveElementId(id);
     setResizeHandle(handle);
     setDragStart({ x: e.clientX, y: e.clientY });
-    setElementStart({ position: { ...element.position }, size: { ...element.size } });
+    setElementStart({ 
+      position: { ...element.position }, 
+      size: { ...element.size },
+      fontSize: element.type === 'text' ? (element.fontSize || 32) : undefined,
+    });
   };
 
   // Handle mouse move
@@ -241,44 +253,114 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
     }
 
     if (isResizing && resizeHandle) {
+      const activeElement = elements.find(el => el.id === activeElementId);
+      
+      // POINT TEXT MODE: For regular text elements (not autoScaleFont), resize scales fontSize proportionally
+      // autoScaleFont elements (emojis/sport icons) should resize the box instead
+      if (activeElement?.type === 'text' && elementStart.fontSize && !activeElement.autoScaleFont) {
+        // Calculate scale factor based on drag distance
+        // Use diagonal distance for intuitive scaling
+        const diagonal = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        const direction = (deltaX + deltaY) > 0 ? 1 : -1; // Expand or shrink
+        const scaleFactor = 1 + (direction * diagonal / 200); // Smooth scaling
+        
+        const newFontSize = Math.max(8, Math.min(500, Math.round(elementStart.fontSize * scaleFactor)));
+        
+        onUpdateElement(activeElementId, {
+          fontSize: newFontSize,
+        });
+        return;
+      }
+      
+      // PARAGRAPH MODE: For other elements, resize the box
       let newPosition = { ...elementStart.position };
       let newSize = { ...elementStart.size };
+      
+      // Calculate aspect ratio for proportional resizing (Shift key)
+      const aspectRatio = elementStart.size.width / elementStart.size.height;
+      const shiftHeld = e.shiftKey;
 
       // Calculate new size and position based on handle
       switch (resizeHandle) {
         case 'top-left':
           newSize.width = Math.max(20, elementStart.size.width - deltaX);
           newSize.height = Math.max(20, elementStart.size.height - deltaY);
+          if (shiftHeld) {
+            // Use the larger delta to maintain aspect ratio
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+              newSize.height = newSize.width / aspectRatio;
+            } else {
+              newSize.width = newSize.height * aspectRatio;
+            }
+          }
           newPosition.x = elementStart.position.x + (elementStart.size.width - newSize.width);
           newPosition.y = elementStart.position.y + (elementStart.size.height - newSize.height);
           break;
         case 'top':
           newSize.height = Math.max(20, elementStart.size.height - deltaY);
+          if (shiftHeld) {
+            newSize.width = newSize.height * aspectRatio;
+            newPosition.x = elementStart.position.x - (newSize.width - elementStart.size.width) / 2;
+          }
           newPosition.y = elementStart.position.y + (elementStart.size.height - newSize.height);
           break;
         case 'top-right':
           newSize.width = Math.max(20, elementStart.size.width + deltaX);
           newSize.height = Math.max(20, elementStart.size.height - deltaY);
+          if (shiftHeld) {
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+              newSize.height = newSize.width / aspectRatio;
+            } else {
+              newSize.width = newSize.height * aspectRatio;
+            }
+          }
           newPosition.y = elementStart.position.y + (elementStart.size.height - newSize.height);
           break;
         case 'left':
           newSize.width = Math.max(20, elementStart.size.width - deltaX);
+          if (shiftHeld) {
+            newSize.height = newSize.width / aspectRatio;
+            newPosition.y = elementStart.position.y - (newSize.height - elementStart.size.height) / 2;
+          }
           newPosition.x = elementStart.position.x + (elementStart.size.width - newSize.width);
           break;
         case 'right':
           newSize.width = Math.max(20, elementStart.size.width + deltaX);
+          if (shiftHeld) {
+            newSize.height = newSize.width / aspectRatio;
+            newPosition.y = elementStart.position.y - (newSize.height - elementStart.size.height) / 2;
+          }
           break;
         case 'bottom-left':
           newSize.width = Math.max(20, elementStart.size.width - deltaX);
           newSize.height = Math.max(20, elementStart.size.height + deltaY);
+          if (shiftHeld) {
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+              newSize.height = newSize.width / aspectRatio;
+            } else {
+              newSize.width = newSize.height * aspectRatio;
+            }
+          }
           newPosition.x = elementStart.position.x + (elementStart.size.width - newSize.width);
           break;
         case 'bottom':
           newSize.height = Math.max(20, elementStart.size.height + deltaY);
+          if (shiftHeld) {
+            newSize.width = newSize.height * aspectRatio;
+            newPosition.x = elementStart.position.x - (newSize.width - elementStart.size.width) / 2;
+          }
           break;
         case 'bottom-right':
           newSize.width = Math.max(20, elementStart.size.width + deltaX);
           newSize.height = Math.max(20, elementStart.size.height + deltaY);
+          if (shiftHeld) {
+            // Use the larger delta to maintain aspect ratio
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+              newSize.height = newSize.width / aspectRatio;
+            } else {
+              newSize.width = newSize.height * aspectRatio;
+            }
+          }
           break;
       }
 
@@ -426,16 +508,19 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
             style={{
               width: canvas.width,
               height: canvas.height,
-              backgroundColor: canvas.backgroundColor,
-              backgroundImage: canvas.backgroundImage ? `url(${canvas.backgroundImage})` : undefined,
-              backgroundSize: 'cover',
+              // Show checkered pattern for transparent background, otherwise show color
+              backgroundColor: canvas.backgroundVisible === false ? 'transparent' : canvas.backgroundColor,
+              backgroundImage: canvas.backgroundVisible === false 
+                ? 'repeating-conic-gradient(#e5e5e5 0% 25%, #ffffff 0% 50%)'
+                : canvas.backgroundImage ? `url(${canvas.backgroundImage})` : undefined,
+              backgroundSize: canvas.backgroundVisible === false ? '16px 16px' : 'cover',
               backgroundPosition: 'center',
               transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${scale})`,
               transformOrigin: 'top left',
             }}
           >
-          {/* Gradient overlay if set */}
-          {canvas.backgroundGradient && (
+          {/* Gradient overlay if set (only when background is visible) */}
+          {canvas.backgroundVisible !== false && canvas.backgroundGradient && (
             <div
               className="absolute inset-0 pointer-events-none"
               style={{

@@ -15,7 +15,7 @@ export const TEMPLATE_CATEGORIES = [
   { id: 'ticket', name: 'Tickets', icon: '🎟️' },
   { id: 'announcement', name: 'Announcements', icon: '📢' },
   { id: 'social', name: 'Social Media', icon: '📱' },
-  { id: 'uniform', name: 'Uniforms', icon: '👕' },
+  // { id: 'uniform', name: 'Uniforms', icon: '👕' }, // Coming Soon - Uniform Designer Pro
 ];
 
 // Z-index counter for proper layering within a template
@@ -836,8 +836,10 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
 
 // Get templates by category
 export const getTemplatesByCategory = (category: string): DesignTemplate[] => {
-  if (category === 'all') return DESIGN_TEMPLATES;
-  return DESIGN_TEMPLATES.filter(t => t.category === category);
+  // Filter out uniform templates (Coming Soon - Uniform Designer Pro)
+  const nonUniformTemplates = DESIGN_TEMPLATES.filter(t => t.category !== 'uniform');
+  if (category === 'all') return nonUniformTemplates;
+  return nonUniformTemplates.filter(t => t.category === category);
 };
 
 // Get a single template by ID

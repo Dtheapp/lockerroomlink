@@ -194,7 +194,37 @@ const DesignStudioPro: React.FC = () => {
 
   // Handle navigation state for auto-loading registration template with prefilled data
   useEffect(() => {
-    const state = location.state as { registrationData?: RegistrationFlyerData } | null;
+    const state = location.state as { registrationData?: RegistrationFlyerData; editPromo?: PromoItem } | null;
+    
+    // Handle loading existing design for editing (from MarketingHub)
+    if (state?.editPromo) {
+      const promo = state.editPromo;
+      
+      // Validate the promo has required design data
+      if (!promo.canvas || !promo.elements || !promo.size) {
+        console.error('Promo missing design data:', promo);
+        alert('This design cannot be loaded - it may be corrupted or incomplete.');
+        return;
+      }
+      
+      // Load the design into the editor
+      setDesignName(promo.name);
+      setCanvas(promo.canvas);
+      setElements(promo.elements);
+      setCurrentSize(promo.size);
+      setSelectedIds([]);
+      
+      // Initialize history with loaded design as first state
+      setHistory({ past: [promo.elements], future: [] });
+      
+      setViewMode('editor');
+      setHasChanges(false);
+      
+      // Clear the navigation state to prevent re-loading on refresh
+      window.history.replaceState({}, document.title);
+      return;
+    }
+    
     if (state?.registrationData) {
       const data = state.registrationData;
       
@@ -812,17 +842,40 @@ const DesignStudioPro: React.FC = () => {
     
     // Clear unsaved changes flag after successful save
     setHasChanges(false);
+    
+    // Navigate back to selector view after successful save
+    setViewMode('selector');
+    
+    // Show success toast
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 bg-emerald-600 border border-emerald-500 rounded-lg shadow-xl z-50 flex items-center gap-3 animate-fade-in';
+    toast.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white"><polyline points="20 6 9 17 4 12"></polyline></svg>
+      <span class="text-white font-medium">Design saved successfully!</span>
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
   }, [userData, designName, canvas, elements, currentSize, userCredits]);
   
   // Handle loading a design from the gallery
   const handleLoadDesign = useCallback((promo: PromoItem) => {
+    // Validate the promo has required design data
+    if (!promo.canvas || !promo.elements || !promo.size) {
+      console.error('Promo missing design data:', promo);
+      alert('This design cannot be loaded - it may be corrupted or incomplete.');
+      return;
+    }
+    
     // Load the design into the editor
     setDesignName(promo.name);
     setCanvas(promo.canvas);
     setElements(promo.elements);
     setCurrentSize(promo.size);
     setSelectedIds([]);
-    setHistory({ past: [], future: [] });
+    
+    // Initialize history with loaded design as first state
+    setHistory({ past: [promo.elements], future: [] });
+    
     setShowGallery(false);
     setViewMode('editor');
     setHasChanges(false); // Fresh load = no unsaved changes
@@ -977,10 +1030,18 @@ const DesignStudioPro: React.FC = () => {
   // ==========================================================================
   
   const handleSelectTemplate = useCallback((template: DesignTemplate) => {
+    const newElements = template.elements.map(el => ({ ...el, id: generateId() }));
+    
     setCanvas(template.canvas);
-    setElements(template.elements.map(el => ({ ...el, id: generateId() })));
+    setElements(newElements);
     setDesignName(template.name);
     setSelectedIds([]);
+    
+    // Initialize history with the template as the first state
+    setHistory({
+      past: [newElements], // Start with template state so undo goes back to it
+      future: [],
+    });
     
     // Determine size from template dimensions
     const matchingSize = Object.entries(FLYER_SIZES).find(
@@ -1007,16 +1068,29 @@ const DesignStudioPro: React.FC = () => {
     setSelectedIds([]);
     setCurrentSize(size);
     setDesignName('Untitled Design');
+    
+    // Initialize clean history for blank canvas
+    setHistory({ past: [], future: [] });
+    
     setViewMode('editor');
   }, [teamData]);
 
   // Handle AI-generated design import
   const handleAIImport = useCallback((aiElements: DesignElement[], aiCanvas: CanvasState, size: FlyerSize) => {
+    const newElements = aiElements.map(el => ({ ...el, id: generateId() }));
+    
     setCanvas(aiCanvas);
-    setElements(aiElements.map(el => ({ ...el, id: generateId() })));
+    setElements(newElements);
     setDesignName('AI Generated Design');
     setSelectedIds([]);
     setCurrentSize(size);
+    
+    // Initialize history with AI design as first state
+    setHistory({
+      past: [newElements],
+      future: [],
+    });
+    
     setShowAICreator(false);
     setViewMode('editor');
   }, []);
@@ -1032,37 +1106,48 @@ const DesignStudioPro: React.FC = () => {
     const ctx = exportCanvas.getContext('2d');
     if (!ctx) return;
 
-    // Draw background
-    ctx.fillStyle = canvas.backgroundColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // For transparent backgrounds (logos etc), only draw background if visible
+    // PNG supports transparency, JPG does not (will fill with white)
+    const drawBackground = canvas.backgroundVisible !== false;
+    
+    if (drawBackground) {
+      // Draw background color
+      ctx.fillStyle = canvas.backgroundColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw background gradient if present
-    if (canvas.backgroundGradient) {
-      const { type, angle, stops } = canvas.backgroundGradient;
-      let gradient: CanvasGradient;
-      
-      if (type === 'linear') {
-        const rad = (angle * Math.PI) / 180;
-        gradient = ctx.createLinearGradient(
-          canvas.width / 2 - Math.cos(rad) * canvas.width,
-          canvas.height / 2 - Math.sin(rad) * canvas.height,
-          canvas.width / 2 + Math.cos(rad) * canvas.width,
-          canvas.height / 2 + Math.sin(rad) * canvas.height
-        );
-      } else {
-        gradient = ctx.createRadialGradient(
-          canvas.width / 2, canvas.height / 2, 0,
-          canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) / 2
-        );
+      // Draw background gradient if present
+      if (canvas.backgroundGradient) {
+        const { type, angle, stops } = canvas.backgroundGradient;
+        let gradient: CanvasGradient;
+        
+        if (type === 'linear') {
+          const rad = (angle * Math.PI) / 180;
+          gradient = ctx.createLinearGradient(
+            canvas.width / 2 - Math.cos(rad) * canvas.width,
+            canvas.height / 2 - Math.sin(rad) * canvas.height,
+            canvas.width / 2 + Math.cos(rad) * canvas.width,
+            canvas.height / 2 + Math.sin(rad) * canvas.height
+          );
+        } else {
+          gradient = ctx.createRadialGradient(
+            canvas.width / 2, canvas.height / 2, 0,
+            canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) / 2
+          );
+        }
+        
+        stops.forEach(stop => {
+          gradient.addColorStop(stop.offset, stop.color);
+        });
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
-      
-      stops.forEach(stop => {
-        gradient.addColorStop(stop.offset, stop.color);
-      });
-      
-      ctx.fillStyle = gradient;
+    } else if (format === 'jpg') {
+      // JPG doesn't support transparency - fill with white
+      ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
+    // For PNG with backgroundVisible=false, canvas stays transparent
 
     // Sort elements by zIndex
     const sortedElements = [...elements].sort((a, b) => a.zIndex - b.zIndex);
@@ -1083,6 +1168,32 @@ const DesignStudioPro: React.FC = () => {
         ctx.translate(-centerX, -centerY);
       }
 
+      // Helper function to draw border around any element
+      const drawBorder = () => {
+        if (element.borderWidth && element.borderWidth > 0) {
+          ctx.strokeStyle = element.borderColor || '#ffffff';
+          ctx.lineWidth = element.borderWidth;
+          const r = element.borderRadius || 0;
+          const x = element.position.x;
+          const y = element.position.y;
+          const w = element.size.width;
+          const h = element.size.height;
+          
+          ctx.beginPath();
+          ctx.moveTo(x + r, y);
+          ctx.lineTo(x + w - r, y);
+          ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+          ctx.lineTo(x + w, y + h - r);
+          ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+          ctx.lineTo(x + r, y + h);
+          ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+          ctx.lineTo(x, y + r);
+          ctx.quadraticCurveTo(x, y, x + r, y);
+          ctx.closePath();
+          ctx.stroke();
+        }
+      };
+
       switch (element.type) {
         case 'text':
           ctx.fillStyle = element.color || '#ffffff';
@@ -1096,6 +1207,13 @@ const DesignStudioPro: React.FC = () => {
               ? element.position.x + element.size.width
               : element.position.x;
           
+          // Text stroke (outline around letters) - draw stroke first, then fill
+          if (element.borderWidth && element.borderWidth > 0) {
+            ctx.strokeStyle = element.borderColor || '#000000';
+            ctx.lineWidth = element.borderWidth * 2; // Double for visible stroke
+            ctx.lineJoin = 'round';
+            ctx.strokeText(element.content || '', textX, element.position.y);
+          }
           ctx.fillText(element.content || '', textX, element.position.y);
           break;
 
@@ -1111,6 +1229,12 @@ const DesignStudioPro: React.FC = () => {
               radius, 0, Math.PI * 2
             );
             ctx.fill();
+            // Border for circle
+            if (element.borderWidth && element.borderWidth > 0) {
+              ctx.strokeStyle = element.borderColor || '#ffffff';
+              ctx.lineWidth = element.borderWidth;
+              ctx.stroke();
+            }
           } else {
             // Rectangle with border radius
             const r = element.borderRadius || 0;
@@ -1126,6 +1250,12 @@ const DesignStudioPro: React.FC = () => {
             ctx.quadraticCurveTo(element.position.x, element.position.y, element.position.x + r, element.position.y);
             ctx.closePath();
             ctx.fill();
+            // Border for rectangle
+            if (element.borderWidth && element.borderWidth > 0) {
+              ctx.strokeStyle = element.borderColor || '#ffffff';
+              ctx.lineWidth = element.borderWidth;
+              ctx.stroke();
+            }
           }
           break;
 
@@ -1135,6 +1265,7 @@ const DesignStudioPro: React.FC = () => {
             try {
               const img = await loadImage(element.src);
               ctx.drawImage(img, element.position.x, element.position.y, element.size.width, element.size.height);
+              drawBorder(); // Draw border for images
             } catch (e) {
               // Skip if image fails to load
             }
@@ -1546,6 +1677,7 @@ const DesignStudioPro: React.FC = () => {
                 setShowImageEditor(true);
               }
             }}
+            onSaveHistory={saveToHistory}
           />
         </div>
         
@@ -1698,6 +1830,7 @@ const DesignStudioPro: React.FC = () => {
               setShowImageEditor(true);
             }
           }}
+          onSaveHistory={saveToHistory}
         />
 
         {/* Right Panel - Combined Element/Canvas/Layers - Collapsible */}
@@ -1752,6 +1885,8 @@ const DesignStudioPro: React.FC = () => {
                     onUpdate={updateElement}
                     onDelete={deleteElement}
                     onReorder={handleReorderLayers}
+                    canvas={canvas}
+                    onCanvasUpdate={updateCanvas}
                   />
                 ) : (
                   <PropertiesPanel

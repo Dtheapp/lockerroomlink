@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs, orderBy, limit, doc, getDoc, collectionGroup, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, doc, getDoc, collectionGroup, Timestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { calculateAgeGroup } from '../../services/ageValidator';
 import EventList from './EventList';
+import CalendarView from '../calendar/CalendarView';
 import { Event, PricingTier } from '../../types/events';
 import { Loader2, AlertCircle, Calendar, Search, MapPin, Users, ChevronRight, UserPlus, ChevronDown, Trophy, Clock, ExternalLink, X } from 'lucide-react';
+import { toastSuccess, toastError } from '../../services/toast';
 
 // Season registration as pseudo-event for display
 interface SeasonRegistration {
@@ -1007,17 +1009,40 @@ const EventsPage: React.FC = () => {
     console.log('Duplicate event:', event.id);
   };
 
+  // Handle delete event from calendar
+  const handleDeleteEvent = async (eventId: string) => {
+    if (!teamId) return;
+    
+    const confirmed = window.confirm('Are you sure you want to delete this event? This cannot be undone.');
+    if (!confirmed) return;
+    
+    try {
+      await deleteDoc(doc(db, 'teams', teamId, 'events', eventId));
+      toastSuccess('Event deleted successfully');
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      toastError('Failed to delete event');
+    }
+  };
+
   return (
-    <div className="p-4 md:p-6">
-      <EventList
+    <div className="p-4 md:p-6 h-[calc(100vh-120px)]">
+      <CalendarView
         teamId={teamId}
-        isCoachView={isCoach}
-        showCreateButton={isCoach}
-        onCreateEvent={handleCreateEvent}
-        onViewEvent={handleViewEvent}
-        onEditEvent={isCoach ? handleEditEvent : undefined}
-        onManageEvent={isCoach ? handleManageEvent : undefined}
-        onDuplicateEvent={isCoach ? handleDuplicateEvent : undefined}
+        onEventClick={(eventId) => navigate(`/events/${eventId}`)}
+        onCreateEvent={(date) => {
+          // Pass date as query param if provided
+          if (date) {
+            const dateStr = date.toISOString().split('T')[0];
+            navigate(`/events/create?date=${dateStr}`);
+          } else {
+            navigate('/events/create');
+          }
+        }}
+        onEditEvent={(eventId) => navigate(`/events/create?edit=${eventId}`)}
+        onDeleteEvent={handleDeleteEvent}
+        isCoach={isCoach}
+        sport={teamData?.sport}
       />
     </div>
   );

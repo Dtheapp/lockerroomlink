@@ -227,6 +227,15 @@ const EventCreator: React.FC<EventCreatorProps> = ({
           setError('Please select a start date');
           return false;
         }
+        // Validate end time is after start time
+        if (event.eventEndDate && event.eventStartDate) {
+          const startDate = new Date(event.eventStartDate as unknown as string);
+          const endDate = new Date(event.eventEndDate as unknown as string);
+          if (endDate <= startDate) {
+            setError('End date/time must be after start date/time');
+            return false;
+          }
+        }
         return true;
       case 'location':
         if (!event.location?.name?.trim()) {

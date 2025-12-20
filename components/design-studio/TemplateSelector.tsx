@@ -9,6 +9,7 @@ import { TEMPLATE_CATEGORIES, DESIGN_TEMPLATES, getTemplatesByCategory } from '.
 import { FLYER_SIZES, FlyerSize } from './types';
 import type { DesignTemplate } from './types';
 import { useTheme } from '../../contexts/ThemeContext';
+import { toastInfo } from '../../services/toast';
 
 // Reminder item for items without designs
 interface DesignReminder {
@@ -179,8 +180,8 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({
         {onOpenUniformDesigner && (
           <div className="mb-8">
             <button
-              onClick={onOpenUniformDesigner}
-              className={`w-full p-6 rounded-2xl border transition-all group relative overflow-hidden ${
+              onClick={() => toastInfo('Uniform Designer Pro coming soon! 🔥 Full 3D jersey, shorts, and pants designer with player model preview.')}
+              className={`w-full p-6 rounded-2xl border transition-all group relative overflow-hidden cursor-pointer ${
                 theme === 'dark'
                   ? 'bg-gradient-to-r from-orange-600/20 via-red-600/20 to-amber-600/20 border-orange-500/30 hover:border-orange-500/60'
                   : 'bg-gradient-to-r from-orange-100 via-red-100 to-amber-100 border-orange-300 hover:border-orange-400 shadow-sm'
@@ -196,8 +197,8 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({
                 <div className="flex-1 text-left">
                   <div className="flex items-center gap-2">
                     <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Uniform Designer Pro</h3>
-                    <span className="px-2 py-0.5 bg-gradient-to-r from-orange-500 to-red-500 text-xs font-bold text-white rounded-full">
-                      NEW
+                    <span className="px-2 py-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-xs font-bold text-white rounded-full uppercase tracking-wide">
+                      Coming Soon
                     </span>
                   </div>
                   <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
@@ -274,7 +275,10 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({
             Start from Scratch
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {Object.entries(FLYER_SIZES).map(([key, size]) => (
+            {Object.entries(FLYER_SIZES)
+              // Filter out uniform sizes (Coming Soon - Uniform Designer Pro)
+              .filter(([key]) => !['jerseyFront', 'jerseyBack', 'shirtFront', 'shirtBack', 'pantsFront', 'pantsBack', 'shortsFront', 'shortsBack', 'socksSide', 'uniformFull'].includes(key))
+              .map(([key, size]) => (
               <button
                 key={key}
                 onClick={() => onStartBlank(key as FlyerSize)}

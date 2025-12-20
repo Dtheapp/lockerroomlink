@@ -150,6 +150,20 @@ export default function ScheduleBuilder() {
   const [editingTeam, setEditingTeam] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [deleteWeekModal, setDeleteWeekModal] = useState<number | null>(null); // Week number to delete
+  const [showLeaveModal, setShowLeaveModal] = useState(false); // Unsaved changes confirmation
+
+  // Warn on browser back/refresh if unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved schedule changes. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
 
   // Form state for adding game
   const [gameForm, setGameForm] = useState({
@@ -158,7 +172,8 @@ export default function ScheduleBuilder() {
     time: '10:00',
     location: '',
     isHome: true,
-    isByeMode: false // Toggle between game input and bye mode
+    isByeMode: false, // Toggle between game input and bye mode
+    gameDate: '' // Custom date for this game (defaults to week date)
   });
 
   // Helper to parse YYYY-MM-DD as local date (avoids UTC timezone shift)
@@ -349,7 +364,7 @@ export default function ScheduleBuilder() {
 
     const newGame: Game = {
       week: currentWeek,
-      weekDate: weekDates[currentWeek - 1] || '',
+      weekDate: gameForm.gameDate || weekDates[currentWeek - 1] || '',
       homeTeamId: gameForm.isHome ? teamId : (systemOpponent?.id || 'external'),
       homeTeamName: gameForm.isHome ? (team.name || 'Unknown') : opponentName,
       awayTeamId: gameForm.isHome ? (systemOpponent?.id || 'external') : teamId,
@@ -380,7 +395,7 @@ export default function ScheduleBuilder() {
     setGames(prev => [...prev, newGame]);
     setHasUnsavedChanges(true);
     setEditingTeam(null);
-    setGameForm({ opponentId: '', opponentName: '', time: '10:00', location: '', isHome: true, isByeMode: false });
+    setGameForm({ opponentId: '', opponentName: '', time: '10:00', location: '', isHome: true, isByeMode: false, gameDate: '' });
     toastSuccess(`Game added: ${newGame.homeTeamName} vs ${newGame.awayTeamName}`);
   };
 
@@ -712,8 +727,11 @@ export default function ScheduleBuilder() {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => {
-                  if (hasUnsavedChanges && !confirm('You have unsaved changes. Are you sure you want to leave?')) return;
-                  navigate('/commissioner');
+                  if (hasUnsavedChanges) {
+                    setShowLeaveModal(true);
+                  } else {
+                    navigate('/commissioner');
+                  }
                 }}
                 className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
               >
@@ -1014,6 +1032,18 @@ export default function ScheduleBuilder() {
                                 : 'bg-white border-gray-300 text-gray-900'
                             }`}
                           />
+                          <span className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>/</span>
+                          <input
+                            type="date"
+                            value={gameForm.gameDate || weekDates[currentWeek - 1] || ''}
+                            onChange={(e) => setGameForm(prev => ({ ...prev, gameDate: e.target.value }))}
+                            className={`px-2 py-1.5 rounded-lg border text-sm w-32 ${
+                              theme === 'dark' 
+                                ? 'bg-gray-900 border-gray-700 text-white' 
+                                : 'bg-white border-gray-300 text-gray-900'
+                            }`}
+                            title="Game date (defaults to week date)"
+                          />
                           <input
                             type="text"
                             placeholder="Location"
@@ -1054,7 +1084,7 @@ export default function ScheduleBuilder() {
                       <button
                         onClick={() => {
                           setEditingTeam(null);
-                          setGameForm({ opponentId: '', opponentName: '', time: '10:00', location: '', isHome: true, isByeMode: false });
+                          setGameForm({ opponentId: '', opponentName: '', time: '10:00', location: '', isHome: true, isByeMode: false, gameDate: '' });
                         }}
                         className={`p-1.5 rounded ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
                       >
@@ -1165,6 +1195,67 @@ export default function ScheduleBuilder() {
                 className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium"
               >
                 Delete Week
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Leave Page Confirmation Modal */}
+      {showLeaveModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`max-w-md w-full rounded-xl p-6 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} shadow-xl`}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  Unsaved Schedule Changes
+                </h3>
+              </div>
+            </div>
+            <p className={`text-sm mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+              You have unsaved changes to this schedule:
+            </p>
+            <ul className={`text-sm mb-6 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} list-disc pl-5 space-y-1`}>
+              <li>{games.filter(g => g.isNew).length} new game(s) scheduled</li>
+              <li>{byes.filter(b => b.isNew).length} bye week(s) set</li>
+            </ul>
+            <p className={`text-sm mb-6 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+              Would you like to save before leaving?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLeaveModal(false)}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium ${
+                  theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Keep Editing
+              </button>
+              <button
+                onClick={() => {
+                  setShowLeaveModal(false);
+                  navigate('/commissioner');
+                }}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium ${
+                  theme === 'dark' ? 'bg-red-600/20 text-red-400 hover:bg-red-600/30' : 'bg-red-50 text-red-600 hover:bg-red-100'
+                }`}
+              >
+                Discard & Leave
+              </button>
+              <button
+                onClick={async () => {
+                  await handleSaveAll();
+                  setShowLeaveModal(false);
+                  navigate('/commissioner');
+                }}
+                disabled={saving}
+                className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium flex items-center justify-center gap-2"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Save & Leave
               </button>
             </div>
           </div>

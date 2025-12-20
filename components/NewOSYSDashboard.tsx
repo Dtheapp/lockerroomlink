@@ -20,7 +20,8 @@ import { sanitizeText } from '../services/sanitize';
 import GettingStartedChecklist from './GettingStartedChecklist';
 import SeasonManager, { type RegistrationFlyerData } from './SeasonManager';
 import { DraftPool } from './draftpool';
-import type { LiveStream, BulletinPost, UserProfile, ProgramSeason } from '../types';
+import GameDayManager from './GameDayManager';
+import type { LiveStream, BulletinPost, UserProfile, ProgramSeason, TeamGame } from '../types';
 import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image, Copy, ExternalLink, Share2, Link2, Check, Palette, ChevronRight, ChevronDown, Trophy, AlertTriangle, Loader2, UserPlus, Users, Sword, Shield, Zap, Crown } from 'lucide-react';
 
 // Extended event type with attachments
@@ -128,9 +129,13 @@ const NewOSYSDashboard: React.FC = () => {
 
   // Program season state (for teams in a program)
   const [programSeasons, setProgramSeasons] = useState<ProgramSeason[]>([]);
+
+  // Today's games state
+  const [todayGames, setTodayGames] = useState<TeamGame[]>([]);
   const [loadingProgramSeasons, setLoadingProgramSeasons] = useState(false);
   const [copiedSeasonLink, setCopiedSeasonLink] = useState<string | null>(null);
   const [showCompletedSeasons, setShowCompletedSeasons] = useState(false);
+  const [seasonManagerCollapsed, setSeasonManagerCollapsed] = useState(true); // Collapsed by default
   
   // Draft pool state for coach dashboard
   const [draftPoolPlayers, setDraftPoolPlayers] = useState<any[]>([]);
@@ -249,12 +254,13 @@ const NewOSYSDashboard: React.FC = () => {
           description: data.description || '',
         } as EventData;
       });
-      // Filter to only future events
+      // Filter to only future events (including today)
       const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
       const futureEvents = eventsData.filter(event => {
         if (!event.eventStartDate) return false;
         const eventDate = event.eventStartDate?.toDate?.() || new Date(event.eventStartDate);
-        return eventDate >= now;
+        return eventDate >= startOfToday;
       });
       setEvents(futureEvents);
     }, (error) => {
@@ -305,6 +311,119 @@ const NewOSYSDashboard: React.FC = () => {
     });
 
     return () => unsubscribeBulletin();
+  }, [teamData?.id]);
+
+  // Fetch today's games (from both games and events collections)
+  useEffect(() => {
+    if (!teamData?.id) return;
+
+    // Get start and end of today in local time
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+    // Collect games from both sources
+    let gamesFromGamesCollection: TeamGame[] = [];
+    let gamesFromEventsCollection: TeamGame[] = [];
+    
+    const updateTodayGames = () => {
+      const allGames = [...gamesFromGamesCollection, ...gamesFromEventsCollection];
+      // Remove duplicates by ID and sort by time
+      const uniqueGames = allGames.filter((game, index, self) => 
+        index === self.findIndex(g => g.id === game.id)
+      );
+      uniqueGames.sort((a, b) => {
+        const aTime = a.scheduledTime || '00:00';
+        const bTime = b.scheduledTime || '00:00';
+        return aTime.localeCompare(bTime);
+      });
+      setTodayGames(uniqueGames);
+    };
+
+    // 1. Listen for games in games collection
+    const gamesRef = collection(db, 'teams', teamData.id, 'games');
+    const unsubscribeGames = onSnapshot(gamesRef, (snapshot) => {
+      const games: TeamGame[] = [];
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        const game = { id: docSnap.id, ...data } as TeamGame;
+        
+        // Check if game is today
+        let gameDate: Date | null = null;
+        if (data.scheduledDate?.toDate) {
+          gameDate = data.scheduledDate.toDate();
+        } else if (data.dateTime?.toDate) {
+          gameDate = data.dateTime.toDate();
+        } else if (typeof data.scheduledDate === 'string') {
+          gameDate = new Date(data.scheduledDate);
+        }
+        
+        if (gameDate && gameDate >= startOfToday && gameDate <= endOfToday) {
+          games.push(game);
+        }
+      });
+      gamesFromGamesCollection = games;
+      updateTodayGames();
+    }, (error) => {
+      console.error('Error fetching games:', error);
+    });
+
+    // 2. Listen for game-type events in GLOBAL events collection (where dashboard events are stored)
+    const globalEventsRef = collection(db, 'events');
+    const globalEventsQuery = query(globalEventsRef, where('teamId', '==', teamData.id));
+    const unsubscribeEvents = onSnapshot(globalEventsQuery, (snapshot) => {
+      const games: TeamGame[] = [];
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        // Only include events with type "Game" or "game"
+        const eventType = (data.type || data.eventType || '').toLowerCase();
+        if (eventType !== 'game') return;
+        
+        // Check if event is today
+        let gameDate: Date | null = null;
+        if (data.eventStartDate?.toDate) {
+          gameDate = data.eventStartDate.toDate();
+        } else if (data.date?.toDate) {
+          gameDate = data.date.toDate();
+        } else if (typeof data.date === 'string') {
+          gameDate = new Date(data.date);
+        } else if (typeof data.eventStartDate === 'string') {
+          gameDate = new Date(data.eventStartDate);
+        }
+        
+        console.log('[GameDayManager] Found game event:', { id: docSnap.id, type: eventType, title: data.title, gameDate, today: startOfToday });
+        
+        if (gameDate && gameDate >= startOfToday && gameDate <= endOfToday) {
+          // Convert event to TeamGame format
+          games.push({
+            id: docSnap.id,
+            teamId: teamData.id,
+            source: 'coach',
+            opponent: data.title?.replace(/^vs\s*/i, '').replace(/^@\s*/i, '') || data.opponent || 'TBD',
+            isHome: !data.title?.toLowerCase().startsWith('@'),
+            scheduledDate: data.eventStartDate || data.date,
+            scheduledTime: data.eventStartTime || data.time || '',
+            location: data.location || '',
+            homeScore: data.homeScore || 0,
+            awayScore: data.awayScore || 0,
+            status: data.status || 'scheduled',
+            createdAt: data.createdAt,
+            createdBy: data.createdBy || '',
+          } as TeamGame);
+          console.log('[GameDayManager] Game is TODAY, adding to list:', games.length);
+        }
+      });
+      gamesFromEventsCollection = games;
+      updateTodayGames();
+      console.log('[GameDayManager] Total today games:', games.length);
+    }, (error) => {
+      console.error('Error fetching game events:', error);
+    });
+
+    return () => {
+      unsubscribeGames();
+      unsubscribeEvents();
+    };
   }, [teamData?.id]);
 
   // Fetch coaching staff
@@ -1010,10 +1129,17 @@ const NewOSYSDashboard: React.FC = () => {
     const typeMap: Record<string, { label: string; variant: 'primary' | 'success' | 'warning' | 'default' | 'gold' }> = {
       practice: { label: 'PRACTICE', variant: 'primary' },
       game: { label: 'GAME', variant: 'gold' },
-      meeting: { label: 'MEETING', variant: 'default' },
+      meeting: { label: 'MEETING', variant: 'warning' },
       event: { label: 'EVENT', variant: 'success' },
+      social: { label: 'SOCIAL', variant: 'success' },
+      scrimmage: { label: 'SCRIMMAGE', variant: 'warning' },
+      tournament: { label: 'TOURNAMENT', variant: 'gold' },
+      tryout: { label: 'TRYOUT', variant: 'primary' },
+      camp: { label: 'CAMP', variant: 'success' },
+      fundraiser: { label: 'FUNDRAISER', variant: 'warning' },
     };
-    return typeMap[type?.toLowerCase() || ''] || { label: type?.toUpperCase() || 'EVENT', variant: 'default' as const };
+    // Default to 'warning' variant for visibility (orange/amber is always visible)
+    return typeMap[type?.toLowerCase() || ''] || { label: type?.toUpperCase() || 'EVENT', variant: 'warning' as const };
   };
 
   // Count new plays this week
@@ -1724,7 +1850,7 @@ const NewOSYSDashboard: React.FC = () => {
       )}
 
       {/* Go Live Button for Coaches */}
-      {canGoLive && !hasOwnLiveStream && (
+      {canGoLive && !hasOwnLiveStream && todayGames.length === 0 && (
         <button
           onClick={() => setShowGoLiveModal(true)}
           className={`w-full p-4 rounded-2xl border-2 border-dashed transition flex items-center justify-center gap-3 ${
@@ -1739,7 +1865,7 @@ const NewOSYSDashboard: React.FC = () => {
         </button>
       )}
 
-      {/* Header */}
+      {/* Header - Greeting */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className={`text-2xl md:text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
@@ -1968,26 +2094,89 @@ const NewOSYSDashboard: React.FC = () => {
         />
       )}
 
-      {/* Getting Started Checklist - show for coaches who haven't dismissed */}
-      {showChecklist && userData?.role === 'Coach' && (
-        <GettingStartedChecklist 
-          compact 
-          onDismiss={() => setShowChecklist(false)} 
+      {/* 🏈 GAME DAY MANAGER - Shows when there's a game today */}
+      {todayGames.length > 0 && teamData?.id && (
+        <GameDayManager
+          game={{
+            id: todayGames[0].id,
+            title: `vs ${todayGames[0].opponent}`,
+            opponent: todayGames[0].opponent,
+            location: typeof todayGames[0].location === 'object' 
+              ? ((todayGames[0].location as any)?.name || (todayGames[0].location as any)?.address || '') 
+              : (todayGames[0].location || ''),
+            time: todayGames[0].scheduledTime,
+            date: todayGames[0].scheduledDate?.toDate?.()?.toISOString?.()?.split('T')[0] || 
+                  todayGames[0].dateTime?.toDate?.()?.toISOString?.()?.split('T')[0] ||
+                  new Date().toISOString().split('T')[0],
+            homeScore: todayGames[0].homeScore || 0,
+            awayScore: todayGames[0].awayScore || 0,
+            isHome: todayGames[0].isHome,
+            status: todayGames[0].status as 'scheduled' | 'live' | 'completed' || 'scheduled',
+          }}
+          liveStreams={liveStreams}
+          onGoLive={() => setShowGoLiveModal(true)}
+          onOpenStats={(gameId) => navigate(`/stats/game/${gameId}`)}
+          teamId={teamData.id}
         />
       )}
 
-      {/* SEASON MANAGEMENT (Coaches Only) */}
-      {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && teamData?.id && (
+      {/* SEASON MANAGEMENT (Coaches & Parents) */}
+      {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin' || userData?.role === 'Parent') && teamData?.id && (
         <GlassCard className={`${theme === 'light' ? 'bg-white border-slate-200 shadow-lg' : ''}`}>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="text-2xl">📆</div>
-            <div>
-              <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Season Management</h2>
-              <p className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
-                {teamData?.programId ? 'Managed by your program commissioner' : 'Manage registration and seasons'}
-              </p>
+          {/* Collapsible Header */}
+          <button 
+            onClick={() => setSeasonManagerCollapsed(!seasonManagerCollapsed)}
+            className="w-full flex items-center justify-between"
+          >
+            <div className="flex items-center gap-3">
+              <div className="text-2xl">📆</div>
+              <div className="text-left">
+                <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Season Management</h2>
+                <p className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
+                  {teamData?.programId ? 'Managed by your program commissioner' : 'Manage registration and seasons'}
+                </p>
+              </div>
             </div>
-          </div>
+            
+            {/* Collapsed view: show active season name + status */}
+            <div className="flex items-center gap-3">
+              {seasonManagerCollapsed && programSeasons.length > 0 && (() => {
+                const activeSeason = programSeasons.find(s => s.status === 'active') || programSeasons.find(s => s.status !== 'completed');
+                if (!activeSeason) return null;
+                const statusColors: Record<string, string> = {
+                  'setup': theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-slate-200 text-slate-600',
+                  'registration_open': theme === 'dark' ? 'bg-green-500/20 text-green-300' : 'bg-green-100 text-green-700',
+                  'registration_closed': theme === 'dark' ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-700',
+                  'teams_forming': theme === 'dark' ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700',
+                  'active': theme === 'dark' ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700',
+                  'completed': theme === 'dark' ? 'bg-gray-600 text-gray-400' : 'bg-slate-300 text-slate-500',
+                };
+                const statusLabels: Record<string, string> = {
+                  'setup': '⚙️ Setup',
+                  'registration_open': '🟢 Open',
+                  'registration_closed': '🔒 Closed',
+                  'teams_forming': '👥 Forming',
+                  'active': '🏈 Season Active',
+                  'completed': '✅ Done',
+                };
+                return (
+                  <>
+                    <span className={`text-sm font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
+                      {activeSeason.name}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[activeSeason.status] || statusColors['setup']}`}>
+                      {statusLabels[activeSeason.status] || activeSeason.status}
+                    </span>
+                  </>
+                );
+              })()}
+              <ChevronDown className={`w-5 h-5 transition-transform ${seasonManagerCollapsed ? '' : 'rotate-180'} ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
+            </div>
+          </button>
+          
+          {/* Collapsible Content */}
+          {!seasonManagerCollapsed && (
+            <div className="mt-4">
           
           {/* If team belongs to a program, show program seasons */}
           {teamData?.programId && programSeasons.length > 0 ? (
@@ -2221,6 +2410,8 @@ const NewOSYSDashboard: React.FC = () => {
                 }
               }}
             />
+          )}
+            </div>
           )}
         </GlassCard>
       )}

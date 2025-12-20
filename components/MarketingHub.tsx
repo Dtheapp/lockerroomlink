@@ -25,11 +25,12 @@ import {
   Pencil,
   ZoomIn,
   ZoomOut,
-  Upload
+  Upload,
+  Trash2
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { loadTeamPromoItems, loadUserPromoItems } from './design-studio/promoService';
+import { loadTeamPromoItems, loadUserPromoItems, deletePromoItem } from './design-studio/promoService';
 import type { PromoItem } from './design-studio/promoTypes';
 import SocialShareModal from './ui/SocialShareModal';
 
@@ -51,6 +52,7 @@ const MarketingHub: React.FC<MarketingHubProps> = ({ isTeamMode = false }) => {
   const [selectedPromo, setSelectedPromo] = useState<PromoItem | null>(null);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [viewPromo, setViewPromo] = useState<PromoItem | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<PromoItem | null>(null);
   
   // Page title and description based on mode
   const pageTitle = isTeamMode ? 'Team Marketing' : 'My Designs';
@@ -118,6 +120,29 @@ const MarketingHub: React.FC<MarketingHubProps> = ({ isTeamMode = false }) => {
   // Handle edit (go to design studio)
   const handleEdit = (promo: PromoItem) => {
     navigate('/design', { state: { editPromo: promo } });
+  };
+  
+  // Handle delete request
+  const handleDelete = (promo: PromoItem) => {
+    setDeleteConfirm(promo);
+  };
+  
+  // Confirm delete
+  const confirmDelete = async () => {
+    if (!deleteConfirm || !userData?.uid) return;
+    
+    try {
+      const collectionPath = isTeamMode && teamData?.id
+        ? `teams/${teamData.id}/promoItems`
+        : `users/${userData.uid}/promoItems`;
+      
+      await deletePromoItem(deleteConfirm.id, collectionPath, deleteConfirm.thumbnailPath);
+      setPromos(prev => prev.filter(p => p.id !== deleteConfirm.id));
+      setDeleteConfirm(null);
+    } catch (error) {
+      console.error('Error deleting promo:', error);
+      setDeleteConfirm(null);
+    }
   };
   
   // Categories
@@ -292,7 +317,7 @@ const MarketingHub: React.FC<MarketingHubProps> = ({ isTeamMode = false }) => {
                     </button>
                     <button
                       onClick={() => handleEdit(promo)}
-                      className="p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition"
+                      className="p-2 bg-violet-600 hover:bg-violet-700 rounded-lg text-white transition"
                       title="Edit in Design Studio"
                     >
                       <Pencil className="w-5 h-5" />
@@ -304,16 +329,30 @@ const MarketingHub: React.FC<MarketingHubProps> = ({ isTeamMode = false }) => {
                     >
                       <Share2 className="w-5 h-5" />
                     </button>
+                    <button
+                      onClick={() => handleDelete(promo)}
+                      className="p-2 bg-red-600/80 hover:bg-red-600 rounded-lg text-white transition"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
                   </div>
                   
                   {/* Category Badge */}
-                  {promo.category && (
-                    <span className={`absolute top-2 left-2 px-2 py-0.5 rounded text-xs font-medium ${
-                      theme === 'dark' ? 'bg-slate-900/80 text-slate-300' : 'bg-white/90 text-slate-700'
-                    }`}>
-                      {promo.category}
-                    </span>
-                  )}
+                  <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
+                    {promo.isTeamCopy && (
+                      <span className="px-2 py-0.5 bg-orange-600/80 rounded text-xs font-medium text-white">
+                        Team
+                      </span>
+                    )}
+                    {promo.category && (
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                        theme === 'dark' ? 'bg-slate-900/80 text-slate-300' : 'bg-white/90 text-slate-700'
+                      }`}>
+                        {promo.category}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 
                 {/* Info */}
@@ -325,6 +364,11 @@ const MarketingHub: React.FC<MarketingHubProps> = ({ isTeamMode = false }) => {
                     <Calendar className="w-3 h-3" />
                     {new Date(promo.createdAt).toLocaleDateString()}
                   </div>
+                  {isTeamMode && promo.createdByName && (
+                    <div className={`mt-1 text-xs ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`}>
+                      Created by {promo.createdByName}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -373,6 +417,11 @@ const MarketingHub: React.FC<MarketingHubProps> = ({ isTeamMode = false }) => {
                         {promo.category}
                       </span>
                     )}
+                    {isTeamMode && promo.createdByName && (
+                      <span className={`text-xs ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`}>
+                        by {promo.createdByName}
+                      </span>
+                    )}
                   </div>
                 </div>
                 
@@ -406,6 +455,17 @@ const MarketingHub: React.FC<MarketingHubProps> = ({ isTeamMode = false }) => {
                     title="Share"
                   >
                     <Share2 className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(promo)}
+                    className={`p-2 rounded-lg transition ${
+                      theme === 'dark' 
+                        ? 'text-slate-400 hover:text-red-400 hover:bg-slate-800' 
+                        : 'text-slate-500 hover:text-red-600 hover:bg-slate-100'
+                    }`}
+                    title="Delete"
+                  >
+                    <Trash2 className="w-5 h-5" />
                   </button>
                 </div>
               </div>
@@ -441,6 +501,16 @@ const MarketingHub: React.FC<MarketingHubProps> = ({ isTeamMode = false }) => {
             setViewModalOpen(false);
             handleShare(viewPromo);
           }}
+        />
+      )}
+      
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <DeleteConfirmModal
+          promo={deleteConfirm}
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteConfirm(null)}
+          theme={theme}
         />
       )}
     </div>
@@ -795,5 +865,58 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({ promo, className }) => {
   
   return <canvas ref={canvasRef} className={className} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />;
 };
+
+// Delete Confirmation Modal Component
+const DeleteConfirmModal: React.FC<{
+  promo: PromoItem;
+  onConfirm: () => void;
+  onCancel: () => void;
+  theme: string;
+}> = ({ promo, onConfirm, onCancel, theme }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+    <div className={`p-6 rounded-xl shadow-2xl max-w-md w-full mx-4 ${
+      theme === 'dark' ? 'bg-slate-900 border border-slate-700' : 'bg-white border border-slate-200'
+    }`}>
+      <div className="flex items-center gap-4 mb-4">
+        <div className="p-3 bg-red-500/20 rounded-full">
+          <Trash2 size={24} className="text-red-500" />
+        </div>
+        <div>
+          <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+            Delete Design?
+          </h3>
+          <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+            This action cannot be undone.
+          </p>
+        </div>
+      </div>
+      
+      <div className={`p-3 rounded-lg mb-4 ${theme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'}`}>
+        <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+          "{promo.name}"
+        </p>
+      </div>
+      
+      <div className="flex gap-3 justify-end">
+        <button
+          onClick={onCancel}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            theme === 'dark' 
+              ? 'bg-slate-800 text-white hover:bg-slate-700' 
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onConfirm}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+);
 
 export default MarketingHub;

@@ -62,6 +62,30 @@ service firebase.storage {
       allow write: if isAuthenticated();
     }
     
+    // Promo thumbnails - authenticated users can upload to their own folder
+    match /promo-thumbnails/personal/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // Promo thumbnails - team promos
+    match /promo-thumbnails/team/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // Promo thumbnails - player promos
+    match /promo-thumbnails/player/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // Promo high-res exports - authenticated users
+    match /promo-exports/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+    
     // Default: deny all other paths
     match /{allPaths=**} {
       allow read: if false;

@@ -18,7 +18,7 @@ import {
   ChevronUp,
   ChevronDown,
 } from 'lucide-react';
-import type { DesignElement } from './types';
+import type { DesignElement, CanvasState } from './types';
 import { useTheme } from '../../contexts/ThemeContext';
 
 interface LayersPanelProps {
@@ -28,6 +28,9 @@ interface LayersPanelProps {
   onUpdate: (id: string, updates: Partial<DesignElement>) => void;
   onDelete: (id: string) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
+  // Background layer support
+  canvas?: CanvasState;
+  onCanvasUpdate?: (updates: Partial<CanvasState>) => void;
 }
 
 const getElementIcon = (type: string) => {
@@ -55,11 +58,16 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
   onUpdate,
   onDelete,
   onReorder,
+  canvas,
+  onCanvasUpdate,
 }) => {
   const { theme } = useTheme();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const dragRef = useRef<HTMLDivElement>(null);
+  
+  // Background visibility state
+  const backgroundVisible = canvas?.backgroundVisible !== false; // default true
   
   // Sort elements by zIndex descending (top layers first)
   const sortedElements = [...elements].sort((a, b) => b.zIndex - a.zIndex);
@@ -231,6 +239,61 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
             </div>
           );
         })}
+        
+        {/* Background Layer - Always at bottom, controls transparency for export */}
+        {canvas && onCanvasUpdate && (
+          <div 
+            className={`flex items-center gap-2 px-2 py-1.5 mt-1 border-t ${
+              theme === 'dark' 
+                ? 'border-zinc-700 bg-zinc-900/50' 
+                : 'border-slate-200 bg-slate-50'
+            }`}
+          >
+            {/* No drag handle for background */}
+            <div className="w-3" />
+            
+            {/* Background Icon */}
+            <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 ${
+              theme === 'dark' ? 'bg-zinc-800' : 'bg-slate-100'
+            }`}>
+              {/* Checkered pattern icon for background */}
+              <div 
+                className="w-3 h-3 rounded-sm"
+                style={{
+                  background: backgroundVisible 
+                    ? canvas.backgroundColor 
+                    : 'repeating-conic-gradient(#808080 0% 25%, #fff 0% 50%) 50% / 6px 6px'
+                }}
+              />
+            </div>
+            
+            {/* Label */}
+            <span className={`flex-1 text-xs font-medium ${
+              theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+            } ${!backgroundVisible ? 'opacity-50 line-through' : ''}`}>
+              Background
+            </span>
+            
+            {/* Transparent indicator */}
+            {!backgroundVisible && (
+              <span className="text-[10px] text-orange-400 font-medium">
+                Transparent
+              </span>
+            )}
+            
+            {/* Visibility Toggle */}
+            <div className="flex items-center gap-0.5 flex-shrink-0">
+              <button
+                onClick={() => onCanvasUpdate({ backgroundVisible: !backgroundVisible })}
+                className={`p-0.5 rounded ${theme === 'dark' ? 'hover:bg-zinc-700 text-slate-400 hover:text-white' : 'hover:bg-slate-200 text-slate-500 hover:text-slate-900'}`}
+                title={backgroundVisible ? 'Hide background (transparent export)' : 'Show background'}
+              >
+                {backgroundVisible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3 text-orange-400" />}
+              </button>
+              <Lock className="w-3 h-3 text-slate-600" title="Background layer is locked" />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

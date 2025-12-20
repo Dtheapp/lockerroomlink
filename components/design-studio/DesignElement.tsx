@@ -107,6 +107,7 @@ export const DesignElementComponent: React.FC<DesignElementProps> = ({
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (element.locked || isEditing) return;
+    e.preventDefault();
     e.stopPropagation();
     onSelect(element.id, e.shiftKey);
     // Always start drag - multi-select drag is handled in DesignCanvas
@@ -169,9 +170,33 @@ export const DesignElementComponent: React.FC<DesignElementProps> = ({
           ? Math.min(element.size.width, element.size.height) * 0.7
           : element.fontSize;
         
+        // For emojis/icons (autoScaleFont), use drop-shadow filter for border effect
+        // For regular text, use WebkitTextStroke
+        const isEmoji = element.autoScaleFont;
+        const hasBorder = element.borderWidth && element.borderWidth > 0;
+        const borderColor = element.borderColor || '#000000';
+        
+        // Drop shadow creates outline effect for emojis (multiple shadows for solid outline)
+        const emojiOutlineFilter = hasBorder && isEmoji
+          ? `drop-shadow(${element.borderWidth}px 0 0 ${borderColor}) 
+             drop-shadow(-${element.borderWidth}px 0 0 ${borderColor}) 
+             drop-shadow(0 ${element.borderWidth}px 0 ${borderColor}) 
+             drop-shadow(0 -${element.borderWidth}px 0 ${borderColor})
+             drop-shadow(${element.borderWidth! * 0.7}px ${element.borderWidth! * 0.7}px 0 ${borderColor})
+             drop-shadow(-${element.borderWidth! * 0.7}px ${element.borderWidth! * 0.7}px 0 ${borderColor})
+             drop-shadow(${element.borderWidth! * 0.7}px -${element.borderWidth! * 0.7}px 0 ${borderColor})
+             drop-shadow(-${element.borderWidth! * 0.7}px -${element.borderWidth! * 0.7}px 0 ${borderColor})`
+          : undefined;
+        
+        // Text stroke for regular text (not emojis)
+        const textStrokeStyle = hasBorder && !isEmoji
+          ? `${element.borderWidth}px ${borderColor}`
+          : undefined;
+        
+        // POINT TEXT MODE: No wrapping, text stays on single line (unless explicit newlines)
         return (
           <div
-            className="w-full h-full overflow-hidden whitespace-pre-wrap break-words flex items-center justify-center"
+            className="w-full h-full overflow-visible whitespace-pre flex items-center justify-center"
             style={{
               color: element.color,
               fontSize: effectiveFontSize,
@@ -183,6 +208,9 @@ export const DesignElementComponent: React.FC<DesignElementProps> = ({
               lineHeight: element.lineHeight || 1.2,
               letterSpacing: element.letterSpacing,
               textShadow: element.textShadow,
+              WebkitTextStroke: textStrokeStyle,
+              paintOrder: 'stroke fill', // Ensures stroke is behind fill
+              filter: emojiOutlineFilter,
             }}
           >
             {element.content}
@@ -259,6 +287,15 @@ export const DesignElementComponent: React.FC<DesignElementProps> = ({
 
   if (!element.visible) return null;
 
+  // Border styles ONLY for images/logos (shapes handle their own border, text uses text-stroke)
+  const shouldApplyWrapperBorder = element.type === 'image' || element.type === 'logo';
+  const borderStyle = shouldApplyWrapperBorder && element.borderWidth && element.borderWidth > 0
+    ? `${element.borderWidth}px solid ${element.borderColor || '#ffffff'}`
+    : undefined;
+  
+  // Border radius for non-text elements
+  const borderRadiusStyle = element.type !== 'text' ? element.borderRadius : undefined;
+
   // Note: We don't multiply by scale here because the parent canvas
   // uses CSS transform: scale() which handles visual scaling uniformly
   return (
@@ -272,12 +309,17 @@ export const DesignElementComponent: React.FC<DesignElementProps> = ({
         transform: `rotate(${element.rotation}deg)`,
         opacity: element.opacity,
         zIndex: element.zIndex,
+        border: borderStyle,
+        borderRadius: borderRadiusStyle,
+        boxSizing: 'border-box',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
       }}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
     >
       {/* Element content */}
-      <div className="w-full h-full" style={{ pointerEvents: isEditing ? 'auto' : 'none' }}>
+      <div className="w-full h-full" style={{ pointerEvents: isEditing ? 'auto' : 'none', userSelect: 'none' }}>
         {renderContent()}
       </div>
 
@@ -294,8 +336,18 @@ export const DesignElementComponent: React.FC<DesignElementProps> = ({
           {!element.locked && RESIZE_HANDLES.map(handle => (
             <div
               key={handle}
-              className="absolute w-3 h-3 bg-white border-2 border-purple-500 rounded-sm hover:bg-purple-100 z-10"
-              style={getHandlePosition(handle)}
+              className="absolute w-3 h-3 bg-white border-2 border-purple-500 rounded-sm hover:bg-purple-100"
+              style={{ 
+                ...getHandlePosition(handle), 
+                userSelect: 'none',
+                cursor: handle.includes('n') && handle.includes('e') ? 'nesw-resize' :
+                        handle.includes('n') && handle.includes('w') ? 'nwse-resize' :
+                        handle.includes('s') && handle.includes('e') ? 'nwse-resize' :
+                        handle.includes('s') && handle.includes('w') ? 'nesw-resize' :
+                        handle.includes('n') || handle.includes('s') ? 'ns-resize' : 'ew-resize',
+                zIndex: 9999,
+                pointerEvents: 'auto',
+              }}
               onMouseDown={(e) => {
                 e.stopPropagation();
                 onStartResize(element.id, handle, e);

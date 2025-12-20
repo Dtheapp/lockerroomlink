@@ -367,6 +367,37 @@
     color: var(--osys-dark-300);
 }
 
+/* Light mode badge overrides for visibility */
+[data-theme='light'] .osys-badge {
+    background: rgba(100, 116, 139, 0.15);
+    color: #475569;
+}
+
+[data-theme='light'] .osys-badge-primary {
+    background: rgba(124, 58, 237, 0.15);
+    color: #7c3aed;
+}
+
+[data-theme='light'] .osys-badge-gold {
+    background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+    color: #ffffff !important;
+}
+
+[data-theme='light'] .osys-badge-success {
+    background: rgba(16, 185, 129, 0.15);
+    color: #059669;
+}
+
+[data-theme='light'] .osys-badge-warning {
+    background: rgba(245, 158, 11, 0.15);
+    color: #d97706;
+}
+
+[data-theme='light'] .osys-badge-error {
+    background: rgba(239, 68, 68, 0.15);
+    color: #dc2626;
+}
+
 .osys-badge-primary {
     background: rgba(124, 58, 237, 0.2);
     color: var(--osys-primary-400);

@@ -64,6 +64,7 @@ export interface CanvasState {
   width: number;
   height: number;
   backgroundColor: string;
+  backgroundVisible?: boolean; // false = transparent export (for logos)
   backgroundImage?: string;
   backgroundGradient?: {
     type: 'linear' | 'radial';

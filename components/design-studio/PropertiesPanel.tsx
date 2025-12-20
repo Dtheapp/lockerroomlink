@@ -78,6 +78,21 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>('');
   const [selectedEventId, setSelectedEventId] = useState<string>('');
   
+  // Theme-aware input classes
+  const inputClasses = `w-full px-2 py-1.5 rounded text-sm ${
+    theme === 'dark' 
+      ? 'bg-zinc-800 border border-zinc-700 text-white' 
+      : 'bg-white border border-slate-300 text-slate-900'
+  }`;
+  
+  const labelClasses = `text-xs font-medium mb-1 block ${
+    theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+  }`;
+  
+  const smallLabelClasses = `text-[10px] ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`;
+  
+  const valueClasses = `text-xs w-8 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`;
+  
   // Generate smart QR URL based on link type
   const generateQRUrl = (type: QRLinkType, resourceId?: string): string => {
     const baseUrl = window.location.origin;
@@ -180,50 +195,50 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
         {/* Position & Size */}
         <div>
-          <label className="text-xs font-medium text-slate-400 mb-2 block">Position & Size</label>
+          <label className={labelClasses}>Position & Size</label>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[10px] text-slate-500">X</label>
+              <label className={smallLabelClasses}>X</label>
               <input
                 type="number"
                 value={Math.round(selectedElement.position.x)}
                 onChange={(e) => onUpdateElement(selectedElement.id, { 
                   position: { ...selectedElement.position, x: Number(e.target.value) } 
                 })}
-                className="w-full px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-sm text-white"
+                className={inputClasses}
               />
             </div>
             <div>
-              <label className="text-[10px] text-slate-500">Y</label>
+              <label className={smallLabelClasses}>Y</label>
               <input
                 type="number"
                 value={Math.round(selectedElement.position.y)}
                 onChange={(e) => onUpdateElement(selectedElement.id, { 
                   position: { ...selectedElement.position, y: Number(e.target.value) } 
                 })}
-                className="w-full px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-sm text-white"
+                className={inputClasses}
               />
             </div>
             <div>
-              <label className="text-[10px] text-slate-500">Width</label>
+              <label className={smallLabelClasses}>Width</label>
               <input
                 type="number"
                 value={Math.round(selectedElement.size.width)}
                 onChange={(e) => onUpdateElement(selectedElement.id, { 
                   size: { ...selectedElement.size, width: Number(e.target.value) } 
                 })}
-                className="w-full px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-sm text-white"
+                className={inputClasses}
               />
             </div>
             <div>
-              <label className="text-[10px] text-slate-500">Height</label>
+              <label className={smallLabelClasses}>Height</label>
               <input
                 type="number"
                 value={Math.round(selectedElement.size.height)}
                 onChange={(e) => onUpdateElement(selectedElement.id, { 
                   size: { ...selectedElement.size, height: Number(e.target.value) } 
                 })}
-                className="w-full px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-sm text-white"
+                className={inputClasses}
               />
             </div>
           </div>
@@ -232,7 +247,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         {/* Rotation & Opacity */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-xs font-medium text-slate-400 mb-1 block">Rotation</label>
+            <label className={labelClasses}>Rotation</label>
             <div className="flex items-center gap-2">
               <input
                 type="range"
@@ -242,11 +257,11 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 onChange={(e) => onUpdateElement(selectedElement.id, { rotation: Number(e.target.value) })}
                 className="flex-1"
               />
-              <span className="text-xs text-slate-400 w-8">{selectedElement.rotation}°</span>
+              <span className={valueClasses}>{selectedElement.rotation}°</span>
             </div>
           </div>
           <div>
-            <label className="text-xs font-medium text-slate-400 mb-1 block">Opacity</label>
+            <label className={labelClasses}>Opacity</label>
             <div className="flex items-center gap-2">
               <input
                 type="range"
@@ -360,53 +375,102 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         )}
 
         {/* Color properties */}
-        <div className="h-px bg-zinc-800" />
+        <div className={`h-px ${theme === 'dark' ? 'bg-zinc-800' : 'bg-slate-200'}`} />
         <div>
-          <label className="text-xs font-medium text-slate-400 mb-2 block flex items-center gap-1">
+          <label className={`text-xs font-medium mb-2 block flex items-center gap-1 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
             <Palette className="w-3 h-3" /> Colors
           </label>
           
           {/* Text/Foreground Color */}
           {(selectedElement.type === 'text' || selectedElement.type === 'icon') && (
-            <div className="flex items-center gap-2 mb-2">
-              <input
-                type="color"
-                value={selectedElement.color || '#ffffff'}
-                onChange={(e) => onUpdateElement(selectedElement.id, { color: e.target.value })}
-                className="w-8 h-8 rounded cursor-pointer border-0"
-              />
-              <input
-                type="text"
-                value={selectedElement.color || '#ffffff'}
-                onChange={(e) => onUpdateElement(selectedElement.id, { color: e.target.value })}
-                className="flex-1 px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-sm text-white font-mono"
-              />
+            <div className="mb-2">
+              <label className={smallLabelClasses}>Text Color</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={selectedElement.color || '#ffffff'}
+                  onChange={(e) => onUpdateElement(selectedElement.id, { color: e.target.value })}
+                  className="w-8 h-8 rounded cursor-pointer border-0"
+                />
+                <input
+                  type="text"
+                  value={selectedElement.color || '#ffffff'}
+                  onChange={(e) => onUpdateElement(selectedElement.id, { color: e.target.value })}
+                  className={`flex-1 px-2 py-1.5 rounded text-sm font-mono ${theme === 'dark' ? 'bg-zinc-800 border border-zinc-700 text-white' : 'bg-white border border-slate-300 text-slate-900'}`}
+                />
+              </div>
             </div>
           )}
 
           {/* Background Color */}
           {(selectedElement.type === 'shape' || selectedElement.type === 'qrcode') && (
-            <div className="flex items-center gap-2 mb-2">
+            <div className="mb-2">
+              <label className={smallLabelClasses}>Fill Color</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={selectedElement.backgroundColor || '#8b5cf6'}
+                  onChange={(e) => onUpdateElement(selectedElement.id, { backgroundColor: e.target.value })}
+                  className="w-8 h-8 rounded cursor-pointer border-0"
+                />
+                <input
+                  type="text"
+                  value={selectedElement.backgroundColor || '#8b5cf6'}
+                  onChange={(e) => onUpdateElement(selectedElement.id, { backgroundColor: e.target.value })}
+                  className={`flex-1 px-2 py-1.5 rounded text-sm font-mono ${theme === 'dark' ? 'bg-zinc-800 border border-zinc-700 text-white' : 'bg-white border border-slate-300 text-slate-900'}`}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Border - Available for ALL elements */}
+        <div className={`h-px ${theme === 'dark' ? 'bg-zinc-800' : 'bg-slate-200'}`} />
+        <div>
+          <label className={`text-xs font-medium mb-2 block ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+            Border
+          </label>
+          
+          {/* Border Width */}
+          <div className="mb-3">
+            <label className={smallLabelClasses}>Width</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min="0"
+                max="20"
+                value={selectedElement.borderWidth || 0}
+                onChange={(e) => onUpdateElement(selectedElement.id, { borderWidth: Number(e.target.value) })}
+                className="flex-1"
+              />
+              <span className={valueClasses}>{selectedElement.borderWidth || 0}px</span>
+            </div>
+          </div>
+          
+          {/* Border Color */}
+          <div className="mb-2">
+            <label className={smallLabelClasses}>Color</label>
+            <div className="flex items-center gap-2">
               <input
                 type="color"
-                value={selectedElement.backgroundColor || '#8b5cf6'}
-                onChange={(e) => onUpdateElement(selectedElement.id, { backgroundColor: e.target.value })}
+                value={selectedElement.borderColor || '#ffffff'}
+                onChange={(e) => onUpdateElement(selectedElement.id, { borderColor: e.target.value })}
                 className="w-8 h-8 rounded cursor-pointer border-0"
               />
               <input
                 type="text"
-                value={selectedElement.backgroundColor || '#8b5cf6'}
-                onChange={(e) => onUpdateElement(selectedElement.id, { backgroundColor: e.target.value })}
-                className="flex-1 px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-sm text-white font-mono"
+                value={selectedElement.borderColor || '#ffffff'}
+                onChange={(e) => onUpdateElement(selectedElement.id, { borderColor: e.target.value })}
+                className={`flex-1 px-2 py-1.5 rounded text-sm font-mono ${theme === 'dark' ? 'bg-zinc-800 border border-zinc-700 text-white' : 'bg-white border border-slate-300 text-slate-900'}`}
               />
             </div>
-          )}
+          </div>
         </div>
 
         {/* Border Radius */}
         {(selectedElement.type === 'shape' || selectedElement.type === 'image' || selectedElement.type === 'logo') && (
           <div>
-            <label className="text-xs font-medium text-slate-400 mb-1 block">Border Radius</label>
+            <label className={labelClasses}>Corner Radius</label>
             <div className="flex items-center gap-2">
               <input
                 type="range"

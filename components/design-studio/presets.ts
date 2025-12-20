@@ -123,6 +123,28 @@ export interface ShapePreset {
 
 export const SHAPE_PRESETS: ShapePreset[] = [
   {
+    id: 'square',
+    name: 'Square',
+    icon: '⬛',
+    styles: {
+      shapeType: 'rectangle',
+      backgroundColor: '#3b82f6',
+      borderRadius: 0,
+      size: { width: 200, height: 200 },
+    },
+  },
+  {
+    id: 'rectangle',
+    name: 'Rectangle',
+    icon: '▬',
+    styles: {
+      shapeType: 'rectangle',
+      backgroundColor: '#10b981',
+      borderRadius: 0,
+      size: { width: 300, height: 150 },
+    },
+  },
+  {
     id: 'button-primary',
     name: 'Primary Button',
     icon: '🔵',

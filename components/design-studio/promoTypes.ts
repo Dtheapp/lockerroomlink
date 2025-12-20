@@ -37,6 +37,8 @@ export interface PromoItem {
   // Location - where it's saved
   location: PromoItemLocation;
   teamId?: string; // If saved to team
+  teamName?: string; // Name of team if saved to team
+  isTeamCopy?: boolean; // True if this personal copy is linked to a team version
   playerId?: string; // If saved to player's public promo
   seasonId?: string; // Link to season (for team items, auto-delete with season)
   

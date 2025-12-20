@@ -50,6 +50,7 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [contextMenu, setContextMenu] = useState<{ promoId: string; x: number; y: number } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<PromoItem | null>(null); // Delete confirmation modal
   
   const isCoach = userData?.role === 'Coach' || userData?.role === 'SuperAdmin';
   const isParent = userData?.role === 'Parent';
@@ -110,11 +111,13 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
       return;
     }
     
-    const message = promo.createdByParent && isCoach && !isOwner
-      ? `This design was created by parent "${promo.createdByName}". Are you sure you want to delete it?`
-      : 'Are you sure you want to delete this design?';
-    
-    if (!confirm(message)) return;
+    // Show confirmation modal instead of confirm()
+    setDeleteConfirm(promo);
+  };
+  
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    const promo = deleteConfirm;
     
     try {
       let collectionPath: string;
@@ -132,8 +135,10 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
       await deletePromoItem(promo.id, collectionPath, promo.thumbnailPath);
       setPromoItems(prev => prev.filter(p => p.id !== promo.id));
       setContextMenu(null);
+      setDeleteConfirm(null);
     } catch (error) {
       console.error('Error deleting promo:', error);
+      setDeleteConfirm(null);
     }
   };
   
@@ -384,7 +389,12 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
                   </div>
                   
                   {/* Badges */}
-                  <div className="absolute top-2 left-2 flex gap-1">
+                  <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
+                    {promo.isTeamCopy && (
+                      <span className="px-2 py-0.5 bg-orange-600/80 rounded text-[10px] text-white font-medium">
+                        Team
+                      </span>
+                    )}
                     {promo.createdByParent && (
                       <span className="px-2 py-0.5 bg-purple-600/80 rounded text-[10px] text-white font-medium">
                         Parent
@@ -510,6 +520,59 @@ const PromoGallery: React.FC<PromoGalleryProps> = ({ onEditDesign, onClose }) =>
           </div>
         )}
       </div>
+      
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className={`p-6 rounded-xl shadow-2xl max-w-md w-full mx-4 ${
+            theme === 'dark' ? 'bg-zinc-900 border border-zinc-700' : 'bg-white border border-slate-200'
+          }`}>
+            <div className="flex items-center gap-4 mb-4">
+              <div className="p-3 bg-red-500/20 rounded-full">
+                <Trash2 size={24} className="text-red-500" />
+              </div>
+              <div>
+                <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  Delete Design?
+                </h3>
+                <p className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-500'}`}>
+                  This action cannot be undone.
+                </p>
+              </div>
+            </div>
+            
+            <div className={`p-3 rounded-lg mb-4 ${theme === 'dark' ? 'bg-zinc-800' : 'bg-slate-100'}`}>
+              <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                "{deleteConfirm.name}"
+              </p>
+              {deleteConfirm.createdByParent && deleteConfirm.createdBy !== userData?.uid && (
+                <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-600'}`}>
+                  ⚠️ Created by parent: {deleteConfirm.createdByName}
+                </p>
+              )}
+            </div>
+            
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  theme === 'dark' 
+                    ? 'bg-zinc-800 text-white hover:bg-zinc-700' 
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -201,7 +201,71 @@ export async function savePromoItem(
     });
   }
   
+  // If saving to team, also save a copy to personal folder with "team" tag
+  if (options.location === 'team' && options.teamId) {
+    try {
+      await savePersonalCopyOfTeamPromo(
+        name,
+        canvas,
+        elements,
+        size,
+        userId,
+        userName,
+        userRole,
+        options,
+        thumbnailUrl,
+        thumbnailPath,
+        options.teamId // teamName would be better but we don't have it here
+      );
+    } catch (copyError) {
+      console.error('Error saving personal copy of team promo:', copyError);
+      // Don't throw - team save succeeded, personal copy is just a bonus
+    }
+  }
+  
   return docRef.id;
+}
+
+// Helper to save a copy to personal folder when saving to team
+async function savePersonalCopyOfTeamPromo(
+  name: string,
+  canvas: CanvasState,
+  elements: DesignElement[],
+  size: FlyerSize,
+  userId: string,
+  userName: string,
+  userRole: string,
+  options: SavePromoOptions,
+  thumbnailUrl: string,
+  thumbnailPath: string,
+  teamName?: string
+): Promise<void> {
+  const now = Timestamp.now();
+  
+  const personalPromoData = {
+    name,
+    canvas,
+    elements,
+    size,
+    createdBy: userId,
+    createdByName: userName,
+    createdByRole: userRole,
+    createdAt: now,
+    updatedAt: now,
+    location: 'personal' as PromoItemLocation,
+    isPublic: false,
+    isArchived: false,
+    category: options.category,
+    tags: [...(options.tags || []), 'team'],
+    exportQuality: options.exportQuality || 'standard',
+    isTeamCopy: true,
+    teamId: options.teamId,
+    teamName: teamName,
+    thumbnailUrl,
+    thumbnailPath,
+  };
+  
+  await addDoc(collection(db, `users/${userId}/promoItems`), personalPromoData);
 }
 
 // Load promo items for a user (personal)
