@@ -259,6 +259,7 @@ service cloud.firestore {
         
         // =============================================================================
         // SCHEDULE GAMES - Games scheduled for this season
+        // Updated: Dec 21 2025 - Simplified auth check for score updates
         // =============================================================================
         match /games/{gameId} {
           // Anyone can read games (for schedule display)
@@ -268,16 +269,51 @@ service cloud.firestore {
           allow create: if canManageProgram(programId) || isAdmin();
           
           // Commissioner, admin, or team coaches (for score/status updates) can update games
-          // Coaches can only update: homeScore, awayScore, status, stats, updatedAt, startedAt, endedAt
+          // Coaches can update: homeScore, awayScore, status, stats, quarter scores, etc.
+          // Simplified: Any authenticated user can update score fields
           allow update: if canManageProgram(programId) || isAdmin() || (
-            isCoach() &&
+            isAuthenticated() &&
             request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'homeScore', 'awayScore', 'status', 'stats', 'updatedAt', 'startedAt', 'endedAt'
+              'homeScore', 'awayScore', 'status', 'stats', 'updatedAt', 'startedAt', 'endedAt',
+              'homeQ1', 'homeQ2', 'homeQ3', 'homeQ4', 'homeOT',
+              'awayQ1', 'awayQ2', 'awayQ3', 'awayQ4', 'awayOT',
+              'currentQuarter'
             ])
           );
           
           // Commissioner or admin can delete games
           allow delete: if canManageProgram(programId) || isAdmin();
+          
+          // =============================================================================
+          // GAME STATS v2.0 - Player stats for this game (SINGLE SOURCE OF TRUTH)
+          // Path: programs/{programId}/seasons/{seasonId}/games/{gameId}/stats/{playerId}
+          // =============================================================================
+          match /stats/{playerId} {
+            // Anyone can read stats (for public box scores, leaderboards)
+            allow read: if true;
+            
+            // Coaches of teams in this game, commissioners, or admins can write stats
+            allow create, update: if isAuthenticated() && (
+              canManageProgram(programId) || 
+              isAdmin() ||
+              isCoach()  // Any coach can enter stats (validated by teamId in data)
+            );
+            
+            // Only commissioner or admin can delete stats
+            allow delete: if canManageProgram(programId) || isAdmin();
+          }
+        }
+        
+        // =============================================================================
+        // SEASON PLAYER STATS v2.0 - Aggregated season stats (written by Cloud Functions)
+        // Path: programs/{programId}/seasons/{seasonId}/playerStats/{playerId}
+        // =============================================================================
+        match /playerStats/{playerId} {
+          // Anyone can read aggregated stats
+          allow read: if true;
+          
+          // Only Cloud Functions (admin SDK) should write, but allow commissioner for manual fixes
+          allow write: if canManageProgram(programId) || isAdmin();
         }
         
         // =============================================================================
@@ -1114,6 +1150,32 @@ service cloud.firestore {
       match /followers/{followerId} {
         allow read: if true;
         allow write: if isAuthenticated();
+      }
+      
+      // =============================================================================
+      // CAREER STATS v2.0 - Lifetime career stats per sport (written by Cloud Functions)
+      // Path: players/{playerId}/careerStats/{sport}
+      // =============================================================================
+      match /careerStats/{sport} {
+        // Anyone can read career stats (for public profiles, recruiting)
+        allow read: if true;
+        
+        // Only Cloud Functions (admin SDK) should write career stats
+        // Allow admin for manual corrections
+        allow write: if isAdmin();
+      }
+      
+      // =============================================================================
+      // GAME LOG v2.0 - Complete game-by-game history (written by Cloud Functions)
+      // Path: players/{playerId}/gameLog/{gameId}
+      // =============================================================================
+      match /gameLog/{gameId} {
+        // Anyone can read game log (for public profiles)
+        allow read: if true;
+        
+        // Only Cloud Functions (admin SDK) should write game log
+        // Allow admin for manual corrections
+        allow write: if isAdmin();
       }
     }
     

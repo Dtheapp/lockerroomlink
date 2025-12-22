@@ -51,8 +51,20 @@ interface TodayGame {
   isHome?: boolean;
   status?: 'scheduled' | 'live' | 'completed';
   quarter?: number;
+  currentQuarter?: 1 | 2 | 3 | 4 | 5; // 5 = OT
   gameTime?: string;
   teamId?: string;
+  // Quarter scores
+  homeQ1?: number;
+  homeQ2?: number;
+  homeQ3?: number;
+  homeQ4?: number;
+  homeOT?: number;
+  awayQ1?: number;
+  awayQ2?: number;
+  awayQ3?: number;
+  awayQ4?: number;
+  awayOT?: number;
 }
 
 interface GameDayManagerProps {
@@ -87,6 +99,21 @@ const GameDayManager: React.FC<GameDayManagerProps> = ({
   const [homeScoreChange, setHomeScoreChange] = useState<number | null>(null);
   const [awayScoreChange, setAwayScoreChange] = useState<number | null>(null);
   
+  // Quarter state
+  const [currentQuarter, setCurrentQuarter] = useState<1 | 2 | 3 | 4 | 5>(game.currentQuarter || 1);
+  const [quarterScores, setQuarterScores] = useState({
+    homeQ1: game.homeQ1 || 0,
+    homeQ2: game.homeQ2 || 0,
+    homeQ3: game.homeQ3 || 0,
+    homeQ4: game.homeQ4 || 0,
+    homeOT: game.homeOT || 0,
+    awayQ1: game.awayQ1 || 0,
+    awayQ2: game.awayQ2 || 0,
+    awayQ3: game.awayQ3 || 0,
+    awayQ4: game.awayQ4 || 0,
+    awayOT: game.awayOT || 0,
+  });
+  
   const isCoach = userData?.role === 'Coach' || userData?.role === 'SuperAdmin';
   const hasLiveStream = liveStreams.length > 0;
   
@@ -116,7 +143,22 @@ const GameDayManager: React.FC<GameDayManagerProps> = ({
     prevAwayScore.current = newAway;
     setLocalHomeScore(newHome);
     setLocalAwayScore(newAway);
-  }, [game.homeScore, game.awayScore]);
+    
+    // Sync quarter data
+    setCurrentQuarter(game.currentQuarter || 1);
+    setQuarterScores({
+      homeQ1: game.homeQ1 || 0,
+      homeQ2: game.homeQ2 || 0,
+      homeQ3: game.homeQ3 || 0,
+      homeQ4: game.homeQ4 || 0,
+      homeOT: game.homeOT || 0,
+      awayQ1: game.awayQ1 || 0,
+      awayQ2: game.awayQ2 || 0,
+      awayQ3: game.awayQ3 || 0,
+      awayQ4: game.awayQ4 || 0,
+      awayOT: game.awayOT || 0,
+    });
+  }, [game.homeScore, game.awayScore, game.currentQuarter, game.homeQ1, game.homeQ2, game.homeQ3, game.homeQ4, game.homeOT, game.awayQ1, game.awayQ2, game.awayQ3, game.awayQ4, game.awayOT]);
   
   // Calculate game state - prioritize explicit status, then time-based
   // Key insight: If game was never started (no status='live' or 'completed'), 
@@ -185,10 +227,20 @@ const GameDayManager: React.FC<GameDayManagerProps> = ({
     if (team === 'home') setLocalHomeScore(newScore);
     else setLocalAwayScore(newScore);
     
+    // Determine which quarter field to update
+    const quarterKey = currentQuarter === 5 ? 'OT' : `Q${currentQuarter}`;
+    const quarterField = `${team}${quarterKey}` as keyof typeof quarterScores;
+    
+    // Update quarter score locally
+    const newQuarterScore = Math.max(0, (quarterScores[quarterField] || 0) + delta);
+    setQuarterScores(prev => ({ ...prev, [quarterField]: newQuarterScore }));
+    
     try {
       // Update in global events collection (where game data comes from)
       await updateDoc(doc(db, 'events', game.id), {
         [team === 'home' ? 'homeScore' : 'awayScore']: newScore,
+        [quarterField]: newQuarterScore,
+        currentQuarter,
         status: 'live',
         updatedAt: serverTimestamp()
       });
@@ -197,6 +249,11 @@ const GameDayManager: React.FC<GameDayManagerProps> = ({
       // Revert on error
       if (team === 'home') setLocalHomeScore(game.homeScore || 0);
       else setLocalAwayScore(game.awayScore || 0);
+      // Revert quarter score
+      setQuarterScores(prev => ({ 
+        ...prev, 
+        [quarterField]: (game as any)[quarterField] || 0 
+      }));
     }
   };
 
@@ -236,6 +293,22 @@ const GameDayManager: React.FC<GameDayManagerProps> = ({
       setScoreDirectly(team, score);
     }
     setEditingScore(null);
+  };
+  
+  // Change current quarter
+  const changeQuarter = async (quarter: 1 | 2 | 3 | 4 | 5) => {
+    if (!isCoach || !game.id) return;
+    setCurrentQuarter(quarter);
+    
+    try {
+      await updateDoc(doc(db, 'events', game.id), {
+        currentQuarter: quarter,
+        updatedAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.error('Error changing quarter:', err);
+      setCurrentQuarter(game.currentQuarter || 1);
+    }
   };
 
   // Mark game as started
@@ -471,6 +544,123 @@ const GameDayManager: React.FC<GameDayManagerProps> = ({
       {/* Main Content - Hidden when collapsed */}
       {!isCollapsed && (
       <div className="p-6">
+        {/* Quarter Selector - Only during live game for coaches */}
+        {isCoach && gameState === 'live' && (
+          <div className="mb-6">
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <span className={`text-sm font-medium ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+                Current Period:
+              </span>
+              <div className="flex gap-1">
+                {([1, 2, 3, 4] as const).map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => changeQuarter(q)}
+                    className={`w-10 h-10 rounded-lg font-bold text-sm transition-all ${
+                      currentQuarter === q
+                        ? 'bg-purple-600 text-white shadow-lg scale-110'
+                        : theme === 'dark'
+                          ? 'bg-white/10 text-slate-300 hover:bg-white/20'
+                          : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                    }`}
+                  >
+                    Q{q}
+                  </button>
+                ))}
+                <button
+                  onClick={() => changeQuarter(5)}
+                  className={`px-3 h-10 rounded-lg font-bold text-sm transition-all ${
+                    currentQuarter === 5
+                      ? 'bg-amber-500 text-white shadow-lg scale-110'
+                      : theme === 'dark'
+                        ? 'bg-white/10 text-slate-300 hover:bg-white/20'
+                        : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                  }`}
+                >
+                  OT
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Quarter-by-Quarter Box Score */}
+        {(gameState === 'live' || gameState === 'completed') && (
+          <div className={`mb-6 rounded-xl overflow-hidden ${theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'}`}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}>
+                  <th className="text-left p-2 font-medium w-1/3">Team</th>
+                  <th className="w-10 text-center p-2 font-medium">1</th>
+                  <th className="w-10 text-center p-2 font-medium">2</th>
+                  <th className="w-10 text-center p-2 font-medium">3</th>
+                  <th className="w-10 text-center p-2 font-medium">4</th>
+                  {(quarterScores.homeOT > 0 || quarterScores.awayOT > 0) && (
+                    <th className="w-10 text-center p-2 font-medium">OT</th>
+                  )}
+                  <th className="w-12 text-center p-2 font-bold">T</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className={`${theme === 'dark' ? 'text-white' : 'text-zinc-900'} ${
+                  localHomeScore > localAwayScore ? (theme === 'dark' ? 'bg-emerald-500/10' : 'bg-emerald-100') : ''
+                }`}>
+                  <td className="p-2 font-semibold truncate">
+                    {game.isHome ? teamData?.name : game.opponent}
+                  </td>
+                  <td className={`text-center p-2 ${currentQuarter === 1 ? 'text-purple-500 font-bold' : ''}`}>
+                    {quarterScores.homeQ1 || '-'}
+                  </td>
+                  <td className={`text-center p-2 ${currentQuarter === 2 ? 'text-purple-500 font-bold' : ''}`}>
+                    {quarterScores.homeQ2 || '-'}
+                  </td>
+                  <td className={`text-center p-2 ${currentQuarter === 3 ? 'text-purple-500 font-bold' : ''}`}>
+                    {quarterScores.homeQ3 || '-'}
+                  </td>
+                  <td className={`text-center p-2 ${currentQuarter === 4 ? 'text-purple-500 font-bold' : ''}`}>
+                    {quarterScores.homeQ4 || '-'}
+                  </td>
+                  {(quarterScores.homeOT > 0 || quarterScores.awayOT > 0) && (
+                    <td className={`text-center p-2 ${currentQuarter === 5 ? 'text-amber-500 font-bold' : ''}`}>
+                      {quarterScores.homeOT || '-'}
+                    </td>
+                  )}
+                  <td className={`text-center p-2 font-bold text-lg ${localHomeScore > localAwayScore ? 'text-emerald-500' : ''}`}>
+                    {localHomeScore}
+                  </td>
+                </tr>
+                <tr className={`${theme === 'dark' ? 'text-white' : 'text-zinc-900'} ${
+                  localAwayScore > localHomeScore ? (theme === 'dark' ? 'bg-emerald-500/10' : 'bg-emerald-100') : ''
+                }`}>
+                  <td className="p-2 font-semibold truncate">
+                    {game.isHome ? game.opponent : teamData?.name}
+                  </td>
+                  <td className={`text-center p-2 ${currentQuarter === 1 ? 'text-purple-500 font-bold' : ''}`}>
+                    {quarterScores.awayQ1 || '-'}
+                  </td>
+                  <td className={`text-center p-2 ${currentQuarter === 2 ? 'text-purple-500 font-bold' : ''}`}>
+                    {quarterScores.awayQ2 || '-'}
+                  </td>
+                  <td className={`text-center p-2 ${currentQuarter === 3 ? 'text-purple-500 font-bold' : ''}`}>
+                    {quarterScores.awayQ3 || '-'}
+                  </td>
+                  <td className={`text-center p-2 ${currentQuarter === 4 ? 'text-purple-500 font-bold' : ''}`}>
+                    {quarterScores.awayQ4 || '-'}
+                  </td>
+                  {(quarterScores.homeOT > 0 || quarterScores.awayOT > 0) && (
+                    <td className={`text-center p-2 ${currentQuarter === 5 ? 'text-amber-500 font-bold' : ''}`}>
+                      {quarterScores.awayOT || '-'}
+                    </td>
+                  )}
+                  <td className={`text-center p-2 font-bold text-lg ${localAwayScore > localHomeScore ? 'text-emerald-500' : ''}`}>
+                    {localAwayScore}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+        
         {/* Score Display */}
         <div className="flex items-center justify-center gap-4 md:gap-6 mb-6">
           {/* Home Team */}

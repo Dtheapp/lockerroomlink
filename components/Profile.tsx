@@ -11,6 +11,7 @@ import { getPlayerRegistrationStatus, removeFromDraftPool, removeFromTeamRoster,
 import { Edit2, Save, X, HeartPulse, Plus, Shield, Activity, Droplet, CheckCircle, Pill, AlertCircle, BarChart3, Eye, Sword, User, Camera, Star, Crown, Ruler, Scale, Users, Trash2, AtSign, Link as LinkIcon, Copy, Check, ExternalLink, Film, Play, UserCheck, Key, Clock, XCircle, MinusCircle } from 'lucide-react';
 import type { Player, MedicalInfo, Team, PlayerFilmEntry } from '../types';
 import PlayerStatsModal from './stats/PlayerStatsModal';
+import PlayerStatsDisplay from './stats/PlayerStatsDisplay';
 
 const Profile: React.FC = () => {
   const { user, userData, players: contextPlayers, teamData, selectedSportContext } = useAuth();
@@ -1624,14 +1625,14 @@ const Profile: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* Quick Stats */}
-                                <div className={`mt-4 flex justify-center gap-4 p-2 rounded-lg ${theme === 'dark' ? 'bg-black/20' : 'bg-slate-100'}`}>
-                                    <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-400">
-                                        <Sword className="w-3 h-3 text-purple-500" /> <span className="font-bold">{player.stats?.td || 0}</span> TD
-                                    </div>
-                                    <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-400">
-                                        <Shield className="w-3 h-3 text-cyan-500" /> <span className="font-bold">{player.stats?.tkl || 0}</span> TKL
-                                    </div>
+                                {/* Quick Stats - v2.0 Stats (fetches real data) */}
+                                <div className={`mt-4 p-2 rounded-lg ${theme === 'dark' ? 'bg-black/20' : 'bg-slate-100'}`}>
+                                    <PlayerStatsDisplay 
+                                      playerId={player.id}
+                                      athleteId={player.athleteId}
+                                      sport={selectedSportContext?.sport || 'football'}
+                                      size="sm"
+                                    />
                                 </div>
 
                                 {/* Public Profile Link */}

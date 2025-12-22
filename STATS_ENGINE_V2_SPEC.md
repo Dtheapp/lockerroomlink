@@ -8,19 +8,21 @@
 
 ## 📋 BUILD PROGRESS TRACKER
 
-### Phase 1: Foundation
-- [ ] Create new Firestore schema
-- [ ] Build sport-specific stat configs (`config/statSchemas.ts`)
-- [ ] Create Cloud Functions for sync
+### Phase 1: Foundation ✅ IN PROGRESS
+- [x] Build sport-specific stat configs (`config/statSchemas.ts`) ✅
+- [x] Add new stat interfaces to `types.ts` ✅
+- [x] Create stats service (`services/statsServiceV2.ts`) ✅
+- [x] Create stats hooks (`hooks/useStatsV2.ts`) ✅
+- [x] Update Firestore security rules ✅
+- [ ] Create Cloud Functions for sync (requires functions deployment)
 - [ ] Migrate existing stats to new structure
-- [ ] Update Firestore security rules
 
-### Phase 2: Entry UI
-- [ ] Build new GameStatEntry component (single source writes)
+### Phase 2: Entry UI ⏳ IN PROGRESS
+- [x] Build new GameStatEntry component (single source writes) ✅ `GameStatsEntryV2.tsx`
 - [ ] Post-game bulk entry form
 - [ ] Quick stat buttons for live games
 - [ ] Draft/auto-save functionality
-- [ ] Theme-aware styling
+- [x] Theme-aware styling ✅
 
 ### Phase 3: Import System
 - [ ] CSV import wizard UI
@@ -30,9 +32,14 @@
 - [ ] Player matching algorithm
 - [ ] Import preview & confirmation
 
-### Phase 4: Display & Export
+### Phase 4: Display & Export ⏳ IN PROGRESS
+- [x] StatLeadersWidget for dashboards ✅
+- [x] PlayerQuickStats for player cards ✅
+- [x] PlayerSeasonTotals component ✅
+- [x] PlayerCareerBests component ✅
+- [x] PlayerStatsDisplay (self-fetching wrapper) ✅
 - [ ] Player stat profiles (career view)
-- [ ] Team leaderboards
+- [ ] Team leaderboards full page
 - [ ] Box score displays
 - [ ] PDF/Image export
 - [ ] Shareable stat cards
@@ -42,6 +49,19 @@
 - [ ] Advanced calculated metrics
 - [ ] Stat comparison tools
 - [ ] Recruiting-ready profiles
+
+### Phase 6: Full System Integration ⭐ IN PROGRESS
+- [x] Coach Dashboard - stat leaders widget ✅ (NewOSYSDashboard.tsx)
+- [x] Parent Profile (Profile.tsx) - PlayerStatsDisplay component ✅
+- [x] Roster Pages - PlayerStatsDisplay component ✅
+- [ ] Season summaries on dashboard
+- [ ] OSYSAthleteProfile - real career stats (replace mockStats)
+- [ ] PublicAthleteProfile - recruiter-friendly stats display
+- [ ] OSYSTeamPage - team stat leaders section
+- [ ] FanDashboard - favorite player stat tracking
+- [ ] Commissioner Dashboard - league-wide analytics
+- [ ] GameDayHub - live stat feed integration
+- [ ] Notifications - stat milestone alerts
 
 ---
 
@@ -785,6 +805,161 @@ match /players/{globalPlayerId}/careerStats/{sport} {
 3. Migrate old data with one-time script
 4. Deprecate old stat collections
 5. Remove old code
+
+---
+
+## 🔗 FULL SYSTEM INTEGRATION DETAILS
+
+### **1. Parent Profile (Profile.tsx) - PRIORITY HIGH**
+**Current:** Shows basic `player.stats?.td` and `player.stats?.tkl` only
+**After v2.0:**
+```typescript
+// Replace hardcoded stats with sport-specific stats from v2.0
+// Location: Profile.tsx lines 1627-1633
+
+// OLD:
+<Sword className="w-3 h-3" /> <span>{player.stats?.td || 0}</span> TD
+<Shield className="w-3 h-3" /> <span>{player.stats?.tkl || 0}</span> TKL
+
+// NEW: Dynamic sport-specific quick stats
+const quickStats = getQuickStats(player.sport, player.seasonStats);
+{quickStats.map(stat => (
+  <div key={stat.key}>
+    <stat.icon className="w-3 h-3" /> 
+    <span className="font-bold">{stat.value}</span> {stat.label}
+  </div>
+))}
+```
+**Features to add:**
+- [ ] Career totals header on each player card
+- [ ] Season selector dropdown
+- [ ] Game-by-game expandable history
+- [ ] Stat trend indicators (↑ improving, ↓ declining)
+- [ ] "View Full Stats" → opens PlayerStatsModal with v2.0 data
+
+### **2. Coach Dashboard (NewOSYSDashboard.tsx)**
+**Current:** Shows W-L record only
+**After v2.0:**
+```typescript
+// Add stat leaders widget
+<StatLeadersWidget teamId={teamData.id} sport={teamData.sport} />
+
+// Features:
+// - Top 3 in each category (Passing, Rushing, Receiving for football)
+// - Click to see full leaderboard
+// - "Enter Game Stats" CTA if games have no stats
+```
+**Features to add:**
+- [ ] Team stat leaders widget (top 3 per category)
+- [ ] Season totals summary (Total TDs, Yards, etc.)
+- [ ] Quick stat entry button for recent games
+- [ ] Stat completion percentage indicator
+
+### **3. Roster Pages (Roster.tsx, OSYSRoster.tsx, CommissionerRoster.tsx)**
+**Current:** Shows mock data or basic info
+**After v2.0:**
+```typescript
+// Add sortable stat columns
+<RosterTable 
+  players={players}
+  columns={['name', 'number', 'position', ...getKeyStatColumns(sport)]}
+  sortable={true}
+  defaultSort="totalPoints"
+/>
+```
+**Features to add:**
+- [ ] Stat columns (sport-specific key stats)
+- [ ] Sort by any stat column
+- [ ] Filter by position
+- [ ] Export roster with stats (PDF/CSV)
+- [ ] Inline quick stats preview on hover
+
+### **4. Athlete Profile (OSYSAthleteProfile.tsx)**
+**Current:** Mock data (`mockStats`)
+**After v2.0:**
+```typescript
+// Real career stats from global player profile
+const { careerStats, gameLog } = usePlayerStats(globalPlayerId, sport);
+```
+**Features to add:**
+- [ ] Career totals hero section
+- [ ] Season-by-season breakdown tabs
+- [ ] Game log with expandable details
+- [ ] Personal records/bests highlights
+- [ ] Comparison to league averages
+- [ ] Shareable stat card generator
+- [ ] Recruiting profile export
+
+### **5. Public Athlete Profile (PublicAthleteProfile.tsx, PublicAthleteProfileV2.tsx)**
+**Features to add:**
+- [ ] Clean, recruiter-friendly stat display
+- [ ] Video highlights linked to stat performances
+- [ ] Verified stats badge (entered by coach)
+- [ ] Season/career toggle
+- [ ] Contact coach button
+- [ ] Download stat sheet PDF
+
+### **6. Team Page (OSYSTeamPage.tsx)**
+**Features to add:**
+- [ ] Team stat leaders section
+- [ ] Team totals (points scored, points allowed)
+- [ ] Record and standings
+- [ ] Recent game box scores
+- [ ] Schedule with results
+
+### **7. Game Day Hub (GameDayHub.tsx)**
+**Features to add:**
+- [ ] Live stat entry during games
+- [ ] Real-time stat feed
+- [ ] Play-by-play log
+- [ ] Quick-tap stat buttons
+- [ ] Live leaderboard updates
+
+### **8. Fan Dashboard (FanDashboard.tsx)**
+**Features to add:**
+- [ ] Favorite player stat tracking
+- [ ] Player stat alerts/notifications
+- [ ] League-wide stat leaders
+- [ ] Game recaps with stats
+
+### **9. Commissioner Dashboard**
+**Features to add:**
+- [ ] Program-wide stat leaders
+- [ ] Team comparison analytics
+- [ ] Stat entry compliance tracking
+- [ ] Export league stats for awards
+
+### **10. Stats Components to Rebuild**
+| Current Component | Status | Action |
+|-------------------|--------|--------|
+| `PlayerStatsCard.tsx` | Uses legacy collections | Rebuild to read from v2.0 source |
+| `PlayerStatsModal.tsx` | Uses legacy collections | Rebuild to read from v2.0 source |
+| `GameStatsEntry.tsx` | Partially updated | Complete v2.0 integration |
+| `StatsBoard.tsx` | Uses legacy `playerStats` | Deprecate, use new components |
+| `TeamStatsBoard.tsx` | May use legacy | Update to v2.0 |
+| `CoachStatsEntry.tsx` | Legacy | Rebuild or deprecate |
+
+### **11. New Components to Create**
+| Component | Purpose |
+|-----------|---------|
+| `StatLeadersWidget.tsx` | Dashboard widget showing top performers |
+| `CareerStatsCard.tsx` | Compact career summary for profiles |
+| `GameBoxScore.tsx` | Full box score display for games |
+| `StatComparisonTool.tsx` | Compare two players side-by-side |
+| `StatTrendChart.tsx` | Visual stat progression over time |
+| `ShareableStatCard.tsx` | Social media ready stat graphics |
+| `StatImportWizard.tsx` | CSV import UI |
+| `LiveStatTracker.tsx` | Real-time game stat entry |
+
+### **12. Hooks to Create**
+```typescript
+// New hooks for v2.0 stats
+usePlayerStats(playerId, sport) → { careerStats, seasonStats, gameLog }
+useTeamStats(teamId, seasonId) → { teamTotals, leaderboards }
+useGameStats(gameId) → { boxScore, playByPlay }
+useLiveStats(gameId) → { realTimeStats, lastPlay }
+useStatLeaders(programId, category) → { leaders[] }
+```
 
 ---
 

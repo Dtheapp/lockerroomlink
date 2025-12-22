@@ -476,68 +476,117 @@ export default function ScheduleBuilder() {
       // SINGLE SOURCE OF TRUTH ARCHITECTURE:
       // All games live in programs/{programId}/seasons/{seasonId}/games
       // NO syncing to events collection - teams read directly from here
+      
+      // CRITICAL: We use UPDATE/CREATE pattern instead of DELETE ALL + RECREATE
+      // to preserve game document IDs and their stats subcollections!
 
-      // Step 1: Collect existing game data (scores, status) to preserve
+      // Step 1: Get existing games and byes
       const existingGamesSnap = await getDocs(gamesRef);
-      const existingGamesMap = new Map<string, any>();
+      const existingGamesMap = new Map<string, { id: string; data: any }>();
       existingGamesSnap.docs.forEach(docSnap => {
         const data = docSnap.data();
         // Key by homeTeamId-awayTeamId-week for matching
         const key = `${data.homeTeamId}-${data.awayTeamId}-${data.week}`;
         existingGamesMap.set(key, {
           id: docSnap.id,
-          homeScore: data.homeScore,
-          awayScore: data.awayScore,
-          status: data.status,
-          stats: data.stats, // Preserve any stats that were added
+          data: data
         });
       });
       
-      console.log('[ScheduleBuilder] Preserved data from', existingGamesMap.size, 'existing games');
-
-      // Step 2: Delete existing games and byes
-      const batch = writeBatch(db);
-      existingGamesSnap.docs.forEach(docSnap => batch.delete(docSnap.ref));
+      const existingByesSnap = await getDocs(byesRef);
+      const existingByesMap = new Map<string, string>(); // key -> docId
+      existingByesSnap.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        const key = `${data.teamId}-${data.week}`;
+        existingByesMap.set(key, docSnap.id);
+      });
       
-      const existingByes = await getDocs(byesRef);
-      existingByes.docs.forEach(docSnap => batch.delete(docSnap.ref));
+      console.log('[ScheduleBuilder] Found', existingGamesMap.size, 'existing games,', existingByesMap.size, 'existing byes');
 
-      await batch.commit();
+      // Track which existing games we're keeping
+      const keptGameIds = new Set<string>();
+      const keptByeIds = new Set<string>();
 
-      // Step 3: Add all games (with preserved scores/status from existing games)
+      // Step 2: Update existing games OR create new ones
       for (const game of games) {
         const { isNew, id, ...gameData } = game;
         
         // Check if this game existed before (same matchup, same week)
         const matchKey = `${game.homeTeamId}-${game.awayTeamId}-${game.week}`;
-        const existingData = existingGamesMap.get(matchKey);
+        const existing = existingGamesMap.get(matchKey);
         
-        // Build game document - preserving scores if game was played
-        const gameDoc: any = {
-          ...gameData,
-          // Preserve existing scores/status if game was played, otherwise default
-          homeScore: existingData?.homeScore ?? 0,
-          awayScore: existingData?.awayScore ?? 0,
-          status: existingData?.status || 'scheduled',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        };
-        
-        // Preserve stats if they exist
-        if (existingData?.stats) {
-          gameDoc.stats = existingData.stats;
+        if (existing) {
+          // UPDATE existing game - preserves the document ID and stats subcollection!
+          keptGameIds.add(existing.id);
+          await updateDoc(doc(gamesRef, existing.id), {
+            ...gameData,
+            // DON'T overwrite scores/status - preserve what's there
+            updatedAt: serverTimestamp()
+          });
+        } else {
+          // CREATE new game
+          await addDoc(gamesRef, {
+            ...gameData,
+            homeScore: 0,
+            awayScore: 0,
+            status: 'scheduled',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
         }
-        
-        await addDoc(gamesRef, gameDoc);
       }
 
-      // Step 4: Add all byes (simple, no scores to preserve)
+      // Step 3: Update existing byes OR create new ones
       for (const bye of byes) {
         const { isNew, id, ...byeData } = bye;
-        await addDoc(byesRef, {
-          ...byeData,
-          createdAt: serverTimestamp()
-        });
+        const matchKey = `${bye.teamId}-${bye.week}`;
+        const existingId = existingByesMap.get(matchKey);
+        
+        if (existingId) {
+          keptByeIds.add(existingId);
+          await updateDoc(doc(byesRef, existingId), {
+            ...byeData,
+            updatedAt: serverTimestamp()
+          });
+        } else {
+          await addDoc(byesRef, {
+            ...byeData,
+            createdAt: serverTimestamp()
+          });
+        }
+      }
+
+      // Step 4: Delete games that are no longer in the schedule
+      // (games that existed before but weren't matched to current games)
+      const batch = writeBatch(db);
+      let deleteCount = 0;
+      
+      existingGamesSnap.docs.forEach(docSnap => {
+        if (!keptGameIds.has(docSnap.id)) {
+          // This game was removed from the schedule
+          // WARNING: This will orphan the stats subcollection!
+          // Consider whether you want to allow deleting games with stats
+          const data = docSnap.data();
+          if (data.status === 'completed' || data.homeScore > 0 || data.awayScore > 0) {
+            console.warn('[ScheduleBuilder] Not deleting game with scores:', docSnap.id);
+            // Don't delete games that have been played
+          } else {
+            batch.delete(docSnap.ref);
+            deleteCount++;
+          }
+        }
+      });
+      
+      existingByesSnap.docs.forEach(docSnap => {
+        if (!keptByeIds.has(docSnap.id)) {
+          batch.delete(docSnap.ref);
+          deleteCount++;
+        }
+      });
+      
+      if (deleteCount > 0) {
+        await batch.commit();
+        console.log('[ScheduleBuilder] Deleted', deleteCount, 'removed games/byes');
       }
 
       // Mark all as saved

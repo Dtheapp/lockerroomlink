@@ -100,6 +100,17 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
   const [homeScoreChange, setHomeScoreChange] = useState<number | null>(null);
   const [awayScoreChange, setAwayScoreChange] = useState<number | null>(null);
   
+  // Countdown timer state
+  const [countdown, setCountdown] = useState<{ hours: number; minutes: number; seconds: number } | null>(null);
+  const [, forceUpdate] = useState(0); // Force re-render when countdown hits 0
+  
+  // Quarter scoring state
+  const [currentQuarter, setCurrentQuarter] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [quarterScores, setQuarterScores] = useState({
+    homeQ1: 0, homeQ2: 0, homeQ3: 0, homeQ4: 0, homeOT: 0,
+    awayQ1: 0, awayQ2: 0, awayQ3: 0, awayQ4: 0, awayOT: 0,
+  });
+  
   const isCoach = userData?.role === 'Coach' || userData?.role === 'SuperAdmin';
   const hasLiveStream = liveStreams.length > 0;
   
@@ -118,13 +129,39 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
     return games[0];
   }, [selectedGameId, games, liveGame, isCoach]);
   
-  // Sync local scores when selected game changes
+  // Sync local scores and quarter data ONLY when switching to a different game
+  // Real-time updates for the current game come through the games prop naturally
+  const lastSyncedGameId = React.useRef<string | null>(null);
+  const hasInitialized = React.useRef(false);
+  
   useEffect(() => {
-    if (selectedGame) {
+    if (!selectedGame) return;
+    
+    // Sync on first render OR when switching to a different game
+    const needsSync = !hasInitialized.current || selectedGame.id !== lastSyncedGameId.current;
+    
+    if (needsSync) {
+      hasInitialized.current = true;
+      lastSyncedGameId.current = selectedGame.id;
+      console.log('[GameDayHub] Syncing game data for:', selectedGame.id, 'scores:', selectedGame.homeScore, selectedGame.awayScore);
       setLocalHomeScore(selectedGame.homeScore || 0);
       setLocalAwayScore(selectedGame.awayScore || 0);
+      // Sync quarter data
+      setCurrentQuarter((selectedGame as any).currentQuarter || 1);
+      setQuarterScores({
+        homeQ1: (selectedGame as any).homeQ1 || 0,
+        homeQ2: (selectedGame as any).homeQ2 || 0,
+        homeQ3: (selectedGame as any).homeQ3 || 0,
+        homeQ4: (selectedGame as any).homeQ4 || 0,
+        homeOT: (selectedGame as any).homeOT || 0,
+        awayQ1: (selectedGame as any).awayQ1 || 0,
+        awayQ2: (selectedGame as any).awayQ2 || 0,
+        awayQ3: (selectedGame as any).awayQ3 || 0,
+        awayQ4: (selectedGame as any).awayQ4 || 0,
+        awayOT: (selectedGame as any).awayOT || 0,
+      });
     }
-  }, [selectedGame?.id, selectedGame?.homeScore, selectedGame?.awayScore]);
+  }, [selectedGame?.id]);
   
   // Track previous scores for animation
   const prevHomeScore = React.useRef(selectedGame?.homeScore || 0);
@@ -163,6 +200,23 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
     return now >= gameDate || selectedGame.status === 'live';
   }, [selectedGame, isCoach]);
   
+  // Display values: Coaches use local state (for optimistic updates), others use real-time Firestore values
+  const displayHomeScore = isCoach ? localHomeScore : (selectedGame?.homeScore || 0);
+  const displayAwayScore = isCoach ? localAwayScore : (selectedGame?.awayScore || 0);
+  const displayQuarter = isCoach ? currentQuarter : ((selectedGame as any)?.currentQuarter || 1);
+  const displayQuarterScores = isCoach ? quarterScores : {
+    homeQ1: (selectedGame as any)?.homeQ1 || 0,
+    homeQ2: (selectedGame as any)?.homeQ2 || 0,
+    homeQ3: (selectedGame as any)?.homeQ3 || 0,
+    homeQ4: (selectedGame as any)?.homeQ4 || 0,
+    homeOT: (selectedGame as any)?.homeOT || 0,
+    awayQ1: (selectedGame as any)?.awayQ1 || 0,
+    awayQ2: (selectedGame as any)?.awayQ2 || 0,
+    awayQ3: (selectedGame as any)?.awayQ3 || 0,
+    awayQ4: (selectedGame as any)?.awayQ4 || 0,
+    awayOT: (selectedGame as any)?.awayOT || 0,
+  };
+  
   // Game state derived from status and time
   const gameState = useMemo(() => {
     if (!selectedGame) return 'pregame';
@@ -179,6 +233,41 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
     if (now >= gameDate) return 'ready';
     return 'pregame';
   }, [selectedGame]);
+  
+  // Countdown timer - updates every second when in pregame state
+  useEffect(() => {
+    if (!selectedGame || gameState !== 'pregame') {
+      setCountdown(null);
+      return;
+    }
+    
+    const gameTime = selectedGame.scheduledTime || '00:00';
+    const [hours, minutes] = gameTime.split(':').map(Number);
+    const gameDate = parseGameDate(selectedGame.scheduledDate);
+    gameDate.setHours(hours || 0, minutes || 0, 0, 0);
+    
+    const updateCountdown = () => {
+      const now = new Date();
+      const diff = gameDate.getTime() - now.getTime();
+      
+      if (diff <= 0) {
+        setCountdown(null);
+        // Force re-render to switch to 'ready' state
+        forceUpdate(prev => prev + 1);
+        return;
+      }
+      
+      setCountdown({
+        hours: Math.floor(diff / (1000 * 60 * 60)),
+        minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+        seconds: Math.floor((diff % (1000 * 60)) / 1000)
+      });
+    };
+    
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [selectedGame, gameState]);
   
   // Format time for display
   const formatTime = (time?: string) => {
@@ -214,13 +303,23 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
   
   // Update score in Firebase
   const updateScore = async (team: 'home' | 'away', delta: number) => {
-    if (!selectedGame?.id || !canEditScores) return;
+    if (!selectedGame?.id || !canEditScores) {
+      console.log('[GameDayHub] updateScore blocked - no game or cant edit', { gameId: selectedGame?.id, canEditScores });
+      return;
+    }
+    
+    console.log('[GameDayHub] updateScore called:', { team, delta, currentQuarter });
     
     const newHome = team === 'home' ? localHomeScore + delta : localHomeScore;
     const newAway = team === 'away' ? localAwayScore + delta : localAwayScore;
     
     // Prevent negative scores
     if (newHome < 0 || newAway < 0) return;
+    
+    // Determine which quarter field to update
+    const quarterKey = currentQuarter === 5 ? 'OT' : `Q${currentQuarter}`;
+    const quarterField = `${team}${quarterKey}` as keyof typeof quarterScores;
+    const newQuarterScore = Math.max(0, (quarterScores[quarterField] || 0) + delta);
     
     // Optimistic update
     if (team === 'home') {
@@ -230,6 +329,8 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
       setLocalAwayScore(newAway);
       setAwayScoreChange(delta);
     }
+    setQuarterScores(prev => ({ ...prev, [quarterField]: newQuarterScore }));
+    
     setTimeout(() => {
       setHomeScoreChange(null);
       setAwayScoreChange(null);
@@ -240,20 +341,60 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
       if (!selectedGame.programId || !selectedGame.seasonId) {
         throw new Error('Game missing programId or seasonId');
       }
+      console.log('[GameDayHub] Writing to Firestore:', {
+        path: `programs/${selectedGame.programId}/seasons/${selectedGame.seasonId}/games/${selectedGame.id}`,
+        homeScore: newHome,
+        awayScore: newAway,
+        [quarterField]: newQuarterScore,
+        currentQuarter
+      });
       await updateDoc(
         doc(db, 'programs', selectedGame.programId, 'seasons', selectedGame.seasonId, 'games', selectedGame.id), 
         {
           homeScore: newHome,
           awayScore: newAway,
+          [quarterField]: newQuarterScore,
+          currentQuarter,
+          updatedAt: serverTimestamp()
+        }
+      );
+      console.log('[GameDayHub] Firestore write SUCCESS');
+    } catch (err) {
+      console.error('[GameDayHub] Firestore write ERROR:', err);
+      // Revert on error
+      setLocalHomeScore(selectedGame.homeScore || 0);
+      setLocalAwayScore(selectedGame.awayScore || 0);
+      // Revert quarter score
+      setQuarterScores(prev => ({ 
+        ...prev, 
+        [quarterField]: (selectedGame as any)[quarterField] || 0 
+      }));
+      toastError('Failed to update score');
+    }
+  };
+  
+  // Change quarter
+  const changeQuarter = async (quarter: 1 | 2 | 3 | 4 | 5) => {
+    if (!selectedGame?.id || !selectedGame?.programId || !selectedGame?.seasonId) {
+      console.log('[GameDayHub] changeQuarter blocked - missing IDs');
+      return;
+    }
+    
+    console.log('[GameDayHub] changeQuarter called:', quarter);
+    setCurrentQuarter(quarter);
+    
+    try {
+      await updateDoc(
+        doc(db, 'programs', selectedGame.programId, 'seasons', selectedGame.seasonId, 'games', selectedGame.id),
+        {
+          currentQuarter: quarter,
           updatedAt: serverTimestamp()
         }
       );
     } catch (err) {
-      console.error('Error updating score:', err);
-      // Revert on error
-      setLocalHomeScore(selectedGame.homeScore || 0);
-      setLocalAwayScore(selectedGame.awayScore || 0);
-      toastError('Failed to update score');
+      console.error('Error changing quarter:', err);
+      setCurrentQuarter((selectedGame as any).currentQuarter || 1);
+      toastError('Failed to change quarter');
     }
   };
   
@@ -404,7 +545,7 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
               <div className="flex items-center gap-2 bg-white/20 rounded-lg px-3 py-1.5">
                 <span className="text-white font-bold text-sm truncate max-w-[80px]">{homeName}</span>
                 <div className="relative">
-                  <span className="text-white font-bold text-lg">{localHomeScore}</span>
+                  <span className="text-white font-bold text-lg">{displayHomeScore}</span>
                   {homeScoreChange !== null && (
                     <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-green-300 font-bold text-sm animate-bounce">
                       +{homeScoreChange}
@@ -413,7 +554,7 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
                 </div>
                 <span className="text-white/70">-</span>
                 <div className="relative">
-                  <span className="text-white font-bold text-lg">{localAwayScore}</span>
+                  <span className="text-white font-bold text-lg">{displayAwayScore}</span>
                   {awayScoreChange !== null && (
                     <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-green-300 font-bold text-sm animate-bounce">
                       +{awayScoreChange}
@@ -501,6 +642,46 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
             )}
           </div>
 
+          {/* Quarter Selector - Only during live game for coaches */}
+          {isCoach && gameState === 'live' && (
+            <div className="mb-6">
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <span className={`text-sm font-medium ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Current Period:
+                </span>
+                <div className="flex gap-1">
+                  {([1, 2, 3, 4] as const).map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => changeQuarter(q)}
+                      className={`w-10 h-10 rounded-lg font-bold text-sm transition-all ${
+                        currentQuarter === q
+                          ? 'bg-purple-600 text-white shadow-lg scale-110'
+                          : theme === 'dark'
+                            ? 'bg-white/10 text-slate-300 hover:bg-white/20'
+                            : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                      }`}
+                    >
+                      Q{q}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => changeQuarter(5)}
+                    className={`px-3 h-10 rounded-lg font-bold text-sm transition-all ${
+                      currentQuarter === 5
+                        ? 'bg-amber-500 text-white shadow-lg scale-110'
+                        : theme === 'dark'
+                          ? 'bg-white/10 text-slate-300 hover:bg-white/20'
+                          : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                    }`}
+                  >
+                    OT
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Score Display */}
           <div className="flex items-center justify-center gap-4 md:gap-8 mb-6">
             {/* Home Team */}
@@ -539,14 +720,14 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
                     onClick={() => {
                       if (canEditScores) {
                         setEditingScore('home');
-                        setEditScoreValue(String(localHomeScore));
+                        setEditScoreValue(String(displayHomeScore));
                       }
                     }}
                     className={`text-5xl md:text-6xl font-bold ${
                       canEditScores ? 'cursor-pointer hover:opacity-80' : ''
                     } ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}
                   >
-                    {localHomeScore}
+                    {displayHomeScore}
                   </span>
                 )}
                 {homeScoreChange !== null && (
@@ -615,14 +796,14 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
                     onClick={() => {
                       if (canEditScores) {
                         setEditingScore('away');
-                        setEditScoreValue(String(localAwayScore));
+                        setEditScoreValue(String(displayAwayScore));
                       }
                     }}
                     className={`text-5xl md:text-6xl font-bold ${
                       canEditScores ? 'cursor-pointer hover:opacity-80' : ''
                     } ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}
                   >
-                    {localAwayScore}
+                    {displayAwayScore}
                   </span>
                 )}
                 {awayScoreChange !== null && (
@@ -650,6 +831,83 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
               )}
             </div>
           </div>
+
+          {/* Quarter-by-Quarter Box Score */}
+          {(gameState === 'live' || gameState === 'completed') && (
+            <div className={`mb-6 rounded-xl overflow-hidden ${theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'}`}>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}>
+                    <th className="text-left p-2 font-medium w-1/3">Team</th>
+                    <th className="w-10 text-center p-2 font-medium">1</th>
+                    <th className="w-10 text-center p-2 font-medium">2</th>
+                    <th className="w-10 text-center p-2 font-medium">3</th>
+                    <th className="w-10 text-center p-2 font-medium">4</th>
+                    {(displayQuarterScores.homeOT > 0 || displayQuarterScores.awayOT > 0) && (
+                      <th className="w-10 text-center p-2 font-medium">OT</th>
+                    )}
+                    <th className="w-12 text-center p-2 font-bold">T</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className={`${theme === 'dark' ? 'text-white' : 'text-zinc-900'} ${
+                    displayHomeScore > displayAwayScore ? (theme === 'dark' ? 'bg-emerald-500/10' : 'bg-emerald-100') : ''
+                  }`}>
+                    <td className="p-2 font-semibold truncate">
+                      {selectedGame.isHome ? teamData?.name : selectedGame.opponent}
+                    </td>
+                    <td className={`text-center p-2 ${displayQuarter === 1 ? 'text-purple-500 font-bold' : ''}`}>
+                      {displayQuarterScores.homeQ1 || '-'}
+                    </td>
+                    <td className={`text-center p-2 ${displayQuarter === 2 ? 'text-purple-500 font-bold' : ''}`}>
+                      {displayQuarterScores.homeQ2 || '-'}
+                    </td>
+                    <td className={`text-center p-2 ${displayQuarter === 3 ? 'text-purple-500 font-bold' : ''}`}>
+                      {displayQuarterScores.homeQ3 || '-'}
+                    </td>
+                    <td className={`text-center p-2 ${displayQuarter === 4 ? 'text-purple-500 font-bold' : ''}`}>
+                      {displayQuarterScores.homeQ4 || '-'}
+                    </td>
+                    {(displayQuarterScores.homeOT > 0 || displayQuarterScores.awayOT > 0) && (
+                      <td className={`text-center p-2 ${displayQuarter === 5 ? 'text-amber-500 font-bold' : ''}`}>
+                        {displayQuarterScores.homeOT || '-'}
+                      </td>
+                    )}
+                    <td className={`text-center p-2 font-bold text-lg ${displayHomeScore > displayAwayScore ? 'text-emerald-500' : ''}`}>
+                      {displayHomeScore}
+                    </td>
+                  </tr>
+                  <tr className={`${theme === 'dark' ? 'text-white' : 'text-zinc-900'} ${
+                    displayAwayScore > displayHomeScore ? (theme === 'dark' ? 'bg-emerald-500/10' : 'bg-emerald-100') : ''
+                  }`}>
+                    <td className="p-2 font-semibold truncate">
+                      {selectedGame.isHome ? selectedGame.opponent : teamData?.name}
+                    </td>
+                    <td className={`text-center p-2 ${displayQuarter === 1 ? 'text-purple-500 font-bold' : ''}`}>
+                      {displayQuarterScores.awayQ1 || '-'}
+                    </td>
+                    <td className={`text-center p-2 ${displayQuarter === 2 ? 'text-purple-500 font-bold' : ''}`}>
+                      {displayQuarterScores.awayQ2 || '-'}
+                    </td>
+                    <td className={`text-center p-2 ${displayQuarter === 3 ? 'text-purple-500 font-bold' : ''}`}>
+                      {displayQuarterScores.awayQ3 || '-'}
+                    </td>
+                    <td className={`text-center p-2 ${displayQuarter === 4 ? 'text-purple-500 font-bold' : ''}`}>
+                      {displayQuarterScores.awayQ4 || '-'}
+                    </td>
+                    {(displayQuarterScores.homeOT > 0 || displayQuarterScores.awayOT > 0) && (
+                      <td className={`text-center p-2 ${displayQuarter === 5 ? 'text-amber-500 font-bold' : ''}`}>
+                        {displayQuarterScores.awayOT || '-'}
+                      </td>
+                    )}
+                    <td className={`text-center p-2 font-bold text-lg ${displayAwayScore > displayHomeScore ? 'text-emerald-500' : ''}`}>
+                      {displayAwayScore}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Game Details */}
           <div className={`flex items-center justify-center gap-6 mb-6 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
@@ -723,7 +981,14 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
                 }`}
               >
                 {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
-                {gameState === 'pregame' ? 'Waiting for Game Time' : 'Start Game'}
+                {gameState === 'pregame' ? (
+                  countdown ? (
+                    <span className="flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      Starts in {String(countdown.hours).padStart(2, '0')}:{String(countdown.minutes).padStart(2, '0')}:{String(countdown.seconds).padStart(2, '0')}
+                    </span>
+                  ) : 'Waiting for Game Time'
+                ) : 'Start Game'}
               </button>
             )}
 
@@ -753,9 +1018,31 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
 
           {/* Status messages */}
           {gameState === 'pregame' && (
-            <p className={`text-center text-sm mt-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-              ⏰ Game starts at {formatTime(selectedGame.scheduledTime)}. Come back then to start live scoring!
-            </p>
+            <div className={`text-center mt-4 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
+              {countdown ? (
+                <div className="flex flex-col items-center gap-3">
+                  <p className="text-sm text-slate-400">⏰ Game starts at {formatTime(selectedGame.scheduledTime)}</p>
+                  <div className="flex items-center gap-2 justify-center">
+                    <div className={`flex flex-col items-center px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10' : 'bg-slate-100'}`}>
+                      <span className="text-2xl font-bold font-mono text-purple-400">{String(countdown.hours).padStart(2, '0')}</span>
+                      <span className="text-xs text-slate-400">HRS</span>
+                    </div>
+                    <span className="text-2xl font-bold text-purple-400">:</span>
+                    <div className={`flex flex-col items-center px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10' : 'bg-slate-100'}`}>
+                      <span className="text-2xl font-bold font-mono text-purple-400">{String(countdown.minutes).padStart(2, '0')}</span>
+                      <span className="text-xs text-slate-400">MIN</span>
+                    </div>
+                    <span className="text-2xl font-bold text-purple-400">:</span>
+                    <div className={`flex flex-col items-center px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10' : 'bg-slate-100'}`}>
+                      <span className="text-2xl font-bold font-mono text-purple-400">{String(countdown.seconds).padStart(2, '0')}</span>
+                      <span className="text-xs text-slate-400">SEC</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-400">⏰ Game starts at {formatTime(selectedGame.scheduledTime)}. Come back then to start live scoring!</p>
+              )}
+            </div>
           )}
           {gameState === 'ready' && isCoach && (
             <p className={`text-center text-sm mt-4 ${theme === 'dark' ? 'text-amber-400/70' : 'text-amber-600'}`}>

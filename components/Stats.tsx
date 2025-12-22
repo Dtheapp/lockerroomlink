@@ -1,15 +1,14 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { collection, getDocs, query, onSnapshot, where, orderBy } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo } from 'react';
+import { collection, getDocs, query, onSnapshot, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import TeamStatsBoard from './stats/TeamStatsBoard';
-import CoachStatsEntry from './stats/CoachStatsEntry';
-import GameStatsEntry from './stats/GameStatsEntry';
-import GameHistory from './stats/GameHistory';
-import PlayerStatsCard from './stats/PlayerStatsCard';
+import GameStatsEntryV2 from './stats/GameStatsEntryV2';
+import TeamStatsSummary from './stats/TeamStatsSummary';
+import StatsDashboard from './stats/StatsDashboard';
+import PlayerStatsDashboard from './stats/PlayerStatsDashboard';
 import type { Team, PlayerSeasonStats, Player } from '../types';
-import { BarChart3, Users, TrendingUp, ArrowUpDown, ChevronDown, ChevronUp, Trophy, Shield, Sword, Calendar, ClipboardList, AlertTriangle, Save, User } from 'lucide-react';
+import { BarChart3, Users, TrendingUp, ArrowUpDown, ChevronDown, ChevronUp, Trophy, User, Gamepad2 } from 'lucide-react';
 import NoAthleteBlock from './NoAthleteBlock';
 import { getStats, getSportConfig, type StatConfig } from '../config/sportConfig';
 
@@ -17,17 +16,14 @@ const Stats: React.FC = () => {
   const { userData, teamData, players, loading: authLoading, selectedPlayer } = useAuth();
   const { theme } = useTheme();
   const currentYear = new Date().getFullYear();
+  const isDark = theme === 'dark';
   
-  // Player selector for Parents with multiple athletes
-  const [selectedAthleteId, setSelectedAthleteId] = useState<string>('');
+  // Parent view mode toggle (my stats vs team stats)
+  const [parentViewMode, setParentViewMode] = useState<'my' | 'team'>('my');
   
-  // Tab state for Coach view
-  const [activeTab, setActiveTab] = useState<'games' | 'season'>('games');
-  
-  // Unsaved changes warning state
-  const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
-  const [pendingTabChange, setPendingTabChange] = useState<'games' | 'season' | null>(null);
-  const gameStatsHasChangesRef = useRef(false);
+  // Collapsible section states
+  const [teamStatsExpanded, setTeamStatsExpanded] = useState(true);
+  const [gameStatsExpanded, setGameStatsExpanded] = useState(true);
   
   // SuperAdmin states
   const [teams, setTeams] = useState<Team[]>([]);
@@ -131,58 +127,6 @@ const Stats: React.FC = () => {
     return sortDirection === 'asc' ? <ChevronUp className="w-3 h-3 text-purple-500" /> : <ChevronDown className="w-3 h-3 text-purple-500" />;
   };
 
-  // Listen for unsaved changes from GameStatsEntry
-  useEffect(() => {
-    const handleUnsavedChanges = (e: CustomEvent) => {
-      gameStatsHasChangesRef.current = e.detail?.hasChanges || false;
-    };
-
-    window.addEventListener('gameStatsUnsavedChanges' as any, handleUnsavedChanges);
-    return () => window.removeEventListener('gameStatsUnsavedChanges' as any, handleUnsavedChanges);
-  }, []);
-
-  // Handle tab change with unsaved changes check
-  const handleTabChange = useCallback((newTab: 'games' | 'season') => {
-    if (newTab === activeTab) return;
-    
-    // If switching FROM games tab and there are unsaved changes, show warning
-    if (activeTab === 'games' && gameStatsHasChangesRef.current) {
-      setPendingTabChange(newTab);
-      setShowUnsavedWarning(true);
-    } else {
-      setActiveTab(newTab);
-    }
-  }, [activeTab]);
-
-  // Handle discard and proceed
-  const handleDiscardAndSwitch = () => {
-    // Dispatch event to clear unsaved changes in GameStatsEntry
-    window.dispatchEvent(new CustomEvent('clearGameStatsChanges'));
-    gameStatsHasChangesRef.current = false;
-    if (pendingTabChange) {
-      setActiveTab(pendingTabChange);
-    }
-    setShowUnsavedWarning(false);
-    setPendingTabChange(null);
-  };
-
-  // Handle save and proceed
-  const handleSaveAndSwitch = () => {
-    // Dispatch event to save changes in GameStatsEntry
-    window.dispatchEvent(new CustomEvent('saveGameStatsChanges', {
-      detail: {
-        onComplete: () => {
-          gameStatsHasChangesRef.current = false;
-          if (pendingTabChange) {
-            setActiveTab(pendingTabChange);
-          }
-          setShowUnsavedWarning(false);
-          setPendingTabChange(null);
-        }
-      }
-    }));
-  };
-
   return (
     <NoAthleteBlock featureName="Stats">
     <div className="space-y-6 pb-20">
@@ -211,12 +155,12 @@ const Stats: React.FC = () => {
               <p className="text-zinc-600 dark:text-zinc-400">Your stats will appear here once you're added to a team roster.</p>
             </div>
           ) : (
-            <PlayerStatsCard player={selectedPlayer} teamName={teamData?.name} />
+            <PlayerStatsDashboard player={selectedPlayer} teamName={teamData?.name} />
           )}
         </section>
       )}
 
-      {/* Parent View: Individual Player Stats with player selector */}
+      {/* Parent View: Individual Player Stats with player selector + Team Stats toggle */}
       {userData?.role === 'Parent' && (
         <section>
           {authLoading ? (
@@ -238,38 +182,81 @@ const Stats: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Player Selector for parents with multiple athletes */}
-              {players.length > 1 && (
-                <div className="bg-white dark:bg-zinc-900 rounded-xl p-4 border border-zinc-200 dark:border-zinc-800">
-                  <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-2">
-                    <Users className="w-4 h-4 text-purple-500" />
-                    Select Athlete
-                  </label>
-                  <select
-                    value={selectedAthleteId || players[0]?.id || ''}
-                    onChange={(e) => setSelectedAthleteId(e.target.value)}
-                    className="w-full md:w-96 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg p-3 text-zinc-900 dark:text-white font-medium focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
-                  >
-                    {players.map(player => (
-                      <option key={player.id} value={player.id}>
-                        {player.name} - #{player.number} ({player.position})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* View Toggle: My Stats | Team Stats */}
+              <div className={`p-1 rounded-xl inline-flex ${isDark ? 'bg-white/5' : 'bg-slate-100'}`}>
+                <button
+                  onClick={() => setParentViewMode('my')}
+                  className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all flex items-center gap-2 ${
+                    parentViewMode === 'my'
+                      ? 'bg-purple-600 text-white shadow-lg'
+                      : isDark 
+                        ? 'text-slate-400 hover:text-white hover:bg-white/5' 
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                  }`}
+                >
+                  <User className="w-4 h-4" />
+                  My Stats
+                </button>
+                <button
+                  onClick={() => setParentViewMode('team')}
+                  className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all flex items-center gap-2 ${
+                    parentViewMode === 'team'
+                      ? 'bg-purple-600 text-white shadow-lg'
+                      : isDark 
+                        ? 'text-slate-400 hover:text-white hover:bg-white/5' 
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  Team Stats
+                </button>
+              </div>
+
+              {/* MY STATS VIEW - Uses selectedPlayer from AuthContext (no duplicate selector) */}
+              {parentViewMode === 'my' && (
+                <PlayerStatsDashboard 
+                  player={selectedPlayer || players[0]} 
+                  teamName={teamData?.name} 
+                />
               )}
 
-              {/* Player Stats Card */}
-              <PlayerStatsCard 
-                player={players.find(p => p.id === (selectedAthleteId || players[0]?.id)) || players[0]} 
-                teamName={teamData?.name} 
-              />
+              {/* TEAM STATS VIEW */}
+              {parentViewMode === 'team' && (
+                <div className="space-y-6">
+                  {!teamData ? (
+                    <div className="bg-zinc-50 dark:bg-zinc-900 rounded-xl p-12 text-center border border-zinc-200 dark:border-zinc-800">
+                      <Users className="w-16 h-16 text-zinc-300 dark:text-zinc-700 mx-auto mb-4" />
+                      <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">No Team Connected</h3>
+                      <p className="text-zinc-600 dark:text-zinc-400">Your athlete needs to be on a team to view team stats.</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Performance Analytics Dashboard (read-only for parents) */}
+                      <StatsDashboard />
+                      
+                      {/* Detailed Category Breakdowns */}
+                      <TeamStatsSummary embedded />
+                      
+                      {/* Game Stats (read-only for parents) */}
+                      <div className={`rounded-xl border overflow-hidden ${
+                        isDark 
+                          ? 'bg-white/5 border-white/10' 
+                          : 'bg-white border-slate-200 shadow-sm'
+                      }`}>
+                        <div className="p-4">
+                          <GameStatsEntryV2 readOnly />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </section>
       )}
 
-      {/* Coach View: Tabs for Game Stats and Season Stats */}
+      {/* Coach View: Team Stats + Game Stats (both collapsible) */}
       {userData?.role === 'Coach' && (
         <section>
           {!teamData ? (
@@ -280,38 +267,95 @@ const Stats: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Tabs */}
-              <div className="flex gap-2 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800">
+              {/* ============ TEAM STATS SECTION (Collapsible) ============ */}
+              <div className={`rounded-xl border overflow-hidden ${
+                isDark 
+                  ? 'bg-white/5 border-white/10' 
+                  : 'bg-white border-slate-200 shadow-sm'
+              }`}>
+                {/* Team Stats Header */}
                 <button
-                  onClick={() => handleTabChange('games')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold transition-all ${
-                    activeTab === 'games'
-                      ? 'bg-purple-600 text-white shadow-lg'
-                      : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                  onClick={() => setTeamStatsExpanded(!teamStatsExpanded)}
+                  className={`w-full flex items-center justify-between p-4 transition-colors ${
+                    isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50'
                   }`}
                 >
-                  <Trophy className="w-5 h-5" />
-                  Game Stats
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${isDark ? 'bg-purple-500/20' : 'bg-purple-100'}`}>
+                      <TrendingUp className="w-5 h-5 text-purple-500" />
+                    </div>
+                    <div className="text-left">
+                      <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>
+                        Team Stats
+                      </h2>
+                      <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Season performance, analytics & leaderboards
+                      </p>
+                    </div>
+                  </div>
+                  <div className={`p-2 rounded-lg ${isDark ? 'bg-white/5' : 'bg-slate-100'}`}>
+                    {teamStatsExpanded ? (
+                      <ChevronUp className={`w-5 h-5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`} />
+                    ) : (
+                      <ChevronDown className={`w-5 h-5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`} />
+                    )}
+                  </div>
                 </button>
-                <button
-                  onClick={() => handleTabChange('season')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold transition-all ${
-                    activeTab === 'season'
-                      ? 'bg-purple-600 text-white shadow-lg'
-                      : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
-                  }`}
-                >
-                  <ClipboardList className="w-5 h-5" />
-                  Season Totals
-                </button>
+                
+                {/* Team Stats Content */}
+                {teamStatsExpanded && (
+                  <div className={`p-4 pt-0 space-y-6 border-t ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                    {/* Performance Analytics Dashboard */}
+                    <StatsDashboard />
+                    
+                    {/* Detailed Category Breakdowns */}
+                    <TeamStatsSummary embedded />
+                  </div>
+                )}
               </div>
 
-              {/* Tab Content */}
-              {activeTab === 'games' ? (
-                <GameStatsEntry />
-              ) : (
-                <CoachStatsEntry />
-              )}
+              {/* ============ GAME STATS SECTION (Collapsible) ============ */}
+              <div className={`rounded-xl border overflow-hidden ${
+                isDark 
+                  ? 'bg-white/5 border-white/10' 
+                  : 'bg-white border-slate-200 shadow-sm'
+              }`}>
+                {/* Game Stats Header */}
+                <button
+                  onClick={() => setGameStatsExpanded(!gameStatsExpanded)}
+                  className={`w-full flex items-center justify-between p-4 transition-colors ${
+                    isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${isDark ? 'bg-amber-500/20' : 'bg-amber-100'}`}>
+                      <Gamepad2 className="w-5 h-5 text-amber-500" />
+                    </div>
+                    <div className="text-left">
+                      <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>
+                        Game Stats
+                      </h2>
+                      <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Enter & view stats for individual games
+                      </p>
+                    </div>
+                  </div>
+                  <div className={`p-2 rounded-lg ${isDark ? 'bg-white/5' : 'bg-slate-100'}`}>
+                    {gameStatsExpanded ? (
+                      <ChevronUp className={`w-5 h-5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`} />
+                    ) : (
+                      <ChevronDown className={`w-5 h-5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`} />
+                    )}
+                  </div>
+                </button>
+                
+                {/* Game Stats Content */}
+                {gameStatsExpanded && (
+                  <div className={`p-4 pt-2 border-t ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                    <GameStatsEntryV2 />
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </section>
@@ -469,49 +513,6 @@ const Stats: React.FC = () => {
             )}
           </div>
         </section>
-      )}
-
-      {/* Unsaved Changes Warning Modal */}
-      {showUnsavedWarning && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-orange-500/50 shadow-2xl w-full max-w-md p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-orange-500/10 rounded-full flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-orange-500" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-zinc-900 dark:text-white">Unsaved Changes</h3>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">You have unsaved stat changes</p>
-              </div>
-            </div>
-            
-            <p className="text-zinc-600 dark:text-zinc-300 mb-6">
-              Are you sure you want to switch tabs? Your changes will be lost if you don't save them.
-            </p>
-            
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={handleSaveAndSwitch}
-                className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
-              >
-                <Save className="w-4 h-4" />
-                Save Changes
-              </button>
-              <button
-                onClick={handleDiscardAndSwitch}
-                className="w-full py-2.5 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-white rounded-lg font-medium transition-colors"
-              >
-                Discard Changes
-              </button>
-              <button
-                onClick={() => { setShowUnsavedWarning(false); setPendingTabChange(null); }}
-                className="w-full py-2.5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-white transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
     </NoAthleteBlock>

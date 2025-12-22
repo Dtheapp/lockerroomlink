@@ -11,6 +11,7 @@ import type { Player, UserProfile, Team, SportType } from '../types';
 import { getPositions } from '../config/sportConfig';
 import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link as LinkIcon, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera, UserPlus, ArrowRightLeft, BarChart3, Eye, AtSign, Copy, Check, ExternalLink, Zap } from 'lucide-react';
 import PlayerStatsModal from './stats/PlayerStatsModal';
+import PlayerStatsDisplay from './stats/PlayerStatsDisplay';
 import EmptyState from './ui/EmptyState';
 import { GlassCard, AnimatedBackground } from './ui/OSYSComponents';
 import NoAthleteBlock from './NoAthleteBlock';
@@ -1997,14 +1998,16 @@ const Roster: React.FC = () => {
 
                     {/* BOTTOM ACTION BOX - Stats + Parent + Remove */}
                     <div className={`mt-auto pt-3 border-t rounded-lg ${theme === 'dark' ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-zinc-50'}`}>
-                      {/* Stats Row */}
-                      <div className="flex justify-center gap-4 px-2 pb-2">
-                        <div className={`flex items-center gap-1 text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                            <Sword className="w-3 h-3 text-orange-500" /> <span className="font-bold">{player.stats?.td || 0}</span> TD
-                        </div>
-                        <div className={`flex items-center gap-1 text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                            <Shield className="w-3 h-3 text-cyan-500" /> <span className="font-bold">{player.stats?.tkl || 0}</span> TKL
-                        </div>
+                      {/* Stats Row - v2.0 Stats (fetches real data) */}
+                      <div className="px-2 pb-2">
+                        <PlayerStatsDisplay 
+                          playerId={player.id}
+                          athleteId={player.athleteId}
+                          programId={teamData?.programId}
+                          seasonId={teamData?.currentSeasonId || undefined}
+                          sport={teamData?.sport || 'football'}
+                          size="sm"
+                        />
                       </div>
                       
                       {/* View Stats Button */}

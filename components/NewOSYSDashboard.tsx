@@ -22,6 +22,7 @@ import GettingStartedChecklist from './GettingStartedChecklist';
 import SeasonManager, { type RegistrationFlyerData } from './SeasonManager';
 import { DraftPool } from './draftpool';
 import GameDayHub from './GameDayHub';
+import StatLeadersWidget from './stats/StatLeadersWidget';
 import type { LiveStream, BulletinPost, UserProfile, ProgramSeason, TeamGame } from '../types';
 import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image, Copy, ExternalLink, Share2, Link2, Check, Palette, ChevronRight, ChevronDown, Trophy, AlertTriangle, Loader2, UserPlus, Users, Sword, Shield, Zap, Crown } from 'lucide-react';
 
@@ -383,6 +384,18 @@ const NewOSYSDashboard: React.FC = () => {
           awayTeamName: data.awayTeamName,
           stats: data.stats,
           createdAt: data.createdAt,
+          // Quarter scoring fields
+          currentQuarter: data.currentQuarter || 1,
+          homeQ1: data.homeQ1 || 0,
+          homeQ2: data.homeQ2 || 0,
+          homeQ3: data.homeQ3 || 0,
+          homeQ4: data.homeQ4 || 0,
+          homeOT: data.homeOT || 0,
+          awayQ1: data.awayQ1 || 0,
+          awayQ2: data.awayQ2 || 0,
+          awayQ3: data.awayQ3 || 0,
+          awayQ4: data.awayQ4 || 0,
+          awayOT: data.awayOT || 0,
         } as TeamGame);
       });
       
@@ -2187,6 +2200,7 @@ const NewOSYSDashboard: React.FC = () => {
       {/* 🏈 GAME DAY HUB - Shows ALL games, coach can select any to view/manage */}
       {teamData?.id && allGames.length > 0 && (
         <GameDayHub
+          key={`gamedayhub-${teamData.id}`}
           games={allGames}
           liveStreams={liveStreams}
           onGoLive={() => setShowGoLiveModal(true)}
@@ -2665,6 +2679,18 @@ const NewOSYSDashboard: React.FC = () => {
           </div>
         </GlassCard>
       </div>
+
+      {/* Stat Leaders Row - v2.0 Stats */}
+      {userData?.role === 'Coach' && teamData?.id && teamData?.programId && teamData?.currentSeasonId && (
+        <div className="mt-6">
+          <StatLeadersWidget
+            programId={teamData.programId}
+            seasonId={teamData.currentSeasonId}
+            teamId={teamData.id}
+            sport={teamData.sport || 'football'}
+          />
+        </div>
+      )}
 
       {/* Coaching Staff & Bulletin Board Row */}
       <div className="grid lg:grid-cols-2 gap-6">
