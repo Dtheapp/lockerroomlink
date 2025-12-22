@@ -191,6 +191,45 @@ service cloud.firestore {
     }
     
     // =============================================================================
+    // GAME REQUESTS COLLECTION - Cross-program game scheduling
+    // =============================================================================
+    match /gameRequests/{requestId} {
+      // Read: Both requesting and requested program commissioners can read
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        // Requesting program commissioner
+        isProgramCommissionerOf(resource.data.homeProgramId) ||
+        canManageProgram(resource.data.homeProgramId) ||
+        // Requested program commissioner (away team)
+        isProgramCommissionerOf(resource.data.awayProgramId) ||
+        canManageProgram(resource.data.awayProgramId)
+      );
+      
+      // Create: Commissioner of the requesting program
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        isProgramCommissionerOf(request.resource.data.homeProgramId) ||
+        canManageProgram(request.resource.data.homeProgramId)
+      );
+      
+      // Update: Either program commissioner (for accept/decline) or admin
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        // Home program can cancel
+        isProgramCommissionerOf(resource.data.homeProgramId) ||
+        canManageProgram(resource.data.homeProgramId) ||
+        // Away program can accept/decline
+        isProgramCommissionerOf(resource.data.awayProgramId) ||
+        canManageProgram(resource.data.awayProgramId)
+      );
+      
+      // Delete: Only admin or requesting program commissioner (can cancel)
+      allow delete: if isAdmin() || 
+                      isProgramCommissionerOf(resource.data.homeProgramId) ||
+                      canManageProgram(resource.data.homeProgramId);
+    }
+    
+    // =============================================================================
     // PROGRAMS COLLECTION
     // =============================================================================
     match /programs/{programId} {

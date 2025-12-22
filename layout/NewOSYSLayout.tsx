@@ -186,7 +186,7 @@ const NewOSYSLayout: React.FC = () => {
       { icon: '📋', label: 'Playbook', path: '/playbook', section: 'Main', configKey: 'playbookEnabled', hideForParent: true, teamRequired: true },
       { icon: '👥', label: 'Roster', path: '/roster', section: 'Main', teamRequired: true },
       { icon: '📅', label: 'Schedule', path: '/events', section: 'Main', teamRequired: true },
-      { icon: '️', label: 'Team Chat', path: '/chat', section: 'Engage', configKey: 'chatEnabled', unreadKey: 'teamChat', teamRequired: true },
+      { icon: '🗨️', label: 'Team Chat', path: '/chat', section: 'Engage', configKey: 'chatEnabled', unreadKey: 'teamChat', teamRequired: true },
       { icon: '🛡️', label: 'Strategy', path: '/strategies', section: 'Engage', configKey: 'chatEnabled', coachOnly: true, unreadKey: 'strategy', teamRequired: true },
       { icon: '📺', label: 'Film Room', path: '/videos', section: 'Engage', configKey: 'videoLibraryEnabled', teamRequired: true },
       { icon: '📢', label: 'Marketing', path: '/team-marketing', section: 'Engage', teamRequired: true },

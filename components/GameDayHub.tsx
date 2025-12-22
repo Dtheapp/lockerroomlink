@@ -10,17 +10,21 @@
  * - Can edit scores ONLY when: game start time passed AND status !== 'completed'
  * - Coach marks game "live" → becomes default view for all users
  * - Coach marks game "completed" → locks scores, shows in history
+ * 
+ * System Team Integration:
+ * - If opponent is a system team (opponentTeamId exists), fetch their data
+ * - Show opponent's logo, record, and link to their public team page
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, getDoc, increment, collection, query, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { toastSuccess, toastError } from '../services/toast';
 import { LiveStreamViewer } from './livestream';
-import type { LiveStream, TeamGame } from '../types';
+import type { LiveStream, TeamGame, Team } from '../types';
 import { 
   Clock, 
   MapPin, 
@@ -40,8 +44,18 @@ import {
   Award,
   StopCircle,
   List,
-  Radio
+  Radio,
+  ExternalLink
 } from 'lucide-react';
+
+// Opponent team data cache type
+interface OpponentTeamData {
+  id: string;
+  name: string;
+  logo?: string;
+  primaryColor?: string;
+  record?: { wins: number; losses: number; ties: number };
+}
 
 interface GameDayHubProps {
   games: TeamGame[];
@@ -92,6 +106,10 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
   const [showEndStreamConfirm, setShowEndStreamConfirm] = useState(false);
   const [endingStream, setEndingStream] = useState(false);
   
+  // Opponent team data cache - fetch system team data
+  const [opponentTeamCache, setOpponentTeamCache] = useState<Record<string, OpponentTeamData>>({});
+  const [loadingOpponent, setLoadingOpponent] = useState(false);
+  
   // Score editing state
   const [localHomeScore, setLocalHomeScore] = useState(0);
   const [localAwayScore, setLocalAwayScore] = useState(0);
@@ -129,39 +147,57 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
     return games[0];
   }, [selectedGameId, games, liveGame, isCoach]);
   
-  // Sync local scores and quarter data ONLY when switching to a different game
-  // Real-time updates for the current game come through the games prop naturally
-  const lastSyncedGameId = React.useRef<string | null>(null);
-  const hasInitialized = React.useRef(false);
+  // REAL-TIME SYNC: Always keep local state in sync with Firestore data
+  // This ensures ALL users (coaches, refs, scorekeepers) see the same live data
+  // We track what we're currently writing to avoid overwriting our own pending update
+  const pendingUpdate = useRef<{ home?: number; away?: number } | null>(null);
+  const lastSyncedGameId = useRef<string | null>(null);
   
   useEffect(() => {
     if (!selectedGame) return;
     
-    // Sync on first render OR when switching to a different game
-    const needsSync = !hasInitialized.current || selectedGame.id !== lastSyncedGameId.current;
+    // Always sync from Firestore - this is the source of truth
+    const firestoreHome = selectedGame.homeScore || 0;
+    const firestoreAway = selectedGame.awayScore || 0;
     
-    if (needsSync) {
-      hasInitialized.current = true;
-      lastSyncedGameId.current = selectedGame.id;
-      console.log('[GameDayHub] Syncing game data for:', selectedGame.id, 'scores:', selectedGame.homeScore, selectedGame.awayScore);
-      setLocalHomeScore(selectedGame.homeScore || 0);
-      setLocalAwayScore(selectedGame.awayScore || 0);
-      // Sync quarter data
-      setCurrentQuarter((selectedGame as any).currentQuarter || 1);
-      setQuarterScores({
-        homeQ1: (selectedGame as any).homeQ1 || 0,
-        homeQ2: (selectedGame as any).homeQ2 || 0,
-        homeQ3: (selectedGame as any).homeQ3 || 0,
-        homeQ4: (selectedGame as any).homeQ4 || 0,
-        homeOT: (selectedGame as any).homeOT || 0,
-        awayQ1: (selectedGame as any).awayQ1 || 0,
-        awayQ2: (selectedGame as any).awayQ2 || 0,
-        awayQ3: (selectedGame as any).awayQ3 || 0,
-        awayQ4: (selectedGame as any).awayQ4 || 0,
-        awayOT: (selectedGame as any).awayOT || 0,
-      });
+    // Only skip sync if we have a pending write that matches
+    // (prevents flickering when our own update comes back from Firestore)
+    const skipHomeSync = pendingUpdate.current?.home === firestoreHome;
+    const skipAwaySync = pendingUpdate.current?.away === firestoreAway;
+    
+    if (!skipHomeSync) {
+      setLocalHomeScore(firestoreHome);
     }
-  }, [selectedGame?.id]);
+    if (!skipAwaySync) {
+      setLocalAwayScore(firestoreAway);
+    }
+    
+    // Clear pending update once Firestore catches up
+    if (skipHomeSync || skipAwaySync) {
+      pendingUpdate.current = null;
+    }
+    
+    // Sync quarter data
+    setCurrentQuarter((selectedGame as any).currentQuarter || 1);
+    setQuarterScores({
+      homeQ1: (selectedGame as any).homeQ1 || 0,
+      homeQ2: (selectedGame as any).homeQ2 || 0,
+      homeQ3: (selectedGame as any).homeQ3 || 0,
+      homeQ4: (selectedGame as any).homeQ4 || 0,
+      homeOT: (selectedGame as any).homeOT || 0,
+      awayQ1: (selectedGame as any).awayQ1 || 0,
+      awayQ2: (selectedGame as any).awayQ2 || 0,
+      awayQ3: (selectedGame as any).awayQ3 || 0,
+      awayQ4: (selectedGame as any).awayQ4 || 0,
+      awayOT: (selectedGame as any).awayOT || 0,
+    });
+    
+    // Log when switching games
+    if (selectedGame.id !== lastSyncedGameId.current) {
+      console.log('[GameDayHub] Switched to game:', selectedGame.id, 'scores:', firestoreHome, firestoreAway);
+      lastSyncedGameId.current = selectedGame.id;
+    }
+  }, [selectedGame?.id, selectedGame?.homeScore, selectedGame?.awayScore, (selectedGame as any)?.currentQuarter, (selectedGame as any)?.homeQ1, (selectedGame as any)?.homeQ2, (selectedGame as any)?.homeQ3, (selectedGame as any)?.homeQ4, (selectedGame as any)?.homeOT, (selectedGame as any)?.awayQ1, (selectedGame as any)?.awayQ2, (selectedGame as any)?.awayQ3, (selectedGame as any)?.awayQ4, (selectedGame as any)?.awayOT]);
   
   // Track previous scores for animation
   const prevHomeScore = React.useRef(selectedGame?.homeScore || 0);
@@ -199,6 +235,139 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
     
     return now >= gameDate || selectedGame.status === 'live';
   }, [selectedGame, isCoach]);
+  
+  // Fetch opponent team data when game changes
+  useEffect(() => {
+    const fetchOpponentTeam = async () => {
+      if (!selectedGame?.opponentTeamId) return;
+      if (selectedGame.opponentTeamId === 'external') return;
+      
+      // Always fetch fresh data (don't rely on cache) to ensure accurate records
+      setLoadingOpponent(true);
+      try {
+        console.log('[GameDayHub] Fetching opponent team data:', selectedGame.opponentTeamId);
+        const teamDoc = await getDoc(doc(db, 'teams', selectedGame.opponentTeamId));
+        if (teamDoc.exists()) {
+          const team = teamDoc.data() as Team;
+          const opponentId = selectedGame.opponentTeamId;
+          let calculatedRecord = { wins: 0, losses: 0, ties: 0 };
+          
+          // Query ALL games from the program schedule to get opponent's FULL record
+          // The `games` prop only contains OUR team's games, so we need to query fresh
+          const programId = teamData?.programId || selectedGame.programId;
+          const seasonId = selectedGame.seasonId;
+          
+          console.log('[GameDayHub] Program/Season for opponent lookup:', programId, seasonId);
+          
+          if (programId && seasonId) {
+            try {
+              // Collection path: programs/{programId}/seasons/{seasonId}/games (NOT 'schedule')
+              const allGamesQuery = query(collection(db, 'programs', programId, 'seasons', seasonId, 'games'));
+              const allGamesSnapshot = await getDocs(allGamesQuery);
+              
+              console.log('[GameDayHub] Found', allGamesSnapshot.docs.length, 'total games in season');
+              
+              allGamesSnapshot.docs.forEach(gameDoc => {
+                const gameData = gameDoc.data();
+                if (gameData.status !== 'completed') return;
+                
+                // Check if this game involves the opponent
+                const opponentIsHome = gameData.homeTeamId === opponentId;
+                const opponentIsAway = gameData.awayTeamId === opponentId;
+                
+                if (!opponentIsHome && !opponentIsAway) return; // Not their game
+                
+                const oppScore = opponentIsHome ? (gameData.homeScore ?? 0) : (gameData.awayScore ?? 0);
+                const enemyScore = opponentIsHome ? (gameData.awayScore ?? 0) : (gameData.homeScore ?? 0);
+                
+                if (oppScore > enemyScore) calculatedRecord.wins++;
+                else if (oppScore < enemyScore) calculatedRecord.losses++;
+                else calculatedRecord.ties++;
+              });
+              
+              console.log('[GameDayHub] Calculated opponent FULL record:', opponentId, '=', calculatedRecord);
+            } catch (scheduleError) {
+              console.warn('[GameDayHub] Could not fetch program schedule:', scheduleError);
+              // Fallback to team.record if schedule query fails
+              calculatedRecord = team.record || { wins: 0, losses: 0, ties: 0 };
+            }
+          } else {
+            console.warn('[GameDayHub] No program/season info, using team.record fallback');
+            // Fallback to team.record if no program/season info
+            calculatedRecord = team.record || { wins: 0, losses: 0, ties: 0 };
+          }
+          
+          const opponentData: OpponentTeamData = {
+            id: teamDoc.id,
+            name: team.name,
+            logo: team.logo,
+            primaryColor: team.primaryColor || team.color,
+            record: calculatedRecord
+          };
+          setOpponentTeamCache(prev => ({
+            ...prev,
+            [selectedGame.opponentTeamId!]: opponentData
+          }));
+          console.log('[GameDayHub] Opponent team data loaded:', opponentData.name, 'Record:', calculatedRecord);
+        } else {
+          console.warn('[GameDayHub] Opponent team document not found:', selectedGame.opponentTeamId);
+        }
+      } catch (error) {
+        console.error('[GameDayHub] Error fetching opponent team:', error);
+      } finally {
+        setLoadingOpponent(false);
+      }
+    };
+    
+    fetchOpponentTeam();
+  }, [selectedGame?.opponentTeamId, selectedGame?.seasonId, teamData?.programId]);
+  
+  // Get opponent team data for current game
+  const opponentTeam = useMemo(() => {
+    console.log('[GameDayHub] opponentTeam lookup:', {
+      opponentTeamId: selectedGame?.opponentTeamId,
+      cacheKeys: Object.keys(opponentTeamCache),
+      cachedData: selectedGame?.opponentTeamId ? opponentTeamCache[selectedGame.opponentTeamId] : null
+    });
+    if (!selectedGame?.opponentTeamId) return null;
+    if (selectedGame.opponentTeamId === 'external') return null;
+    return opponentTeamCache[selectedGame.opponentTeamId] || null;
+  }, [selectedGame?.opponentTeamId, opponentTeamCache]);
+  
+  // Calculate our team's record from completed games (matches dashboard's getTeamRecord logic exactly)
+  const ourTeamRecord = useMemo(() => {
+    const completedGames = games.filter(g => g.status === 'completed');
+    let wins = 0, losses = 0, ties = 0;
+    
+    completedGames.forEach(game => {
+      // Determine if we're home - check multiple fields for robustness
+      // Some games use homeTeamId, others use teamId + isHome flag
+      let isHome = false;
+      
+      if (game.homeTeamId && teamData?.id) {
+        isHome = game.homeTeamId === teamData.id;
+      } else if (game.awayTeamId && teamData?.id) {
+        isHome = game.awayTeamId !== teamData.id;
+      } else {
+        // Fallback to isHome flag on the game object
+        isHome = game.isHome ?? false;
+      }
+      
+      const teamScore = isHome ? (game.homeScore ?? 0) : (game.awayScore ?? 0);
+      const oppScore = isHome ? (game.awayScore ?? 0) : (game.homeScore ?? 0);
+      
+      if (teamScore > oppScore) wins++;
+      else if (teamScore < oppScore) losses++;
+      else ties++;
+    });
+    
+    return { wins, losses, ties };
+  }, [games, teamData?.id]);
+  
+  // Navigate to team page (uses navigate from top of component)
+  const handleTeamClick = (teamId: string) => {
+    navigate(`/team/${teamId}`);
+  };
   
   // Display values: Coaches use local state (for optimistic updates), others use real-time Firestore values
   const displayHomeScore = isCoach ? localHomeScore : (selectedGame?.homeScore || 0);
@@ -301,35 +470,62 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
     return emojis[sport || ''] || '🏆';
   }, [teamData?.sport]);
   
-  // Update score in Firebase
+  // Update score in Firebase using ATOMIC INCREMENT
+  // This prevents race conditions when multiple coaches edit simultaneously
+  const [isUpdatingScore, setIsUpdatingScore] = useState(false);
+  
   const updateScore = async (team: 'home' | 'away', delta: number) => {
-    if (!selectedGame?.id || !canEditScores) {
-      console.log('[GameDayHub] updateScore blocked - no game or cant edit', { gameId: selectedGame?.id, canEditScores });
+    if (!selectedGame?.id || !canEditScores || isUpdatingScore) {
+      console.log('[GameDayHub] updateScore blocked', { 
+        gameId: selectedGame?.id, 
+        canEditScores, 
+        isUpdatingScore 
+      });
       return;
     }
     
-    console.log('[GameDayHub] updateScore called:', { team, delta, currentQuarter });
-    
-    const newHome = team === 'home' ? localHomeScore + delta : localHomeScore;
-    const newAway = team === 'away' ? localAwayScore + delta : localAwayScore;
-    
-    // Prevent negative scores
-    if (newHome < 0 || newAway < 0) return;
-    
-    // Determine which quarter field to update
+    // Prevent negative scores - check BOTH total score AND quarter score
+    const currentScore = team === 'home' ? localHomeScore : localAwayScore;
     const quarterKey = currentQuarter === 5 ? 'OT' : `Q${currentQuarter}`;
     const quarterField = `${team}${quarterKey}` as keyof typeof quarterScores;
-    const newQuarterScore = Math.max(0, (quarterScores[quarterField] || 0) + delta);
+    const currentQuarterScore = quarterScores[quarterField] || 0;
     
-    // Optimistic update
-    if (team === 'home') {
-      setLocalHomeScore(newHome);
-      setHomeScoreChange(delta);
-    } else {
-      setLocalAwayScore(newAway);
-      setAwayScoreChange(delta);
+    // Block if total score would go negative
+    if (currentScore + delta < 0) {
+      console.log('[GameDayHub] updateScore blocked - total score would go negative');
+      return;
     }
-    setQuarterScores(prev => ({ ...prev, [quarterField]: newQuarterScore }));
+    
+    // Block if quarter score would go negative (important for minus button!)
+    if (currentQuarterScore + delta < 0) {
+      console.log('[GameDayHub] updateScore blocked - quarter score would go negative');
+      return;
+    }
+    
+    setIsUpdatingScore(true);
+    console.log('[GameDayHub] updateScore called:', { team, delta, currentQuarter, currentScore, currentQuarterScore });
+    
+    // Calculate expected new scores for pending update tracking
+    const expectedNewScore = currentScore + delta;
+    const expectedQuarterScore = currentQuarterScore + delta;
+    
+    // OPTIMISTIC UPDATE: Show the change immediately to the user who clicked
+    // Also track pending update so we don't double-update when Firestore echoes back
+    if (team === 'home') {
+      setLocalHomeScore(expectedNewScore); // Show new score immediately!
+      setHomeScoreChange(delta);
+      pendingUpdate.current = { ...pendingUpdate.current, home: expectedNewScore };
+    } else {
+      setLocalAwayScore(expectedNewScore); // Show new score immediately!
+      setAwayScoreChange(delta);
+      pendingUpdate.current = { ...pendingUpdate.current, away: expectedNewScore };
+    }
+    
+    // Update quarter score optimistically too
+    setQuarterScores(prev => ({
+      ...prev,
+      [quarterField]: expectedQuarterScore
+    }));
     
     setTimeout(() => {
       setHomeScoreChange(null);
@@ -337,39 +533,38 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
     }, 2000);
     
     try {
-      // SINGLE SOURCE: Update program season game
+      // SINGLE SOURCE: Update program season game with ATOMIC INCREMENT
       if (!selectedGame.programId || !selectedGame.seasonId) {
         throw new Error('Game missing programId or seasonId');
       }
-      console.log('[GameDayHub] Writing to Firestore:', {
+      
+      // Use Firestore increment() for atomic updates - no race conditions!
+      const scoreField = team === 'home' ? 'homeScore' : 'awayScore';
+      
+      console.log('[GameDayHub] Writing ATOMIC INCREMENT to Firestore:', {
         path: `programs/${selectedGame.programId}/seasons/${selectedGame.seasonId}/games/${selectedGame.id}`,
-        homeScore: newHome,
-        awayScore: newAway,
-        [quarterField]: newQuarterScore,
+        [scoreField]: `increment(${delta})`,
+        [quarterField]: `increment(${delta})`,
         currentQuarter
       });
+      
       await updateDoc(
         doc(db, 'programs', selectedGame.programId, 'seasons', selectedGame.seasonId, 'games', selectedGame.id), 
         {
-          homeScore: newHome,
-          awayScore: newAway,
-          [quarterField]: newQuarterScore,
+          [scoreField]: increment(delta),
+          [quarterField]: increment(delta),
           currentQuarter,
           updatedAt: serverTimestamp()
         }
       );
-      console.log('[GameDayHub] Firestore write SUCCESS');
+      console.log('[GameDayHub] Firestore atomic increment SUCCESS');
     } catch (err) {
       console.error('[GameDayHub] Firestore write ERROR:', err);
-      // Revert on error
-      setLocalHomeScore(selectedGame.homeScore || 0);
-      setLocalAwayScore(selectedGame.awayScore || 0);
-      // Revert quarter score
-      setQuarterScores(prev => ({ 
-        ...prev, 
-        [quarterField]: (selectedGame as any)[quarterField] || 0 
-      }));
+      // Clear pending update on error - will resync from Firestore
+      pendingUpdate.current = null;
       toastError('Failed to update score');
+    } finally {
+      setIsUpdatingScore(false);
     }
   };
   
@@ -483,17 +678,17 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
     }
   };
   
-  // Sort games: live first, then by date/time
+  // Sort games: live first, then by date/time (newest first, week 1 at bottom)
   const sortedGames = useMemo(() => {
     return [...games].sort((a, b) => {
       // Live games first
       if (a.status === 'live' && b.status !== 'live') return -1;
       if (b.status === 'live' && a.status !== 'live') return 1;
       
-      // Then by date
+      // Then by date (descending - newest/current week on top, week 1 at bottom)
       const aDate = parseGameDate(a.scheduledDate);
       const bDate = parseGameDate(b.scheduledDate);
-      return aDate.getTime() - bDate.getTime();
+      return bDate.getTime() - aDate.getTime();
     });
   }, [games]);
   
@@ -686,14 +881,58 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
           <div className="flex items-center justify-center gap-4 md:gap-8 mb-6">
             {/* Home Team */}
             <div className="flex-1 text-center">
-              {selectedGame.isHome && teamData?.logo && (
-                <div className="flex justify-center mb-2">
-                  <img src={teamData.logo} alt={teamData.name} className="w-12 h-12 md:w-16 md:h-16 object-contain rounded-lg" />
+              {/* Logo: Show our team logo if we're home, OR opponent logo if opponent is home */}
+              {selectedGame.isHome ? (
+                teamData?.logo && (
+                  <div className="flex justify-center mb-2">
+                    <img src={teamData.logo} alt={teamData.name} className="w-12 h-12 md:w-16 md:h-16 object-contain rounded-lg" />
+                  </div>
+                )
+              ) : (
+                opponentTeam?.logo ? (
+                  <div 
+                    className="flex justify-center mb-2 cursor-pointer group"
+                    onClick={() => opponentTeam && handleTeamClick(opponentTeam.id)}
+                  >
+                    <img 
+                      src={opponentTeam.logo} 
+                      alt={opponentTeam.name} 
+                      className="w-12 h-12 md:w-16 md:h-16 object-contain rounded-lg group-hover:scale-105 transition-transform"
+                    />
+                  </div>
+                ) : loadingOpponent && (
+                  <div className="flex justify-center mb-2">
+                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-lg bg-white/10 animate-pulse" />
+                  </div>
+                )
+              )}
+              {/* Team Name + Record */}
+              <div className={`text-sm font-medium mb-1 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                {!selectedGame.isHome && opponentTeam ? (
+                  <span 
+                    onClick={() => handleTeamClick(opponentTeam.id)}
+                    className="hover:text-purple-400 hover:underline transition-colors cursor-pointer inline-flex items-center gap-1"
+                  >
+                    {homeName}
+                    <ExternalLink className="w-3 h-3 opacity-50 inline" />
+                  </span>
+                ) : (
+                  homeName
+                )}
+              </div>
+              {/* Record display */}
+              {/* If we're home (left side shows our team) - show our record */}
+              {selectedGame.isHome && (ourTeamRecord.wins > 0 || ourTeamRecord.losses > 0 || ourTeamRecord.ties > 0) && (
+                <div className={`text-xs mb-2 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>
+                  ({ourTeamRecord.wins}-{ourTeamRecord.losses}{ourTeamRecord.ties ? `-${ourTeamRecord.ties}` : ''})
                 </div>
               )}
-              <div className={`text-sm font-medium mb-2 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-                {homeName}
-              </div>
+              {/* If we're away (left side shows opponent) - show opponent record */}
+              {!selectedGame.isHome && opponentTeam?.record && (
+                <div className={`text-xs mb-2 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>
+                  ({opponentTeam.record.wins}-{opponentTeam.record.losses}{opponentTeam.record.ties ? `-${opponentTeam.record.ties}` : ''})
+                </div>
+              )}
               {/* Score */}
               <div className="relative inline-block">
                 {editingScore === 'home' && canEditScores ? (
@@ -738,17 +977,17 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
               </div>
               {/* Score buttons */}
               {canEditScores && gameState === 'live' && (
-                <div className="flex items-center justify-center gap-2 mt-3">
-                  <button onClick={() => updateScore('home', -1)} className="w-8 h-8 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center font-bold hover:bg-red-500/30">
+                <div className={`flex items-center justify-center gap-2 mt-3 ${isUpdatingScore ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <button onClick={() => updateScore('home', -1)} disabled={isUpdatingScore} className="w-8 h-8 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center font-bold hover:bg-red-500/30 disabled:cursor-not-allowed">
                     <Minus className="w-4 h-4" />
                   </button>
-                  <button onClick={() => updateScore('home', 1)} className="w-8 h-8 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center font-bold hover:bg-green-500/30">
+                  <button onClick={() => updateScore('home', 1)} disabled={isUpdatingScore} className="w-8 h-8 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center font-bold hover:bg-green-500/30 disabled:cursor-not-allowed">
                     <Plus className="w-4 h-4" />
                   </button>
-                  <button onClick={() => updateScore('home', 3)} className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold text-sm hover:bg-amber-500/30">
+                  <button onClick={() => updateScore('home', 3)} disabled={isUpdatingScore} className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold text-sm hover:bg-amber-500/30 disabled:cursor-not-allowed">
                     +3
                   </button>
-                  <button onClick={() => updateScore('home', 7)} className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-500 flex items-center justify-center font-bold text-sm hover:bg-purple-500/30">
+                  <button onClick={() => updateScore('home', 7)} disabled={isUpdatingScore} className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-500 flex items-center justify-center font-bold text-sm hover:bg-purple-500/30 disabled:cursor-not-allowed">
                     +7
                   </button>
                 </div>
@@ -762,14 +1001,58 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
 
             {/* Away Team */}
             <div className="flex-1 text-center">
-              {!selectedGame.isHome && teamData?.logo && (
-                <div className="flex justify-center mb-2">
-                  <img src={teamData.logo} alt={teamData.name} className="w-12 h-12 md:w-16 md:h-16 object-contain rounded-lg" />
+              {/* Logo: Show our team logo if we're away, OR opponent logo if opponent is away */}
+              {!selectedGame.isHome ? (
+                teamData?.logo && (
+                  <div className="flex justify-center mb-2">
+                    <img src={teamData.logo} alt={teamData.name} className="w-12 h-12 md:w-16 md:h-16 object-contain rounded-lg" />
+                  </div>
+                )
+              ) : (
+                opponentTeam?.logo ? (
+                  <div 
+                    className="flex justify-center mb-2 cursor-pointer group"
+                    onClick={() => opponentTeam && handleTeamClick(opponentTeam.id)}
+                  >
+                    <img 
+                      src={opponentTeam.logo} 
+                      alt={opponentTeam.name} 
+                      className="w-12 h-12 md:w-16 md:h-16 object-contain rounded-lg group-hover:scale-105 transition-transform"
+                    />
+                  </div>
+                ) : loadingOpponent && (
+                  <div className="flex justify-center mb-2">
+                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-lg bg-white/10 animate-pulse" />
+                  </div>
+                )
+              )}
+              {/* Team Name + Record */}
+              <div className={`text-sm font-medium mb-1 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                {selectedGame.isHome && opponentTeam ? (
+                  <span 
+                    onClick={() => handleTeamClick(opponentTeam.id)}
+                    className="hover:text-purple-400 hover:underline transition-colors cursor-pointer inline-flex items-center gap-1"
+                  >
+                    {awayName}
+                    <ExternalLink className="w-3 h-3 opacity-50 inline" />
+                  </span>
+                ) : (
+                  awayName
+                )}
+              </div>
+              {/* Record display */}
+              {/* If we're home (right side shows opponent) - show opponent record */}
+              {selectedGame.isHome && opponentTeam?.record && (
+                <div className={`text-xs mb-2 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>
+                  ({opponentTeam.record.wins}-{opponentTeam.record.losses}{opponentTeam.record.ties ? `-${opponentTeam.record.ties}` : ''})
                 </div>
               )}
-              <div className={`text-sm font-medium mb-2 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-                {awayName}
-              </div>
+              {/* If we're away (right side shows our team) - show our record */}
+              {!selectedGame.isHome && (ourTeamRecord.wins > 0 || ourTeamRecord.losses > 0 || ourTeamRecord.ties > 0) && (
+                <div className={`text-xs mb-2 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>
+                  ({ourTeamRecord.wins}-{ourTeamRecord.losses}{ourTeamRecord.ties ? `-${ourTeamRecord.ties}` : ''})
+                </div>
+              )}
               {/* Score */}
               <div className="relative inline-block">
                 {editingScore === 'away' && canEditScores ? (
@@ -814,17 +1097,17 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
               </div>
               {/* Score buttons */}
               {canEditScores && gameState === 'live' && (
-                <div className="flex items-center justify-center gap-2 mt-3">
-                  <button onClick={() => updateScore('away', -1)} className="w-8 h-8 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center font-bold hover:bg-red-500/30">
+                <div className={`flex items-center justify-center gap-2 mt-3 ${isUpdatingScore ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <button onClick={() => updateScore('away', -1)} disabled={isUpdatingScore} className="w-8 h-8 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center font-bold hover:bg-red-500/30 disabled:cursor-not-allowed">
                     <Minus className="w-4 h-4" />
                   </button>
-                  <button onClick={() => updateScore('away', 1)} className="w-8 h-8 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center font-bold hover:bg-green-500/30">
+                  <button onClick={() => updateScore('away', 1)} disabled={isUpdatingScore} className="w-8 h-8 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center font-bold hover:bg-green-500/30 disabled:cursor-not-allowed">
                     <Plus className="w-4 h-4" />
                   </button>
-                  <button onClick={() => updateScore('away', 3)} className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold text-sm hover:bg-amber-500/30">
+                  <button onClick={() => updateScore('away', 3)} disabled={isUpdatingScore} className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold text-sm hover:bg-amber-500/30 disabled:cursor-not-allowed">
                     +3
                   </button>
-                  <button onClick={() => updateScore('away', 7)} className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-500 flex items-center justify-center font-bold text-sm hover:bg-purple-500/30">
+                  <button onClick={() => updateScore('away', 7)} disabled={isUpdatingScore} className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-500 flex items-center justify-center font-bold text-sm hover:bg-purple-500/30 disabled:cursor-not-allowed">
                     +7
                   </button>
                 </div>

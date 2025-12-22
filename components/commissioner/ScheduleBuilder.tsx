@@ -38,10 +38,14 @@ import {
   Check,
   AlertCircle,
   Coffee,
-  Lock
+  Lock,
+  Send,
+  ExternalLink
 } from 'lucide-react';
-import { toastSuccess, toastError, toastInfo } from '../../services/toast';
-import type { Team, ProgramSeason } from '../../types';
+import { toastSuccess, toastError, toastInfo, toastWarning } from '../../services/toast';
+import SmartTeamSearch from './SmartTeamSearch';
+import type { Team, ProgramSeason, GameRequest, GameRequestStatus } from '../../types';
+import type { TeamSearchResult } from '../../services/teamSearchService';
 
 interface Game {
   id?: string;
@@ -51,12 +55,17 @@ interface Game {
   homeTeamName: string;
   awayTeamId: string;
   awayTeamName: string;
+  awayTeamProgramId?: string;      // If opponent is a system team
+  awayTeamIsExternal?: boolean;    // If opponent is not in system
   time: string;
   location: string;
   ageGroup: string;
   status: 'scheduled' | 'completed' | 'cancelled';
   statsEntered?: boolean; // For tracking finalized games
   isNew?: boolean; // For tracking unsaved games
+  // Game request fields
+  gameRequestId?: string;
+  gameRequestStatus?: GameRequestStatus;
 }
 
 // Check if a game is locked (past start time or finalized)
@@ -134,7 +143,7 @@ interface ScheduleSetup {
 
 export default function ScheduleBuilder() {
   const { seasonId } = useParams<{ seasonId: string }>();
-  const { userData, programData } = useAuth();
+  const { user, userData, programData } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
 
@@ -172,15 +181,36 @@ export default function ScheduleBuilder() {
   }, [hasUnsavedChanges]);
 
   // Form state for adding game
-  const [gameForm, setGameForm] = useState({
-    opponentId: '',
-    opponentName: '', // For typing custom opponent or selecting from list
+  const [gameForm, setGameForm] = useState<{
+    selectedTeam: TeamSearchResult | null;
+    externalName: string;
+    time: string;
+    location: string;
+    isHome: boolean;
+    isByeMode: boolean;
+    gameDate: string;
+  }>({
+    selectedTeam: null,
+    externalName: '',
     time: '10:00',
     location: '',
     isHome: true,
     isByeMode: false, // Toggle between game input and bye mode
     gameDate: '' // Custom date for this game (defaults to week date)
   });
+
+  // Reset game form helper
+  const resetGameForm = () => {
+    setGameForm({
+      selectedTeam: null,
+      externalName: '',
+      time: '10:00',
+      location: '',
+      isHome: true,
+      isByeMode: false,
+      gameDate: ''
+    });
+  };
 
   // Helper to parse YYYY-MM-DD as local date (avoids UTC timezone shift)
   const parseLocalDate = (dateStr: string): Date => {
@@ -322,13 +352,19 @@ export default function ScheduleBuilder() {
 
       // If there are existing games, skip setup
       if (gamesData.length > 0 || byesData.length > 0) {
-        // Infer number of weeks from existing data (max week found, not defaulting to 8)
-        const allWeeks = [
-          ...gamesData.map(g => g.week || 1),
-          ...byesData.map(b => b.week || 1)
-        ];
-        const maxWeek = allWeeks.length > 0 ? Math.max(...allWeeks) : 1;
-        setSetup(prev => ({ ...prev, numberOfWeeks: maxWeek }));
+        // Use saved numberOfWeeks from season, or infer from existing data
+        let numberOfWeeks = (seasonData as any).numberOfWeeks;
+        
+        if (!numberOfWeeks) {
+          // Fallback: infer from max week found in games/byes
+          const allWeeks = [
+            ...gamesData.map(g => g.week || 1),
+            ...byesData.map(b => b.week || 1)
+          ];
+          numberOfWeeks = allWeeks.length > 0 ? Math.max(...allWeeks) : 1;
+        }
+        
+        setSetup(prev => ({ ...prev, numberOfWeeks }));
         setShowSetup(false);
       }
 
@@ -353,20 +389,22 @@ export default function ScheduleBuilder() {
   };
 
   const handleAddGame = (teamId: string) => {
-    // Check if we have an opponent (either from system or custom typed)
-    const opponentName = gameForm.opponentName.trim();
+    // Check if we have an opponent (either from system or external)
+    const opponentName = gameForm.selectedTeam?.name || gameForm.externalName.trim();
     if (!opponentName) {
-      toastError('Please enter an opponent');
+      toastError('Please select an opponent');
       return;
     }
 
     const team = teams.find(t => t.id === teamId);
     if (!team) return;
 
-    // Check if opponent matches a system team
-    const systemOpponent = teams.find(t => 
-      t.name?.toLowerCase() === opponentName.toLowerCase() || t.id === gameForm.opponentId
-    );
+    // Determine if this is a system team or external
+    const isSystemTeam = !!gameForm.selectedTeam;
+    const systemOpponent = gameForm.selectedTeam;
+    
+    // For system teams from OUTSIDE our program, we need to create a game request
+    const isExternalSystemTeam = isSystemTeam && systemOpponent?.programId !== programData?.id;
 
     const newGame: Game = {
       week: currentWeek,
@@ -375,34 +413,49 @@ export default function ScheduleBuilder() {
       homeTeamName: gameForm.isHome ? (team.name || 'Unknown') : opponentName,
       awayTeamId: gameForm.isHome ? (systemOpponent?.id || 'external') : teamId,
       awayTeamName: gameForm.isHome ? opponentName : (team.name || 'Unknown'),
+      awayTeamProgramId: isSystemTeam ? systemOpponent?.programId : undefined,
+      awayTeamIsExternal: !isSystemTeam,
       time: gameForm.time,
       location: gameForm.location,
       ageGroup: team.ageGroup || '',
       status: 'scheduled',
-      isNew: true
+      isNew: true,
+      // If external system team, mark as pending request
+      gameRequestStatus: isExternalSystemTeam ? 'pending' : undefined
     };
 
-    // Remove any existing bye for this team (and system opponent if applicable)
+    // For internal program games, also update opponent's schedule
+    const internalOpponent = isSystemTeam && systemOpponent?.programId === programData?.id 
+      ? teams.find(t => t.id === systemOpponent.id)
+      : null;
+
+    // Remove any existing bye for this team (and internal opponent if applicable)
     setByes(prev => prev.filter(b => {
       if (b.week !== currentWeek) return true;
       if (b.teamId === teamId) return false;
-      if (systemOpponent && b.teamId === systemOpponent.id) return false;
+      if (internalOpponent && b.teamId === internalOpponent.id) return false;
       return true;
     }));
 
-    // Remove any existing game for this team (and system opponent if applicable)
+    // Remove any existing game for this team (and internal opponent if applicable)
     setGames(prev => prev.filter(g => {
       if (g.week !== currentWeek) return true;
       if (g.homeTeamId === teamId || g.awayTeamId === teamId) return false;
-      if (systemOpponent && (g.homeTeamId === systemOpponent.id || g.awayTeamId === systemOpponent.id)) return false;
+      if (internalOpponent && (g.homeTeamId === internalOpponent.id || g.awayTeamId === internalOpponent.id)) return false;
       return true;
     }));
 
     setGames(prev => [...prev, newGame]);
     setHasUnsavedChanges(true);
     setEditingTeam(null);
-    setGameForm({ opponentId: '', opponentName: '', time: '10:00', location: '', isHome: true, isByeMode: false, gameDate: '' });
-    toastSuccess(`Game added: ${newGame.homeTeamName} vs ${newGame.awayTeamName}`);
+    resetGameForm();
+    
+    // Show appropriate message
+    if (isExternalSystemTeam) {
+      toastInfo(`Game request will be sent to ${opponentName} when you save`);
+    } else {
+      toastSuccess(`Game added: ${newGame.homeTeamName} vs ${newGame.awayTeamName}`);
+    }
   };
 
   const handleAddBye = (teamId: string) => {
@@ -426,6 +479,7 @@ export default function ScheduleBuilder() {
     setByes(prev => [...prev.filter(b => !(b.week === currentWeek && b.teamId === teamId)), newBye]);
     setHasUnsavedChanges(true);
     setEditingTeam(null);
+    resetGameForm();
     toastInfo(`${team.name} has a bye week ${currentWeek}`);
   };
 
@@ -466,7 +520,18 @@ export default function ScheduleBuilder() {
   };
 
   const handleSaveAll = async () => {
-    if (!programData?.id || !seasonId) return;
+    console.log('[ScheduleBuilder] handleSaveAll called', { 
+      programId: programData?.id, 
+      seasonId, 
+      gamesCount: games.length,
+      numberOfWeeks: setup.numberOfWeeks 
+    });
+    
+    if (!programData?.id || !seasonId) {
+      console.error('[ScheduleBuilder] Missing programId or seasonId, cannot save');
+      toastError('Missing program or season data');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -511,6 +576,11 @@ export default function ScheduleBuilder() {
       for (const game of games) {
         const { isNew, id, ...gameData } = game;
         
+        // Remove undefined values - Firestore doesn't allow them
+        const cleanGameData = Object.fromEntries(
+          Object.entries(gameData).filter(([_, v]) => v !== undefined)
+        );
+        
         // Check if this game existed before (same matchup, same week)
         const matchKey = `${game.homeTeamId}-${game.awayTeamId}-${game.week}`;
         const existing = existingGamesMap.get(matchKey);
@@ -519,20 +589,61 @@ export default function ScheduleBuilder() {
           // UPDATE existing game - preserves the document ID and stats subcollection!
           keptGameIds.add(existing.id);
           await updateDoc(doc(gamesRef, existing.id), {
-            ...gameData,
+            ...cleanGameData,
             // DON'T overwrite scores/status - preserve what's there
             updatedAt: serverTimestamp()
           });
         } else {
           // CREATE new game
-          await addDoc(gamesRef, {
-            ...gameData,
+          console.log('[ScheduleBuilder] Creating new game:', { week: game.week, homeTeam: game.homeTeamName, awayTeam: game.awayTeamName });
+          const gameDocRef = await addDoc(gamesRef, {
+            ...cleanGameData,
             homeScore: 0,
             awayScore: 0,
             status: 'scheduled',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           });
+          console.log('[ScheduleBuilder] Game created:', gameDocRef.id);
+          
+          // If this is a cross-program game with a system team, create a GameRequest
+          // Wrap in try-catch so it doesn't break the entire save if GameRequest fails
+          if (game.gameRequestStatus === 'pending' && game.awayTeamProgramId && game.awayTeamProgramId !== programData.id) {
+            try {
+              const gameRequest: Omit<GameRequest, 'id'> = {
+                status: 'pending',
+                programId: programData.id,
+                seasonId: seasonId,
+                gameId: gameDocRef.id,
+                week: game.week,
+                gameDate: game.weekDate,
+                time: game.time,
+                location: game.location,
+                homeTeamId: game.homeTeamId,
+                homeTeamName: game.homeTeamName,
+                homeProgramId: programData.id,
+                homeProgramName: programData.name,
+                awayTeamId: game.awayTeamId,
+                awayTeamName: game.awayTeamName,
+                awayProgramId: game.awayTeamProgramId,
+                requestedBy: userData?.uid || user?.uid || '',
+                requestedByName: userData?.name || '',
+                createdAt: serverTimestamp() as any,
+                updatedAt: serverTimestamp() as any
+              };
+              
+              const requestRef = await addDoc(collection(db, 'gameRequests'), gameRequest);
+              console.log('[ScheduleBuilder] Created GameRequest:', requestRef.id, 'for game:', gameDocRef.id);
+              
+              // Update the game with the request ID
+              await updateDoc(gameDocRef, {
+                gameRequestId: requestRef.id
+              });
+            } catch (requestError) {
+              console.error('[ScheduleBuilder] Failed to create GameRequest (game was still saved):', requestError);
+              // Don't fail the whole save - game is still saved, just no request
+            }
+          }
         }
       }
 
@@ -594,19 +705,24 @@ export default function ScheduleBuilder() {
       setByes(prev => prev.map(b => ({ ...b, isNew: false })));
       setHasUnsavedChanges(false);
       
-      // Update season to mark schedule as built
+      // Update season to mark schedule as built AND save numberOfWeeks
       if (programData?.id && seasonId) {
+        console.log('[ScheduleBuilder] Updating season with numberOfWeeks:', setup.numberOfWeeks);
         await updateDoc(doc(db, 'programs', programData.id, 'seasons', seasonId), {
           scheduleBuilt: true,
+          numberOfWeeks: setup.numberOfWeeks, // Save the number of weeks!
           updatedAt: serverTimestamp()
         });
+        console.log('[ScheduleBuilder] Season updated successfully');
       }
       
-      toastSuccess(`Schedule saved! ${games.length} games and ${byes.length} bye weeks`);
+      console.log('[ScheduleBuilder] Save completed successfully!');
+      toastSuccess(`Schedule saved! ${games.length} games, ${byes.length} byes, ${setup.numberOfWeeks} weeks`);
       
-    } catch (error) {
-      console.error('Error saving schedule:', error);
-      toastError('Failed to save schedule');
+    } catch (error: any) {
+      console.error('[ScheduleBuilder] Error saving schedule:', error);
+      console.error('[ScheduleBuilder] Error details:', error?.message, error?.code);
+      toastError(`Failed to save schedule: ${error?.message || 'Unknown error'}`);
     } finally {
       setSaving(false);
     }
@@ -909,18 +1025,30 @@ export default function ScheduleBuilder() {
                 <div className="flex items-center gap-2">
                   {status.hasGame ? (
                     <div className="flex items-center gap-3">
-                      <div className={`px-3 py-1.5 rounded-lg ${
+                      <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 ${
                         status.game && isGameLocked(status.game) 
                           ? theme === 'dark' ? 'bg-gray-500/20' : 'bg-gray-100'
-                          : theme === 'dark' ? 'bg-green-500/20' : 'bg-green-100'
+                          : status.game?.gameRequestStatus === 'pending'
+                            ? theme === 'dark' ? 'bg-blue-500/20' : 'bg-blue-100'
+                            : theme === 'dark' ? 'bg-green-500/20' : 'bg-green-100'
                       }`}>
                         {status.game && isGameLocked(status.game) && (
-                          <Lock className={`w-3 h-3 inline mr-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
+                          <Lock className={`w-3 h-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
+                        )}
+                        {/* Pending request indicator */}
+                        {status.game?.gameRequestStatus === 'pending' && (
+                          <Send className={`w-3 h-3 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`} />
+                        )}
+                        {/* External team indicator */}
+                        {status.game?.awayTeamIsExternal && (
+                          <ExternalLink className={`w-3 h-3 ${theme === 'dark' ? 'text-amber-400' : 'text-amber-600'}`} />
                         )}
                         <span className={`text-sm font-medium ${
                           status.game && isGameLocked(status.game)
                             ? theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                            : theme === 'dark' ? 'text-green-400' : 'text-green-700'
+                            : status.game?.gameRequestStatus === 'pending'
+                              ? theme === 'dark' ? 'text-blue-400' : 'text-blue-700'
+                              : theme === 'dark' ? 'text-green-400' : 'text-green-700'
                         }`}>
                           {status.game?.homeTeamId === status.teamId ? (
                             <>vs {status.game?.awayTeamName}</>
@@ -929,10 +1057,12 @@ export default function ScheduleBuilder() {
                           )}
                         </span>
                         {status.game?.time && (
-                          <span className={`text-xs ml-2 ${
+                          <span className={`text-xs ${
                             status.game && isGameLocked(status.game)
                               ? theme === 'dark' ? 'text-gray-500' : 'text-gray-500'
-                              : theme === 'dark' ? 'text-green-500' : 'text-green-600'
+                              : status.game?.gameRequestStatus === 'pending'
+                                ? theme === 'dark' ? 'text-blue-500' : 'text-blue-600'
+                                : theme === 'dark' ? 'text-green-500' : 'text-green-600'
                           }`}>
                             {formatTime12Hour(status.game.time)}
                           </span>
@@ -982,8 +1112,8 @@ export default function ScheduleBuilder() {
                             // Turning off BYE mode
                             setGameForm(prev => ({ ...prev, isByeMode: false }));
                           } else {
-                            // Turning on BYE mode
-                            setGameForm(prev => ({ ...prev, isByeMode: true, opponentName: '', opponentId: '' }));
+                            // Turning on BYE mode - clear opponent selection
+                            setGameForm(prev => ({ ...prev, isByeMode: true, selectedTeam: null, externalName: '' }));
                           }
                         }}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 ${
@@ -998,37 +1128,47 @@ export default function ScheduleBuilder() {
 
                       {/* Show game inputs only when NOT in BYE mode */}
                       {!gameForm.isByeMode && (
-                        <>
-                          {/* Combo input: type custom OR select from datalist */}
-                          <div className="relative">
-                            <input
-                              type="text"
-                              list={`opponents-${status.teamId}`}
-                              placeholder="Type or select opponent"
-                              value={gameForm.opponentName}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                // Check if it matches a system team
-                                const match = getAvailableOpponents(status.teamId, status.ageGroup)
-                                  .find(t => t.name?.toLowerCase() === value.toLowerCase());
-                                setGameForm(prev => ({ 
-                                  ...prev, 
-                                  opponentName: value,
-                                  opponentId: match?.id || ''
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Smart Team Search - replaces old datalist */}
+                          <div className="w-56">
+                            <SmartTeamSearch
+                              sport={programData?.sport || 'football'}
+                              ageGroup={status.ageGroup}
+                              currentTeamId={status.teamId}
+                              currentProgramId={programData?.id}
+                              searchMode="all"
+                              placeholder="Search opponent..."
+                              allowExternal={true}
+                              onSelect={(team, externalName) => {
+                                setGameForm(prev => ({
+                                  ...prev,
+                                  selectedTeam: team,
+                                  externalName: externalName || ''
                                 }));
                               }}
-                              className={`px-2 py-1.5 rounded-lg border text-sm w-44 ${
-                                theme === 'dark' 
-                                  ? 'bg-gray-900 border-gray-700 text-white placeholder-gray-500' 
-                                  : 'bg-white border-gray-300 text-gray-900'
-                              }`}
                             />
-                            <datalist id={`opponents-${status.teamId}`}>
-                              {getAvailableOpponents(status.teamId, status.ageGroup).map(t => (
-                                <option key={t.id} value={t.name || ''} />
-                              ))}
-                            </datalist>
                           </div>
+                          
+                          {/* Show pending badge if external system team */}
+                          {gameForm.selectedTeam && gameForm.selectedTeam.programId !== programData?.id && (
+                            <span className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                              theme === 'dark' ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              <Send className="w-3 h-3" />
+                              Request
+                            </span>
+                          )}
+                          
+                          {/* External team indicator */}
+                          {gameForm.externalName && !gameForm.selectedTeam && (
+                            <span className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                              theme === 'dark' ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700'
+                            }`}>
+                              <ExternalLink className="w-3 h-3" />
+                              External
+                            </span>
+                          )}
+                          
                           <input
                             type="time"
                             value={gameForm.time}
@@ -1039,7 +1179,6 @@ export default function ScheduleBuilder() {
                                 : 'bg-white border-gray-300 text-gray-900'
                             }`}
                           />
-                          <span className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>/</span>
                           <input
                             type="date"
                             value={gameForm.gameDate || weekDates[currentWeek - 1] || ''}
@@ -1071,7 +1210,7 @@ export default function ScheduleBuilder() {
                             />
                             Home
                           </label>
-                        </>
+                        </div>
                       )}
 
                       {/* Confirm button */}
@@ -1091,7 +1230,7 @@ export default function ScheduleBuilder() {
                       <button
                         onClick={() => {
                           setEditingTeam(null);
-                          setGameForm({ opponentId: '', opponentName: '', time: '10:00', location: '', isHome: true, isByeMode: false, gameDate: '' });
+                          resetGameForm();
                         }}
                         className={`p-1.5 rounded ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
                       >

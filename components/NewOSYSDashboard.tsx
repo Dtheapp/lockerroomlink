@@ -352,6 +352,11 @@ const NewOSYSDashboard: React.FC = () => {
         const isHome = data.homeTeamId === teamData.id;
         const opponent = isHome ? data.awayTeamName : data.homeTeamName;
         
+        // Get opponent team ID for system team bonding
+        const opponentTeamId = isHome ? data.awayTeamId : data.homeTeamId;
+        const opponentProgramId = isHome ? data.awayTeamProgramId : undefined; // Only track if away team has programId
+        const opponentIsExternal = isHome ? data.awayTeamIsExternal : false;
+        
         // Parse game date
         let scheduledDate = data.weekDate;
         if (typeof scheduledDate === 'string') {
@@ -382,6 +387,10 @@ const NewOSYSDashboard: React.FC = () => {
           homeTeamName: data.homeTeamName,
           awayTeamId: data.awayTeamId,
           awayTeamName: data.awayTeamName,
+          // Opponent team bonding - link to system teams for logo/record display
+          opponentTeamId: opponentTeamId !== 'external' ? opponentTeamId : undefined,
+          opponentProgramId: opponentProgramId,
+          opponentIsExternal: opponentIsExternal,
           stats: data.stats,
           createdAt: data.createdAt,
           // Quarter scoring fields

@@ -200,6 +200,83 @@ export interface LeagueRequest {
   rejectionReason?: string;
 }
 
+// --- GAME REQUEST SYSTEM ---
+// Used when scheduling games with teams from other programs
+export type GameRequestStatus = 'pending' | 'accepted' | 'declined' | 'cancelled' | 'expired';
+
+export interface GameRequest {
+  id?: string;
+  status: GameRequestStatus;
+  
+  // Reference to the game in the program's schedule
+  programId: string;              // Program that created the game
+  seasonId: string;               // Season this game belongs to
+  gameId: string;                 // Reference to programs/{programId}/seasons/{seasonId}/games/{gameId}
+  
+  // Game details (denormalized for notifications)
+  week: number;
+  gameDate: string;               // YYYY-MM-DD
+  time: string;                   // HH:mm
+  location?: string;
+  
+  // Requesting team (typically home team)
+  homeTeamId: string;
+  homeTeamName: string;
+  homeProgramId: string;
+  homeProgramName?: string;
+  
+  // Requested team (away team)
+  awayTeamId: string;
+  awayTeamName: string;
+  awayProgramId: string;
+  awayProgramName?: string;
+  
+  // Request sender
+  requestedBy: string;            // User ID
+  requestedByName?: string;
+  
+  // Response
+  respondedBy?: string;           // User ID who accepted/declined
+  respondedByName?: string;
+  respondedAt?: Timestamp | Date;
+  declineReason?: string;
+  
+  // Metadata
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
+  expiresAt?: Timestamp | Date;   // Optional auto-expire
+}
+
+// --- VENUE SYSTEM (PREP) ---
+export interface Venue {
+  id?: string;
+  name: string;                   // "Central Park Fields"
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  
+  // Fields/Courts at this venue
+  fields?: VenueField[];
+  
+  // Ownership
+  programId?: string;             // If owned by a program
+  createdBy?: string;             // User who created it
+  isPublic?: boolean;             // Can other programs use this venue?
+  
+  // Metadata
+  createdAt?: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
+}
+
+export interface VenueField {
+  id: string;
+  name: string;                   // "Field 1", "Main Field", "Court A"
+  type?: 'football' | 'soccer' | 'baseball' | 'basketball' | 'multipurpose';
+  capacity?: number;
+  hasLights?: boolean;
+}
+
 export interface Grievance {
   id?: string;
   teamId?: string;
@@ -352,12 +429,24 @@ export interface TeamGame {
   // Game details
   opponent: string;
   opponentTeamId?: string;
+  opponentProgramId?: string;       // If opponent is a system team
+  opponentIsExternal?: boolean;     // True if opponent is not in system
   isHome: boolean;
   week?: number;
   scheduledDate: Timestamp | Date | string;
   scheduledTime: string;
   dateTime?: Timestamp;  // Alternative date field used in some components
   location: string;
+  
+  // Venue reference (for future venue system)
+  venueId?: string;
+  venueName?: string;
+  fieldNumber?: string;
+  
+  // Game Request (for cross-program games)
+  gameRequestId?: string;
+  gameRequestStatus?: GameRequestStatus;
+  confirmedAt?: Timestamp | Date;
   
   // Scores
   homeScore?: number;
