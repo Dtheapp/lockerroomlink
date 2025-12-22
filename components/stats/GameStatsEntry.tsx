@@ -20,11 +20,13 @@ interface StatInputProps {
   value: number;
   onChange: (val: number) => void;
   color?: string;
+  theme?: 'dark' | 'light';
 }
 
-const StatInput: React.FC<StatInputProps> = ({ label, value, onChange, color = 'text-white' }) => {
+const StatInput: React.FC<StatInputProps> = ({ label, value, onChange, color, theme = 'dark' }) => {
   const [localValue, setLocalValue] = useState(value === 0 ? '' : value.toString());
   const inputRef = useRef<HTMLInputElement>(null);
+  const isDark = theme === 'dark';
   
   useEffect(() => {
     if (document.activeElement !== inputRef.current) {
@@ -34,7 +36,7 @@ const StatInput: React.FC<StatInputProps> = ({ label, value, onChange, color = '
 
   return (
     <div className="flex-1 min-w-[55px]">
-      <label className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-1">{label}</label>
+      <label className={`block text-[9px] uppercase tracking-wider mb-1 font-semibold ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>{label}</label>
       <input
         ref={inputRef}
         type="text"
@@ -50,17 +52,22 @@ const StatInput: React.FC<StatInputProps> = ({ label, value, onChange, color = '
           onChange(numVal);
         }}
         placeholder="0"
-        className={`w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 text-center font-bold ${color} focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-xs placeholder-zinc-600`}
+        className={`w-full rounded px-1.5 py-1 text-center font-bold focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-xs ${
+          isDark 
+            ? `bg-zinc-800 border border-zinc-700 ${color || 'text-white'} placeholder-zinc-600`
+            : `bg-slate-100 border border-slate-300 ${color ? color.replace('400', '600') : 'text-slate-900'} placeholder-slate-400`
+        }`}
       />
     </div>
   );
 };
 
 // Score Input Component - allows 0 values properly
-const ScoreInput: React.FC<{ label: string; value: number; onChange: (val: number) => void; color?: string }> = ({ label, value, onChange, color = 'text-white' }) => {
+const ScoreInput: React.FC<{ label: string; value: number; onChange: (val: number) => void; color?: string; theme?: 'dark' | 'light' }> = ({ label, value, onChange, color, theme = 'dark' }) => {
   const [localValue, setLocalValue] = useState(value.toString());
   const inputRef = useRef<HTMLInputElement>(null);
   const [hasUserEdited, setHasUserEdited] = useState(false);
+  const isDark = theme === 'dark';
   
   useEffect(() => {
     // Only update from props if user hasn't edited or input not focused
@@ -71,7 +78,7 @@ const ScoreInput: React.FC<{ label: string; value: number; onChange: (val: numbe
 
   return (
     <div>
-      <label className="block text-xs font-medium text-zinc-400 mb-1">{label}</label>
+      <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>{label}</label>
       <input
         ref={inputRef}
         type="text"
@@ -98,7 +105,11 @@ const ScoreInput: React.FC<{ label: string; value: number; onChange: (val: numbe
           }
         }}
         placeholder="0"
-        className={`w-20 bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-center font-bold text-2xl ${color} focus:ring-2 focus:ring-orange-500 outline-none`}
+        className={`w-20 rounded px-3 py-2 text-center font-bold text-2xl focus:ring-2 focus:ring-orange-500 outline-none ${
+          isDark 
+            ? `bg-zinc-800 border border-zinc-700 ${color || 'text-white'}`
+            : `bg-slate-100 border border-slate-300 ${color ? color.replace('400', '600') : 'text-slate-900'}`
+        }`}
       />
     </div>
   );
@@ -159,25 +170,109 @@ const GameStatsEntry: React.FC = () => {
       setPlayers(playersData);
     });
 
-    // Load games for current season - no orderBy to avoid index requirement
-    const gamesQuery = query(
-      collection(db, 'teams', teamData.id, 'games'),
-      where('season', '==', currentYear)
-    );
+    // Load games from PROGRAM SEASON GAMES (single source of truth)
+    // If team has a programId, fetch from program games collection
+    const loadGames = async () => {
+      if (teamData?.programId) {
+        try {
+          // First, find the active season
+          const seasonsRef = collection(db, 'programs', teamData.programId, 'seasons');
+          const seasonsSnap = await getDocs(seasonsRef);
+          const seasons = seasonsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          const activeSeason = seasons.find((s: any) => s.status === 'active') ||
+                               seasons.find((s: any) => s.status !== 'completed') ||
+                               seasons[0];
+          
+          if (activeSeason) {
+            // Fetch games from program season
+            const gamesRef = collection(db, 'programs', teamData.programId, 'seasons', activeSeason.id, 'games');
+            const unsubGames = onSnapshot(gamesRef, (snapshot) => {
+              const gamesData: Game[] = [];
+              
+              snapshot.docs.forEach(d => {
+                const data = d.data();
+                
+                // Only include games where THIS team is playing
+                const isHome = data.homeTeamId === teamData.id;
+                const isAway = data.awayTeamId === teamData.id;
+                if (!isHome && !isAway) return;
+                
+                // Convert to Game format
+                const opponent = isHome ? data.awayTeamName : data.homeTeamName;
+                const teamScore = isHome ? (data.homeScore ?? 0) : (data.awayScore ?? 0);
+                const opponentScore = isHome ? (data.awayScore ?? 0) : (data.homeScore ?? 0);
+                
+                // Determine result
+                let result: 'W' | 'L' | 'T' | undefined;
+                if (data.status === 'completed') {
+                  if (teamScore > opponentScore) result = 'W';
+                  else if (teamScore < opponentScore) result = 'L';
+                  else result = 'T';
+                }
+                
+                gamesData.push({
+                  id: d.id,
+                  teamId: teamData.id,
+                  gameNumber: data.week || 0,
+                  date: data.weekDate || '',
+                  opponent: opponent || 'TBD',
+                  isHome,
+                  teamScore,
+                  opponentScore,
+                  result,
+                  location: data.location || '',
+                  notes: '',
+                  season: currentYear,
+                  status: data.status || 'scheduled',
+                  // Store original program game data for reference
+                  programGameId: d.id,
+                  homeTeamId: data.homeTeamId,
+                  awayTeamId: data.awayTeamId,
+                  homeScore: data.homeScore,
+                  awayScore: data.awayScore,
+                } as Game);
+              });
+              
+              // Sort by date descending
+              gamesData.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+              setGames(gamesData);
+              setLoading(false);
+            });
+            
+            return () => unsubGames();
+          } else {
+            setGames([]);
+            setLoading(false);
+          }
+        } catch (error) {
+          console.error('Error loading program games:', error);
+          setGames([]);
+          setLoading(false);
+        }
+      } else {
+        // Fallback: Load from team's own games collection (legacy)
+        const gamesQuery = query(
+          collection(db, 'teams', teamData.id, 'games'),
+          where('season', '==', currentYear)
+        );
+        
+        const unsubGames = onSnapshot(gamesQuery, (snapshot) => {
+          const gamesData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Game));
+          gamesData.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+          setGames(gamesData);
+          setLoading(false);
+        });
+
+        return () => unsubGames();
+      }
+    };
     
-    const unsubGames = onSnapshot(gamesQuery, (snapshot) => {
-      const gamesData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Game));
-      // Sort in JavaScript instead
-      gamesData.sort((a, b) => b.date.localeCompare(a.date));
-      setGames(gamesData);
-      setLoading(false);
-    });
+    loadGames();
 
     return () => {
       unsubPlayers();
-      unsubGames();
     };
-  }, [teamData?.id, currentYear]);
+  }, [teamData?.id, teamData?.programId, currentYear]);
 
   // Load player stats when a game is expanded
   useEffect(() => {
@@ -639,10 +734,14 @@ const GameStatsEntry: React.FC = () => {
 
   if (!teamData) {
     return (
-      <div className="bg-zinc-900 rounded-xl p-12 text-center border border-zinc-800">
-        <Trophy className="w-16 h-16 text-zinc-700 mx-auto mb-4" />
-        <h3 className="text-xl font-bold text-white mb-2">No Team Assigned</h3>
-        <p className="text-zinc-500">Please contact an admin to assign you to a team.</p>
+      <div className={`rounded-xl p-12 text-center border ${
+        theme === 'dark' 
+          ? 'bg-zinc-900 border-zinc-800' 
+          : 'bg-slate-50 border-slate-200'
+      }`}>
+        <Trophy className={`w-16 h-16 mx-auto mb-4 ${theme === 'dark' ? 'text-zinc-700' : 'text-slate-300'}`} />
+        <h3 className={`text-xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>No Team Assigned</h3>
+        <p className={theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}>Please contact an admin to assign you to a team.</p>
       </div>
     );
   }
@@ -654,8 +753,8 @@ const GameStatsEntry: React.FC = () => {
         <div className="flex items-center gap-3">
           <Trophy className="w-6 h-6 text-orange-500" />
           <div>
-            <h2 className="text-2xl font-bold text-white">Game Stats</h2>
-            <p className="text-sm text-zinc-500">{currentYear} Season • {seasonRecord.wins}-{seasonRecord.losses}{seasonRecord.ties > 0 ? `-${seasonRecord.ties}` : ''}</p>
+            <h2 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Game Stats</h2>
+            <p className={`text-sm ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>{currentYear} Season • {seasonRecord.wins}-{seasonRecord.losses}{seasonRecord.ties > 0 ? `-${seasonRecord.ties}` : ''}</p>
           </div>
         </div>
         
@@ -678,78 +777,106 @@ const GameStatsEntry: React.FC = () => {
 
       {/* New Game Form */}
       {showNewGameForm && (
-        <div className="bg-zinc-900 rounded-xl border border-zinc-700 p-6 space-y-4">
+        <div className={`rounded-xl border p-6 space-y-4 ${
+          theme === 'dark' 
+            ? 'bg-zinc-900 border-zinc-700' 
+            : 'bg-white border-slate-200 shadow-sm'
+        }`}>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-white">Add New Game</h3>
-            <button onClick={() => setShowNewGameForm(false)} className="text-zinc-500 hover:text-white">
+            <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Add New Game</h3>
+            <button onClick={() => setShowNewGameForm(false)} className={`${theme === 'dark' ? 'text-zinc-500 hover:text-white' : 'text-slate-400 hover:text-slate-900'}`}>
               <X className="w-5 h-5" />
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1">Date *</label>
+              <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-600'}`}>Date *</label>
               <input
                 type="date"
                 value={newGame.date || ''}
                 onChange={(e) => setNewGame({ ...newGame, date: e.target.value })}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white"
+                className={`w-full rounded-lg px-3 py-2 ${
+                  theme === 'dark' 
+                    ? 'bg-zinc-800 border border-zinc-700 text-white' 
+                    : 'bg-slate-50 border border-slate-300 text-slate-900'
+                }`}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1">Opponent *</label>
+              <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-600'}`}>Opponent *</label>
               <input
                 type="text"
                 placeholder="e.g., Tigers"
                 value={newGame.opponent || ''}
                 onChange={(e) => setNewGame({ ...newGame, opponent: e.target.value })}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white placeholder-zinc-500"
+                className={`w-full rounded-lg px-3 py-2 ${
+                  theme === 'dark' 
+                    ? 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500' 
+                    : 'bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-400'
+                }`}
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1">Home/Away</label>
+              <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-600'}`}>Home/Away</label>
               <select
                 value={newGame.isHome ? 'home' : 'away'}
                 onChange={(e) => setNewGame({ ...newGame, isHome: e.target.value === 'home' })}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white"
+                className={`w-full rounded-lg px-3 py-2 ${
+                  theme === 'dark' 
+                    ? 'bg-zinc-800 border border-zinc-700 text-white' 
+                    : 'bg-slate-50 border border-slate-300 text-slate-900'
+                }`}
               >
                 <option value="home">Home</option>
                 <option value="away">Away</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1">Our Score</label>
+              <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-600'}`}>Our Score</label>
               <input
                 type="number"
                 min="0"
                 value={newGame.teamScore || ''}
                 onChange={(e) => setNewGame({ ...newGame, teamScore: parseInt(e.target.value) || 0 })}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white"
+                className={`w-full rounded-lg px-3 py-2 ${
+                  theme === 'dark' 
+                    ? 'bg-zinc-800 border border-zinc-700 text-white' 
+                    : 'bg-slate-50 border border-slate-300 text-slate-900'
+                }`}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1">Opponent Score</label>
+              <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-600'}`}>Opponent Score</label>
               <input
                 type="number"
                 min="0"
                 value={newGame.opponentScore || ''}
                 onChange={(e) => setNewGame({ ...newGame, opponentScore: parseInt(e.target.value) || 0 })}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white"
+                className={`w-full rounded-lg px-3 py-2 ${
+                  theme === 'dark' 
+                    ? 'bg-zinc-800 border border-zinc-700 text-white' 
+                    : 'bg-slate-50 border border-slate-300 text-slate-900'
+                }`}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-1">Location (optional)</label>
+            <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-600'}`}>Location (optional)</label>
             <input
               type="text"
               placeholder="Stadium or field name"
               value={newGame.location || ''}
               onChange={(e) => setNewGame({ ...newGame, location: e.target.value })}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white placeholder-zinc-500"
+              className={`w-full rounded-lg px-3 py-2 ${
+                theme === 'dark' 
+                  ? 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500' 
+                  : 'bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-400'
+              }`}
             />
           </div>
 
@@ -757,7 +884,9 @@ const GameStatsEntry: React.FC = () => {
             <button
               onClick={handleAddGame}
               disabled={saving || !newGame.opponent || !newGame.date}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white py-2.5 rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+              className={`flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-2.5 rounded-lg font-bold transition-colors flex items-center justify-center gap-2 ${
+                theme === 'dark' ? 'disabled:bg-zinc-700 disabled:text-zinc-500' : 'disabled:bg-slate-200 disabled:text-slate-400'
+              }`}
             >
               {saving ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -770,7 +899,11 @@ const GameStatsEntry: React.FC = () => {
             </button>
             <button
               onClick={() => setShowNewGameForm(false)}
-              className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white py-2.5 rounded-lg font-bold transition-colors"
+              className={`flex-1 py-2.5 rounded-lg font-bold transition-colors ${
+                theme === 'dark' 
+                  ? 'bg-zinc-700 hover:bg-zinc-600 text-white' 
+                  : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+              }`}
             >
               Cancel
             </button>
@@ -798,29 +931,39 @@ const GameStatsEntry: React.FC = () => {
           {games.map((game) => {
             const isExpanded = expandedGameId === game.id;
             const hasChanges = hasUnsavedChanges(game.id);
+            const isCompleted = game.status === 'completed';
             const resultColor = game.result === 'W' ? 'text-emerald-400' : game.result === 'L' ? 'text-red-400' : 'text-yellow-400';
-            const resultBg = game.result === 'W' ? 'bg-emerald-500' : game.result === 'L' ? 'bg-red-500' : 'bg-yellow-500';
+            const resultBg = game.result === 'W' ? 'bg-emerald-500' : game.result === 'L' ? 'bg-red-500' : isCompleted ? 'bg-yellow-500' : 'bg-orange-500';
 
             return (
               <div 
                 key={game.id}
-                className={`bg-zinc-900 rounded-xl border ${hasChanges ? 'border-orange-500/50' : 'border-zinc-800'} overflow-hidden`}
+                className={`rounded-xl border overflow-hidden ${
+                  theme === 'dark' 
+                    ? `bg-zinc-900 ${hasChanges ? 'border-orange-500/50' : 'border-zinc-800'}` 
+                    : `bg-white ${hasChanges ? 'border-orange-400' : 'border-slate-200'} shadow-sm`
+                }`}
               >
-                {/* Game Header */}
+                {/* Game Header - Only allow expand on completed games */}
                 <div 
-                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-zinc-800/50 transition-colors"
-                  onClick={() => setExpandedGameId(isExpanded ? null : game.id)}
+                  className={`p-4 flex items-center justify-between transition-colors ${
+                    isCompleted 
+                      ? `cursor-pointer ${theme === 'dark' ? 'hover:bg-zinc-800/50' : 'hover:bg-slate-50'}` 
+                      : 'cursor-default opacity-80'
+                  }`}
+                  onClick={() => isCompleted && setExpandedGameId(isExpanded ? null : game.id)}
                 >
                   <div className="flex items-center gap-4">
                     <div className={`w-10 h-10 ${resultBg} rounded-lg flex items-center justify-center text-white font-black text-lg`}>
-                      {game.result}
+                      {isCompleted ? game.result : '⏳'}
                     </div>
                     <div>
-                      <h3 className="font-bold text-white flex items-center gap-2">
+                      <h3 className={`font-bold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                         {game.isHome ? 'vs' : '@'} {game.opponent}
                         {hasChanges && <span className="text-[10px] bg-orange-500 text-white px-1.5 py-0.5 rounded">Unsaved</span>}
+                        {!isCompleted && <span className="text-[10px] bg-slate-500 text-white px-1.5 py-0.5 rounded">Scheduled</span>}
                       </h3>
-                      <div className="flex items-center gap-2 text-sm text-zinc-500">
+                      <div className={`flex items-center gap-2 text-sm ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
                         <Calendar className="w-3 h-3" />
                         <span>{formatEventDate(game.date)}</span>
                         {game.location && (
@@ -836,35 +979,34 @@ const GameStatsEntry: React.FC = () => {
                   
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <p className={`text-2xl font-black ${resultColor}`}>
+                      <p className={`text-2xl font-black ${isCompleted ? resultColor : (theme === 'dark' ? 'text-zinc-500' : 'text-slate-400')}`}>
                         {game.teamScore} - {game.opponentScore}
                       </p>
-                      <p className="text-xs text-zinc-500">Game {game.gameNumber}</p>
+                      <p className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
+                        {isCompleted ? 'Game' : 'Scheduled'}
+                      </p>
                     </div>
                     
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setDeleteConfirm(game); }}
-                        className="p-2 text-zinc-500 hover:text-red-400 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                      {isExpanded ? (
-                        <ChevronUp className="w-5 h-5 text-zinc-500" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5 text-zinc-500" />
-                      )}
-                    </div>
+                    {/* Only show chevron for completed games */}
+                    {isCompleted && (
+                      <div className="flex items-center gap-2">
+                        {isExpanded ? (
+                          <ChevronUp className={`w-5 h-5 ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-400'}`} />
+                        ) : (
+                          <ChevronDown className={`w-5 h-5 ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-400'}`} />
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Expanded: Player Stats Entry */}
-                {isExpanded && (
-                  <div className="border-t border-zinc-800 p-4 space-y-4">
+                {/* Expanded: Player Stats Entry - Only for completed games */}
+                {isExpanded && isCompleted && (
+                  <div className={`border-t p-4 space-y-4 ${theme === 'dark' ? 'border-zinc-800' : 'border-slate-200'}`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Users className="w-5 h-5 text-orange-500" />
-                        <h4 className="font-bold text-white">Player Stats for this Game</h4>
+                        <h4 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Player Stats for this Game</h4>
                       </div>
                       <button
                         onClick={() => handleSaveGameStats(game)}
@@ -872,7 +1014,7 @@ const GameStatsEntry: React.FC = () => {
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold transition-all ${
                           hasChanges
                             ? 'bg-orange-600 hover:bg-orange-500 text-white'
-                            : 'bg-zinc-800 text-zinc-500'
+                            : theme === 'dark' ? 'bg-zinc-800 text-zinc-500' : 'bg-slate-200 text-slate-400'
                         } disabled:opacity-50`}
                       >
                         {saving ? (
@@ -891,25 +1033,31 @@ const GameStatsEntry: React.FC = () => {
                         const isPlayed = stats.played || false;
                         
                         return (
-                          <div key={player.id} className={`rounded-lg p-3 space-y-3 transition-colors ${isPlayed ? 'bg-emerald-500/10 border border-emerald-500/30' : 'bg-zinc-800/50'}`}>
+                          <div key={player.id} className={`rounded-lg p-3 space-y-3 transition-colors ${
+                            isPlayed 
+                              ? 'bg-emerald-500/10 border border-emerald-500/30' 
+                              : theme === 'dark' ? 'bg-zinc-800/50' : 'bg-slate-100'
+                          }`}>
                             {/* Player Header with Played Toggle */}
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3">
                                 {player.photoUrl ? (
                                   <img src={player.photoUrl} alt={player.name} className="w-8 h-8 rounded-full object-cover" />
                                 ) : (
-                                  <div className="w-8 h-8 bg-zinc-700 rounded-full flex items-center justify-center text-xs font-bold text-zinc-400">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                                    theme === 'dark' ? 'bg-zinc-700 text-zinc-400' : 'bg-slate-300 text-slate-600'
+                                  }`}>
                                     {player.name.charAt(0)}
                                   </div>
                                 )}
                                 <div>
-                                  <p className="font-bold text-white text-sm">{player.name}</p>
+                                  <p className={`font-bold text-sm ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{player.name}</p>
                                   {player.username && (
                                     <p className="text-[10px] text-purple-400 flex items-center gap-0.5">
                                       <AtSign className="w-2.5 h-2.5" />{player.username}
                                     </p>
                                   )}
-                                  <p className="text-[10px] text-zinc-500">#{player.number || '?'} • {player.position || 'N/A'}</p>
+                                  <p className={`text-[10px] ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>#{player.number || '?'} • {player.position || 'N/A'}</p>
                                 </div>
                               </div>
                               
@@ -919,7 +1067,7 @@ const GameStatsEntry: React.FC = () => {
                                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${
                                   isPlayed 
                                     ? 'bg-emerald-600 text-white' 
-                                    : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'
+                                    : theme === 'dark' ? 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
                                 }`}
                               >
                                 <UserCheck className="w-4 h-4" />
@@ -934,17 +1082,17 @@ const GameStatsEntry: React.FC = () => {
                                 <div>
                                   <div className="flex items-center gap-1 mb-2">
                                     <Sword className="w-3 h-3 text-orange-500" />
-                                    <span className="text-[9px] font-bold uppercase text-zinc-500">Offense</span>
+                                    <span className={`text-[9px] font-bold uppercase ${theme === 'dark' ? 'text-zinc-300' : 'text-slate-600'}`}>Offense</span>
                                   </div>
                                   <div className="grid grid-cols-4 sm:grid-cols-8 gap-1">
-                                    <StatInput label="TD" value={stats.tds || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'tds', v)} color="text-orange-400" />
-                                    <StatInput label="RuYd" value={stats.rushYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'rushYards', v)} color="text-cyan-400" />
-                                    <StatInput label="RuAtt" value={stats.rushAttempts || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'rushAttempts', v)} />
-                                    <StatInput label="PaYd" value={stats.passYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'passYards', v)} color="text-cyan-400" />
-                                    <StatInput label="PaAtt" value={stats.passAttempts || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'passAttempts', v)} />
-                                    <StatInput label="Comp" value={stats.passCompletions || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'passCompletions', v)} />
-                                    <StatInput label="Rec" value={stats.rec || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'rec', v)} />
-                                    <StatInput label="ReYd" value={stats.recYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'recYards', v)} color="text-cyan-400" />
+                                    <StatInput label="TD" value={stats.tds || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'tds', v)} color="text-orange-400" theme={theme} />
+                                    <StatInput label="RuYd" value={stats.rushYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'rushYards', v)} color="text-cyan-400" theme={theme} />
+                                    <StatInput label="RuAtt" value={stats.rushAttempts || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'rushAttempts', v)} theme={theme} />
+                                    <StatInput label="PaYd" value={stats.passYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'passYards', v)} color="text-cyan-400" theme={theme} />
+                                    <StatInput label="PaAtt" value={stats.passAttempts || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'passAttempts', v)} theme={theme} />
+                                    <StatInput label="Comp" value={stats.passCompletions || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'passCompletions', v)} theme={theme} />
+                                    <StatInput label="Rec" value={stats.rec || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'rec', v)} theme={theme} />
+                                    <StatInput label="ReYd" value={stats.recYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'recYards', v)} color="text-cyan-400" theme={theme} />
                                   </div>
                                 </div>
 
@@ -952,18 +1100,18 @@ const GameStatsEntry: React.FC = () => {
                                 <div>
                                   <div className="flex items-center gap-1 mb-2">
                                     <Shield className="w-3 h-3 text-emerald-500" />
-                                    <span className="text-[9px] font-bold uppercase text-zinc-500">Defense</span>
+                                    <span className={`text-[9px] font-bold uppercase ${theme === 'dark' ? 'text-zinc-300' : 'text-slate-600'}`}>Defense</span>
                                   </div>
                                   <div className="grid grid-cols-3 sm:grid-cols-9 gap-1">
-                                    <StatInput label="Tkl" value={stats.tackles || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'tackles', v)} color="text-emerald-400" />
-                                    <StatInput label="Solo" value={stats.soloTackles || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'soloTackles', v)} />
-                                    <StatInput label="Asst" value={stats.assistTackles || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'assistTackles', v)} />
-                                    <StatInput label="Sack" value={stats.sacks || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'sacks', v)} color="text-purple-400" />
-                                    <StatInput label="INT" value={stats.int || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'int', v)} color="text-red-400" />
-                                    <StatInput label="IYd" value={stats.intYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'intYards', v)} />
-                                    <StatInput label="FF" value={stats.ff || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'ff', v)} color="text-orange-400" />
-                                    <StatInput label="FR" value={stats.fr || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'fr', v)} color="text-orange-400" />
-                                    <StatInput label="PD" value={stats.passDefended || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'passDefended', v)} />
+                                    <StatInput label="Tkl" value={stats.tackles || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'tackles', v)} color="text-emerald-400" theme={theme} />
+                                    <StatInput label="Solo" value={stats.soloTackles || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'soloTackles', v)} theme={theme} />
+                                    <StatInput label="Asst" value={stats.assistTackles || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'assistTackles', v)} theme={theme} />
+                                    <StatInput label="Sack" value={stats.sacks || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'sacks', v)} color="text-purple-400" theme={theme} />
+                                    <StatInput label="INT" value={stats.int || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'int', v)} color="text-red-400" theme={theme} />
+                                    <StatInput label="IYd" value={stats.intYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'intYards', v)} theme={theme} />
+                                    <StatInput label="FF" value={stats.ff || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'ff', v)} color="text-orange-400" theme={theme} />
+                                    <StatInput label="FR" value={stats.fr || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'fr', v)} color="text-orange-400" theme={theme} />
+                                    <StatInput label="PD" value={stats.passDefended || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'passDefended', v)} theme={theme} />
                                   </div>
                                 </div>
 
@@ -972,22 +1120,22 @@ const GameStatsEntry: React.FC = () => {
                                   <div>
                                     <div className="flex items-center gap-1 mb-2">
                                       <Zap className="w-3 h-3 text-yellow-500" />
-                                      <span className="text-[9px] font-bold uppercase text-zinc-500">Special Teams</span>
+                                      <span className={`text-[9px] font-bold uppercase ${theme === 'dark' ? 'text-zinc-300' : 'text-slate-600'}`}>Special Teams</span>
                                     </div>
                                     <div className="grid grid-cols-4 gap-1">
-                                      <StatInput label="KRYd" value={stats.kickReturnYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'kickReturnYards', v)} color="text-yellow-400" />
-                                      <StatInput label="KRTD" value={stats.kickReturnTds || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'kickReturnTds', v)} color="text-orange-400" />
-                                      <StatInput label="PRYd" value={stats.puntReturnYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'puntReturnYards', v)} color="text-yellow-400" />
-                                      <StatInput label="PRTD" value={stats.puntReturnTds || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'puntReturnTds', v)} color="text-orange-400" />
+                                      <StatInput label="KRYd" value={stats.kickReturnYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'kickReturnYards', v)} color="text-yellow-400" theme={theme} />
+                                      <StatInput label="KRTD" value={stats.kickReturnTds || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'kickReturnTds', v)} color="text-orange-400" theme={theme} />
+                                      <StatInput label="PRYd" value={stats.puntReturnYards || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'puntReturnYards', v)} color="text-yellow-400" theme={theme} />
+                                      <StatInput label="PRTD" value={stats.puntReturnTds || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'puntReturnTds', v)} color="text-orange-400" theme={theme} />
                                     </div>
                                   </div>
                                   <div>
                                     <div className="flex items-center gap-1 mb-2">
                                       <Star className="w-3 h-3 text-pink-500" />
-                                      <span className="text-[9px] font-bold uppercase text-zinc-500">Sportsmanship</span>
+                                      <span className={`text-[9px] font-bold uppercase ${theme === 'dark' ? 'text-zinc-300' : 'text-slate-600'}`}>Sportsmanship</span>
                                     </div>
                                     <div className="grid grid-cols-1 gap-1">
-                                      <StatInput label="SPTS" value={stats.spts || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'spts', v)} color="text-pink-400" />
+                                      <StatInput label="SPTS" value={stats.spts || 0} onChange={(v) => handlePlayerStatChange(game.id, player.id, 'spts', v)} color="text-pink-400" theme={theme} />
                                     </div>
                                   </div>
                                 </div>
@@ -1008,27 +1156,35 @@ const GameStatsEntry: React.FC = () => {
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-zinc-900 rounded-xl border border-zinc-700 shadow-2xl w-full max-w-md p-6">
+          <div className={`rounded-xl border shadow-2xl w-full max-w-md p-6 ${
+            theme === 'dark' 
+              ? 'bg-zinc-900 border-zinc-700' 
+              : 'bg-white border-slate-200'
+          }`}>
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center">
                 <Trash2 className="w-5 h-5 text-red-500" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">Delete Game</h3>
-                <p className="text-sm text-zinc-400">This will also delete all player stats for this game</p>
+                <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Delete Game</h3>
+                <p className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-500'}`}>This will also delete all player stats for this game</p>
               </div>
             </div>
             
-            <div className="bg-zinc-800 rounded-lg p-4 mb-4">
-              <p className="font-bold text-white">{deleteConfirm.isHome ? 'vs' : '@'} {deleteConfirm.opponent}</p>
-              <p className="text-sm text-zinc-400">{formatEventDate(deleteConfirm.date)} • {deleteConfirm.teamScore}-{deleteConfirm.opponentScore}</p>
+            <div className={`rounded-lg p-4 mb-4 ${theme === 'dark' ? 'bg-zinc-800' : 'bg-slate-100'}`}>
+              <p className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{deleteConfirm.isHome ? 'vs' : '@'} {deleteConfirm.opponent}</p>
+              <p className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-500'}`}>{formatEventDate(deleteConfirm.date)} • {deleteConfirm.teamScore}-{deleteConfirm.opponentScore}</p>
             </div>
             
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteConfirm(null)}
                 disabled={deleting}
-                className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-medium transition-colors"
+                className={`flex-1 py-2.5 rounded-lg font-medium transition-colors ${
+                  theme === 'dark' 
+                    ? 'bg-zinc-800 hover:bg-zinc-700 text-white' 
+                    : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                }`}
               >
                 Cancel
               </button>
@@ -1054,18 +1210,20 @@ const GameStatsEntry: React.FC = () => {
       {/* Unsaved Changes Warning Modal */}
       {showUnsavedWarning && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-zinc-900 rounded-xl border border-orange-500/50 shadow-2xl w-full max-w-md p-6">
+          <div className={`rounded-xl border border-orange-500/50 shadow-2xl w-full max-w-md p-6 ${
+            theme === 'dark' ? 'bg-zinc-900' : 'bg-white'
+          }`}>
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-orange-500/10 rounded-full flex items-center justify-center">
                 <AlertTriangle className="w-5 h-5 text-orange-500" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">Unsaved Changes</h3>
-                <p className="text-sm text-zinc-400">You have unsaved stat changes</p>
+                <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Unsaved Changes</h3>
+                <p className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-500'}`}>You have unsaved stat changes</p>
               </div>
             </div>
             
-            <p className="text-zinc-300 mb-6">
+            <p className={`mb-6 ${theme === 'dark' ? 'text-zinc-300' : 'text-slate-600'}`}>
               Are you sure you want to leave? Your changes will be lost if you don't save them.
             </p>
             
@@ -1087,14 +1245,20 @@ const GameStatsEntry: React.FC = () => {
               <button
                 onClick={handleDiscardAndProceed}
                 disabled={saving}
-                className="w-full py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-medium transition-colors"
+                className={`w-full py-2.5 rounded-lg font-medium transition-colors ${
+                  theme === 'dark' 
+                    ? 'bg-zinc-800 hover:bg-zinc-700 text-white' 
+                    : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                }`}
               >
                 Discard Changes
               </button>
               <button
                 onClick={() => { setShowUnsavedWarning(false); setPendingAction(null); }}
                 disabled={saving}
-                className="w-full py-2.5 text-zinc-400 hover:text-white transition-colors"
+                className={`w-full py-2.5 transition-colors ${
+                  theme === 'dark' ? 'text-zinc-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
+                }`}
               >
                 Cancel
               </button>

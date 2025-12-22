@@ -66,17 +66,23 @@ const isGameLocked = (game: Game): boolean => {
     return true;
   }
   
+  // Parse date as local time (avoids UTC timezone shift)
+  const parseLocalDateForLock = (dateStr: string): Date => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+  
   // Game start time has passed
   if (game.weekDate && game.time) {
     const [hours, minutes] = game.time.split(':').map(Number);
-    const gameDateTime = new Date(game.weekDate);
+    const gameDateTime = parseLocalDateForLock(game.weekDate);
     gameDateTime.setHours(hours || 0, minutes || 0, 0, 0);
     if (gameDateTime <= new Date()) {
       return true;
     }
   } else if (game.weekDate) {
     // No time set, check if date has passed
-    const gameDate = new Date(game.weekDate);
+    const gameDate = parseLocalDateForLock(game.weekDate);
     gameDate.setHours(23, 59, 59, 999); // End of day
     if (gameDate < new Date()) {
       return true;
@@ -464,52 +470,74 @@ export default function ScheduleBuilder() {
 
     setSaving(true);
     try {
-      const batch = writeBatch(db);
       const gamesRef = collection(db, 'programs', programData.id, 'seasons', seasonId, 'games');
       const byesRef = collection(db, 'programs', programData.id, 'seasons', seasonId, 'byes');
 
-      // Delete all existing games and byes first
-      const existingGames = await getDocs(gamesRef);
-      existingGames.docs.forEach(doc => batch.delete(doc.ref));
+      // SINGLE SOURCE OF TRUTH ARCHITECTURE:
+      // All games live in programs/{programId}/seasons/{seasonId}/games
+      // NO syncing to events collection - teams read directly from here
+
+      // Step 1: Collect existing game data (scores, status) to preserve
+      const existingGamesSnap = await getDocs(gamesRef);
+      const existingGamesMap = new Map<string, any>();
+      existingGamesSnap.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        // Key by homeTeamId-awayTeamId-week for matching
+        const key = `${data.homeTeamId}-${data.awayTeamId}-${data.week}`;
+        existingGamesMap.set(key, {
+          id: docSnap.id,
+          homeScore: data.homeScore,
+          awayScore: data.awayScore,
+          status: data.status,
+          stats: data.stats, // Preserve any stats that were added
+        });
+      });
+      
+      console.log('[ScheduleBuilder] Preserved data from', existingGamesMap.size, 'existing games');
+
+      // Step 2: Delete existing games and byes
+      const batch = writeBatch(db);
+      existingGamesSnap.docs.forEach(docSnap => batch.delete(docSnap.ref));
       
       const existingByes = await getDocs(byesRef);
-      existingByes.docs.forEach(doc => batch.delete(doc.ref));
+      existingByes.docs.forEach(docSnap => batch.delete(docSnap.ref));
 
       await batch.commit();
 
-      // Delete existing events for this season from the events collection
-      const existingEventsQuery = query(
-        collection(db, 'events'),
-        where('seasonId', '==', seasonId)
-      );
-      const existingEvents = await getDocs(existingEventsQuery);
-      const eventBatch = writeBatch(db);
-      existingEvents.docs.forEach(doc => eventBatch.delete(doc.ref));
-      await eventBatch.commit();
-
-      // Add all games
+      // Step 3: Add all games (with preserved scores/status from existing games)
       for (const game of games) {
         const { isNew, id, ...gameData } = game;
-        const gameRef = await addDoc(gamesRef, {
+        
+        // Check if this game existed before (same matchup, same week)
+        const matchKey = `${game.homeTeamId}-${game.awayTeamId}-${game.week}`;
+        const existingData = existingGamesMap.get(matchKey);
+        
+        // Build game document - preserving scores if game was played
+        const gameDoc: any = {
           ...gameData,
+          // Preserve existing scores/status if game was played, otherwise default
+          homeScore: existingData?.homeScore ?? 0,
+          awayScore: existingData?.awayScore ?? 0,
+          status: existingData?.status || 'scheduled',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
-        });
-
-        // Sync to team events (only for internal teams, not 'external')
-        await syncGameToTeamEvents(game, gameRef.id);
+        };
+        
+        // Preserve stats if they exist
+        if (existingData?.stats) {
+          gameDoc.stats = existingData.stats;
+        }
+        
+        await addDoc(gamesRef, gameDoc);
       }
 
-      // Add all byes and create bye events
+      // Step 4: Add all byes (simple, no scores to preserve)
       for (const bye of byes) {
         const { isNew, id, ...byeData } = bye;
         await addDoc(byesRef, {
           ...byeData,
           createdAt: serverTimestamp()
         });
-
-        // Create bye event for the team
-        await syncByeToTeamEvents(bye);
       }
 
       // Mark all as saved
@@ -535,78 +563,8 @@ export default function ScheduleBuilder() {
     }
   };
 
-  const syncGameToTeamEvents = async (game: Game, gameId: string) => {
-    // Parse date as local time
-    const eventDate = parseLocalDate(game.weekDate);
-
-    // Create event for home team (only if internal team)
-    if (game.homeTeamId !== 'external') {
-      const homeEventData = {
-        type: 'game',
-        title: `vs ${game.awayTeamName}`,
-        description: `Home game against ${game.awayTeamName}`,
-        eventStartDate: Timestamp.fromDate(eventDate),
-        eventStartTime: game.time,
-        location: { name: game.location },
-        teamId: game.homeTeamId,
-        programGameId: gameId,
-        programId: programData?.id,
-        seasonId: seasonId,
-        opponent: game.awayTeamName,
-        isHome: true,
-        isBye: false,
-        week: game.week,
-        status: 'active',
-        createdAt: serverTimestamp()
-      };
-      await addDoc(collection(db, 'events'), homeEventData);
-    }
-
-    // Create event for away team (only if internal team)
-    if (game.awayTeamId !== 'external') {
-      const awayEventData = {
-        type: 'game',
-        title: `@ ${game.homeTeamName}`,
-        description: `Away game at ${game.homeTeamName}`,
-        eventStartDate: Timestamp.fromDate(eventDate),
-        eventStartTime: game.time,
-        location: { name: game.location },
-        teamId: game.awayTeamId,
-        programGameId: gameId,
-        programId: programData?.id,
-        seasonId: seasonId,
-        opponent: game.homeTeamName,
-        isHome: false,
-        isBye: false,
-        week: game.week,
-        status: 'active',
-        createdAt: serverTimestamp()
-      };
-      await addDoc(collection(db, 'events'), awayEventData);
-    }
-  };
-
-  const syncByeToTeamEvents = async (bye: ByeWeek) => {
-    // Parse date as local time
-    const eventDate = parseLocalDate(bye.weekDate);
-
-    const byeEventData = {
-      type: 'game', // Keep as 'game' type so it shows in schedule
-      title: 'BYE WEEK',
-      description: `Week ${bye.week} - No game scheduled`,
-      eventStartDate: Timestamp.fromDate(eventDate),
-      eventStartTime: '00:00',
-      location: { name: 'N/A' },
-      teamId: bye.teamId,
-      programId: programData?.id,
-      seasonId: seasonId,
-      isBye: true,
-      week: bye.week,
-      status: 'active',
-      createdAt: serverTimestamp()
-    };
-    await addDoc(collection(db, 'events'), byeEventData);
-  };
+  // REMOVED: syncGameToTeamEvents - no longer needed with single-source architecture
+  // REMOVED: syncByeToTeamEvents - no longer needed with single-source architecture
 
   // Get available opponents for a team (same age group, not already scheduled this week)
   const getAvailableOpponents = (teamId: string, ageGroup: string) => {

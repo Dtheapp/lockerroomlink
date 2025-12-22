@@ -12,6 +12,7 @@ interface LiveStreamViewerProps {
   onClose: () => void;
   isCoach?: boolean;
   onStreamEnded?: (stream: LiveStream) => void;
+  embedded?: boolean; // If true, shows minimal UI for inline embedding
 }
 
 const LiveStreamViewer: React.FC<LiveStreamViewerProps> = ({ 
@@ -20,7 +21,8 @@ const LiveStreamViewer: React.FC<LiveStreamViewerProps> = ({
   teamName, 
   onClose,
   isCoach = false,
-  onStreamEnded
+  onStreamEnded,
+  embedded = false
 }) => {
   const { user } = useAuth();
   const [selectedStreamIndex, setSelectedStreamIndex] = useState(0);
@@ -98,6 +100,26 @@ const LiveStreamViewer: React.FC<LiveStreamViewerProps> = ({
       </div>
     );
   };
+
+  // Embedded mode - just render the video content inline
+  if (embedded) {
+    if (!selectedStream) {
+      return (
+        <div className="w-full h-full flex items-center justify-center bg-zinc-900 rounded-xl">
+          <div className="text-center text-zinc-400">
+            <Radio className="w-8 h-8 mx-auto mb-2 animate-pulse text-red-500" />
+            <p>Loading stream...</p>
+          </div>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="w-full h-full">
+        {renderYouTubeEmbed(selectedStream, 'full')}
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black flex flex-col z-50">

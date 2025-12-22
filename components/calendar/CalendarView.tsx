@@ -14,7 +14,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { db } from '../../services/firebase';
-import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, Timestamp, getDocs } from 'firebase/firestore';
 import {
   ChevronLeft,
   ChevronRight,
@@ -66,7 +66,10 @@ interface CalendarEvent {
 
 interface CalendarViewProps {
   teamId: string;
+  programId?: string; // Program ID for fetching games from commissioner schedule
+  seasonId?: string; // Season ID for fetching games
   onEventClick?: (eventId: string) => void;
+  onGameClick?: (game: CalendarEvent) => void; // Separate handler for program games
   onCreateEvent?: (date?: Date) => void;
   onEditEvent?: (eventId: string) => void;
   onDeleteEvent?: (eventId: string) => void;
@@ -207,7 +210,13 @@ const isEventPast = (event: CalendarEvent): boolean => {
 };
 
 // Helper: Get game result display string
+// Only show scores if game has started (status is 'live' or 'completed')
 const getGameResultDisplay = (event: CalendarEvent): { text: string; color: string; bgColor: string } | null => {
+  // Don't show scores for scheduled games that haven't started
+  if (event.status === 'scheduled' || !event.status) {
+    return null;
+  }
+  
   // Check if we have scores
   const teamScore = event.teamScore ?? event.homeScore;
   const oppScore = event.opponentScore ?? event.awayScore;
@@ -248,7 +257,10 @@ const getEventDurationHours = (event: CalendarEvent): number => {
 
 const CalendarView: React.FC<CalendarViewProps> = ({
   teamId,
+  programId,
+  seasonId,
   onEventClick,
+  onGameClick,
   onCreateEvent,
   onEditEvent,
   onDeleteEvent,
@@ -262,11 +274,33 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [showDayPanel, setShowDayPanel] = useState(false);
+  
+  // State for showing game details modal (for program games)
+  const [selectedGame, setSelectedGame] = useState<CalendarEvent | null>(null);
 
   // Get sport-specific game icon
   const gameIcon = SPORT_ICONS[sport?.toLowerCase()] || SPORT_ICONS.default;
 
-  // Subscribe to team events
+  // State for program games (from commissioner schedule)
+  const [programGames, setProgramGames] = useState<CalendarEvent[]>([]);
+  
+  // Handle event/game click - route to appropriate handler
+  const handleEventClick = (event: CalendarEvent) => {
+    // If it's a program game (from commissioner schedule), show modal instead of navigating
+    if (event.source === 'commissioner' || event.programGameId) {
+      if (onGameClick) {
+        onGameClick(event);
+      } else {
+        // Default: show inline game modal
+        setSelectedGame(event);
+      }
+    } else {
+      // Regular event - use the event click handler
+      onEventClick?.(event.id);
+    }
+  };
+
+  // Subscribe to team events (practices, fundraisers, etc.)
   useEffect(() => {
     if (!teamId) return;
 
@@ -279,40 +313,47 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const eventsData = snapshot.docs.map(doc => {
-        const data = doc.data();
+      const eventsData = snapshot.docs
+        .filter(doc => {
+          // Exclude game-type events - games come from program collection
+          const data = doc.data();
+          const type = (data.type || data.eventType || '').toLowerCase();
+          return type !== 'game';
+        })
+        .map(doc => {
+          const data = doc.data();
         
-        // Extract time from eventStartDate Timestamp if no separate time field
-        let eventStartTime = data.eventStartTime || data.time || data.startTime || '';
-        let eventEndTime = data.eventEndTime || data.endTime || '';
+          // Extract time from eventStartDate Timestamp if no separate time field
+          let eventStartTime = data.eventStartTime || data.time || data.startTime || '';
+          let eventEndTime = data.eventEndTime || data.endTime || '';
         
-        // If no separate time field, extract from Timestamp
-        if (!eventStartTime && data.eventStartDate) {
-          const startDate = data.eventStartDate.toDate ? data.eventStartDate.toDate() : new Date(data.eventStartDate);
-          const hours = startDate.getHours();
-          const minutes = startDate.getMinutes();
-          // Only set time if it's not midnight (0:00 likely means no time was set)
-          if (hours !== 0 || minutes !== 0) {
-            eventStartTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+          // If no separate time field, extract from Timestamp
+          if (!eventStartTime && data.eventStartDate) {
+            const startDate = data.eventStartDate.toDate ? data.eventStartDate.toDate() : new Date(data.eventStartDate);
+            const hours = startDate.getHours();
+            const minutes = startDate.getMinutes();
+            // Only set time if it's not midnight (0:00 likely means no time was set)
+            if (hours !== 0 || minutes !== 0) {
+              eventStartTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            }
           }
-        }
         
-        if (!eventEndTime && data.eventEndDate) {
-          const endDate = data.eventEndDate.toDate ? data.eventEndDate.toDate() : new Date(data.eventEndDate);
-          const hours = endDate.getHours();
-          const minutes = endDate.getMinutes();
-          if (hours !== 0 || minutes !== 0) {
-            eventEndTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+          if (!eventEndTime && data.eventEndDate) {
+            const endDate = data.eventEndDate.toDate ? data.eventEndDate.toDate() : new Date(data.eventEndDate);
+            const hours = endDate.getHours();
+            const minutes = endDate.getMinutes();
+            if (hours !== 0 || minutes !== 0) {
+              eventEndTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            }
           }
-        }
         
-        return {
-          id: doc.id,
-          ...data,
-          eventStartTime,
-          eventEndTime,
-        };
-      }) as CalendarEvent[];
+          return {
+            id: doc.id,
+            ...data,
+            eventStartTime,
+            eventEndTime,
+          };
+        }) as CalendarEvent[];
       setEvents(eventsData);
       setLoading(false);
     }, (error) => {
@@ -322,6 +363,126 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
     return () => unsubscribe();
   }, [teamId]);
+
+  // Fetch games from program schedule (single source of truth)
+  // Note: We find the active season from the program if seasonId is not provided
+  useEffect(() => {
+    if (!programId || !teamId) {
+      console.log('[CalendarView] Missing programId or teamId:', { programId, teamId });
+      setProgramGames([]);
+      return;
+    }
+
+    const fetchProgramGames = async () => {
+      try {
+        // If no seasonId provided, fetch seasons and find the active one
+        let activeSeasonId = seasonId;
+        
+        if (!activeSeasonId) {
+          console.log('[CalendarView] No seasonId provided, fetching seasons from program:', programId);
+          const seasonsRef = collection(db, 'programs', programId, 'seasons');
+          const seasonsSnap = await getDocs(seasonsRef);
+          
+          // Find active season (same logic as Dashboard)
+          const seasons = seasonsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          const activeSeason = seasons.find((s: any) => s.status === 'active') ||
+                               seasons.find((s: any) => s.status !== 'completed') ||
+                               seasons[0];
+          
+          if (!activeSeason) {
+            console.log('[CalendarView] No active season found in program');
+            setProgramGames([]);
+            return;
+          }
+          
+          activeSeasonId = activeSeason.id;
+          console.log('[CalendarView] Found active season:', activeSeasonId);
+        }
+        
+        console.log('[CalendarView] Fetching games from:', `programs/${programId}/seasons/${activeSeasonId}/games`);
+        const gamesRef = collection(db, 'programs', programId, 'seasons', activeSeasonId, 'games');
+        const gamesSnap = await getDocs(gamesRef);
+        
+        console.log('[CalendarView] Found', gamesSnap.docs.length, 'total games in collection');
+        
+        const games: CalendarEvent[] = [];
+        gamesSnap.docs.forEach(doc => {
+          const data = doc.data();
+          
+          // Only include games where this team is playing (home or away)
+          const isHome = data.homeTeamId === teamId;
+          const isAway = data.awayTeamId === teamId;
+          if (!isHome && !isAway) return;
+          
+          // Parse game date - handle various formats
+          // Field is 'weekDate' (from commissioner schedule), fallback to 'date'
+          let eventStartDate: Timestamp | null = null;
+          const dateValue = data.weekDate || data.date;
+          
+          if (dateValue) {
+            if (dateValue.toDate) {
+              // It's already a Timestamp
+              eventStartDate = dateValue;
+            } else if (typeof dateValue === 'string') {
+              // Parse YYYY-MM-DD format
+              const [year, month, day] = dateValue.split('-').map(Number);
+              if (year && month && day) {
+                const dateObj = new Date(year, month - 1, day);
+                eventStartDate = Timestamp.fromDate(dateObj);
+              }
+            } else if (dateValue instanceof Date) {
+              eventStartDate = Timestamp.fromDate(dateValue);
+            }
+          }
+          
+          if (!eventStartDate) {
+            console.log('[CalendarView] Skipping game without valid date:', doc.id, data);
+            return; // Skip if no valid date
+          }
+          
+          // Determine opponent name
+          const opponent = isHome ? data.awayTeamName : data.homeTeamName;
+          
+          games.push({
+            id: doc.id,
+            type: 'game' as EventType,
+            title: data.isBye ? 'BYE WEEK' : `vs ${opponent || 'TBD'}`,
+            eventStartDate,
+            eventStartTime: data.time || '',
+            location: data.location ? { name: data.location } : undefined,
+            teamId,
+            status: data.status || 'scheduled',
+            opponent,
+            isHome,
+            isBye: data.isBye || false,
+            homeScore: data.homeScore,
+            awayScore: data.awayScore,
+            teamScore: isHome ? data.homeScore : data.awayScore,
+            opponentScore: isHome ? data.awayScore : data.homeScore,
+            source: 'commissioner',
+            programGameId: doc.id,
+          });
+        });
+        
+        console.log('[CalendarView] Loaded', games.length, 'games for team', teamId);
+        setProgramGames(games);
+      } catch (error) {
+        console.error('Error fetching program games:', error);
+        setProgramGames([]);
+      }
+    };
+
+    fetchProgramGames();
+  }, [programId, seasonId, teamId]);
+
+  // Combine events and program games
+  const allEvents = useMemo(() => {
+    return [...events, ...programGames].sort((a, b) => {
+      const dateA = getDateFromTimestamp(a.eventStartDate);
+      const dateB = getDateFromTimestamp(b.eventStartDate);
+      return dateA.getTime() - dateB.getTime();
+    });
+  }, [events, programGames]);
 
   // Navigation - view-mode aware
   const goToPrevious = () => {
@@ -421,7 +582,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         date,
         isCurrentMonth: false,
         isToday: isSameDay(date, today),
-        events: events.filter(e => isSameDay(getDateFromTimestamp(e.eventStartDate), date))
+        events: allEvents.filter(e => isSameDay(getDateFromTimestamp(e.eventStartDate), date))
       });
     }
 
@@ -432,7 +593,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         date,
         isCurrentMonth: true,
         isToday: isSameDay(date, today),
-        events: events.filter(e => isSameDay(getDateFromTimestamp(e.eventStartDate), date))
+        events: allEvents.filter(e => isSameDay(getDateFromTimestamp(e.eventStartDate), date))
       });
     }
 
@@ -446,23 +607,23 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         date,
         isCurrentMonth: false,
         isToday: isSameDay(date, today),
-        events: events.filter(e => isSameDay(getDateFromTimestamp(e.eventStartDate), date))
+        events: allEvents.filter(e => isSameDay(getDateFromTimestamp(e.eventStartDate), date))
       });
     }
 
     return days;
-  }, [currentDate, events]);
+  }, [currentDate, allEvents]);
 
   // Get events for selected day
   const selectedDayEvents = useMemo(() => {
     if (!selectedDay) return [];
-    return events.filter(e => isSameDay(getDateFromTimestamp(e.eventStartDate), selectedDay))
+    return allEvents.filter(e => isSameDay(getDateFromTimestamp(e.eventStartDate), selectedDay))
       .sort((a, b) => {
         const timeA = a.eventStartTime || '00:00';
         const timeB = b.eventStartTime || '00:00';
         return timeA.localeCompare(timeB);
       });
-  }, [selectedDay, events]);
+  }, [selectedDay, allEvents]);
 
   // Handle day click
   const handleDayClick = (date: Date) => {
@@ -679,15 +840,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                     ${importanceStyle}
                   `}
                 >
-                  {/* Day number */}
+                  {/* Day number - Only TODAY gets the filled circle indicator */}
                   <div className={`
                     text-[10px] sm:text-sm font-medium mb-0.5 sm:mb-1 
                     ${!day.isCurrentMonth ? (theme === 'dark' ? 'text-gray-600' : 'text-gray-400') : ''}
                     ${day.isToday 
                       ? 'w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-purple-500 text-white flex items-center justify-center text-[9px] sm:text-sm' 
-                      : hasGame && day.isCurrentMonth
-                        ? 'w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-orange-500 text-white flex items-center justify-center text-[9px] sm:text-sm'
-                        : theme === 'dark' ? 'text-white' : 'text-gray-900'
+                      : theme === 'dark' ? 'text-white' : 'text-gray-900'
                     }
                   `}>
                     {day.date.getDate()}
@@ -705,7 +864,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                             className={`w-2 h-2 rounded-full ${colors.dot}`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              onEventClick?.(event.id);
+                              handleEventClick(event);
                             }}
                           />
                         );
@@ -738,7 +897,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                           title={`${event.title}${event.eventStartTime ? ` @ ${formatTime12Hour(event.eventStartTime)}` : ''}`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            onEventClick?.(event.id);
+                            handleEventClick(event);
                           }}
                         >
                           {/* Icon */}
@@ -786,9 +945,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       {viewMode === 'week' && (
         <WeekView 
           currentDate={currentDate} 
-          events={events} 
+          events={allEvents} 
           theme={theme}
-          onEventClick={onEventClick}
+          onEventClick={handleEventClick}
           onDayClick={handleDayClick}
           gameIcon={gameIcon}
         />
@@ -798,9 +957,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       {viewMode === 'day' && (
         <DayView 
           currentDate={currentDate} 
-          events={events} 
+          events={allEvents} 
           theme={theme}
-          onEventClick={onEventClick}
+          onEventClick={handleEventClick}
           isCoach={isCoach}
           onCreateEvent={onCreateEvent}
           onEditEvent={onEditEvent}
@@ -811,9 +970,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       {/* List View */}
       {viewMode === 'list' && (
         <ListView 
-          events={events} 
+          events={allEvents} 
           theme={theme}
-          onEventClick={onEventClick}
+          onEventClick={handleEventClick}
           onEditEvent={onEditEvent}
           onDeleteEvent={onDeleteEvent}
           isCoach={isCoach}
@@ -827,7 +986,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           events={selectedDayEvents}
           theme={theme}
           onClose={closeDayPanel}
-          onEventClick={onEventClick}
+          onEventClick={handleEventClick}
           isCoach={isCoach}
           onCreateEvent={onCreateEvent}
           onEditEvent={onEditEvent}
@@ -867,6 +1026,116 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         </button>
       )}
 
+      {/* Game Details Modal - For program games (view-only) */}
+      {selectedGame && (
+        <div 
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedGame(null)}
+        >
+          <div 
+            className={`w-full max-w-md rounded-2xl p-6 ${
+              theme === 'dark' ? 'bg-zinc-900 border border-white/10' : 'bg-white border border-slate-200 shadow-xl'
+            }`}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">{gameIcon}</span>
+                <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                  Game Details
+                </h3>
+              </div>
+              <button 
+                onClick={() => setSelectedGame(null)}
+                className={`p-1 rounded-lg ${theme === 'dark' ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Game Badge */}
+            <div className="flex items-center gap-2 mb-4">
+              <span className="px-2 py-1 rounded-lg bg-orange-500 text-white text-xs font-bold">GAME</span>
+              {selectedGame.status === 'completed' && (
+                <span className="px-2 py-1 rounded-lg bg-slate-500 text-white text-xs font-bold">PAST</span>
+              )}
+              {selectedGame.status === 'live' && (
+                <span className="px-2 py-1 rounded-lg bg-red-500 text-white text-xs font-bold animate-pulse">LIVE</span>
+              )}
+              {getGameResultDisplay(selectedGame) && (
+                <span className={`px-2 py-1 rounded-lg text-xs font-bold ${getGameResultDisplay(selectedGame)?.bgColor} ${getGameResultDisplay(selectedGame)?.color}`}>
+                  {getGameResultDisplay(selectedGame)?.text}
+                </span>
+              )}
+            </div>
+            
+            {/* Title */}
+            <h4 className={`text-lg font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+              {selectedGame.isBye ? 'BYE WEEK' : `${selectedGame.isHome ? 'vs' : '@'} ${selectedGame.opponent || 'TBD'}`}
+            </h4>
+            
+            {/* Details */}
+            <div className="space-y-3">
+              {/* Date */}
+              <div className="flex items-center gap-3">
+                <Calendar className={`w-5 h-5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
+                <span className={theme === 'dark' ? 'text-slate-200' : 'text-slate-700'}>
+                  {getDateFromTimestamp(selectedGame.eventStartDate).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
+                </span>
+              </div>
+              
+              {/* Time */}
+              {selectedGame.eventStartTime && (
+                <div className="flex items-center gap-3">
+                  <Clock className={`w-5 h-5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
+                  <span className={theme === 'dark' ? 'text-slate-200' : 'text-slate-700'}>
+                    {formatTime12Hour(selectedGame.eventStartTime)}
+                  </span>
+                </div>
+              )}
+              
+              {/* Location */}
+              {selectedGame.location && (
+                <div className="flex items-center gap-3">
+                  <MapPin className={`w-5 h-5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
+                  <span className={theme === 'dark' ? 'text-slate-200' : 'text-slate-700'}>
+                    {typeof selectedGame.location === 'object' ? selectedGame.location.name : selectedGame.location}
+                  </span>
+                </div>
+              )}
+            </div>
+            
+            {/* Info Note */}
+            <div className={`mt-6 p-3 rounded-lg flex items-start gap-2 ${
+              theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'
+            }`}>
+              <Lock className={`w-4 h-4 mt-0.5 flex-shrink-0 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
+              <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                This game is managed by your program commissioner and cannot be edited.
+              </p>
+            </div>
+            
+            {/* Close Button */}
+            <button
+              onClick={() => setSelectedGame(null)}
+              className={`w-full mt-4 py-2.5 rounded-lg font-medium transition ${
+                theme === 'dark' 
+                  ? 'bg-white/10 text-white hover:bg-white/20' 
+                  : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+              }`}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Loading overlay */}
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl">
@@ -884,7 +1153,7 @@ interface WeekViewProps {
   currentDate: Date;
   events: CalendarEvent[];
   theme: string;
-  onEventClick?: (eventId: string) => void;
+  onEventClick?: (event: CalendarEvent) => void;
   onDayClick: (date: Date) => void;
   gameIcon: string;
 }
@@ -1031,7 +1300,7 @@ const WeekView: React.FC<WeekViewProps> = ({ currentDate, events, theme, onEvent
                   return (
                     <div
                       key={event.id}
-                      onClick={() => onEventClick?.(event.id)}
+                      onClick={() => onEventClick?.(event)}
                       className={`
                         absolute rounded px-1 py-0.5 cursor-pointer
                         overflow-hidden text-xs shadow-sm
@@ -1092,7 +1361,7 @@ interface DayViewProps {
   currentDate: Date;
   events: CalendarEvent[];
   theme: string;
-  onEventClick?: (eventId: string) => void;
+  onEventClick?: (event: CalendarEvent) => void;
   isCoach: boolean;
   onCreateEvent?: (date?: Date) => void;
   onEditEvent?: (eventId: string) => void;
@@ -1138,7 +1407,7 @@ const DayView: React.FC<DayViewProps> = ({ currentDate, events, theme, onEventCl
               key={event.id} 
               event={event} 
               theme={theme} 
-              onClick={() => onEventClick?.(event.id)}
+              onClick={() => onEventClick?.(event)}
               isCoach={isCoach}
               onEdit={() => onEditEvent?.(event.id)}
               onDelete={() => onDeleteEvent?.(event.id)}
@@ -1156,7 +1425,7 @@ const DayView: React.FC<DayViewProps> = ({ currentDate, events, theme, onEventCl
 interface ListViewProps {
   events: CalendarEvent[];
   theme: string;
-  onEventClick?: (eventId: string) => void;
+  onEventClick?: (event: CalendarEvent) => void;
   onEditEvent?: (eventId: string) => void;
   onDeleteEvent?: (eventId: string) => void;
   isCoach: boolean;
@@ -1211,7 +1480,7 @@ const ListView: React.FC<ListViewProps> = ({ events, theme, onEventClick, onEdit
                   return (
                     <div
                       key={event.id}
-                      onClick={() => onEventClick?.(event.id)}
+                      onClick={() => onEventClick?.(event)}
                       className="p-4 rounded-lg cursor-pointer transition-colors"
                       style={{
                         backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : '#ffffff',
@@ -1342,7 +1611,7 @@ interface DayPanelProps {
   events: CalendarEvent[];
   theme: string;
   onClose: () => void;
-  onEventClick?: (eventId: string) => void;
+  onEventClick?: (event: CalendarEvent) => void;
   isCoach: boolean;
   onCreateEvent?: (date?: Date) => void;
   onEditEvent?: (eventId: string) => void;
@@ -1440,7 +1709,7 @@ const DayPanel: React.FC<DayPanelProps> = ({
                   theme={theme} 
                   onClick={() => {
                     onClose();
-                    onEventClick?.(event.id);
+                    onEventClick?.(event);
                   }}
                   isCoach={isCoach}
                   onEdit={() => {

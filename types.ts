@@ -338,21 +338,53 @@ export interface InfractionMessage {
 export interface TeamGame {
   id: string;
   teamId: string;
-  source: 'league' | 'commissioner' | 'coach';
+  source: 'league' | 'commissioner' | 'coach' | 'program';
+  
+  // Program game reference (single source of truth)
+  programId?: string;
+  seasonId?: string;
+  programGameId?: string;
+  
+  // Legacy league references
   leagueGameId?: string;
   leagueScheduleId?: string;
+  
+  // Game details
   opponent: string;
   opponentTeamId?: string;
   isHome: boolean;
-  scheduledDate: Timestamp;
+  week?: number;
+  scheduledDate: Timestamp | Date | string;
   scheduledTime: string;
   dateTime?: Timestamp;  // Alternative date field used in some components
   location: string;
+  
+  // Scores
   homeScore?: number;
   awayScore?: number;
-  status: 'scheduled' | 'completed' | 'cancelled' | 'postponed';
-  createdAt: Timestamp;
-  createdBy: string;
+  
+  // Team info (for program games)
+  homeTeamId?: string;
+  homeTeamName?: string;
+  awayTeamId?: string;
+  awayTeamName?: string;
+  
+  // Status
+  status: 'scheduled' | 'live' | 'completed' | 'cancelled' | 'postponed';
+  
+  // Stats (for program games)
+  stats?: {
+    homeTeam?: any;
+    awayTeam?: any;
+    players?: Record<string, any>;
+  };
+  
+  // Timestamps
+  createdAt?: Timestamp;
+  createdBy?: string;
+  updatedAt?: Timestamp;
+  startedAt?: Timestamp;
+  endedAt?: Timestamp;
 }
 
 // --- HELPER INTERFACES ---
@@ -1583,9 +1615,16 @@ export interface Game {
   isHome: boolean;       // Home or Away game
   teamScore: number;     // Our team's score
   opponentScore: number; // Opponent's score
-  result: 'W' | 'L' | 'T'; // Win, Loss, Tie (auto-calculated)
+  result?: 'W' | 'L' | 'T'; // Win, Loss, Tie (auto-calculated) - optional for scheduled games
+  status?: 'scheduled' | 'live' | 'completed'; // Game status
   location?: string;     // Stadium/field name
   notes?: string;        // Game notes
+  // Program game reference (when loaded from commissioner schedule)
+  programGameId?: string;
+  homeTeamId?: string;
+  awayTeamId?: string;
+  homeScore?: number;
+  awayScore?: number;
   createdAt?: any;
   updatedAt?: any;
   createdBy?: string;

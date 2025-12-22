@@ -1,47 +1,53 @@
-# 🔄 SESSION HANDOFF - December 17, 2025
+# 🔄 SESSION HANDOFF - December 21, 2025
 
 ## 📍 Where We Left Off
-**Commissioner Dashboard - Season Management** is now fully functional with view AND edit capabilities.
+**Stats Engine v2.0** - Complete spec designed and saved. Ready to start Phase 1 implementation.
 
 ---
 
 ## ✅ COMPLETED THIS SESSION
 
-### 1. **sportConfig.ts Fix** (Critical Bug)
-- **Issue**: Adding first coach to team crashed with "Cannot read properties of undefined (reading 'positions')"
-- **Fix**: Added fallback in `getSportConfig()` at line 436-439:
-```typescript
-const config = SPORT_CONFIGS[sport || 'football'];
-return config || SPORT_CONFIGS['football'];  // Safe fallback
-```
+### 1. **Schedule Calendar - Games from Commissioner**
+- **Fixed**: Games now load from `programs/{programId}/seasons/{seasonId}/games`
+- **Fixed**: Uses `weekDate` field (not `date`) for game dates
+- **Fixed**: CalendarView, WeekView, DayView, ListView all show games
+- **Fixed**: Day circle indicator only shows on current day (not game days)
+- **Fixed**: Clicking a game shows inline modal instead of navigating to /events/{id}
 
-### 2. **Season Management Modal - Enhanced View**
-- Added **Age Groups & Teams section** showing:
-  - Each age group with label
-  - Team count badge (green if has teams, yellow if none)
-  - Team names as tags under each age group
+### 2. **Dashboard - Season Record from Completed Games**
+- **Fixed**: Season record (W-L) now calculates from games with `status === 'completed'`
+- **Fixed**: Upcoming events count includes both events AND games
 
-### 3. **Draft Pool Modal** (NEW)
-- Clickable draft pool count opens new modal
-- Shows total registrations
-- **Filter pills** to sort by age group (All, 8U, 10U, etc.)
-- Player list with name, parent name, and age group badge
-- Loading state and empty state
+### 3. **Stats Page - Game Loading**
+- **Fixed**: GameStatsEntry.tsx now loads games from program collection
+- **Added**: `status` field to Game interface in types.ts
+- **Fixed**: Only completed games can be expanded for stats entry
+- **Fixed**: Scheduled games show "⏳" icon and can't be clicked
 
-### 4. **Season Manager List View - Age Groups Summary**
-- Added age group badges with team counts below each season in dashboard
-- Shows first 4 age groups with count, "+X more" if more
+### 4. **Stats Page - Theme Support**
+- **Fixed**: All components now support light/dark mode properly
+- **Fixed**: StatInput component accepts `theme` prop
+- **Fixed**: Section headers (OFFENSE, DEFENSE, etc.) use visible colors
+- **Fixed**: Player rows, modals, buttons all theme-aware
+- **Fixed**: Stat labels now more visible (zinc-300 dark, slate-600 light)
 
-### 5. **Edit Pencil Icon**
-- Replaced `ChevronRight (>)` with `Edit2` pencil in season lists
+### 5. **Stats System Analysis**
+Analyzed current stats architecture and identified issues:
+- Stats scattered across multiple collections
+- No single source of truth
+- Aggregation broken with program games
+- Limited sport-specific stats
 
-### 6. **Season Edit Mode** (MAJOR)
-Added full editing capability to seasons:
-- **Editable fields**: Name, Season Start/End, Registration Open/Close, Fee
-- **Edit Season button** (purple) toggles edit mode
-- **Save/Cancel buttons** with Firestore update
-- Loading spinner during save
-- Toast notifications on success/error
+### 6. **Stats Engine v2.0 Spec** (MAJOR)
+Created comprehensive redesign spec saved to: **`STATS_ENGINE_V2_SPEC.md`**
+
+Includes:
+- Single source of truth: `programs/{programId}/seasons/{seasonId}/games/{gameId}/stats/{playerId}`
+- Sport-specific stat schemas (Football, Basketball, Soccer, Baseball, Volleyball, Cheer)
+- CSV import system (Hudl, GameChanger, MaxPreps)
+- Cloud Functions for auto-sync to global player profiles
+- Auto-calculated advanced metrics
+- Build phases with checkboxes
 
 ---
 
@@ -49,55 +55,117 @@ Added full editing capability to seasons:
 
 | File | Changes |
 |------|---------|
-| `config/sportConfig.ts` | Added null-safe fallback in `getSportConfig()` |
-| `components/commissioner/CommissionerDashboard.tsx` | Season edit mode, Draft Pool modal, Age Groups display, Edit pencil icons |
+| `components/calendar/CalendarView.tsx` | Fixed game loading, uses `weekDate`, added game modal |
+| `components/stats/GameStatsEntry.tsx` | Loads from program games, theme support, completed-only entry |
+| `components/NewOSYSDashboard.tsx` | Season record from completed games, upcoming includes games |
+| `types.ts` | Added `status` field to Game interface |
+| `STATS_ENGINE_V2_SPEC.md` | **NEW** - Complete stats system redesign spec |
 
 ---
 
-## 🔧 NEW STATE VARIABLES (CommissionerDashboard.tsx)
+## 🗂️ KEY ARCHITECTURE DECISIONS
 
-```typescript
-// Draft pool modal
-const [showDraftPoolModal, setShowDraftPoolModal] = useState(false);
-const [selectedPoolSeason, setSelectedPoolSeason] = useState<ProgramSeason | null>(null);
-const [draftPoolPlayers, setDraftPoolPlayers] = useState<any[]>([]);
-const [draftPoolSortBy, setDraftPoolSortBy] = useState<string>('all');
-const [loadingPoolPlayers, setLoadingPoolPlayers] = useState(false);
+### Current Stats (OLD - Being Replaced)
+```
+teams/{teamId}/games/{gameId}/playerStats/{playerId}  ← Game stats
+teams/{teamId}/seasonStats/{playerId}_{year}          ← Aggregated
+teams/{teamId}/players/{playerId}.stats               ← Quick stats
+```
 
-// Season edit mode
-const [isEditingSeasonMode, setIsEditingSeasonMode] = useState(false);
-const [editSeasonData, setEditSeasonData] = useState<{...} | null>(null);
-const [savingSeasonEdit, setSavingSeasonEdit] = useState(false);
+### New Stats v2.0 (TO BE BUILT)
+```
+programs/{programId}/seasons/{seasonId}/games/{gameId}/stats/{playerId}  ← SINGLE SOURCE
+players/{globalPlayerId}/gameLog/{gameId}                                 ← History (Cloud Func writes)
+players/{globalPlayerId}/careerStats/{sport}                              ← Career (Cloud Func writes)
 ```
 
 ---
 
-## 🚀 WHAT'S NEXT (Suggested)
+## 🚀 WHAT'S NEXT - Stats Engine v2.0 Build
 
-1. **Parent Registration Flow** - Parents can register kids for seasons
-2. **Draft Day Features** - Assign players to teams from draft pool
-3. **Season Activation** - Start/end season functionality
-4. **Team Management in Age Groups** - Add/remove teams from age groups directly
+### Phase 1: Foundation (Priority)
+- [ ] Create `config/statSchemas.ts` with sport-specific stat definitions
+- [ ] Add new stat interfaces to `types.ts`
+- [ ] Update Firestore security rules for new paths
+- [ ] Create Cloud Functions for stat sync
+
+### Phase 2: Entry UI
+- [ ] Rebuild GameStatEntry to write to new location
+- [ ] Post-game bulk entry form
+- [ ] Quick stat buttons for live games
+
+### Phase 3: Import System
+- [ ] CSV import wizard
+- [ ] Hudl/GameChanger parsers
+- [ ] Player matching algorithm
+
+### Phase 4: Display
+- [ ] Player stat profiles (career view)
+- [ ] Team leaderboards
+- [ ] Box scores
 
 ---
 
-## 🐛 KNOWN ISSUES
+## 🐛 KNOWN ISSUES (Non-blocking)
 
-1. **TypeScript warning** (non-blocking): `Property 'sportsOffered' does not exist on type 'Program'` at line 81 of CommissionerDashboard.tsx - This is because the Program type may need updating, but it works at runtime.
+1. **Profile.tsx** - `rosterPlayerId` property warning
+2. **CommissionerDashboard.tsx** - Several type warnings (displayName, teamName, etc.)
+3. **StatsBoard.tsx** - Uses legacy `playerStats` collection (to be deprecated)
 
 ---
 
-## 💡 KEY PATTERNS LEARNED
+## 💡 KEY PATTERNS
 
 | Pattern | Details |
 |---------|---------|
-| Season status calc | `getSeasonStatus()` helper computes status from dates |
-| Draft pool players | Loaded via nested Firestore queries: `programs/{id}/seasons/{id}/pools/{id}/registrations` |
-| Edit mode toggle | Separate `isEditing` state + `editData` object pattern |
+| Theme support | `theme === 'dark' ? 'dark-class' : 'light-class'` |
+| Game status | `'scheduled' \| 'live' \| 'completed'` |
+| Program games | `programs/{programId}/seasons/{seasonId}/games` |
+| Date field | Games use `weekDate` not `date` |
+| Sport config | `getStats(sport)`, `getSportConfig(sport)` from config/sportConfig.ts |
+
+---
+
+## 📊 STATS ENGINE v2.0 SPEC LOCATION
+
+**File:** `STATS_ENGINE_V2_SPEC.md` (project root)
+
+Contains:
+- Complete Firestore schema
+- Sport-specific stat interfaces (6 sports)
+- Data flow architecture diagram
+- CSV import system design
+- Cloud Functions code
+- UI components to build
+- Security rules
+- Monetization tiers
+- Build progress checkboxes
 
 ---
 
 ## 🔗 QUICK LINKS
+
+| Doc | Purpose |
+|-----|---------|
+| `STATS_ENGINE_V2_SPEC.md` | Stats v2.0 complete spec |
+| `PROGRESS.md` | Overall project progress |
+| `FEATURE_ROADMAP.md` | Feature prioritization |
+| `.github/copilot-instructions.md` | AI coding rules |
+
+---
+
+## 🎯 QUICK START FOR NEXT SESSION
+
+```
+1. Read STATS_ENGINE_V2_SPEC.md for full context
+2. Start Phase 1: Create config/statSchemas.ts
+3. Add new interfaces to types.ts
+4. Update firestore.rules for new stat paths
+```
+
+---
+
+*Last Updated: December 21, 2025*
 
 - **Dev Server**: http://localhost:3001
 - **AI OS Dashboard**: http://localhost:3003 (or 3004)

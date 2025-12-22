@@ -6,6 +6,7 @@ import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateD
 import { db } from '../services/firebase';
 import { sanitizeText, sanitizeNumber, sanitizeDate } from '../services/sanitize';
 import { calculateAgeGroup } from '../services/ageValidator';
+import { createNotification, createBulkNotifications } from '../services/notificationService';
 import type { Player, UserProfile, Team, SportType } from '../types';
 import { getPositions } from '../config/sportConfig';
 import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link as LinkIcon, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera, UserPlus, ArrowRightLeft, BarChart3, Eye, AtSign, Copy, Check, ExternalLink, Zap } from 'lucide-react';
@@ -175,7 +176,7 @@ const Roster: React.FC = () => {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   
   // Delete confirmation state
-  const [deletePlayerConfirm, setDeletePlayerConfirm] = useState<{ id: string; name: string; number: string } | null>(null);
+  const [deletePlayerConfirm, setDeletePlayerConfirm] = useState<{ id: string; name: string; number: string; athleteId?: string; parentId?: string } | null>(null);
   const [deletingPlayer, setDeletingPlayer] = useState(false);
   
   // Photo popup state
@@ -752,6 +753,8 @@ const Roster: React.FC = () => {
         ageGroup: ageGroup || undefined, // e.g., "9U", "10U"
         teamId: teamData.id,
         parentId: selectedPlayerToAdd.parentId,
+        parentUserId: selectedPlayerToAdd.parentId, // Alias for compatibility
+        athleteId: selectedPlayerToAdd.id, // CRITICAL: Link to top-level player doc for removal
         photoUrl: selectedPlayerToAdd.photoUrl,
         height: selectedPlayerToAdd.height,
         weight: selectedPlayerToAdd.weight,
@@ -766,6 +769,81 @@ const Roster: React.FC = () => {
       };
       
       await addDoc(collection(db, 'teams', teamData.id, 'players'), playerData);
+      
+      // Update top-level player document with teamId so parent sees assignment
+      if (selectedPlayerToAdd.id) {
+        const athleteRef = doc(db, 'players', selectedPlayerToAdd.id);
+        await updateDoc(athleteRef, {
+          teamId: teamData.id,
+          teamName: teamData.name,
+          updatedAt: serverTimestamp()
+        });
+        console.log('[Roster] Updated top-level player with teamId:', selectedPlayerToAdd.id);
+      }
+      
+      // Send notifications to parent, coaches, and commissioner
+      const playerName = selectedPlayerToAdd.name;
+      const teamName = teamData?.name || 'the team';
+      const notificationPromises: Promise<any>[] = [];
+      
+      // Notify parent
+      if (selectedPlayerToAdd.parentId) {
+        notificationPromises.push(
+          createNotification(
+            selectedPlayerToAdd.parentId,
+            'roster_update',
+            'Player Added to Team! 🎉',
+            `${playerName} has been added to ${teamName}.`,
+            { link: '/dashboard', metadata: { teamId: teamData.id, playerName } }
+          )
+        );
+      }
+      
+      // Notify all coaches on the team (except the one doing the adding)
+      const coachIdsToNotify = (teamData.coachIds || []).filter(id => id !== user?.uid);
+      if (teamData.coachId && teamData.coachId !== user?.uid && !coachIdsToNotify.includes(teamData.coachId)) {
+        coachIdsToNotify.push(teamData.coachId);
+      }
+      if (teamData.headCoachId && teamData.headCoachId !== user?.uid && !coachIdsToNotify.includes(teamData.headCoachId)) {
+        coachIdsToNotify.push(teamData.headCoachId);
+      }
+      if (coachIdsToNotify.length > 0) {
+        notificationPromises.push(
+          createBulkNotifications(
+            coachIdsToNotify,
+            'roster_update',
+            'New Player Added to Roster',
+            `${playerName} has been added to ${teamName}.`,
+            { link: '/roster', metadata: { teamId: teamData.id, playerName } }
+          )
+        );
+      }
+      
+      // Notify commissioner if team is in a program
+      if (teamData.programId) {
+        const programRef = doc(db, 'programs', teamData.programId);
+        const programSnap = await getDoc(programRef);
+        if (programSnap.exists()) {
+          const programData = programSnap.data();
+          const commissionerId = programData?.commissionerId;
+          if (commissionerId && commissionerId !== user?.uid) {
+            notificationPromises.push(
+              createNotification(
+                commissionerId,
+                'roster_update',
+                'Player Added to Team',
+                `${playerName} has been added to ${teamName}.`,
+                { link: '/commissioner', metadata: { teamId: teamData.id, playerName, programId: teamData.programId } }
+              )
+            );
+          }
+        }
+      }
+      
+      // Fire all notifications (don't block UI)
+      Promise.all(notificationPromises).catch(err => {
+        console.error('[Roster] Error sending add player notifications:', err);
+      });
       
       // Reset and close
       setSelectedPlayerToAdd(null);
@@ -799,10 +877,124 @@ const Roster: React.FC = () => {
   const handleDeletePlayer = async () => {
     if (!teamData?.id || !deletePlayerConfirm) return;
     setDeletingPlayer(true);
-    try { 
-      await deleteDoc(doc(db, 'teams', teamData.id, 'players', deletePlayerConfirm.id)); 
+    try {
+      const playerName = deletePlayerConfirm.name;
+      const teamName = teamData?.name || 'the team';
+      
+      // 1. Delete from team roster
+      await deleteDoc(doc(db, 'teams', teamData.id, 'players', deletePlayerConfirm.id));
+      
+      // 2. If player has an athlete profile, clear ALL team-related fields
+      if (deletePlayerConfirm.athleteId) {
+        const athleteRef = doc(db, 'players', deletePlayerConfirm.athleteId);
+        const athleteSnap = await getDoc(athleteRef);
+        if (athleteSnap.exists()) {
+          await updateDoc(athleteRef, {
+            teamId: null,
+            teamName: null,
+            isStarter: false,
+            isCaptain: false,
+            number: null,
+            position: null,
+            removedFromTeamAt: serverTimestamp()
+          });
+          console.log('[Roster] Cleared team fields from athlete profile:', deletePlayerConfirm.athleteId);
+        }
+      } else if (deletePlayerConfirm.parentId) {
+        // FALLBACK: If no athleteId stored, find athlete by parentId + name match
+        // This handles players added before athleteId was stored in roster docs
+        const athleteQuery = query(
+          collection(db, 'players'),
+          where('parentId', '==', deletePlayerConfirm.parentId),
+          where('teamId', '==', teamData.id)
+        );
+        const athleteSnap = await getDocs(athleteQuery);
+        for (const athleteDoc of athleteSnap.docs) {
+          const athleteData = athleteDoc.data();
+          // Match by name to be safe
+          if (athleteData.name === playerName || `${athleteData.firstName} ${athleteData.lastName}` === playerName) {
+            await updateDoc(doc(db, 'players', athleteDoc.id), {
+              teamId: null,
+              teamName: null,
+              isStarter: false,
+              isCaptain: false,
+              number: null,
+              position: null,
+              removedFromTeamAt: serverTimestamp()
+            });
+            console.log('[Roster] Cleared team fields from athlete (fallback lookup):', athleteDoc.id);
+            break;
+          }
+        }
+      }
+      
+      // 3. Send notifications to parent, coaches, and commissioner
+      const notificationPromises: Promise<any>[] = [];
+      
+      // 3a. Notify parent if they exist
+      if (deletePlayerConfirm.parentId) {
+        notificationPromises.push(
+          createNotification(
+            deletePlayerConfirm.parentId,
+            'roster_update',
+            'Player Removed from Team',
+            `${playerName} has been removed from ${teamName}.`,
+            { link: '/dashboard', metadata: { teamId: teamData.id, playerName } }
+          )
+        );
+      }
+      
+      // 3b. Notify all coaches on the team (except the one doing the removal)
+      const coachIdsToNotify = (teamData.coachIds || []).filter(id => id !== user?.uid);
+      // Add legacy coachId if not already included
+      if (teamData.coachId && teamData.coachId !== user?.uid && !coachIdsToNotify.includes(teamData.coachId)) {
+        coachIdsToNotify.push(teamData.coachId);
+      }
+      // Add headCoachId if not already included
+      if (teamData.headCoachId && teamData.headCoachId !== user?.uid && !coachIdsToNotify.includes(teamData.headCoachId)) {
+        coachIdsToNotify.push(teamData.headCoachId);
+      }
+      if (coachIdsToNotify.length > 0) {
+        notificationPromises.push(
+          createBulkNotifications(
+            coachIdsToNotify,
+            'roster_update',
+            'Player Removed from Roster',
+            `${playerName} has been removed from ${teamName} roster.`,
+            { link: '/roster', metadata: { teamId: teamData.id, playerName } }
+          )
+        );
+      }
+      
+      // 3c. Notify commissioner if team is in a program
+      if (teamData.programId) {
+        const programRef = doc(db, 'programs', teamData.programId);
+        const programSnap = await getDoc(programRef);
+        if (programSnap.exists()) {
+          const programData = programSnap.data();
+          const commissionerId = programData?.commissionerId;
+          // Only notify if commissioner is not the one removing the player
+          if (commissionerId && commissionerId !== user?.uid) {
+            notificationPromises.push(
+              createNotification(
+                commissionerId,
+                'roster_update',
+                'Player Removed from Team',
+                `${playerName} has been removed from ${teamName}.`,
+                { link: '/commissioner', metadata: { teamId: teamData.id, playerName, programId: teamData.programId } }
+              )
+            );
+          }
+        }
+      }
+      
+      // Fire all notifications (don't block UI on them)
+      Promise.all(notificationPromises).catch(err => {
+        console.error('[Roster] Error sending removal notifications:', err);
+      });
+      
       setDeletePlayerConfirm(null);
-    } catch (error) { console.error(error); }
+    } catch (error) { console.error('Error removing player:', error); }
     finally { setDeletingPlayer(false); }
   };
 
@@ -1843,7 +2035,7 @@ const Roster: React.FC = () => {
                             </button>
                           )}
                           <button 
-                            onClick={() => setDeletePlayerConfirm({ id: player.id, name: player.name, number: String(player.number) })} 
+                            onClick={() => setDeletePlayerConfirm({ id: player.id, name: player.name, number: String(player.number), athleteId: player.athleteId, parentId: player.parentId || player.parentUserId })} 
                             className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 flex items-center gap-1"
                           >
                             <Trash2 className="w-3 h-3" /> Remove

@@ -41,6 +41,76 @@ import type {
 // LEAGUE OPERATIONS
 // =============================================================================
 
+/**
+ * Release all players from a team's roster
+ * - Deletes all docs from teams/{teamId}/players subcollection
+ * - Clears team-related fields from top-level players/{athleteId} documents
+ * - Returns count of players released
+ */
+export const releaseAllPlayersFromTeam = async (teamId: string): Promise<number> => {
+  const playersSnapshot = await getDocs(collection(db, 'teams', teamId, 'players'));
+  
+  if (playersSnapshot.empty) {
+    return 0;
+  }
+  
+  const batch = writeBatch(db);
+  let count = 0;
+  
+  for (const playerDoc of playersSnapshot.docs) {
+    const playerData = playerDoc.data();
+    
+    // 1. Delete from team roster subcollection
+    batch.delete(playerDoc.ref);
+    
+    // 2. Clear team fields from top-level athlete profile
+    const athleteId = playerData.athleteId;
+    if (athleteId) {
+      const athleteRef = doc(db, 'players', athleteId);
+      batch.update(athleteRef, {
+        teamId: null,
+        teamName: null,
+        isStarter: false,
+        isCaptain: false,
+        number: null,
+        position: null,
+        removedFromTeamAt: serverTimestamp()
+      });
+    } else if (playerData.parentId) {
+      // Fallback: Find athlete by parentId + teamId match
+      const athleteQuery = query(
+        collection(db, 'players'),
+        where('parentId', '==', playerData.parentId),
+        where('teamId', '==', teamId)
+      );
+      const athleteSnap = await getDocs(athleteQuery);
+      for (const athleteDoc of athleteSnap.docs) {
+        const athleteData = athleteDoc.data();
+        // Match by name to be safe
+        const playerName = playerData.name || `${playerData.firstName} ${playerData.lastName}`;
+        if (athleteData.name === playerName || `${athleteData.firstName} ${athleteData.lastName}` === playerName) {
+          batch.update(doc(db, 'players', athleteDoc.id), {
+            teamId: null,
+            teamName: null,
+            isStarter: false,
+            isCaptain: false,
+            number: null,
+            position: null,
+            removedFromTeamAt: serverTimestamp()
+          });
+          break;
+        }
+      }
+    }
+    
+    count++;
+  }
+  
+  await batch.commit();
+  console.log(`[leagueService] Released ${count} players from team ${teamId}`);
+  return count;
+};
+
 export const createLeague = async (leagueData: Omit<League, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
   const docRef = await addDoc(collection(db, 'leagues'), {
     ...leagueData,
@@ -554,9 +624,12 @@ export const endLeagueSeason = async (leagueId: string, seasonId: string): Promi
     
     for (const teamDoc of teamsSnap.docs) {
       const teamData = teamDoc.data();
-      const currentRoster = teamData.roster || [];
       
-      if (currentRoster.length > 0) {
+      // Get players from subcollection for archiving
+      const playersSnap = await getDocs(collection(db, 'teams', teamDoc.id, 'players'));
+      const rosterToArchive = playersSnap.docs.map(p => ({ id: p.id, ...p.data() }));
+      
+      if (rosterToArchive.length > 0) {
         // Archive roster to season history
         await addDoc(collection(db, 'seasonRosterHistory'), {
           teamId: teamDoc.id,
@@ -564,13 +637,15 @@ export const endLeagueSeason = async (leagueId: string, seasonId: string): Promi
           programId: programDoc.id,
           leagueId,
           seasonId,
-          roster: currentRoster,
+          roster: rosterToArchive,
           archivedAt: serverTimestamp(),
         });
         
-        playersRemoved += currentRoster.length;
+        // Release all players properly (clears subcollection AND top-level athlete profiles)
+        const releasedCount = await releaseAllPlayersFromTeam(teamDoc.id);
+        playersRemoved += releasedCount;
         
-        // Clear the roster
+        // Also clear legacy roster array if it exists
         await updateDoc(doc(db, 'teams', teamDoc.id), {
           roster: [],
           rosterCount: 0,

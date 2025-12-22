@@ -13,8 +13,10 @@ import {
   getTeamsByProgram, 
   getGrievancesByProgram,
   getProgram,
-  updateProgram
+  updateProgram,
+  releaseAllPlayersFromTeam
 } from '../../services/leagueService';
+import { createBulkNotifications } from '../../services/notificationService';
 import { collection, query, where, getDocs, onSnapshot, doc, addDoc, setDoc, getDoc, serverTimestamp, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import type { Team, Grievance, Program, UserProfile, ProgramSeason } from '../../types';
@@ -264,6 +266,7 @@ export const CommissionerDashboard: React.FC = () => {
   // Season lifecycle control states
   const [updatingSeasonStatus, setUpdatingSeasonStatus] = useState(false);
   const [showEndSeasonConfirm, setShowEndSeasonConfirm] = useState(false);
+  const [releasePlayersOnEnd, setReleasePlayersOnEnd] = useState(true); // Default: release players when ending
   
   // Collapse completed seasons by default
   const [showCompletedSeasons, setShowCompletedSeasons] = useState(false);
@@ -636,6 +639,30 @@ export const CommissionerDashboard: React.FC = () => {
           createdAt: serverTimestamp()
         });
         console.log('✅ Step 4: Sent notification to parent');
+      }
+      
+      // 5. Notify coaches on the team about new player
+      const draftedTeam = teams.find(t => t.id === teamId);
+      if (draftedTeam) {
+        const coachIdsToNotify: string[] = [];
+        if (draftedTeam.coachId) coachIdsToNotify.push(draftedTeam.coachId);
+        if (draftedTeam.headCoachId && !coachIdsToNotify.includes(draftedTeam.headCoachId)) {
+          coachIdsToNotify.push(draftedTeam.headCoachId);
+        }
+        (draftedTeam.coachIds || []).forEach(id => {
+          if (!coachIdsToNotify.includes(id)) coachIdsToNotify.push(id);
+        });
+        
+        if (coachIdsToNotify.length > 0) {
+          createBulkNotifications(
+            coachIdsToNotify,
+            'roster_update',
+            'New Player Drafted to Your Team! 🎉',
+            `${player.athleteFirstName} ${player.athleteLastName} has been drafted to ${teamName}.`,
+            { link: '/roster', metadata: { teamId, playerName: `${player.athleteFirstName} ${player.athleteLastName}` } }
+          ).catch(err => console.error('Error notifying coaches:', err));
+          console.log('✅ Step 5: Sent notification to coaches');
+        }
       }
       
       // Remove from local state
@@ -2501,11 +2528,30 @@ export const CommissionerDashboard: React.FC = () => {
               <p className={`mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
                 Are you sure you want to end <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>"{selectedSeasonForEdit.name}"</span>?
               </p>
+              
+              {/* Release Players Checkbox */}
+              <label className={`flex items-center gap-3 p-3 rounded-lg mb-4 cursor-pointer ${theme === 'dark' ? 'bg-red-500/10 border border-red-500/20 hover:bg-red-500/20' : 'bg-red-50 border border-red-200 hover:bg-red-100'}`}>
+                <input
+                  type="checkbox"
+                  checked={releasePlayersOnEnd}
+                  onChange={(e) => setReleasePlayersOnEnd(e.target.checked)}
+                  className="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                />
+                <div className="text-left">
+                  <span className={`font-medium ${theme === 'dark' ? 'text-red-400' : 'text-red-700'}`}>Release all players from rosters</span>
+                  <p className={`text-xs ${theme === 'dark' ? 'text-red-400/70' : 'text-red-600/70'}`}>
+                    Clears all team rosters and removes team badges from player cards
+                  </p>
+                </div>
+              </label>
+              
               <div className={`p-3 rounded-lg mb-4 ${theme === 'dark' ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'}`}>
                 <p className={`text-sm flex items-start gap-2 text-left ${theme === 'dark' ? 'text-amber-400' : 'text-amber-700'}`}>
                   <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <span>
-                    This will mark the season as completed. All players will remain on their teams until released manually or a new season begins.
+                    {releasePlayersOnEnd 
+                      ? 'All players will be released from their teams and can register for a new season.'
+                      : 'Players will remain on their teams until released manually or a new season begins.'}
                   </span>
                 </p>
               </div>
@@ -2522,14 +2568,28 @@ export const CommissionerDashboard: React.FC = () => {
                     if (!programData?.id || updatingSeasonStatus) return;
                     setUpdatingSeasonStatus(true);
                     try {
+                      // Update season status
                       await updateDoc(doc(db, 'programs', programData.id, 'seasons', selectedSeasonForEdit.id), {
                         status: 'completed',
                         completedAt: serverTimestamp(),
                         updatedAt: serverTimestamp()
                       });
+                      
+                      // Release all players if checkbox is checked
+                      if (releasePlayersOnEnd) {
+                        let totalReleased = 0;
+                        for (const team of teams) {
+                          const released = await releaseAllPlayersFromTeam(team.id);
+                          totalReleased += released;
+                        }
+                        console.log(`[CommissionerDashboard] Released ${totalReleased} players from ${teams.length} teams`);
+                      }
+                      
                       setSelectedSeasonForEdit({ ...selectedSeasonForEdit, status: 'completed' });
                       setShowEndSeasonConfirm(false);
-                      toastSuccess('Season ended successfully!');
+                      toastSuccess(releasePlayersOnEnd 
+                        ? 'Season ended and all players released!' 
+                        : 'Season ended successfully!');
                     } catch (error) {
                       console.error('Error ending season:', error);
                       toastError('Failed to end season');

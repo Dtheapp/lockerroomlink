@@ -1029,6 +1029,8 @@ const EventsPage: React.FC = () => {
     <div className="p-4 md:p-6 h-[calc(100vh-120px)]">
       <CalendarView
         teamId={teamId}
+        programId={teamData?.programId}
+        seasonId={teamData?.currentSeasonId}
         onEventClick={(eventId) => navigate(`/events/${eventId}`)}
         onCreateEvent={(date) => {
           // Pass date as query param if provided

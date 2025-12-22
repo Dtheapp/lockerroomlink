@@ -267,8 +267,14 @@ service cloud.firestore {
           // Commissioner or admin can create games
           allow create: if canManageProgram(programId) || isAdmin();
           
-          // Commissioner or admin can update games
-          allow update: if canManageProgram(programId) || isAdmin();
+          // Commissioner, admin, or team coaches (for score/status updates) can update games
+          // Coaches can only update: homeScore, awayScore, status, stats, updatedAt, startedAt, endedAt
+          allow update: if canManageProgram(programId) || isAdmin() || (
+            isCoach() &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'homeScore', 'awayScore', 'status', 'stats', 'updatedAt', 'startedAt', 'endedAt'
+            ])
+          );
           
           // Commissioner or admin can delete games
           allow delete: if canManageProgram(programId) || isAdmin();

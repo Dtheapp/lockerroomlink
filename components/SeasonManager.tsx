@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, writeBatch, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { releaseAllPlayersFromTeam } from '../services/leagueService';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import type { Season, SeasonRegistration, SeasonStatus, SportType } from '../types';
@@ -483,32 +484,23 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
     setActionError(null);
     
     try {
-      const batch = writeBatch(db);
-      
       // Update season status
-      batch.update(doc(db, 'teams', teamId, 'seasons', selectedSeason.id), {
+      await updateDoc(doc(db, 'teams', teamId, 'seasons', selectedSeason.id), {
         status: 'completed',
         endedAt: serverTimestamp(),
         endedBy: userData.uid,
         updatedAt: serverTimestamp(),
       });
       
-      // Release all players (clear teamId from players in this team)
-      const playersSnapshot = await getDocs(collection(db, 'teams', teamId, 'players'));
-      playersSnapshot.docs.forEach(playerDoc => {
-        batch.update(playerDoc.ref, {
-          teamId: null,
-          seasonId: null,
-          releasedAt: serverTimestamp(),
-        });
-      });
+      // Release all players properly (clears roster subcollection AND top-level athlete profiles)
+      // This removes teamId, teamName, isStarter, isCaptain, number, position from athlete profiles
+      await releaseAllPlayersFromTeam(teamId);
       
       // Clear current season from team
-      batch.update(doc(db, 'teams', teamId), {
+      await updateDoc(doc(db, 'teams', teamId), {
         currentSeasonId: null,
+        updatedAt: serverTimestamp(),
       });
-      
-      await batch.commit();
       
       onSeasonChange?.(null);
       setShowEndSeasonModal(false);

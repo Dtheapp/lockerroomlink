@@ -425,12 +425,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                                     );
                                     const playersSnapshot = await getDocs(playersQuery);
                                     playersSnapshot.docs.forEach(playerDoc => {
-                                        // Avoid duplicates (in case player exists in both places)
-                                        if (!allPlayers.find(p => p.id === playerDoc.id)) {
+                                        const rosterData = playerDoc.data();
+                                        // Avoid duplicates - check by athleteId OR by name match with same parent
+                                        // This handles both linked players (athleteId set) and legacy players
+                                        const isDuplicate = allPlayers.find(p => 
+                                            p.id === playerDoc.id || // Same doc ID
+                                            (rosterData.athleteId && p.id === rosterData.athleteId) || // Roster points to this athlete
+                                            (p.athleteId && p.athleteId === playerDoc.id) || // Athlete points to this roster doc
+                                            (p.name === rosterData.name && p.teamId === teamDoc.id) // Same name on same team
+                                        );
+                                        if (!isDuplicate) {
                                             allPlayers.push({ 
                                                 id: playerDoc.id, 
                                                 teamId: teamDoc.id,
-                                                ...playerDoc.data() 
+                                                ...rosterData 
                                             } as Player);
                                         }
                                     });
