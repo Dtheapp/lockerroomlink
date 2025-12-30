@@ -10,6 +10,9 @@ import InstallPrompt from './components/InstallPrompt';
 import ForcePasswordChange from './components/ForcePasswordChange';
 import ReleasedPlayerSetup from './components/ReleasedPlayerSetup';
 
+// Import backfill utilities (makes them available in browser console)
+import './services/backfillService';
+
 // Layouts (loaded immediately as they're structural)
 import Layout from './layout/Layout';
 import AdminLayout from './layout/AdminLayout';
@@ -73,6 +76,7 @@ const EventManagement = lazyWithRetry(() => import('./components/events/EventMan
 const RegistrationFlow = lazyWithRetry(() => import('./components/events/registration/RegistrationFlow'));
 const StreamlinedRegistration = lazyWithRetry(() => import('./components/events/registration/StreamlinedRegistration'));
 const SeasonRegistrationPage = lazyWithRetry(() => import('./components/events/SeasonRegistrationPage'));
+const PublicRegistrationPage = lazyWithRetry(() => import('./components/events/PublicRegistrationPage'));
 const PublicEventPage = lazyWithRetry(() => import('./components/events/PublicEventPage'));
 
 // Design Studio
@@ -113,6 +117,9 @@ const Coaching = lazyWithRetry(() => import('./components/Coaching'));
 const FanDashboard = lazyWithRetry(() => import('./components/FanDashboard'));
 const FanProfile = lazyWithRetry(() => import('./components/FanProfile'));
 
+// Parent Pages
+const ParentRegistrations = lazyWithRetry(() => import('./components/ParentRegistrations'));
+
 // Lazy-loaded Admin Pages
 const AdminDashboard = lazyWithRetry(() => import('./components/admin/AdminDashboard'));
 const AdminMessenger = lazyWithRetry(() => import('./components/admin/AdminMessenger'));
@@ -150,6 +157,8 @@ const CommissionerProgramSetup = lazyWithRetry(() => import('./components/commis
 const CommissionerSeasonSetup = lazyWithRetry(() => import('./components/commissioner/CommissionerSeasonSetup'));
 const CommissionerPoolDashboard = lazyWithRetry(() => import('./components/commissioner/CommissionerPoolDashboard'));
 const AgeGroupsManager = lazyWithRetry(() => import('./components/commissioner/AgeGroupsManager'));
+const CommissionerLeagues = lazyWithRetry(() => import('./components/commissioner/CommissionerLeagues'));
+const CommissionerRegistrations = lazyWithRetry(() => import('./components/commissioner/CommissionerRegistrations'));
 
 // League Owner Pages
 const LeagueDashboard = lazyWithRetry(() => import('./components/league/LeagueDashboard'));
@@ -158,6 +167,8 @@ const LeaguePrograms = lazyWithRetry(() => import('./components/league/LeaguePro
 const LeagueRequests = lazyWithRetry(() => import('./components/league/LeagueRequests'));
 const LeagueSeasons = lazyWithRetry(() => import('./components/league/LeagueSeasons'));
 const SeasonSchedule = lazyWithRetry(() => import('./components/league/SeasonSchedule'));
+const LeagueScheduleWizard = lazyWithRetry(() => import('./components/league/LeagueScheduleWizard'));
+const ScheduleStudioWrapper = lazyWithRetry(() => import('./components/league/ScheduleStudioWrapper'));
 const LeaguePlayoffs = lazyWithRetry(() => import('./components/league/LeaguePlayoffs'));
 const LeagueStandings = lazyWithRetry(() => import('./components/league/LeagueStandings'));
 const LeagueSignup = lazyWithRetry(() => import('./components/league/LeagueSignup'));
@@ -281,6 +292,7 @@ const AppContent: React.FC = () => {
           <Route path="/event/:eventId" element={<PublicEventPage />} />
           <Route path="/e/:shareableLink" element={<PublicEventPage />} />
           <Route path="/register/:seasonId" element={<SeasonRegistrationPage />} />
+          <Route path="/register/:programId/:registrationId" element={<PublicRegistrationPage />} />
           <Route path="/welcome" element={<LandingPage />} />
           <Route path="/fundraising" element={<FundraisingPage />} />
           <Route path="/fundraising/:campaignId" element={<CampaignDetail />} />
@@ -339,8 +351,32 @@ const AppContent: React.FC = () => {
               </Route>
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </>
-          ) : (userData?.role === 'LeagueCommissioner' || userData?.role === 'TeamCommissioner' || userData?.role === 'ProgramCommissioner' || userData?.role === 'Commissioner') ? (
-            // Commissioner routes (Team or League)
+          ) : (userData?.role === 'LeagueCommissioner' || userData?.role === 'LeagueOwner') ? (
+            // League Commissioner/Owner routes - manages entire league with programs and schedules
+            <>
+              <Route path="/" element={<NewOSYSLayout />}>
+                <Route index element={<Navigate to="/league" replace />} />
+                <Route path="league" element={<LeagueDashboard />} />
+                <Route path="league/create" element={<LeagueSignup />} />
+                <Route path="league/settings" element={<LeagueSettings />} />
+                <Route path="league/programs" element={<LeaguePrograms />} />
+                <Route path="league/requests" element={<LeagueRequests />} />
+                <Route path="league/seasons" element={<LeagueSeasons />} />
+                <Route path="league/seasons/:seasonId" element={<SeasonSchedule />} />
+                <Route path="league/seasons/:seasonId/schedule-wizard" element={<LeagueScheduleWizard />} />
+                <Route path="league/seasons/:seasonId/schedule-studio" element={<ScheduleStudioWrapper />} />
+                <Route path="league/playoffs" element={<LeaguePlayoffs />} />
+                <Route path="league/infractions" element={<LeagueInfractions />} />
+                <Route path="league/standings" element={<LeagueStandings />} />
+                <Route path="commissioner/grievances" element={<CommissionerGrievances />} />
+                <Route path="profile" element={<Profile />} />
+                <Route path="notifications" element={<NotificationsPage />} />
+                {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}
+              </Route>
+              <Route path="*" element={<Navigate to="/league" replace />} />
+            </>
+          ) : (userData?.role === 'TeamCommissioner' || userData?.role === 'ProgramCommissioner' || userData?.role === 'Commissioner') ? (
+            // Team/Program Commissioner routes
             <>
               <Route path="/" element={<NewOSYSLayout />}>
                 <Route index element={<Navigate to="/commissioner" replace />} />
@@ -352,6 +388,8 @@ const AppContent: React.FC = () => {
                 <Route path="commissioner/pools/:programId/:seasonId" element={<CommissionerPoolDashboard />} />
                 <Route path="commissioner/age-groups" element={<AgeGroupsManager />} />
                 <Route path="commissioner/teams" element={<CommissionerTeamList />} />
+                <Route path="commissioner/leagues" element={<CommissionerLeagues />} />
+                <Route path="commissioner/registrations" element={<CommissionerRegistrations />} />
                 <Route path="commissioner/teams/create" element={<CommissionerCreateTeam />} />
                 <Route path="commissioner/teams/:teamId" element={<CommissionerTeamDetail />} />
                 <Route path="commissioner/teams/:teamId/assign-coach" element={<CommissionerAssignCoach />} />
@@ -368,26 +406,6 @@ const AppContent: React.FC = () => {
                 {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}
               </Route>
               <Route path="*" element={<Navigate to="/commissioner" replace />} />
-            </>
-          ) : userData?.role === 'LeagueOwner' ? (
-            // League Owner routes - manages entire league with programs and schedules
-            <>
-              <Route path="/" element={<NewOSYSLayout />}>
-                <Route index element={<Navigate to="/league" replace />} />
-                <Route path="league" element={<LeagueDashboard />} />
-                <Route path="league/settings" element={<LeagueSettings />} />
-                <Route path="league/programs" element={<LeaguePrograms />} />
-                <Route path="league/requests" element={<LeagueRequests />} />
-                <Route path="league/seasons" element={<LeagueSeasons />} />
-                <Route path="league/seasons/:seasonId" element={<SeasonSchedule />} />
-                <Route path="league/playoffs" element={<LeaguePlayoffs />} />
-                <Route path="league/infractions" element={<LeagueInfractions />} />
-                <Route path="league/standings" element={<LeagueStandings />} />
-                <Route path="profile" element={<Profile />} />
-                <Route path="notifications" element={<NotificationsPage />} />
-                {config.messengerEnabled && <Route path="messenger" element={<Messenger />} />}
-              </Route>
-              <Route path="*" element={<Navigate to="/league" replace />} />
             </>
           ) : userData?.role === 'Referee' ? (
             // Referee routes - officiating games
@@ -419,6 +437,7 @@ const AppContent: React.FC = () => {
                 {config.videoLibraryEnabled && <Route path="videos" element={<VideoLibrary />} />}
                 <Route path="profile" element={<Profile />} />
                 <Route path="notifications" element={<NotificationsPage />} />
+                <Route path="my-registrations" element={<ParentRegistrations />} />
                 {config.statsEnabled && <Route path="stats" element={<Stats />} />}
                 {config.playbookEnabled && hasPlaybook && <Route path="coaching" element={<Coaching />} />}
                 {/* Events System Routes */}

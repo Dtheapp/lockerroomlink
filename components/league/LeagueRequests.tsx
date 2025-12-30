@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { LeagueRequest } from '../../types';
@@ -9,6 +10,7 @@ import { Link } from 'react-router-dom';
 
 export default function LeagueRequests() {
   const { leagueData, user } = useAuth();
+  const { theme } = useTheme();
   const [requests, setRequests] = useState<LeagueRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -124,28 +126,40 @@ export default function LeagueRequests() {
 
   if (!leagueData) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${
+        theme === 'dark' ? 'bg-zinc-900' : 'bg-slate-50'
+      }`}>
         <div className="text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-white">No League Found</h2>
-          <p className="text-gray-400 mt-2">You are not associated with any league.</p>
+          <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>No League Found</h2>
+          <p className={`mt-2 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>You are not associated with any league.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className={`min-h-screen ${
+      theme === 'dark' ? 'bg-zinc-900 text-white' : 'bg-slate-50 text-slate-900'
+    }`}>
       {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700">
+      <div className={`border-b ${
+        theme === 'dark' 
+          ? 'bg-black/40 border-white/10' 
+          : 'bg-white border-slate-200 shadow-sm'
+      }`}>
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
-            <Link to="/league" className="p-2 hover:bg-gray-700 rounded-lg transition-colors">
+            <Link to="/league" className={`p-2 rounded-lg transition-colors ${
+              theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+            }`}>
               <ChevronLeft className="w-5 h-5" />
             </Link>
             <div className="flex-1">
-              <h1 className="text-xl font-bold flex items-center gap-2">
-                <Inbox className="w-5 h-5 text-blue-400" />
+              <h1 className={`text-xl font-bold flex items-center gap-2 ${
+                theme === 'dark' ? 'text-white' : 'text-slate-900'
+              }`}>
+                <Inbox className={theme === 'dark' ? 'w-5 h-5 text-purple-400' : 'w-5 h-5 text-purple-600'} />
                 Join Requests
                 {pendingCount > 0 && (
                   <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500 text-black font-bold">
@@ -153,7 +167,7 @@ export default function LeagueRequests() {
                   </span>
                 )}
               </h1>
-              <p className="text-sm text-gray-400">Manage requests to join {leagueData.name}</p>
+              <p className={theme === 'dark' ? 'text-sm text-slate-400' : 'text-sm text-slate-600'}>Manage requests to join {leagueData.name}</p>
             </div>
           </div>
         </div>
@@ -163,22 +177,32 @@ export default function LeagueRequests() {
       <div className="max-w-6xl mx-auto px-4 py-4">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${
+              theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+            }`} />
             <input
               type="text"
               placeholder="Search requests..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={`w-full rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
+                theme === 'dark'
+                  ? 'bg-white/5 border border-white/10 text-white placeholder-slate-500'
+                  : 'bg-white border border-slate-200 text-slate-900 placeholder-slate-400'
+              }`}
             />
           </div>
           
           <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-gray-400" />
+            <Filter className={theme === 'dark' ? 'w-5 h-5 text-slate-400' : 'w-5 h-5 text-slate-500'} />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500"
+              className={`rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
+                theme === 'dark'
+                  ? 'bg-white/5 border border-white/10 text-white'
+                  : 'bg-white border border-slate-200 text-slate-900'
+              }`}
             >
               <option value="all">All Requests</option>
               <option value="pending">Pending</option>
@@ -193,13 +217,21 @@ export default function LeagueRequests() {
       <div className="max-w-6xl mx-auto px-4 py-4">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
           </div>
         ) : filteredRequests.length === 0 ? (
-          <div className="text-center py-12">
-            <Inbox className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-400">No Requests Found</h3>
-            <p className="text-gray-500 mt-2">
+          <div className={`text-center py-12 rounded-2xl border ${
+            theme === 'dark' 
+              ? 'bg-white/5 border-white/10' 
+              : 'bg-white border-slate-200 shadow-sm'
+          }`}>
+            <Inbox className={`w-16 h-16 mx-auto mb-4 ${
+              theme === 'dark' ? 'text-slate-600' : 'text-slate-400'
+            }`} />
+            <h3 className={`text-lg font-medium ${
+              theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+            }`}>No Requests Found</h3>
+            <p className={`mt-2 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>
               {searchTerm || statusFilter !== 'all' 
                 ? 'Try adjusting your filters'
                 : 'No join requests have been submitted yet'}
@@ -208,42 +240,65 @@ export default function LeagueRequests() {
         ) : (
           <div className="space-y-4">
             {filteredRequests.map(request => (
-              <div key={request.id} className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+              <div key={request.id} className={`rounded-2xl p-5 border ${
+                theme === 'dark'
+                  ? 'bg-white/5 border-white/10'
+                  : 'bg-white border-slate-200 shadow-sm'
+              }`}>
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-500/20">
-                      <Users className="w-6 h-6 text-blue-400" />
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${(request as any).type === 'league_invitation' ? 'bg-amber-500/20' : 'bg-purple-500/20'}`}>
+                      {(request as any).type === 'league_invitation' 
+                        ? <span className="text-2xl">📨</span>
+                        : <Users className={theme === 'dark' ? 'w-6 h-6 text-purple-400' : 'w-6 h-6 text-purple-600'} />}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">
-                          {request.teamName || 'Team Request'}
+                        <h3 className={`font-semibold ${
+                          theme === 'dark' ? 'text-white' : 'text-slate-900'
+                        }`}>
+                          {(request as any).type === 'league_invitation' 
+                            ? ((request as any).sportSpecificName || (request as any).programName || 'Program Invitation')
+                            : (request.teamName || 'Team Request')}
                         </h3>
                         {getStatusBadge(request.status)}
                       </div>
-                      <p className="text-sm text-gray-400 mt-1">
-                        Team wants to join your league
+                      <p className={`text-sm mt-1 ${
+                        theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                      }`}>
+                        {(request as any).type === 'league_invitation'
+                          ? ((request as any).createdBy === 'league_owner' 
+                              ? 'You invited this program to join your league'
+                              : 'Program wants to join your league')
+                          : 'Team wants to join your league'}
                       </p>
-                      <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                      <div className={`flex items-center gap-4 mt-2 text-sm ${
+                        theme === 'dark' ? 'text-slate-500' : 'text-slate-500'
+                      }`}>
                         <span className="flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
                           {formatDate(request.createdAt)}
                         </span>
                       </div>
                       {(request as any).message && (
-                        <p className="mt-3 text-sm text-gray-300 bg-gray-700/50 rounded-lg p-3">
+                        <p className={`mt-3 text-sm rounded-xl p-3 ${
+                          theme === 'dark' 
+                            ? 'text-slate-300 bg-white/5' 
+                            : 'text-slate-600 bg-slate-50'
+                        }`}>
                           "{(request as any).message}"
                         </p>
                       )}
                     </div>
                   </div>
 
-                  {request.status === 'pending' && (
+                  {/* Only show approve/reject for requests FROM programs, not invitations we sent */}
+                  {request.status === 'pending' && (request as any).createdBy !== 'league_owner' && (
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleApprove(request.id)}
                         disabled={processingId === request.id}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 rounded-lg text-sm font-medium transition-colors"
+                        className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 rounded-xl text-sm font-medium text-white transition-colors"
                       >
                         {processingId === request.id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -258,11 +313,20 @@ export default function LeagueRequests() {
                           handleReject(request.id, reason || 'Request declined');
                         }}
                         disabled={processingId === request.id}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 border border-red-500/50 rounded-lg text-sm font-medium text-red-400 transition-colors"
+                        className="flex items-center gap-1 px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 border border-red-500/50 rounded-xl text-sm font-medium text-red-400 transition-colors"
                       >
                         <X className="w-4 h-4" />
                         Reject
                       </button>
+                    </div>
+                  )}
+                  
+                  {/* Show status indicator for invitations we sent */}
+                  {request.status === 'pending' && (request as any).createdBy === 'league_owner' && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                        Awaiting Response
+                      </span>
                     </div>
                   )}
                 </div>

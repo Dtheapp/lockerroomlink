@@ -42,7 +42,8 @@ import {
   UserMinus,
   Crown,
   Camera,
-  ImagePlus
+  ImagePlus,
+  MapPin
 } from 'lucide-react';
 import { uploadFile } from '../../services/storage';
 
@@ -81,6 +82,13 @@ export const CommissionerTeamDetail: React.FC = () => {
   const [editLogo, setEditLogo] = useState<string>('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  
+  // Home field state
+  const [editHomeFieldName, setEditHomeFieldName] = useState('');
+  const [editHomeFieldAddress, setEditHomeFieldAddress] = useState('');
+  const [editHomeFieldCity, setEditHomeFieldCity] = useState('');
+  const [editHomeFieldState, setEditHomeFieldState] = useState('');
+  const [editHomeFieldNotes, setEditHomeFieldNotes] = useState('');
 
   useEffect(() => {
     if (!teamId) {
@@ -180,6 +188,12 @@ export const CommissionerTeamDetail: React.FC = () => {
     setEditAgeGroup(team.ageGroup || '');
     setEditLogo(team.logo || '');
     setLogoFile(null);
+    // Initialize home field values
+    setEditHomeFieldName(team.homeField?.name || '');
+    setEditHomeFieldAddress(team.homeField?.address || '');
+    setEditHomeFieldCity(team.homeField?.city || '');
+    setEditHomeFieldState(team.homeField?.state || '');
+    setEditHomeFieldNotes(team.homeField?.notes || '');
     setEditError('');
     setShowEditModal(true);
   };
@@ -246,6 +260,20 @@ export const CommissionerTeamDetail: React.FC = () => {
         updatedAt: serverTimestamp(),
       };
       
+      // Build home field object if any field is filled
+      if (editHomeFieldName.trim()) {
+        updateData.homeField = {
+          name: editHomeFieldName.trim(),
+          address: editHomeFieldAddress.trim() || null,
+          city: editHomeFieldCity.trim() || null,
+          state: editHomeFieldState.trim() || null,
+          notes: editHomeFieldNotes.trim() || null,
+        };
+      } else {
+        // Clear home field if name is empty
+        updateData.homeField = null;
+      }
+      
       // Upload logo if a new file was selected
       if (logoFile) {
         setUploadingLogo(true);
@@ -294,7 +322,13 @@ export const CommissionerTeamDetail: React.FC = () => {
         navigate(`/commissioner/teams/${newTeamId}`);
       } else {
         await updateDoc(doc(db, 'teams', team.id!), updateData);
-        setTeam(prev => prev ? { ...prev, name: editName.trim(), ageGroup: editAgeGroup, logo: updateData.logo !== undefined ? updateData.logo : prev.logo } : null);
+        setTeam(prev => prev ? { 
+          ...prev, 
+          name: editName.trim(), 
+          ageGroup: editAgeGroup, 
+          logo: updateData.logo !== undefined ? updateData.logo : prev.logo,
+          homeField: updateData.homeField
+        } : null);
       }
       
       setShowEditModal(false);
@@ -499,6 +533,15 @@ export const CommissionerTeamDetail: React.FC = () => {
                   <>
                     <span>•</span>
                     <span>Max {team.maxRosterSize} players</span>
+                  </>
+                )}
+                {team.homeField?.name && (
+                  <>
+                    <span>•</span>
+                    <span className="flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      {team.homeField.name}
+                    </span>
                   </>
                 )}
               </div>
@@ -851,6 +894,67 @@ export const CommissionerTeamDetail: React.FC = () => {
                     </div>
                   );
                 })()}
+              </div>
+              
+              {/* Home Field Section */}
+              <div className={`pt-4 border-t ${theme === 'dark' ? 'border-gray-700' : 'border-slate-200'}`}>
+                <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
+                  🏟️ Home Field <span className="text-slate-400 text-xs">(optional - used for league scheduling)</span>
+                </label>
+                
+                <div className="space-y-3">
+                  <div>
+                    <input
+                      type="text"
+                      value={editHomeFieldName}
+                      onChange={(e) => setEditHomeFieldName(e.target.value)}
+                      placeholder="Field/Stadium Name (e.g., Commerce ISD Stadium)"
+                      className={`w-full border rounded-lg py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`}
+                    />
+                  </div>
+                  
+                  <div>
+                    <input
+                      type="text"
+                      value={editHomeFieldAddress}
+                      onChange={(e) => setEditHomeFieldAddress(e.target.value)}
+                      placeholder="Street Address"
+                      className={`w-full border rounded-lg py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`}
+                    />
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={editHomeFieldCity}
+                      onChange={(e) => setEditHomeFieldCity(e.target.value)}
+                      placeholder="City"
+                      className={`flex-1 border rounded-lg py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`}
+                    />
+                    <input
+                      type="text"
+                      value={editHomeFieldState}
+                      onChange={(e) => setEditHomeFieldState(e.target.value.toUpperCase().slice(0, 2))}
+                      placeholder="TX"
+                      maxLength={2}
+                      className={`w-16 border rounded-lg py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center uppercase ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`}
+                    />
+                  </div>
+                  
+                  <div>
+                    <textarea
+                      value={editHomeFieldNotes}
+                      onChange={(e) => setEditHomeFieldNotes(e.target.value)}
+                      placeholder="Notes (e.g., Enter through south gate, parking in lot B)"
+                      rows={2}
+                      className={`w-full border rounded-lg py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`}
+                    />
+                  </div>
+                </div>
+                
+                <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-gray-500' : 'text-slate-500'}`}>
+                  When your team is "Home" in league games, this location will be used automatically.
+                </p>
               </div>
             </div>
             

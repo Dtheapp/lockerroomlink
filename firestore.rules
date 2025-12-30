@@ -1,5 +1,5 @@
 rules_version = '2';
-// Updated: Dec 18, 2025 v3 - Added parent write access to team roster players
+// Updated: Dec 24, 2025 v4 - Added collectionGroup rule for registrants (parent view)
 service cloud.firestore {
   match /databases/{database}/documents {
     
@@ -46,7 +46,12 @@ service cloud.firestore {
     }
     
     function isLeagueOwnerOf(leagueId) {
-      return isLeagueOwner() && getUserData().leagueId == leagueId;
+      // Check if user is LeagueOwner role AND their leagueId matches
+      // OR if they are the ownerId on the league document
+      return (isLeagueOwner() && getUserData().leagueId == leagueId) ||
+             (isAuthenticated() && 
+              exists(/databases/$(database)/documents/leagues/$(leagueId)) &&
+              get(/databases/$(database)/documents/leagues/$(leagueId)).data.ownerId == request.auth.uid);
     }
     
     function isLeagueCommissionerOf(programId) {
@@ -70,6 +75,8 @@ service cloud.firestore {
       return isLeagueCommissionerOf(programId) || 
              isAssistantCommissionerOf(programId) || 
              isProgramCommissionerOf(programId) ||
+             // Fallback: Check user's programId directly (for ProgramCommissioner role)
+             (isCommissioner() && getUserData().programId == programId) ||
              isAdmin();
     }
     
@@ -102,6 +109,15 @@ service cloud.firestore {
              team.programId != null &&
              exists(/databases/$(database)/documents/programs/$(team.programId)) &&
              get(/databases/$(database)/documents/programs/$(team.programId)).data.commissionerId == request.auth.uid;
+    }
+    
+    // Check if user is a coach of any team in the specified program
+    function isCoachInProgram(programId) {
+      let userData = getUserData();
+      // Check if user is a coach and their team is in this program
+      return isCoach() && userData.teamId != null &&
+             exists(/databases/$(database)/documents/teams/$(userData.teamId)) &&
+             get(/databases/$(database)/documents/teams/$(userData.teamId)).data.programId == programId;
     }
     
     function isTeamMember(teamId) {
@@ -144,8 +160,8 @@ service cloud.firestore {
       // Allow public read for public league pages
       allow read: if true;
       
-      // Only SuperAdmin can create leagues
-      allow create: if isAdmin();
+      // Any authenticated user can create a league (they become the owner)
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
       
       // League owner or admin can update
       allow update: if isLeagueOwnerOf(leagueId) || isAdmin();
@@ -431,6 +447,92 @@ service cloud.firestore {
         // Only admin can delete
         allow delete: if isAdmin();
       }
+      
+      // =============================================================================
+      // INDEPENDENT REGISTRATIONS (NEW SYSTEM - Decoupled from Seasons)
+      // Path: programs/{programId}/registrations/{registrationId}
+      // Types: age_pool, camp, tryout, event, tournament, clinic
+      // =============================================================================
+      match /registrations/{registrationId} {
+        // Public can read registrations (for registration discovery)
+        allow read: if true;
+        
+        // Commissioner or admin can create registrations
+        allow create: if canManageProgram(programId) || isAdmin();
+        
+        // Commissioner/admin can update, OR authenticated users can increment counts
+        allow update: if canManageProgram(programId) || isAdmin() || (
+          isAuthenticated() && 
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'registrationCount', 'paidCount', 'pendingCount', 'waitlistCount', 'confirmedCount', 'updatedAt'
+          ])
+        );
+        
+        // Commissioner or admin can delete (only if no registrants)
+        allow delete: if canManageProgram(programId) || isAdmin();
+        
+        // =============================================================================
+        // REGISTRANTS - People registered for this registration
+        // Path: programs/{programId}/registrations/{registrationId}/registrants/{registrantId}
+        // =============================================================================
+        match /registrants/{registrantId} {
+          // Commissioner can read all registrants
+          // Coaches in the program can read (for draft pool)
+          // Parents can read their own child's record
+          allow read: if canManageProgram(programId) || 
+                        isAdmin() ||
+                        isCoachInProgram(programId) ||
+                        resource.data.parentId == request.auth.uid;
+          
+          // Anyone authenticated can register (parent registering child)
+          allow create: if isAuthenticated();
+          
+          // Commissioner or admin can update all fields
+          // Parent can update limited fields (not status/assignment fields)
+          allow update: if canManageProgram(programId) || 
+                          isAdmin() ||
+                          (resource.data.parentId == request.auth.uid && 
+                           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                             'confirmationStatus', 'assignmentStatus', 'assignedTeamId', 
+                             'assignedTeamName', 'assignedGroup', 'commissionerNotes'
+                           ]));
+          
+          // Commissioner or admin can delete
+          allow delete: if canManageProgram(programId) || isAdmin();
+        }
+      }
+      
+      // =============================================================================
+      // PROMO CODES - Program-wide discount codes for registrations
+      // Path: programs/{programId}/promoCodes/{codeId}
+      // =============================================================================
+      match /promoCodes/{codeId} {
+        // Anyone can read codes (needed to validate at checkout)
+        allow read: if true;
+        
+        // Only commissioner or admin can create/update/delete
+        allow create: if canManageProgram(programId) || isAdmin();
+        allow update: if canManageProgram(programId) || isAdmin() || (
+          // Allow authenticated users to increment usedCount only
+          isAuthenticated() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'usedCount', 'lastUsedAt', 'updatedAt'
+          ])
+        );
+        allow delete: if canManageProgram(programId) || isAdmin();
+        
+        // Usage history subcollection
+        match /usages/{usageId} {
+          // Commissioner can read usage history
+          allow read: if canManageProgram(programId) || isAdmin();
+          
+          // Authenticated users can create usage records (when applying code)
+          allow create: if isAuthenticated();
+          
+          // No updates or deletes to usage records (audit trail)
+          allow update, delete: if false;
+        }
+      }
     }
     
     // =============================================================================
@@ -439,12 +541,16 @@ service cloud.firestore {
     match /leagueRequests/{requestId} {
       allow read: if isAuthenticated() && (
         isAdmin() ||
-        (isLeagueOwner() && resource.data.leagueId == getUserData().leagueId) ||
-        resource.data.requestedBy == request.auth.uid
+        isLeagueOwnerOf(resource.data.leagueId) ||
+        resource.data.requestedBy == request.auth.uid ||
+        // Allow commissioners to read invitations for their program
+        (isCommissioner() && resource.data.programId == getUserData().programId)
       );
       allow create: if isLeagueCommissioner() || isAdmin();
       allow update: if isAdmin() || 
-                      (isLeagueOwner() && resource.data.leagueId == getUserData().leagueId);
+                      isLeagueOwnerOf(resource.data.leagueId) ||
+                      // Allow commissioners to respond to invitations for their program
+                      (isCommissioner() && resource.data.programId == getUserData().programId);
       allow delete: if isAdmin();
     }
     
@@ -1536,22 +1642,49 @@ service cloud.firestore {
     // League Seasons - Public read for league pages
     match /leagueSeasons/{seasonId} {
       allow read: if true;
-      allow create, update: if isLeagueOwner() || isAdmin();
-      allow delete: if isAdmin();
+      // Allow create if user is league owner of the league specified in the document
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        isLeagueOwnerOf(request.resource.data.leagueId)
+      );
+      // Allow update if user is league owner OR a commissioner (for team finalization)
+      // Commissioners need to update programFinalizations for their program
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        isLeagueOwnerOf(resource.data.leagueId) ||
+        // Allow commissioners to update for team finalization
+        // They can only update programFinalizations for their own program (enforced in code)
+        isCommissioner()
+      );
+      allow delete: if isAdmin() || isLeagueOwnerOf(resource.data.leagueId);
     }
     
     // League Schedules - Public read for league pages
     match /leagueSchedules/{scheduleId} {
       allow read: if true;
-      allow create, update: if isLeagueOwner() || isAdmin();
-      allow delete: if isAdmin();
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        isLeagueOwnerOf(request.resource.data.leagueId)
+      );
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        isLeagueOwnerOf(resource.data.leagueId)
+      );
+      allow delete: if isAdmin() || isLeagueOwnerOf(resource.data.leagueId);
     }
     
     // League Games - Public read for league pages
     match /leagueGames/{gameId} {
       allow read: if true;
-      allow create, update: if isLeagueOwner() || isAdmin();
-      allow delete: if isAdmin();
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        isLeagueOwnerOf(request.resource.data.leagueId)
+      );
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        isLeagueOwnerOf(resource.data.leagueId)
+      );
+      allow delete: if isAdmin() || isLeagueOwnerOf(resource.data.leagueId);
     }
     
     // =============================================================================
@@ -1785,6 +1918,23 @@ service cloud.firestore {
       
       // No updates or deletes (logs are immutable)
       allow update, delete: if false;
+    }
+    
+    // =============================================================================
+    // COLLECTION GROUP RULES
+    // These rules apply to collectionGroup queries across all subcollections
+    // =============================================================================
+    
+    // Allow parents to query their own registrations across all programs
+    // Allow coaches to query registrations for their program (draft pool)
+    // Used by ParentRegistrations.tsx, AuthContext sport context detection, and coach draft pool
+    // Query must filter by parentId == request.auth.uid for parents
+    match /{path=**}/registrants/{registrantId} {
+      allow read: if isAuthenticated() && 
+                    (resource.data.parentId == request.auth.uid || 
+                     isAdmin() || 
+                     isCommissioner() ||
+                     isCoach());
     }
   }
 }

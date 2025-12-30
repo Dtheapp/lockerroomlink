@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs, doc, getDoc, addDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
@@ -21,6 +22,7 @@ interface BracketMatch {
 
 export default function LeaguePlayoffs() {
   const { leagueData, user } = useAuth();
+  const { theme } = useTheme();
   const navigate = useNavigate();
   
   const [seasons, setSeasons] = useState<LeagueSeason[]>([]);
@@ -107,7 +109,9 @@ export default function LeaguePlayoffs() {
 
   if (!leagueData) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${
+        theme === 'dark' ? 'bg-zinc-900' : 'bg-slate-50'
+      }`}>
         <AlertCircle className="w-16 h-16 text-red-500" />
       </div>
     );
@@ -115,28 +119,40 @@ export default function LeaguePlayoffs() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      <div className={`min-h-screen flex items-center justify-center ${
+        theme === 'dark' ? 'bg-zinc-900' : 'bg-slate-50'
+      }`}>
+        <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className={`min-h-screen ${
+      theme === 'dark' ? 'bg-zinc-900 text-white' : 'bg-slate-50 text-slate-900'
+    }`}>
       {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700">
+      <div className={`border-b ${
+        theme === 'dark' 
+          ? 'bg-black/40 border-white/10' 
+          : 'bg-white border-slate-200 shadow-sm'
+      }`}>
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link to="/league" className="p-2 hover:bg-gray-700 rounded-lg transition-colors">
+              <Link to="/league" className={`p-2 rounded-lg transition-colors ${
+                theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+              }`}>
                 <ChevronLeft className="w-5 h-5" />
               </Link>
               <div>
-                <h1 className="text-xl font-bold flex items-center gap-2">
+                <h1 className={`text-xl font-bold flex items-center gap-2 ${
+                  theme === 'dark' ? 'text-white' : 'text-slate-900'
+                }`}>
                   <Trophy className="w-5 h-5 text-yellow-400" />
                   Playoffs
                 </h1>
-                <p className="text-sm text-gray-400">{leagueData.name}</p>
+                <p className={theme === 'dark' ? 'text-sm text-slate-400' : 'text-sm text-slate-600'}>{leagueData.name}</p>
               </div>
             </div>
             
@@ -145,7 +161,11 @@ export default function LeaguePlayoffs() {
               <select
                 value={selectedSeasonId}
                 onChange={(e) => setSelectedSeasonId(e.target.value)}
-                className="bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+                className={`rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
+                  theme === 'dark'
+                    ? 'bg-white/5 border border-white/10 text-white'
+                    : 'bg-white border border-slate-200 text-slate-900'
+                }`}
               >
                 {seasons.map(season => (
                   <option key={season.id} value={season.id}>{season.name}</option>
@@ -155,7 +175,7 @@ export default function LeaguePlayoffs() {
               {!bracket && selectedSeasonId && (
                 <button
                   onClick={() => setShowCreateBracket(true)}
-                  className="flex items-center gap-2 bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded-lg font-medium transition-colors"
+                  className="flex items-center gap-2 bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 px-4 py-2 rounded-xl font-medium text-white transition-all shadow-lg shadow-yellow-500/25"
                 >
                   <Plus className="w-5 h-5" />
                   Create Bracket
@@ -169,32 +189,48 @@ export default function LeaguePlayoffs() {
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 py-6">
         {seasons.length === 0 ? (
-          <div className="text-center py-12 bg-gray-800 rounded-xl border border-gray-700">
-            <Trophy className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-400">No Seasons Available</h3>
-            <p className="text-gray-500 mt-2">Create a season first to set up playoffs</p>
+          <div className={`text-center py-12 rounded-2xl border ${
+            theme === 'dark' 
+              ? 'bg-white/5 border-white/10' 
+              : 'bg-white border-slate-200 shadow-sm'
+          }`}>
+            <Trophy className={`w-16 h-16 mx-auto mb-4 ${
+              theme === 'dark' ? 'text-slate-600' : 'text-slate-400'
+            }`} />
+            <h3 className={`text-lg font-medium ${
+              theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+            }`}>No Seasons Available</h3>
+            <p className={`mt-2 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>Create a season first to set up playoffs</p>
             <Link
               to="/league/seasons"
-              className="mt-4 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors"
+              className="mt-4 inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 px-4 py-2 rounded-xl font-medium text-white transition-all"
             >
               Go to Seasons
             </Link>
           </div>
         ) : !bracket ? (
-          <div className="text-center py-12 bg-gray-800 rounded-xl border border-gray-700">
-            <Trophy className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-400">No Playoff Bracket</h3>
-            <p className="text-gray-500 mt-2">Create a playoff bracket for this season</p>
+          <div className={`text-center py-12 rounded-2xl border ${
+            theme === 'dark' 
+              ? 'bg-white/5 border-white/10' 
+              : 'bg-white border-slate-200 shadow-sm'
+          }`}>
+            <Trophy className={`w-16 h-16 mx-auto mb-4 ${
+              theme === 'dark' ? 'text-slate-600' : 'text-slate-400'
+            }`} />
+            <h3 className={`text-lg font-medium ${
+              theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+            }`}>No Playoff Bracket</h3>
+            <p className={`mt-2 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>Create a playoff bracket for this season</p>
             <button
               onClick={() => setShowCreateBracket(true)}
-              className="mt-4 flex items-center gap-2 bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded-lg font-medium mx-auto transition-colors"
+              className="mt-4 flex items-center gap-2 bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 px-4 py-2 rounded-xl font-medium text-white mx-auto transition-all"
             >
               <Plus className="w-5 h-5" />
               Create Bracket
             </button>
           </div>
         ) : (
-          <BracketVisualization bracket={bracket} teams={teams} onUpdate={() => loadBracket(selectedSeasonId)} />
+          <BracketVisualization bracket={bracket} teams={teams} onUpdate={() => loadBracket(selectedSeasonId)} theme={theme} />
         )}
       </div>
 
@@ -209,6 +245,7 @@ export default function LeaguePlayoffs() {
             setShowCreateBracket(false);
             loadBracket(selectedSeasonId);
           }}
+          theme={theme}
         />
       )}
     </div>
@@ -220,9 +257,10 @@ interface BracketVisualizationProps {
   bracket: PlayoffBracket;
   teams: Team[];
   onUpdate: () => void;
+  theme: string;
 }
 
-function BracketVisualization({ bracket, teams, onUpdate }: BracketVisualizationProps) {
+function BracketVisualization({ bracket, teams, onUpdate, theme }: BracketVisualizationProps) {
   const matches = (bracket.matches || []) as unknown as BracketMatch[];
   const rounds = Math.max(...matches.map(m => m.round), 0);
   
@@ -254,8 +292,10 @@ function BracketVisualization({ bracket, teams, onUpdate }: BracketVisualization
   if (matches.length === 0) {
     return (
       <div className="text-center py-12">
-        <Trophy className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-        <p className="text-gray-400">Bracket has no matches configured</p>
+        <Trophy className={`w-16 h-16 mx-auto mb-4 ${
+          theme === 'dark' ? 'text-slate-600' : 'text-slate-400'
+        }`} />
+        <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>Bracket has no matches configured</p>
       </div>
     );
   }
@@ -268,10 +308,12 @@ function BracketVisualization({ bracket, teams, onUpdate }: BracketVisualization
     <div className="space-y-6">
       {/* Champion Banner */}
       {winner && (
-        <div className="bg-gradient-to-r from-yellow-600/20 to-yellow-500/20 border border-yellow-500/30 rounded-xl p-6 text-center">
+        <div className="bg-gradient-to-r from-yellow-600/20 to-yellow-500/20 border border-yellow-500/30 rounded-2xl p-6 text-center">
           <Crown className="w-12 h-12 text-yellow-400 mx-auto mb-3" />
           <h2 className="text-xl font-bold text-yellow-400">Champion</h2>
-          <p className="text-2xl font-bold mt-2">{winner.name}</p>
+          <p className={`text-2xl font-bold mt-2 ${
+            theme === 'dark' ? 'text-white' : 'text-slate-900'
+          }`}>{winner.name}</p>
         </div>
       )}
 
@@ -280,7 +322,9 @@ function BracketVisualization({ bracket, teams, onUpdate }: BracketVisualization
         <div className="flex gap-8 min-w-max">
           {Array.from({ length: rounds }, (_, i) => i + 1).map(round => (
             <div key={round} className="flex flex-col gap-4">
-              <h3 className="text-center text-sm font-medium text-gray-400 mb-2">
+              <h3 className={`text-center text-sm font-medium mb-2 ${
+                theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+              }`}>
                 {getRoundName(round, rounds)}
               </h3>
               <div 
@@ -294,6 +338,7 @@ function BracketVisualization({ bracket, teams, onUpdate }: BracketVisualization
                     teams={teams}
                     isFinal={round === rounds}
                     onUpdate={onUpdate}
+                    theme={theme}
                   />
                 ))}
               </div>
@@ -303,7 +348,9 @@ function BracketVisualization({ bracket, teams, onUpdate }: BracketVisualization
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-6 text-sm text-gray-400 justify-center">
+      <div className={`flex items-center gap-6 text-sm justify-center ${
+        theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+      }`}>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-green-500" />
           <span>Winner</span>
@@ -327,9 +374,10 @@ interface MatchCardProps {
   teams: Team[];
   isFinal: boolean;
   onUpdate: () => void;
+  theme: string;
 }
 
-function MatchCard({ match, teams, isFinal, onUpdate }: MatchCardProps) {
+function MatchCard({ match, teams, isFinal, onUpdate, theme }: MatchCardProps) {
   const [showEdit, setShowEdit] = useState(false);
   
   const getTeamName = (teamId?: string) => {
@@ -340,17 +388,21 @@ function MatchCard({ match, teams, isFinal, onUpdate }: MatchCardProps) {
   const getBorderColor = () => {
     if (match.winnerId) return 'border-green-500/50';
     if (match.status === 'in_progress') return 'border-yellow-500/50';
-    return 'border-gray-600';
+    return theme === 'dark' ? 'border-white/10' : 'border-slate-200';
   };
 
   return (
     <>
       <div 
-        className={`bg-gray-800 rounded-lg border-2 ${getBorderColor()} w-56 cursor-pointer hover:border-gray-500 transition-colors ${isFinal ? 'ring-2 ring-yellow-500/30' : ''}`}
+        className={`rounded-xl border-2 ${getBorderColor()} w-56 cursor-pointer transition-colors ${
+          theme === 'dark'
+            ? 'bg-white/5 hover:border-white/30'
+            : 'bg-white shadow-sm hover:border-slate-300'
+        } ${isFinal ? 'ring-2 ring-yellow-500/30' : ''}`}
         onClick={() => setShowEdit(true)}
       >
         {isFinal && (
-          <div className="bg-yellow-600/20 text-yellow-400 text-xs font-medium text-center py-1 border-b border-gray-700">
+          <div className="bg-yellow-600/20 text-yellow-400 text-xs font-medium text-center py-1 border-b border-yellow-500/30 rounded-t-lg">
             <Trophy className="w-3 h-3 inline mr-1" />
             Championship
           </div>
@@ -360,26 +412,40 @@ function MatchCard({ match, teams, isFinal, onUpdate }: MatchCardProps) {
         <div className={`flex items-center justify-between p-3 ${match.winnerId === match.team1Id ? 'bg-green-500/10' : ''}`}>
           <div className="flex items-center gap-2">
             {match.winnerId === match.team1Id && <Crown className="w-4 h-4 text-yellow-400" />}
-            <span className={`font-medium ${!match.team1Id ? 'text-gray-500' : ''}`}>
+            <span className={`font-medium ${
+              !match.team1Id 
+                ? theme === 'dark' ? 'text-slate-500' : 'text-slate-400'
+                : theme === 'dark' ? 'text-white' : 'text-slate-900'
+            }`}>
               {getTeamName(match.team1Id)}
             </span>
           </div>
-          <span className="font-bold text-lg">
+          <span className={`font-bold text-lg ${
+            theme === 'dark' ? 'text-white' : 'text-slate-900'
+          }`}>
             {match.team1Score ?? '-'}
           </span>
         </div>
         
-        <div className="border-t border-gray-700" />
+        <div className={`border-t ${
+          theme === 'dark' ? 'border-white/10' : 'border-slate-100'
+        }`} />
         
         {/* Team 2 */}
         <div className={`flex items-center justify-between p-3 ${match.winnerId === match.team2Id ? 'bg-green-500/10' : ''}`}>
           <div className="flex items-center gap-2">
             {match.winnerId === match.team2Id && <Crown className="w-4 h-4 text-yellow-400" />}
-            <span className={`font-medium ${!match.team2Id ? 'text-gray-500' : ''}`}>
+            <span className={`font-medium ${
+              !match.team2Id 
+                ? theme === 'dark' ? 'text-slate-500' : 'text-slate-400'
+                : theme === 'dark' ? 'text-white' : 'text-slate-900'
+            }`}>
               {getTeamName(match.team2Id)}
             </span>
           </div>
-          <span className="font-bold text-lg">
+          <span className={`font-bold text-lg ${
+            theme === 'dark' ? 'text-white' : 'text-slate-900'
+          }`}>
             {match.team2Score ?? '-'}
           </span>
         </div>
@@ -395,6 +461,7 @@ function MatchCard({ match, teams, isFinal, onUpdate }: MatchCardProps) {
             setShowEdit(false);
             onUpdate();
           }}
+          theme={theme}
         />
       )}
     </>
@@ -407,9 +474,10 @@ interface EditMatchModalProps {
   teams: Team[];
   onClose: () => void;
   onSaved: () => void;
+  theme: string;
 }
 
-function EditMatchModal({ match, teams, onClose, onSaved }: EditMatchModalProps) {
+function EditMatchModal({ match, teams, onClose, onSaved, theme }: EditMatchModalProps) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     team1Score: match.team1Score || 0,
@@ -436,43 +504,71 @@ function EditMatchModal({ match, teams, onClose, onSaved }: EditMatchModalProps)
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-xl w-full max-w-sm border border-gray-700">
-        <div className="flex items-center justify-between p-4 border-b border-gray-700">
-          <h2 className="text-lg font-semibold">Edit Match</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-700 rounded-lg">
+      <div className={`rounded-2xl w-full max-w-sm border ${
+        theme === 'dark'
+          ? 'bg-zinc-900 border-white/10'
+          : 'bg-white border-slate-200 shadow-xl'
+      }`}>
+        <div className={`flex items-center justify-between p-4 border-b ${
+          theme === 'dark' ? 'border-white/10' : 'border-slate-200'
+        }`}>
+          <h2 className={`text-lg font-semibold ${
+            theme === 'dark' ? 'text-white' : 'text-slate-900'
+          }`}>Edit Match</h2>
+          <button onClick={onClose} className={`p-2 rounded-lg ${
+            theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+          }`}>
             <X className="w-5 h-5" />
           </button>
         </div>
         
         <div className="p-4 space-y-4">
           <div className="flex items-center justify-between">
-            <span className="font-medium">{teams.find(t => t.id === match.team1Id)?.name || 'TBD'}</span>
+            <span className={`font-medium ${
+              theme === 'dark' ? 'text-white' : 'text-slate-900'
+            }`}>{teams.find(t => t.id === match.team1Id)?.name || 'TBD'}</span>
             <input
               type="number"
               min="0"
               value={formData.team1Score}
               onChange={(e) => setFormData({ ...formData, team1Score: parseInt(e.target.value) || 0 })}
-              className="w-20 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-center text-white"
+              className={`w-20 rounded-xl px-3 py-2 text-center focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
+                theme === 'dark'
+                  ? 'bg-white/5 border border-white/10 text-white'
+                  : 'bg-slate-50 border border-slate-200 text-slate-900'
+              }`}
             />
           </div>
           
           <div className="flex items-center justify-between">
-            <span className="font-medium">{teams.find(t => t.id === match.team2Id)?.name || 'TBD'}</span>
+            <span className={`font-medium ${
+              theme === 'dark' ? 'text-white' : 'text-slate-900'
+            }`}>{teams.find(t => t.id === match.team2Id)?.name || 'TBD'}</span>
             <input
               type="number"
               min="0"
               value={formData.team2Score}
               onChange={(e) => setFormData({ ...formData, team2Score: parseInt(e.target.value) || 0 })}
-              className="w-20 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-center text-white"
+              className={`w-20 rounded-xl px-3 py-2 text-center focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
+                theme === 'dark'
+                  ? 'bg-white/5 border border-white/10 text-white'
+                  : 'bg-slate-50 border border-slate-200 text-slate-900'
+              }`}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>
+            <label className={`block text-sm font-medium mb-1 ${
+              theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+            }`}>Status</label>
             <select
               value={formData.status}
               onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+              className={`w-full rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
+                theme === 'dark'
+                  ? 'bg-white/5 border border-white/10 text-white'
+                  : 'bg-slate-50 border border-slate-200 text-slate-900'
+              }`}
             >
               <option value="pending">Pending</option>
               <option value="scheduled">Scheduled</option>
@@ -485,14 +581,16 @@ function EditMatchModal({ match, teams, onClose, onSaved }: EditMatchModalProps)
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+              className={`px-4 py-2 transition-colors ${
+                theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={loading}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 px-4 py-2 rounded-lg font-medium transition-colors"
+              className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 disabled:opacity-50 px-4 py-2 rounded-xl font-medium text-white transition-all"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               Save
@@ -511,9 +609,10 @@ interface CreateBracketModalProps {
   teams: Team[];
   onClose: () => void;
   onCreated: () => void;
+  theme: string;
 }
 
-function CreateBracketModal({ seasonId, leagueId, teams, onClose, onCreated }: CreateBracketModalProps) {
+function CreateBracketModal({ seasonId, leagueId, teams, onClose, onCreated, theme }: CreateBracketModalProps) {
   const [loading, setLoading] = useState(false);
   const [bracketSize, setBracketSize] = useState(4);
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
@@ -583,30 +682,50 @@ function CreateBracketModal({ seasonId, leagueId, teams, onClose, onCreated }: C
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-xl w-full max-w-lg border border-gray-700 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-4 border-b border-gray-700 sticky top-0 bg-gray-800">
-          <h2 className="text-lg font-semibold">Create Playoff Bracket</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-700 rounded-lg">
+      <div className={`rounded-2xl w-full max-w-lg border max-h-[90vh] overflow-y-auto ${
+        theme === 'dark'
+          ? 'bg-zinc-900 border-white/10'
+          : 'bg-white border-slate-200 shadow-xl'
+      }`}>
+        <div className={`flex items-center justify-between p-4 border-b sticky top-0 ${
+          theme === 'dark' 
+            ? 'border-white/10 bg-zinc-900' 
+            : 'border-slate-200 bg-white'
+        }`}>
+          <h2 className={`text-lg font-semibold ${
+            theme === 'dark' ? 'text-white' : 'text-slate-900'
+          }`}>Create Playoff Bracket</h2>
+          <button onClick={onClose} className={`p-2 rounded-lg ${
+            theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+          }`}>
             <X className="w-5 h-5" />
           </button>
         </div>
         
         <div className="p-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
+            <label className={`block text-sm font-medium mb-1 ${
+              theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+            }`}>
               Bracket Name
             </label>
             <input
               type="text"
               value={bracketName}
               onChange={(e) => setBracketName(e.target.value)}
-              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white"
+              className={`w-full rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
+                theme === 'dark'
+                  ? 'bg-white/5 border border-white/10 text-white'
+                  : 'bg-slate-50 border border-slate-200 text-slate-900'
+              }`}
               placeholder="e.g., Fall 2024 Playoffs"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
+            <label className={`block text-sm font-medium mb-1 ${
+              theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+            }`}>
               Bracket Size
             </label>
             <div className="flex gap-2">
@@ -617,10 +736,12 @@ function CreateBracketModal({ seasonId, leagueId, teams, onClose, onCreated }: C
                     setBracketSize(size);
                     setSelectedTeams(selectedTeams.slice(0, size));
                   }}
-                  className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
+                  className={`flex-1 py-2 rounded-xl font-medium transition-colors ${
                     bracketSize === size 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      ? 'bg-gradient-to-r from-purple-600 to-purple-500 text-white' 
+                      : theme === 'dark'
+                        ? 'bg-white/5 text-slate-300 hover:bg-white/10'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
                   {size} Teams
@@ -630,7 +751,9 @@ function CreateBracketModal({ seasonId, leagueId, teams, onClose, onCreated }: C
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className={`block text-sm font-medium mb-2 ${
+              theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+            }`}>
               Select Teams ({selectedTeams.length}/{bracketSize})
             </label>
             <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
@@ -643,23 +766,29 @@ function CreateBracketModal({ seasonId, leagueId, teams, onClose, onCreated }: C
                     key={team.id}
                     onClick={() => toggleTeam(team.id)}
                     disabled={!isSelected && selectedTeams.length >= bracketSize}
-                    className={`flex items-center gap-2 p-2 rounded-lg text-left text-sm transition-colors ${
+                    className={`flex items-center gap-2 p-2 rounded-xl text-left text-sm transition-colors ${
                       isSelected 
-                        ? 'bg-blue-600/20 border border-blue-500' 
-                        : 'bg-gray-700 border border-gray-600 hover:border-gray-500 disabled:opacity-50'
+                        ? 'bg-purple-600/20 border border-purple-500' 
+                        : theme === 'dark'
+                          ? 'bg-white/5 border border-white/10 hover:border-white/20 disabled:opacity-50'
+                          : 'bg-slate-50 border border-slate-200 hover:border-slate-300 disabled:opacity-50'
                     }`}
                   >
                     {isSelected && (
-                      <span className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold">
+                      <span className="w-5 h-5 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold text-white">
                         {seedNumber}
                       </span>
                     )}
-                    <span className="flex-1 truncate">{team.name}</span>
+                    <span className={`flex-1 truncate ${
+                      theme === 'dark' ? 'text-white' : 'text-slate-900'
+                    }`}>{team.name}</span>
                   </button>
                 );
               })}
             </div>
-            <p className="text-xs text-gray-500 mt-2">
+            <p className={`text-xs mt-2 ${
+              theme === 'dark' ? 'text-slate-500' : 'text-slate-500'
+            }`}>
               Selection order determines seeding (1st selected = #1 seed)
             </p>
           </div>
@@ -668,14 +797,16 @@ function CreateBracketModal({ seasonId, leagueId, teams, onClose, onCreated }: C
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+              className={`px-4 py-2 transition-colors ${
+                theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
               Cancel
             </button>
             <button
               onClick={handleCreate}
               disabled={loading || selectedTeams.length < 2}
-              className="flex items-center gap-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-yellow-600/50 px-4 py-2 rounded-lg font-medium transition-colors"
+              className="flex items-center gap-2 bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 disabled:opacity-50 px-4 py-2 rounded-xl font-medium text-white transition-all shadow-lg shadow-yellow-500/25"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trophy className="w-4 h-4" />}
               Create Bracket

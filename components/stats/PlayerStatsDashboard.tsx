@@ -12,13 +12,13 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getStatSchema, getStatDefinition, getStatsByCategory, type StatDefinition } from '../../config/statSchemas';
 import { GlassCard } from '../ui/OSYSComponents';
-import type { Player } from '../../types';
+import type { Player, TeamHistoryEntry, SportType } from '../../types';
 import { 
   TrendingUp, TrendingDown, Minus, Trophy, Calendar, Target,
   BarChart3, ChevronDown, ChevronUp, Zap, Star, Award,
@@ -62,6 +62,16 @@ interface PlayerStatsDashboardProps {
   teamName?: string;
 }
 
+// Represents a program context (current or historical)
+interface ProgramContext {
+  programId: string;
+  programName: string;
+  teamId?: string;
+  teamName?: string;
+  sport: SportType;
+  isHistorical: boolean;
+}
+
 const PlayerStatsDashboard: React.FC<PlayerStatsDashboardProps> = ({ player, teamName }) => {
   const { teamData } = useAuth();
   const { theme } = useTheme();
@@ -73,44 +83,136 @@ const PlayerStatsDashboard: React.FC<PlayerStatsDashboardProps> = ({ player, tea
   const [loading, setLoading] = useState(true);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['trends']));
   const [activeSeasonId, setActiveSeasonId] = useState<string | null>(null);
-  const [allSeasons, setAllSeasons] = useState<Array<{ id: string; name: string; year: number; status: string }>>([]);
+  const [allSeasons, setAllSeasons] = useState<Array<{ id: string; name: string; year: number; status: string; programId: string; teamId?: string }>>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   
+  // Available program contexts (current + historical)
+  const [programContexts, setProgramContexts] = useState<ProgramContext[]>([]);
+  const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
+  
+  // Determine sport from current team or historical context
+  const activeSport = useMemo(() => {
+    if (teamData?.sport) return teamData.sport as SportType;
+    if (player.teamHistory?.length) {
+      // Use sport from most recent team history entry
+      return player.teamHistory[player.teamHistory.length - 1]?.sport || 'football';
+    }
+    return 'football' as SportType;
+  }, [teamData?.sport, player.teamHistory]);
+  
   // Get sport-specific stat schema
-  const sport = teamData?.sport || 'football';
-  const statSchema = useMemo(() => getStatSchema(sport), [sport]);
+  const statSchema = useMemo(() => getStatSchema(activeSport), [activeSport]);
   
   // Key stats for this sport (leaderboard stats are the most important)
   const keyStats = useMemo(() => {
-    return statSchema.leaderboardStats.slice(0, 4).map(key => getStatDefinition(sport, key)).filter(Boolean) as StatDefinition[];
-  }, [statSchema, sport]);
+    return statSchema.leaderboardStats.slice(0, 4).map(key => getStatDefinition(activeSport, key)).filter(Boolean) as StatDefinition[];
+  }, [statSchema, activeSport]);
   
   // Categories with their stats
   const categoriesWithStats = useMemo(() => {
     return statSchema.categories.map(cat => ({
       ...cat,
-      stats: getStatsByCategory(sport, cat.key)
+      stats: getStatsByCategory(activeSport, cat.key)
     })).filter(cat => cat.stats.length > 0);
-  }, [statSchema, sport]);
+  }, [statSchema, activeSport]);
 
-  const programId = teamData?.programId;
-  const teamId = teamData?.id;
+  // Build program contexts from current team and history
+  useEffect(() => {
+    const buildContexts = async () => {
+      const contexts: ProgramContext[] = [];
+      
+      // Add current team context if available
+      if (teamData?.programId) {
+        contexts.push({
+          programId: teamData.programId,
+          programName: teamData.programName || 'Current Program',
+          teamId: teamData.id,
+          teamName: teamData.name,
+          sport: (teamData.sport || 'football') as SportType,
+          isHistorical: false
+        });
+      }
+      
+      // Add historical contexts from player.teamHistory
+      if (player.teamHistory?.length) {
+        for (const entry of player.teamHistory) {
+          // Don't duplicate current team
+          if (entry.teamId === teamData?.id) continue;
+          
+          contexts.push({
+            programId: entry.programId,
+            programName: entry.programName,
+            teamId: entry.teamId,
+            teamName: entry.teamName,
+            sport: entry.sport,
+            isHistorical: true
+          });
+        }
+      }
+      
+      // FALLBACK: If no contexts but player has a teamId, look up that team's program
+      // This handles players who were on teams before we started tracking teamHistory
+      if (contexts.length === 0 && player.teamId && !teamData) {
+        try {
+          const teamDoc = await getDoc(doc(db, 'teams', player.teamId));
+          if (teamDoc.exists()) {
+            const team = teamDoc.data();
+            if (team.programId) {
+              contexts.push({
+                programId: team.programId,
+                programName: team.programName || team.name || 'Program',
+                teamId: player.teamId,
+                teamName: team.name || 'Team',
+                sport: (team.sport || 'football') as SportType,
+                isHistorical: true
+              });
+            }
+          }
+        } catch (err) {
+          console.error('Error looking up player team:', err);
+        }
+      }
+      
+      setProgramContexts(contexts);
+      
+      // Default to current team's program or first historical
+      if (!selectedProgramId && contexts.length > 0) {
+        setSelectedProgramId(contexts[0].programId);
+      }
+    };
+    
+    buildContexts();
+  }, [teamData, player.teamHistory, player.teamId, selectedProgramId]);
 
-  // Load all seasons for this program
+  // Get the active program context
+  const activeContext = useMemo(() => {
+    return programContexts.find(c => c.programId === selectedProgramId) || programContexts[0];
+  }, [programContexts, selectedProgramId]);
+
+  const programId = activeContext?.programId;
+  const teamId = activeContext?.teamId;
+
+  // Load all seasons for the selected program
   useEffect(() => {
     const loadSeasons = async () => {
-      if (!programId) return;
+      if (!programId) {
+        setAllSeasons([]);
+        setLoading(false);
+        return;
+      }
       
       try {
         const seasonsRef = collection(db, 'programs', programId, 'seasons');
         const seasonsSnap = await getDocs(seasonsRef);
-        const seasons = seasonsSnap.docs.map(doc => {
-          const data = doc.data();
+        const seasons = seasonsSnap.docs.map(docSnap => {
+          const data = docSnap.data();
           return {
-            id: doc.id,
+            id: docSnap.id,
             name: data.name || `${data.year || 'Unknown'} Season`,
             year: data.year || new Date().getFullYear(),
-            status: data.status || 'active'
+            status: data.status || 'active',
+            programId: programId,
+            teamId: teamId
           };
         });
         
@@ -126,6 +228,9 @@ const PlayerStatsDashboard: React.FC<PlayerStatsDashboardProps> = ({ player, tea
         if (activeSeason) {
           setActiveSeasonId(activeSeason.id);
           setSelectedSeasonId(activeSeason.id);
+        } else {
+          setActiveSeasonId(null);
+          setSelectedSeasonId(null);
         }
       } catch (err) {
         console.error('Error loading seasons:', err);
@@ -133,7 +238,7 @@ const PlayerStatsDashboard: React.FC<PlayerStatsDashboardProps> = ({ player, tea
     };
     
     loadSeasons();
-  }, [programId]);
+  }, [programId, teamId]);
 
   // Fetch player's game-by-game stats from v2.0 path
   useEffect(() => {
@@ -369,6 +474,34 @@ const PlayerStatsDashboard: React.FC<PlayerStatsDashboardProps> = ({ player, tea
         </div>
       </div>
 
+      {/* ============ PROGRAM SELECTOR (when multiple programs available) ============ */}
+      {programContexts.length > 1 && (
+        <div className={`flex items-center gap-3 p-3 rounded-xl ${isDark ? 'bg-white/5' : 'bg-slate-100'}`}>
+          <Trophy className={`w-5 h-5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
+          <span className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>Program:</span>
+          <div className="flex gap-2 flex-wrap">
+            {programContexts.map(ctx => (
+              <button
+                key={ctx.programId}
+                onClick={() => setSelectedProgramId(ctx.programId)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                  selectedProgramId === ctx.programId
+                    ? 'bg-amber-500 text-white shadow-lg'
+                    : isDark
+                      ? 'bg-white/10 text-slate-300 hover:bg-white/20'
+                      : 'bg-white text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {ctx.teamName || ctx.programName}
+                {!ctx.isHistorical && (
+                  <span className="ml-1.5 text-[10px] uppercase opacity-75">Current</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ============ SEASON SELECTOR ============ */}
       {allSeasons.length > 1 && (
         <div className={`flex items-center gap-3 p-3 rounded-xl ${isDark ? 'bg-white/5' : 'bg-slate-100'}`}>
@@ -397,8 +530,8 @@ const PlayerStatsDashboard: React.FC<PlayerStatsDashboardProps> = ({ player, tea
         </div>
       )}
 
-      {/* ============ NO STATS MESSAGE ============ */}
-      {gameStats.length === 0 && !loading ? (
+      {/* ============ NO PROGRAM/STATS MESSAGE ============ */}
+      {!programId && !player.teamHistory?.length ? (
         <GlassCard className={isDark ? '' : 'bg-white border-slate-200'}>
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <BarChart3 className={`w-16 h-16 mb-4 ${isDark ? 'text-slate-600' : 'text-slate-400'}`} />
@@ -407,6 +540,20 @@ const PlayerStatsDashboard: React.FC<PlayerStatsDashboardProps> = ({ player, tea
             </h3>
             <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
               Stats will appear here once recorded by a coach during games.
+            </p>
+          </div>
+        </GlassCard>
+      ) : gameStats.length === 0 && !loading ? (
+        <GlassCard className={isDark ? '' : 'bg-white border-slate-200'}>
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <BarChart3 className={`w-16 h-16 mb-4 ${isDark ? 'text-slate-600' : 'text-slate-400'}`} />
+            <h3 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-zinc-900'}`}>
+              No Stats Recorded Yet
+            </h3>
+            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+              {allSeasons.length > 0 
+                ? 'No stats found for this season. Try selecting a different season above.'
+                : 'Stats will appear here once recorded by a coach during games.'}
             </p>
           </div>
         </GlassCard>

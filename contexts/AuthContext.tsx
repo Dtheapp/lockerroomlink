@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, collection, query, where, getDocs, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, getDocs, updateDoc, getDoc, collectionGroup } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { setSentryUser, clearSentryUser } from '../services/sentry';
 import type { UserProfile, Team, Player, League, Program, TeamManager, SportType } from '../types';
@@ -14,9 +14,11 @@ export interface SportContext {
   // Team-based draft pool (legacy)
   draftPoolTeamId?: string;
   draftPoolTeamName?: string;
-  // Program-based draft pool (new)
+  // Program-based draft pool (season system)
   draftPoolProgramId?: string;
   draftPoolSeasonId?: string;
+  // Independent registration (new system)
+  draftPoolRegistrationId?: string;
   draftPoolAgeGroup?: string;
 }
 
@@ -89,9 +91,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayer, setSelectedPlayerState] = useState<Player | null>(null);
   
-  // Multi-sport context
+  // Multi-sport context - restore from localStorage, default to football
   const [sportContexts, setSportContexts] = useState<SportContext[]>([]);
-  const [selectedSportContext, setSelectedSportContextState] = useState<SportContext | null>(null);
+  const [selectedSportContext, setSelectedSportContextState] = useState<SportContext | null>(() => {
+    // Restore from localStorage on mount
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('osys_sport_context');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+          // Invalid JSON, fall through to default
+        }
+      }
+      // Default to football if nothing saved
+      return { sport: 'football' as SportType, status: 'none' };
+    }
+    return { sport: 'football' as SportType, status: 'none' };
+  });
   
   // Team management for coaches with multiple teams
   const [coachTeams, setCoachTeams] = useState<Team[]>([]);
@@ -126,7 +143,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const coachTeamsLoadedRef = useRef<string | null>(null);
   
   // Computed role checks
-  const isLeagueOwner = userData?.role === 'LeagueOwner';
+  const isLeagueOwner = userData?.role === 'LeagueOwner' || userData?.role === 'LeagueCommissioner';
   const isProgramCommissioner = userData?.role === 'ProgramCommissioner';
   const isCommissioner = isLeagueOwner || isProgramCommissioner;
 
@@ -165,10 +182,54 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('[SportContexts] playerDoc.exists():', playerDoc.exists());
       if (playerDoc.exists()) {
         const playerData = playerDoc.data();
-        console.log('[SportContexts] Player draft pool data:', playerData.draftPoolStatus, playerData.draftPoolProgramId, playerData.draftPoolSeasonId, playerData.draftPoolSport);
+        console.log('[SportContexts] Player draft pool data:', playerData.draftPoolStatus, playerData.draftPoolProgramId, playerData.draftPoolSeasonId, playerData.draftPoolRegistrationId, playerData.draftPoolSport);
         
-        // Check for PROGRAM-based draft pool (new system) - uses programId/seasonId
-        if (playerData.draftPoolStatus === 'waiting' && playerData.draftPoolProgramId && playerData.draftPoolSeasonId) {
+        // Check for INDEPENDENT REGISTRATION (newest system) - uses programId/registrationId
+        if (playerData.draftPoolStatus === 'waiting' && playerData.draftPoolProgramId && playerData.draftPoolRegistrationId) {
+          let sport: SportType = (playerData.draftPoolSport || 'football') as SportType;
+          let programName = 'Unknown Program';
+          let registrationName = '';
+          
+          try {
+            const programDoc = await getDoc(doc(db, 'programs', playerData.draftPoolProgramId));
+            if (programDoc.exists()) {
+              const programData = programDoc.data();
+              if (!playerData.draftPoolSport) {
+                sport = (programData.sport || 'football') as SportType;
+              }
+              const sportLower = sport.toLowerCase();
+              const sportNames = programData.sportNames as { [key: string]: string } | undefined;
+              programName = sportNames?.[sportLower] || programData.name || 'Unknown Program';
+              
+              // Get registration name
+              try {
+                const regDoc = await getDoc(doc(db, 'programs', playerData.draftPoolProgramId, 'registrations', playerData.draftPoolRegistrationId));
+                if (regDoc.exists()) {
+                  registrationName = regDoc.data().name || '';
+                }
+              } catch (e) {
+                console.log('Could not fetch registration name');
+              }
+            }
+          } catch (e) {
+            console.log('⚠️ Error fetching program for registration:', e);
+          }
+          
+          if (!sportsFound.has(sport)) {
+            sportsFound.add(sport);
+            contexts.push({
+              sport,
+              status: 'draft_pool',
+              draftPoolProgramId: playerData.draftPoolProgramId,
+              draftPoolRegistrationId: playerData.draftPoolRegistrationId,
+              draftPoolTeamName: registrationName || programName,
+              draftPoolAgeGroup: playerData.draftPoolAgeGroup,
+            });
+            console.log('✅ Found independent registration context:', sport, programName, registrationName);
+          }
+        }
+        // Check for PROGRAM-based draft pool (season system) - uses programId/seasonId
+        else if (playerData.draftPoolStatus === 'waiting' && playerData.draftPoolProgramId && playerData.draftPoolSeasonId) {
           // First, try to get sport from player's draftPoolSport (new field)
           // If not available, fall back to program's sport field
           let sport: SportType = (playerData.draftPoolSport || 'football') as SportType;
@@ -278,6 +339,79 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Error searching draft pools for sport context:', err);
     }
     
+    // FALLBACK: Check registrants collection for registrations made by this user (parent)
+    // This catches registrations that weren't properly linked to player document
+    // Uses parentId since that's what Firestore rules allow
+    try {
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        console.log('[SportContexts] Checking registrants collection for parentId:', currentUser.uid, 'and player:', player.id);
+        const registrantsQuery = query(
+          collectionGroup(db, 'registrants'),
+          where('parentId', '==', currentUser.uid)
+        );
+        const registrantsSnap = await getDocs(registrantsQuery);
+        console.log('[SportContexts] Found registrations by parent:', registrantsSnap.size);
+        
+        for (const regDoc of registrantsSnap.docs) {
+          const regData = regDoc.data();
+          
+          // Only process registrations that match THIS player
+          if (regData.existingPlayerId !== player.id) {
+            continue;
+          }
+          
+          const pathParts = regDoc.ref.path.split('/');
+          // Path: programs/{programId}/registrations/{regId}/registrants/{registrantId}
+          const programId = pathParts[1];
+          const registrationId = pathParts[3];
+          
+          // Only consider "pending" confirmations (not yet drafted to team)
+          if (regData.confirmationStatus !== 'confirmed' && regData.assignedTeamId === undefined) {
+            try {
+              const programDoc = await getDoc(doc(db, 'programs', programId));
+              if (programDoc.exists()) {
+                const programData = programDoc.data();
+                const sport = (programData.sport || regData.sport || 'football') as SportType;
+                
+                if (!sportsFound.has(sport)) {
+                  sportsFound.add(sport);
+                  
+                  // Use sport-specific name if available, otherwise fall back to org name
+                  const sportLower = sport.toLowerCase();
+                  const sportNames = programData.sportNames as { [key: string]: string } | undefined;
+                  const programName = sportNames?.[sportLower] || programData.name || 'Unknown Program';
+                  
+                  // Get registration name
+                  let registrationName = '';
+                  try {
+                    const regDoc2 = await getDoc(doc(db, 'programs', programId, 'registrations', registrationId));
+                    if (regDoc2.exists()) {
+                      registrationName = regDoc2.data().name || regDoc2.data().title || '';
+                    }
+                  } catch (e) {}
+                  
+                  contexts.push({
+                    sport,
+                    status: 'draft_pool',
+                    draftPoolProgramId: programId,
+                    draftPoolRegistrationId: registrationId,
+                    draftPoolTeamName: registrationName || programName,
+                    draftPoolAgeGroup: regData.ageGroupLabel || regData.calculatedAgeGroup,
+                  });
+                  console.log('✅ Found registration via fallback:', sport, programName, registrationName);
+                }
+              }
+            } catch (e) {
+              console.warn('Error fetching program for registration fallback:', e);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error in registrant fallback search:', err);
+    }
+    
     console.log('[SportContexts] Final contexts:', contexts);
     return contexts;
   };
@@ -290,10 +424,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const contexts = await computeSportContexts(player);
     setSportContexts(contexts);
     
-    // Auto-select a sport context (prefer active team over draft pool)
+    // Get what we found
     const activeContext = contexts.find(c => c.status === 'active');
     const draftContext = contexts.find(c => c.status === 'draft_pool');
-    setSelectedSportContextState(activeContext || draftContext || null);
+    
+    // Check if we should update the selected context
+    // Update if: no context saved, current context is 'none', or current context doesn't match any found context
+    const currentContext = selectedSportContext;
+    const hasValidActiveContext = currentContext && currentContext.status === 'active' && currentContext.teamId;
+    const hasValidDraftContext = currentContext && currentContext.status === 'draft_pool';
+    
+    // If current context is 'none' or empty, but we found an active or draft context, update it
+    const shouldUpdate = !currentContext || 
+                         !currentContext.sport || 
+                         currentContext.status === 'none' ||
+                         // Also update if current says 'none' but we now have draft/active
+                         (currentContext.status === 'none' && (activeContext || draftContext));
+    
+    if (shouldUpdate) {
+      // Auto-select a sport context (prefer active team over draft pool)
+      const newContext = activeContext || draftContext || { sport: 'football' as SportType, status: 'none' };
+      console.log('[AuthContext] Auto-selecting sport context:', newContext);
+      setSelectedSportContextState(newContext);
+      localStorage.setItem('osys_sport_context', JSON.stringify(newContext));
+    } else {
+      console.log('[AuthContext] Keeping existing sport context:', currentContext);
+    }
     
     // If player has an active team, load that team's data
     if (activeContext?.teamId) {
@@ -320,7 +476,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const setSelectedSportContext = async (context: SportContext | null) => {
     setSelectedSportContextState(context);
     
-    // Persist selected sport to user profile
+    // Persist to localStorage for immediate restoration on page refresh
+    if (context) {
+      localStorage.setItem('osys_sport_context', JSON.stringify(context));
+    } else {
+      localStorage.removeItem('osys_sport_context');
+    }
+    
+    // Also persist selected sport to user profile (for cross-device sync)
     if (userData?.uid && context) {
       try {
         await updateDoc(doc(db, 'users', userData.uid), {
@@ -469,11 +632,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                                 
                                 setSelectedPlayerState(playerToSelect);
                                 
-                                // Compute sport contexts for the selected player (for dropdown options only)
-                                // Actual auto-selection happens in PlayerSportSelector which uses getPlayerRegistrationStatus
+                                // Compute sport contexts for the selected player
+                                // AND auto-select draft_pool context if current is 'none'
                                 computeSportContexts(playerToSelect).then(contexts => {
                                     console.log('[AuthContext] Computed sport contexts:', contexts);
                                     setSportContexts(contexts);
+                                    
+                                    // Check if we should update selectedSportContext
+                                    const activeContext = contexts.find(c => c.status === 'active');
+                                    const draftContext = contexts.find(c => c.status === 'draft_pool');
+                                    
+                                    // Get current saved context
+                                    const savedContextStr = localStorage.getItem('osys_sport_context');
+                                    let currentContext: SportContext | null = null;
+                                    try {
+                                      currentContext = savedContextStr ? JSON.parse(savedContextStr) : null;
+                                    } catch {}
+                                    
+                                    // Update if: no context, status is 'none', or we found better context
+                                    const shouldUpdate = !currentContext || 
+                                                         currentContext.status === 'none' ||
+                                                         (currentContext.status === 'none' && (activeContext || draftContext));
+                                    
+                                    if (shouldUpdate && (activeContext || draftContext)) {
+                                      const newContext = activeContext || draftContext!;
+                                      console.log('[AuthContext] Auto-selecting sport context on initial load:', newContext);
+                                      setSelectedSportContextState(newContext);
+                                      localStorage.setItem('osys_sport_context', JSON.stringify(newContext));
+                                    }
                                 });
                                 
                                 // Load team data for selected player (only if they have a team)
@@ -617,8 +803,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                         setLoading(false);
                     }
                 }
-                // LEAGUE OWNER FLOW: Load their league
-                else if (profile.role === 'LeagueOwner') {
+                // LEAGUE OWNER/COMMISSIONER FLOW: Load their league
+                else if (profile.role === 'LeagueOwner' || profile.role === 'LeagueCommissioner') {
                     if (profile.leagueId) {
                         try {
                             const leagueDocRef = doc(db, 'leagues', profile.leagueId);

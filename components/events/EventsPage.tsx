@@ -10,7 +10,25 @@ import { Event, PricingTier } from '../../types/events';
 import { Loader2, AlertCircle, Calendar, Search, MapPin, Users, ChevronRight, UserPlus, ChevronDown, Trophy, Clock, ExternalLink, X } from 'lucide-react';
 import { toastSuccess, toastError } from '../../services/toast';
 
-// Season registration as pseudo-event for display
+// Independent registration (new system) for display
+interface ProgramRegistrationDisplay {
+  id: string;
+  type: 'program_registration';
+  registrationId: string;  // The slug ID
+  programId: string;
+  programName: string;
+  registrationName: string;
+  sport: string;
+  ageGroups: string[];
+  registrationFee: number;
+  registrationOpenDate?: Date;
+  registrationCloseDate?: Date;
+  location?: string;
+  registrationType: string; // 'age_pool', 'camp', 'tryout', etc.
+  outcome: string; // 'draft_pool', 'team_select', etc.
+}
+
+// Legacy season registration (old system) - kept for backwards compatibility
 interface SeasonRegistration {
   id: string;
   type: 'season_registration';
@@ -53,7 +71,8 @@ const EventsPage: React.FC = () => {
 
   // State for public events browse (for users without a team)
   const [publicEvents, setPublicEvents] = useState<Event[]>([]);
-  const [seasonRegistrations, setSeasonRegistrations] = useState<SeasonRegistration[]>([]);
+  const [programRegistrations, setProgramRegistrations] = useState<ProgramRegistrationDisplay[]>([]); // New registration system
+  const [seasonRegistrations, setSeasonRegistrations] = useState<SeasonRegistration[]>([]); // Legacy system
   const [publicPricingTiers, setPublicPricingTiers] = useState<Record<string, PricingTier[]>>({});
   const [loadingPublic, setLoadingPublic] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -353,6 +372,97 @@ const EventsPage: React.FC = () => {
     fetchProgramSeasons();
   }, [teamId, authLoading]);
 
+  // Fetch NEW independent program registrations (programs/{programId}/registrations)
+  useEffect(() => {
+    if (teamId || authLoading) return; // Skip if user has a team
+    
+    const fetchProgramRegistrations = async () => {
+      try {
+        console.log('[EventsPage] Fetching independent program registrations...');
+        const now = new Date();
+        
+        // Query all programs first
+        const programsSnap = await getDocs(collection(db, 'programs'));
+        
+        const allRegs: ProgramRegistrationDisplay[] = [];
+        
+        // For each program, get registrations with status 'open'
+        await Promise.all(programsSnap.docs.map(async (programDoc) => {
+          const programData = programDoc.data();
+          const programId = programDoc.id;
+          
+          try {
+            // Get ALL registrations for this program (filter status on client side)
+            // This allows us to show draft for testing and scheduled for 'opens soon'
+            const registrationsSnap = await getDocs(
+              collection(db, 'programs', programId, 'registrations')
+            );
+            
+            registrationsSnap.docs.forEach((regDoc) => {
+              const regData = regDoc.data();
+              
+              // Skip closed, completed, cancelled registrations
+              const status = regData.status;
+              if (status === 'closed' || status === 'completed' || status === 'cancelled') {
+                return;
+              }
+              
+              // Helper to parse date from either Timestamp or string
+              const parseDate = (val: any): Date | null => {
+                if (!val) return null;
+                if (val.toDate) return val.toDate(); // Firestore Timestamp
+                if (typeof val === 'string') return new Date(val + 'T23:59:59'); // YYYY-MM-DD string
+                return null;
+              };
+              
+              const closeDate = parseDate(regData.registrationCloseDate);
+              
+              // Skip if registration has closed
+              if (closeDate && closeDate < now) {
+                return;
+              }
+              
+              // Extract age groups from ageGroupConfigs
+              const ageGroups: string[] = (regData.ageGroupConfigs || []).map((ag: any) => ag.label || ag.id);
+              
+              // Use sport-specific program name if available
+              const sport = regData.sport || programData.sport || 'Football';
+              const sportLower = sport.toLowerCase();
+              const sportNames = programData.sportNames as { [key: string]: string } | undefined;
+              const programDisplayName = sportNames?.[sportLower] || programData.name || 'Program';
+              
+              allRegs.push({
+                id: `reg_${regDoc.id}`,
+                type: 'program_registration',
+                registrationId: regDoc.id,
+                programId: programId,
+                programName: programDisplayName,
+                registrationName: regData.name || 'Registration',
+                sport: sport,
+                ageGroups: ageGroups,
+                registrationFee: regData.registrationFee || 0,
+                registrationOpenDate: parseDate(regData.registrationOpenDate) || undefined,
+                registrationCloseDate: closeDate || undefined,
+                location: programData.city ? `${programData.city}, ${programData.state}` : undefined,
+                registrationType: regData.type || 'age_pool',
+                outcome: regData.outcome || 'draft_pool',
+              });
+            });
+          } catch (err) {
+            console.log('[EventsPage] Error fetching registrations for program', programId, err);
+          }
+        }));
+        
+        console.log('[EventsPage] Found', allRegs.length, 'program registrations (new system)');
+        setProgramRegistrations(allRegs);
+      } catch (error) {
+        console.error('Error fetching program registrations:', error);
+      }
+    };
+    
+    fetchProgramRegistrations();
+  }, [teamId, authLoading]);
+
   // Function to load draft pool preview
   const loadDraftPoolPreview = async (eventTeamId: string, teamName: string) => {
     setLoadingPreview(true);
@@ -488,7 +598,31 @@ const EventsPage: React.FC = () => {
 
   // No team - show public events browse for registration
   if (!teamId) {
-    // Convert season registrations to event-like format for unified display
+    // Convert NEW program registrations to event-like format for unified display
+    const programRegsAsEvents: Event[] = programRegistrations.map(pr => ({
+      id: pr.id,
+      title: pr.registrationName,
+      type: 'registration' as const,
+      description: `${pr.registrationType === 'age_pool' ? 'Season Registration' : pr.registrationType} for ${pr.sport}`,
+      location: pr.location || 'Online Registration',
+      status: 'active' as const,
+      startDate: pr.registrationOpenDate ? Timestamp.fromDate(pr.registrationOpenDate) : undefined,
+      endDate: pr.registrationCloseDate ? Timestamp.fromDate(pr.registrationCloseDate) : undefined,
+      teamId: pr.programId,
+      teamName: pr.programName,
+      isPublic: true,
+      sport: pr.sport,
+      ageGroup: pr.ageGroups?.[0] || '',
+      ageGroups: pr.ageGroups,
+      programId: pr.programId,
+      registrationId: pr.registrationId,
+      isProgramRegistration: true, // Flag to identify new registration system
+      registrationFee: pr.registrationFee,
+      registrationType: pr.registrationType,
+      outcome: pr.outcome,
+    } as any));
+
+    // Convert LEGACY season registrations to event-like format (backwards compatibility)
     const seasonAsEvents: Event[] = seasonRegistrations.map(sr => ({
       id: sr.id,
       title: `${sr.programName} - ${sr.seasonName}`,
@@ -511,8 +645,8 @@ const EventsPage: React.FC = () => {
       registrationFee: sr.registrationFee,
     } as any));
 
-    // Combine events and season registrations
-    const allRegistrations = [...publicEvents, ...seasonAsEvents];
+    // Combine all registrations (new system first, then legacy, then events)
+    const allRegistrations = [...programRegsAsEvents, ...seasonAsEvents, ...publicEvents];
 
     // Filter events by sport context, search query, AND athlete's age group
     const filteredEvents = allRegistrations.filter(event => {
@@ -529,36 +663,48 @@ const EventsPage: React.FC = () => {
       if (selectedAthleteAgeGroup) {
         const eventAgeGroup = (event as any).ageGroup;
         const eventAgeGroups = (event as any).ageGroups as string[] | undefined;
+        const athleteAge = parseInt(selectedAthleteAgeGroup.replace(/\D/g, '')) || 0;
+        
+        // Helper function to check if an age group matches the athlete
+        const ageGroupMatches = (ag: string): boolean => {
+          if (!ag) return false;
+          
+          // Exact match (e.g., "10U" === "10U")
+          if (ag === selectedAthleteAgeGroup) return true;
+          
+          // Handle various dual/range formats:
+          // "9/10U", "9U/10U", "9-10U", "9U-10U", "9U - 10U", "9/10", etc.
+          
+          // Remove 'U' temporarily for parsing
+          const normalized = ag.toUpperCase().replace(/U/g, '');
+          
+          // Try to extract all numbers from the age group string
+          const numbers = normalized.match(/\d+/g);
+          if (numbers && numbers.length >= 2) {
+            // It's a range format (e.g., "9/10" or "9-10")
+            const minAge = parseInt(numbers[0]) || 0;
+            const maxAge = parseInt(numbers[1]) || 99;
+            return athleteAge >= minAge && athleteAge <= maxAge;
+          } else if (numbers && numbers.length === 1) {
+            // Single age (e.g., "10U")
+            const ageGroupAge = parseInt(numbers[0]) || 0;
+            return athleteAge === ageGroupAge;
+          }
+          
+          return false;
+        };
         
         // Check if any age group matches
         let matches = false;
         
         // Check single ageGroup field
         if (eventAgeGroup) {
-          // Handle range formats like "9U-10U" or exact match "9U"
-          if (eventAgeGroup.includes('-')) {
-            const [minAg, maxAg] = eventAgeGroup.split('-');
-            const minAge = parseInt(minAg.replace(/\D/g, '')) || 0;
-            const maxAge = parseInt(maxAg.replace(/\D/g, '')) || 99;
-            const athleteAge = parseInt(selectedAthleteAgeGroup.replace(/\D/g, '')) || 0;
-            matches = athleteAge >= minAge && athleteAge <= maxAge;
-          } else {
-            matches = eventAgeGroup === selectedAthleteAgeGroup;
-          }
+          matches = ageGroupMatches(eventAgeGroup);
         }
         
         // Check ageGroups array (for season registrations)
         if (!matches && eventAgeGroups && Array.isArray(eventAgeGroups)) {
-          matches = eventAgeGroups.some(ag => {
-            if (ag.includes('-')) {
-              const [minAg, maxAg] = ag.split('-');
-              const minAge = parseInt(minAg.replace(/\D/g, '')) || 0;
-              const maxAge = parseInt(maxAg.replace(/\D/g, '')) || 99;
-              const athleteAge = parseInt(selectedAthleteAgeGroup.replace(/\D/g, '')) || 0;
-              return athleteAge >= minAge && athleteAge <= maxAge;
-            }
-            return ag === selectedAthleteAgeGroup;
-          });
+          matches = eventAgeGroups.some(ag => ageGroupMatches(ag));
         }
         
         if (!matches && (eventAgeGroup || (eventAgeGroups && eventAgeGroups.length > 0))) {
@@ -743,13 +889,17 @@ const EventsPage: React.FC = () => {
               const maxPrice = tiers.length > 0 ? Math.max(...tiers.map(t => t.price)) : 0;
               const poolCount = event.teamId ? draftPoolCounts[event.teamId] : 0;
               const isSeasonReg = (event as any).isSeasonRegistration;
+              const isProgramReg = (event as any).isProgramRegistration;
               
               return (
                 <button
                   key={event.id}
                   onClick={() => {
-                    if (isSeasonReg) {
-                      // Navigate to season registration page with programId for faster lookup
+                    if (isProgramReg) {
+                      // Navigate to NEW independent registration page
+                      navigate(`/register/${(event as any).programId}/${(event as any).registrationId}`);
+                    } else if (isSeasonReg) {
+                      // Navigate to LEGACY season registration page
                       navigate(`/register/${(event as any).seasonId}?program=${(event as any).programId}`);
                     } else {
                       // Navigate to event registration page

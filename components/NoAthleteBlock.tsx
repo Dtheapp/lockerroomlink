@@ -7,6 +7,7 @@ import { db } from '../services/firebase';
 interface NoAthleteBlockProps {
   featureName: string;
   children: React.ReactNode;
+  allowDraftPool?: boolean; // If true, show children even when in draft pool (for Stats page)
 }
 
 /**
@@ -18,7 +19,7 @@ interface NoAthleteBlockProps {
  * - If selectedSportContext.status === 'draft_pool' → Show draft pool modal
  * - If no context → Show registration browser
  */
-const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children }) => {
+const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children, allowDraftPool = false }) => {
   const { userData, players, teamData, selectedPlayer, selectedSportContext, sportContexts } = useAuth();
   const [draftPoolCount, setDraftPoolCount] = useState<number>(0);
   const [registrationCloseDate, setRegistrationCloseDate] = useState<string | null>(null);
@@ -33,8 +34,23 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children }
       }
       
       try {
-        // PROGRAM-BASED draft pool (new system)
-        if (selectedSportContext.draftPoolProgramId && selectedSportContext.draftPoolSeasonId) {
+        // INDEPENDENT REGISTRATION (newest system) - uses registrationId
+        if (selectedSportContext.draftPoolProgramId && selectedSportContext.draftPoolRegistrationId) {
+          // Get registrant count from the registration
+          const registrantsSnap = await getDocs(
+            collection(db, 'programs', selectedSportContext.draftPoolProgramId, 'registrations', selectedSportContext.draftPoolRegistrationId, 'registrants')
+          );
+          setDraftPoolCount(registrantsSnap.size);
+          
+          // Get registration close date
+          const regDoc = await getDoc(doc(db, 'programs', selectedSportContext.draftPoolProgramId, 'registrations', selectedSportContext.draftPoolRegistrationId));
+          if (regDoc.exists()) {
+            const regData = regDoc.data();
+            setRegistrationCloseDate(regData.registrationCloseDate || null);
+          }
+        }
+        // PROGRAM-BASED draft pool (season system)
+        else if (selectedSportContext.draftPoolProgramId && selectedSportContext.draftPoolSeasonId) {
           // Get draft pool count from program/season
           const draftPoolSnap = await getDocs(
             collection(db, 'programs', selectedSportContext.draftPoolProgramId, 'seasons', selectedSportContext.draftPoolSeasonId, 'draftPool')
@@ -105,7 +121,12 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children }
   }
   
   // DRAFT POOL CONTEXT - Player is waiting to be drafted for this sport
+  // If allowDraftPool is true (like for Stats page), show children instead of blocking
   if (selectedSportContext?.status === 'draft_pool') {
+    if (allowDraftPool) {
+      return <>{children}</>;
+    }
+    
     const isParent = userData?.role === 'Parent';
     const closeDateFormatted = registrationCloseDate 
       ? new Date(registrationCloseDate + 'T23:59:59').toLocaleDateString('en-US', { 

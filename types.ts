@@ -16,6 +16,26 @@ export interface RulesDocument {
 
 // --- LEAGUE & COMMISSIONER SYSTEM ---
 
+// League-owned field for scheduling
+export interface LeagueField {
+  id: string;
+  name: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  notes?: string;
+  timeSlots?: string[];      // e.g., ["9:00 AM", "11:00 AM", "1:00 PM"]
+  maxGamesPerDay?: number;
+}
+
+// Schedule settings for a league
+export interface LeagueScheduleSettings {
+  fieldMode: 'team-home' | 'league-central' | 'mixed';
+  defaultGameDays: string[];   // ['Saturday', 'Sunday']
+  defaultTimeSlots: string[];  // ['9:00 AM', '11:00 AM']
+  gameDuration?: number;       // Minutes per game
+}
+
 export interface League {
   id?: string;
   name: string;
@@ -25,9 +45,21 @@ export interface League {
   city?: string;
   state?: string;
   region?: string;           // e.g., "North Texas"
+  zipcode?: string;          // ZIP code for location
+  username?: string;         // Unique username for pretty URLs (e.g., "united-legacy")
+  logoUrl?: string;          // League logo image URL
+  description?: string;      // League description
+  contactName?: string;      // Contact person name
+  contactEmail?: string;     // Contact email
+  contactPhone?: string;     // Contact phone
+  website?: string;          // League website
   teamIds?: string[];        // Teams currently in league
   pendingRequests?: string[]; // Team IDs requesting to join
   programIds?: string[];     // Programs in this league
+  ageGroups?: string[];      // Configured age groups (e.g., "6U", "8U", "10U-12U")
+  // League-managed fields for scheduling
+  fields?: LeagueField[];
+  scheduleSettings?: LeagueScheduleSettings;
   settings?: {
     allowStandingsPublic?: boolean;
     allowStatsPublic?: boolean;
@@ -37,8 +69,20 @@ export interface League {
   rules?: RulesDocument;
   codeOfConduct?: RulesDocument;
   status?: 'active' | 'inactive';
+  publicProfile?: boolean;   // Whether league page is publicly viewable
   createdAt?: Timestamp | Date;
   updatedAt?: Timestamp | Date;
+}
+
+// Program finalization status for league seasons
+export interface ProgramFinalization {
+  finalized: boolean;
+  finalizedAt?: Timestamp | Date;
+  finalizedBy?: string;
+  finalizedByName?: string;
+  teamCount: number;
+  teamIds: string[];
+  programName?: string;
 }
 
 export interface LeagueSeason {
@@ -47,9 +91,15 @@ export interface LeagueSeason {
   name: string;              // e.g., "Fall 2025"
   startDate: Timestamp;
   endDate: Timestamp;
+  registrationDeadline?: Timestamp;  // Optional team registration deadline
+  ageGroups?: string[];      // Age groups included in this season
   status: 'upcoming' | 'active' | 'playoffs' | 'completed';
   divisions?: LeagueDivision[];
+  // Program finalization tracking
+  programFinalizations?: { [programId: string]: ProgramFinalization };
+  allProgramsFinalized?: boolean;  // Quick check flag
   createdAt: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 export interface LeagueDivision {
@@ -75,11 +125,18 @@ export interface LeagueGame {
   awayTeamId: string;
   homeTeamName: string;
   awayTeamName: string;
+  homeProgramId?: string;
+  awayProgramId?: string;
+  ageGroup?: string;
   week?: number;
   scheduledDate: Timestamp;
   scheduledTime: string;
   dateTime?: Timestamp;  // Alternative date field used in some components
   location: string;
+  locationSource?: 'team-home' | 'league-field' | 'manual';
+  originalLocation?: string;  // Before any edits
+  locationEdited?: boolean;   // True if manually changed
+  fieldId?: string;           // If using a league field
   fieldNumber?: string;
   homeScore?: number;
   awayScore?: number;
@@ -88,6 +145,9 @@ export interface LeagueGame {
   acceptedByAway?: boolean;
   homeAcceptedAt?: Timestamp;
   awayAcceptedAt?: Timestamp;
+  isBye?: boolean;            // True if this is a bye week placeholder
+  byeTeamId?: string;         // Team that has the bye
+  byeTeamName?: string;
 }
 
 export interface TeamScheduleAcceptance {
@@ -1138,6 +1198,283 @@ export interface DraftPick {
 }
 
 // =============================================================================
+// PROGRAM REGISTRATION SYSTEM (Independent from Seasons)
+// =============================================================================
+
+/**
+ * Registration Type - Determines the purpose and outcome flow
+ */
+export type RegistrationType = 'age_pool' | 'camp' | 'tryout' | 'event' | 'tournament' | 'clinic';
+
+/**
+ * Registration Outcome - What happens after registration closes
+ */
+export type RegistrationOutcome = 'draft_pool' | 'rsvp_list' | 'team_select' | 'waitlist' | 'auto_assign';
+
+/**
+ * Program Registration - Independent registration for any purpose
+ * Collection: programs/{programId}/registrations/{registrationId}
+ * 
+ * This replaces the season-tied registration approach.
+ * Registrations can be for: age pools, camps, tryouts, events, tournaments, clinics
+ */
+export interface ProgramRegistration {
+  id: string;
+  programId: string;
+  programName: string;
+  
+  // Basic Info
+  name: string;                        // "Spring 2025 Player Registration", "Summer Skills Camp"
+  description?: string;                // Optional description/details
+  sport: SportType;
+  
+  // Registration Type & Outcome
+  type: RegistrationType;
+  outcome: RegistrationOutcome;
+  
+  // Dates
+  registrationOpenDate: string;        // YYYY-MM-DD - When registration opens
+  registrationCloseDate: string;       // YYYY-MM-DD - When registration closes
+  eventDate?: string;                  // YYYY-MM-DD - For camps/events (the actual event date)
+  eventEndDate?: string;               // YYYY-MM-DD - For multi-day events
+  eventTime?: string;                  // HH:MM - Start time
+  eventLocation?: string;              // Address or location name
+  
+  // Age Groups (for age_pool type)
+  ageGroups?: string[];                // ["6U", "7U-8U", "9U-10U", "11U-12U"]
+  ageGroupConfigs?: RegistrationAgeGroup[]; // Detailed config per age group
+  
+  // Capacity (for camps/events)
+  hasCapacity: boolean;                // True if limited spots
+  capacity?: number;                   // Max registrations allowed
+  waitlistEnabled: boolean;            // Allow waitlist when full
+  
+  // Fee Structure
+  registrationFee: number;             // Amount in cents
+  earlyBirdFee?: number;               // Discounted early bird fee (cents)
+  earlyBirdDeadline?: string;          // YYYY-MM-DD - Early bird cutoff
+  lateFee?: number;                    // Additional late fee (cents)
+  lateAfterDate?: string;              // YYYY-MM-DD - When late fee applies
+  
+  // Payment Options
+  paymentOptions: {
+    payInFull: boolean;
+    paymentPlan: boolean;
+    payInPerson: boolean;
+    depositAmount?: number;            // If payment plan, initial deposit (cents)
+    installmentCount?: number;         // Number of installments
+  };
+  
+  // Registration Requirements
+  requirements: {
+    requireMedicalInfo: boolean;
+    requireEmergencyContact: boolean;
+    requireUniformSizes: boolean;
+    requireWaiver: boolean;
+    waiverText?: string;
+    customFields?: RegistrationCustomField[];
+  };
+  
+  // Eligibility
+  eligibility?: {
+    minAge?: number;                   // Minimum age
+    maxAge?: number;                   // Maximum age
+    genderRestriction?: 'male' | 'female' | 'all';
+    requiresTeamMembership?: boolean;  // Must be on a team in the program
+    customRequirements?: string;       // Free text for other requirements
+  };
+  
+  // Counts
+  registrationCount: number;           // Total registrations
+  paidCount: number;                   // Fully paid
+  pendingCount: number;                // Payment pending
+  waitlistCount: number;               // On waitlist
+  
+  // Status
+  status: 'draft' | 'scheduled' | 'open' | 'closed' | 'completed' | 'cancelled';
+  
+  // Optional: Link to a season (for age pools that feed into a season)
+  linkedSeasonId?: string;
+  linkedSeasonName?: string;
+  
+  // League context (if program is in a league)
+  leagueId?: string;
+  leagueName?: string;
+  
+  // Visibility
+  isPublic: boolean;                   // Show on public program page
+  allowOnlineRegistration: boolean;    // Allow online sign-ups
+  
+  // Metadata
+  createdBy: string;
+  createdByName?: string;
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
+  openedAt?: Timestamp | Date;         // When status changed to 'open'
+  closedAt?: Timestamp | Date;         // When status changed to 'closed'
+}
+
+/**
+ * Age Group Configuration for a Registration
+ */
+export interface RegistrationAgeGroup {
+  id: string;                          // e.g., "6u", "7u-8u"
+  label: string;                       // e.g., "6U", "7U-8U"
+  ageGroups: string[];                 // ["7U", "8U"] for combined
+  minBirthYear: number;
+  maxBirthYear: number;
+  fee?: number;                        // Override fee for this group (cents)
+  capacity?: number;                   // Capacity for this specific group
+  registrationCount: number;           // Current count for this group
+  teamIds?: string[];                  // Teams for this age group (for team_select)
+}
+
+/**
+ * Custom Field for Registration Forms
+ */
+export interface RegistrationCustomField {
+  id: string;
+  label: string;                       // "T-Shirt Size", "Allergies"
+  type: 'text' | 'select' | 'checkbox' | 'textarea' | 'number';
+  required: boolean;
+  options?: string[];                  // For select type
+  placeholder?: string;
+}
+
+/**
+ * Registrant - A person registered for a ProgramRegistration
+ * Collection: programs/{programId}/registrations/{registrationId}/registrants/{registrantId}
+ */
+export interface Registrant {
+  id: string;
+  registrationId: string;
+  programId: string;
+  
+  // Registrant Type
+  registrantType: 'player' | 'family' | 'team' | 'individual';
+  
+  // Player/Participant Info
+  firstName: string;
+  lastName: string;
+  fullName: string;                    // Computed: firstName + lastName
+  dateOfBirth: string;                 // YYYY-MM-DD
+  calculatedAge: number;
+  calculatedAgeGroup?: string;         // For age_pool type
+  gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
+  
+  // Existing player link
+  existingPlayerId?: string;
+  existingPlayerUsername?: string;
+  
+  // Age Group Assignment (for age_pool)
+  ageGroupId?: string;                 // Which age group pool they're in
+  ageGroupLabel?: string;
+  
+  // Parent/Guardian (for minors)
+  isMinor: boolean;
+  parentId?: string;
+  parentName?: string;
+  parentEmail: string;
+  parentPhone?: string;
+  
+  // Contact (for adults registering themselves)
+  email: string;
+  phone?: string;
+  
+  // Emergency Contact
+  emergencyContact: {
+    name: string;
+    phone: string;
+    relationship: string;
+  };
+  
+  // Medical Info
+  medicalInfo?: {
+    allergies?: string;
+    medications?: string;
+    conditions?: string;
+    insuranceProvider?: string;
+    insurancePolicyNumber?: string;
+    physicianName?: string;
+    physicianPhone?: string;
+  };
+  
+  // Uniform Sizes
+  uniformSizes?: {
+    jersey?: string;
+    shorts?: string;
+    pants?: string;
+    helmet?: string;
+    shoes?: string;
+  };
+  
+  // Preferences
+  preferences?: {
+    jerseyNumber?: string;
+    positions?: string[];
+    coachRequest?: string;             // Requested coach name
+    friendRequest?: string;            // Friend to be on same team
+    notes?: string;                    // Additional notes
+  };
+  
+  // Custom Field Responses
+  customFieldResponses?: Record<string, any>;
+  
+  // Payment
+  paymentStatus: 'paid' | 'partial' | 'pending' | 'waived' | 'refunded';
+  amountDue: number;                   // Total due (cents)
+  amountPaid: number;                  // Amount paid (cents)
+  remainingBalance: number;            // Remaining (cents)
+  paymentMethod?: 'paypal' | 'stripe' | 'cash' | 'check' | 'other';
+  paymentDate?: Timestamp | Date;
+  paymentNotes?: string;
+  
+  // Waiver
+  waiverSigned: boolean;
+  waiverSignedAt?: Timestamp | Date;
+  waiverSignedBy?: string;
+  
+  // Status
+  status: 'registered' | 'waitlisted' | 'confirmed' | 'assigned' | 'declined' | 'cancelled' | 'no_show';
+  
+  // Assignment (for draft_pool or team_select outcomes)
+  assignedTeamId?: string;
+  assignedTeamName?: string;
+  assignedAt?: Timestamp | Date;
+  
+  // Draft info (if drafted)
+  draftRound?: number;
+  draftPick?: number;
+  draftedBy?: string;
+  
+  // Timestamps
+  registeredAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
+  confirmedAt?: Timestamp | Date;
+  cancelledAt?: Timestamp | Date;
+  
+  // Notes
+  parentNotes?: string;                // Notes from parent
+  adminNotes?: string;                 // Private admin notes
+}
+
+/**
+ * Registration Summary for Quick Display
+ * Denormalized data for dashboard cards
+ */
+export interface RegistrationSummary {
+  id: string;
+  name: string;
+  type: RegistrationType;
+  sport: SportType;
+  status: ProgramRegistration['status'];
+  registrationCount: number;
+  capacity?: number;
+  registrationCloseDate: string;
+  eventDate?: string;
+}
+
+// =============================================================================
 // AGE GROUP UTILITIES
 // =============================================================================
 
@@ -1211,6 +1548,25 @@ export const AGE_GROUPS = [
 
 export type AgeGroup = typeof AGE_GROUPS[number];
 
+// Home Field for teams - used in league scheduling
+export interface HomeField {
+  name: string;                     // e.g., "Commerce ISD Stadium"
+  address?: string;                 // Full street address
+  city?: string;
+  state?: string;
+  zipcode?: string;
+  fieldNumber?: string;             // e.g., "Field 1", "North Field"
+  logo?: string;                    // Field/venue logo URL
+  googleMapsUrl?: string;           // Direct link to Google Maps
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
+  notes?: string;                   // e.g., "Enter through south gate"
+  parkingInfo?: string;             // Parking instructions
+  capacity?: number;                // Seating capacity
+}
+
 export interface Team {
   id: string;
   name: string;
@@ -1272,6 +1628,9 @@ export interface Team {
   divisionId?: string;                  // Which division in the league
   maxRosterSize?: number;               // Commissioner can set max players
   
+  // --- HOME FIELD ---
+  homeField?: HomeField;                // Team's home field for league scheduling
+  
   // --- RULES & CODE OF CONDUCT ---
   rules?: RulesDocument;                // Team rules (or league rules if in league)
   codeOfConduct?: RulesDocument;        // Team code of conduct (or league's if in league)
@@ -1302,6 +1661,22 @@ export interface LiveStream {
   videoId?: string; // Reference to saved video if applicable
 }
 
+// --- TEAM HISTORY TRACKING ---
+// Tracks which teams/programs a player has been on for historical stats
+export interface TeamHistoryEntry {
+  teamId: string;
+  teamName: string;
+  programId: string;
+  programName: string;
+  sport: SportType;
+  seasonId?: string;
+  seasonYear?: number;
+  ageGroup?: string;
+  joinedAt: any; // Timestamp
+  leftAt?: any; // Timestamp (null if still active)
+  status: 'active' | 'released' | 'transferred' | 'season_ended';
+}
+
 export interface Player {
   id: string;
   name: string; // Full display name (computed from firstName + lastName or legacy)
@@ -1312,6 +1687,9 @@ export interface Player {
   ageGroup?: string; // Calculated age group (e.g., "9U", "10U") - auto-calculated from DOB using Sept 10 cutoff
   username?: string; // Unique athlete username for tracking (e.g., @johnny_smith)
   teamId: string | null; // Team the player belongs to (null if unassigned)
+  
+  // Team History - for tracking all teams/programs player has been on
+  teamHistory?: TeamHistoryEntry[];
   // REMOVED NUMBER/POSITION FROM CORE PARENT INPUT FLOW:
   number?: number; 
   jerseyNumber?: number; // Alias for number
@@ -2522,4 +2900,76 @@ export interface StatLeaderV2 {
   
   // Rank
   rank: number;
+}
+
+/**
+ * ============================================
+ * PROMO CODES
+ * ============================================
+ * Program-wide discount/promo codes for registrations
+ * Can be used across all events/registrations in a program
+ */
+export interface PromoCode {
+  id: string;
+  programId: string;
+  
+  // Code details
+  code: string;                        // The actual code users enter (e.g., "SPRING25", "FREEKIDS")
+  name: string;                        // Display name (e.g., "Spring 25% Off", "Free Registration - Board Members")
+  description?: string;                // Internal notes about the code
+  
+  // Discount configuration
+  discountType: 'percentage' | 'fixed' | 'free';  // Type of discount
+  discountValue: number;               // For percentage: 10 = 10%, for fixed: dollar amount, for free: ignored
+  
+  // Usage limits
+  usageType: 'unlimited' | 'limited' | 'single';  // unlimited = no limit, limited = max uses, single = one-time
+  maxUses?: number;                    // Only for 'limited' type
+  usedCount: number;                   // How many times it's been used
+  
+  // Validity
+  isActive: boolean;                   // Can be toggled on/off
+  startDate?: string;                  // When code becomes valid (YYYY-MM-DD)
+  expirationDate?: string;             // When code expires (YYYY-MM-DD)
+  
+  // Restrictions (future expansion)
+  minPurchaseAmount?: number;          // Minimum registration fee to apply
+  applicableSports?: string[];         // Limit to specific sports (empty = all)
+  applicableRegistrationTypes?: string[]; // Limit to specific reg types (empty = all)
+  
+  // Tracking
+  createdBy: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  
+  // Usage history (stored separately in subcollection for large volume)
+  lastUsedAt?: Timestamp;
+}
+
+/**
+ * Individual promo code usage record
+ * Stored at: programs/{programId}/promoCodes/{codeId}/usages/{usageId}
+ */
+export interface PromoCodeUsage {
+  id: string;
+  codeId: string;
+  code: string;
+  
+  // Who used it
+  userId: string;
+  userEmail?: string;
+  userName?: string;
+  
+  // What it was used on
+  registrationId: string;
+  registrationName: string;
+  registrantId?: string;
+  
+  // Discount applied
+  originalAmount: number;
+  discountAmount: number;
+  finalAmount: number;
+  
+  // When
+  usedAt: Timestamp;
 }

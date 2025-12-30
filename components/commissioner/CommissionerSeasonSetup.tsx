@@ -61,11 +61,13 @@ const SPORT_ICONS: Record<SportType, string> = {
 interface Props {
   programId?: string;
   selectedSport?: string; // If provided, only show this sport (from dropdown filter)
+  isLeagueMember?: boolean; // If true, skip season steps and focus on registration only
+  leagueName?: string; // Name of the league for display
   onComplete?: (seasonId: string) => void;
   onCancel?: () => void;
 }
 
-export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgramId, selectedSport: propSelectedSport, onComplete, onCancel }) => {
+export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgramId, selectedSport: propSelectedSport, isLeagueMember = false, leagueName, onComplete, onCancel }) => {
   const { user, userData } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
@@ -477,8 +479,8 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
       
     } catch (err: any) {
       console.error('Error creating season:', err);
-      setError(err.message || 'Failed to create season');
-      toastError('Failed to create season');
+      setError(err.message || (isLeagueMember ? 'Failed to create registration' : 'Failed to create season'));
+      toastError(isLeagueMember ? 'Failed to create registration' : 'Failed to create season');
     } finally {
       setCreating(false);
     }
@@ -524,11 +526,22 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
             </button>
           )}
           <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Create New {propSelectedSport ? `${propSelectedSport.charAt(0).toUpperCase()}${propSelectedSport.slice(1).toLowerCase()} ` : ''}Season
+            {isLeagueMember 
+              ? `Create Player Registration`
+              : `Create New ${propSelectedSport ? `${propSelectedSport.charAt(0).toUpperCase()}${propSelectedSport.slice(1).toLowerCase()} ` : ''}Season`
+            }
           </h1>
           <p className={`${isDark ? 'text-slate-400' : 'text-gray-600'}`}>
-            {program.name} • Set up registration for your upcoming season
+            {isLeagueMember 
+              ? `${program.name} • Open registration for players to join your age groups`
+              : `${program.name} • Set up registration for your upcoming season`
+            }
           </p>
+          {isLeagueMember && leagueName && (
+            <p className={`mt-2 text-sm px-3 py-1 rounded-full inline-block ${isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-700'}`}>
+              League schedules managed by {leagueName}
+            </p>
+          )}
         </div>
         
         {/* Progress Steps */}
@@ -560,7 +573,7 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
         {/* Step Labels */}
         <div className="flex justify-between text-xs mb-8 px-4">
           <span className={step >= 1 ? (isDark ? 'text-purple-400' : 'text-purple-600') : (isDark ? 'text-slate-500' : 'text-gray-400')}>
-            Season Info
+            {isLeagueMember ? 'Registration Info' : 'Season Info'}
           </span>
           <span className={step >= 2 ? (isDark ? 'text-purple-400' : 'text-purple-600') : (isDark ? 'text-slate-500' : 'text-gray-400')}>
             Age Groups
@@ -1152,7 +1165,7 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
                   ) : (
                     <>
                       <Check className="w-4 h-4" />
-                      Create Season
+                      {isLeagueMember ? 'Create Registration' : 'Create Season'}
                     </>
                   )}
                 </button>

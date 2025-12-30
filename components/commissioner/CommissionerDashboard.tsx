@@ -14,10 +14,12 @@ import {
   getGrievancesByProgram,
   getProgram,
   updateProgram,
-  releaseAllPlayersFromTeam
+  releaseAllPlayersFromTeam,
+  finalizeTeamsForSeason,
+  getSeasonFinalizationStatus
 } from '../../services/leagueService';
 import { createBulkNotifications } from '../../services/notificationService';
-import { collection, query, where, getDocs, onSnapshot, doc, addDoc, setDoc, getDoc, serverTimestamp, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, doc, addDoc, setDoc, getDoc, serverTimestamp, updateDoc, deleteDoc, writeBatch, arrayUnion } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import type { Team, Grievance, Program, UserProfile, ProgramSeason } from '../../types';
 import { 
@@ -49,13 +51,21 @@ import {
   Play,
   Square,
   AlertCircle,
-  Settings
+  Settings,
+  ExternalLink,
+  Tag,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { RulesModal } from '../RulesModal';
 import { AgeGroupSelector } from '../AgeGroupSelector';
 import { StateSelector, isValidUSState } from '../StateSelector';
 import { toastError, toastSuccess, toastInfo } from '../../services/toast';
 import { CommissionerSeasonSetup } from './CommissionerSeasonSetup';
+import { CommissionerRegistrationSetup } from './CommissionerRegistrationSetup';
+import PromoCodeManager from './PromoCodeManager';
+import { subscribeToRegistrations, getRegistrationStatusInfo, getRegistrationTypeLabel } from '../../services/registrationService';
+import type { ProgramRegistration, RegistrationSummary } from '../../types';
 
 export const CommissionerDashboard: React.FC = () => {
   const { user, userData, programData, leagueData } = useAuth();
@@ -68,7 +78,22 @@ export const CommissionerDashboard: React.FC = () => {
   const [coachRequests, setCoachRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [seasons, setSeasons] = useState<ProgramSeason[]>([]);
+  const [leagueInvitations, setLeagueInvitations] = useState<any[]>([]);
+  const [respondingToInvite, setRespondingToInvite] = useState<string | null>(null);
+  const [showTeamSelectionModal, setShowTeamSelectionModal] = useState(false);
   
+  // League membership info (when program is in a league)
+  const [programLeagueInfo, setProgramLeagueInfo] = useState<{ id: string; name: string; sport?: string; logoUrl?: string } | null>(null);
+  const [currentLeagueSeason, setCurrentLeagueSeason] = useState<{ id: string; name: string; status: string; startDate?: any; endDate?: any } | null>(null);
+  const [loadingLeagueInfo, setLoadingLeagueInfo] = useState(false);
+  const [pendingInvitation, setPendingInvitation] = useState<any>(null);
+  const [selectedTeamsForLeague, setSelectedTeamsForLeague] = useState<string[]>([]);
+  
+  // Team finalization state
+  const [finalizationStatus, setFinalizationStatus] = useState<{ finalized: boolean; teamCount: number } | null>(null);
+  const [showFinalizeModal, setShowFinalizeModal] = useState(false);
+  const [finalizingTeams, setFinalizingTeams] = useState(false);
+
   // Dashboard draft pool states (inline on dashboard, not modal)
   const [dashboardDraftPoolPlayers, setDashboardDraftPoolPlayers] = useState<any[]>([]);
   const [dashboardDraftFilter, setDashboardDraftFilter] = useState<string>('all');
@@ -85,12 +110,13 @@ export const CommissionerDashboard: React.FC = () => {
   const [draftPoolSortBy, setDraftPoolSortBy] = useState<string>('all');
   const [loadingPoolPlayers, setLoadingPoolPlayers] = useState(false);
   
-  // Sport selector - persisted to localStorage
+  // Sport selector - persisted to localStorage, default to Football
   const [selectedSport, setSelectedSport] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('commissioner_selected_sport') || '';
+      const saved = localStorage.getItem('commissioner_selected_sport');
+      if (saved) return saved;
     }
-    return '';
+    return 'Football';
   });
   
   // Get available sports from program
@@ -234,6 +260,14 @@ export const CommissionerDashboard: React.FC = () => {
   // Delete season confirmation
   const [deleteSeasonConfirm, setDeleteSeasonConfirm] = useState<ProgramSeason | null>(null);
   const [deletingSeason, setDeletingSeason] = useState(false);
+  
+  // NEW: Independent Registrations (replaces season-tied registration)
+  const [registrations, setRegistrations] = useState<ProgramRegistration[]>([]);
+  const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+  const [loadingRegistrations, setLoadingRegistrations] = useState(true);
+  
+  // Promo Codes Manager
+  const [showPromoCodesModal, setShowPromoCodesModal] = useState(false);
   
   // Season creation modal
   const [showSeasonModal, setShowSeasonModal] = useState(false);
@@ -440,6 +474,122 @@ export const CommissionerDashboard: React.FC = () => {
     return () => unsubscribe();
   }, [programData?.id]);
 
+  // Real-time listener for independent registrations (NEW SYSTEM)
+  useEffect(() => {
+    const programId = programData?.id;
+    if (!programId) {
+      setRegistrations([]);
+      setLoadingRegistrations(false);
+      return;
+    }
+
+    setLoadingRegistrations(true);
+    const unsubscribe = subscribeToRegistrations(programId, (regs) => {
+      setRegistrations(regs);
+      setLoadingRegistrations(false);
+    });
+
+    return () => unsubscribe();
+  }, [programData?.id]);
+
+  // Real-time listener for league invitations
+  useEffect(() => {
+    const programId = programData?.id;
+    if (!programId) {
+      setLeagueInvitations([]);
+      return;
+    }
+
+    const invitationsQuery = query(
+      collection(db, 'leagueRequests'),
+      where('programId', '==', programId),
+      where('type', '==', 'league_invitation'),
+      where('status', '==', 'pending')
+    );
+    
+    const unsubscribe = onSnapshot(invitationsQuery, (snapshot) => {
+      const invitations = snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      }));
+      setLeagueInvitations(invitations);
+    }, (error) => {
+      console.error('Error loading league invitations:', error);
+    });
+
+    return () => unsubscribe();
+  }, [programData?.id]);
+
+  // Fetch league info when program is in a league (for Season Manager display)
+  useEffect(() => {
+    const fetchLeagueInfo = async () => {
+      if (!programData?.leagueId || !isTeamCommissioner) {
+        setProgramLeagueInfo(null);
+        setCurrentLeagueSeason(null);
+        return;
+      }
+      
+      setLoadingLeagueInfo(true);
+      try {
+        // Fetch league basic info
+        const leagueDoc = await getDoc(doc(db, 'leagues', programData.leagueId));
+        if (leagueDoc.exists()) {
+          const leagueData = leagueDoc.data();
+          setProgramLeagueInfo({
+            id: leagueDoc.id,
+            name: leagueData.name,
+            sport: leagueData.sport,
+            logoUrl: leagueData.logoUrl
+          });
+          
+          // Fetch current active/upcoming league season from root leagueSeasons collection
+          const seasonsQuery = query(
+            collection(db, 'leagueSeasons'),
+            where('leagueId', '==', programData.leagueId),
+            where('status', 'in', ['active', 'upcoming'])
+          );
+          const seasonsSnap = await getDocs(seasonsQuery);
+          if (!seasonsSnap.empty) {
+            // Get the most relevant season (active first, then upcoming)
+            const leagueSeasons = seasonsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const activeSeason = leagueSeasons.find((s: any) => s.status === 'active') || leagueSeasons[0];
+            if (activeSeason) {
+              setCurrentLeagueSeason({
+                id: activeSeason.id,
+                name: (activeSeason as any).name,
+                status: (activeSeason as any).status,
+                startDate: (activeSeason as any).startDate,
+                endDate: (activeSeason as any).endDate
+              });
+              
+              // Fetch finalization status for this program
+              try {
+                const status = await getSeasonFinalizationStatus(programData.leagueId, activeSeason.id);
+                const myFinalization = status.programFinalizations[programData.id];
+                setFinalizationStatus(myFinalization ? {
+                  finalized: myFinalization.finalized,
+                  teamCount: myFinalization.teamCount
+                } : null);
+              } catch (err) {
+                console.log('Could not fetch finalization status:', err);
+                setFinalizationStatus(null);
+              }
+            }
+          } else {
+            setCurrentLeagueSeason(null);
+            setFinalizationStatus(null);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching league info:', error);
+      } finally {
+        setLoadingLeagueInfo(false);
+      }
+    };
+    
+    fetchLeagueInfo();
+  }, [programData?.leagueId, isTeamCommissioner]);
+
   // Load draft pool players when modal opens
   useEffect(() => {
     const loadPoolPlayers = async () => {
@@ -479,37 +629,62 @@ export const CommissionerDashboard: React.FC = () => {
     loadPoolPlayers();
   }, [showDraftPoolModal, selectedPoolSeason, programData?.id]);
 
-  // Load dashboard draft pool players (all from current season)
+  // Load dashboard draft pool players (from independent registrations with draft_pool outcome)
   useEffect(() => {
     const loadDashboardDraftPool = async () => {
-      if (!programData?.id || filteredSeasons.length === 0) {
+      if (!programData?.id) {
         setDashboardDraftPoolPlayers([]);
         return;
       }
       
       setLoadingDashboardDraft(true);
       try {
-        // Get the current/active season
-        const activeSeason = filteredSeasons.find(s => s.status === 'registration_open' || s.status === 'active') || filteredSeasons[0];
-        if (!activeSeason) {
+        // NEW SYSTEM: Load from independent registrations with outcome='draft_pool'
+        // Filter registrations by sport and status
+        const draftPoolRegistrations = registrations.filter(reg => 
+          reg.outcome === 'draft_pool' && 
+          reg.status !== 'cancelled' &&
+          (!selectedSport || reg.sport?.toLowerCase() === selectedSport?.toLowerCase())
+        );
+        
+        if (draftPoolRegistrations.length === 0) {
+          console.log('📋 No draft pool registrations found');
           setDashboardDraftPoolPlayers([]);
+          setLoadingDashboardDraft(false);
           return;
         }
         
-        // Get all registrations from the draftPool subcollection
-        const draftPoolRef = collection(db, 'programs', programData.id, 'seasons', activeSeason.id, 'draftPool');
-        const draftPoolSnap = await getDocs(draftPoolRef);
+        console.log('📋 Loading from draft pool registrations:', draftPoolRegistrations.map(r => r.name));
         
-        const allPlayers: any[] = draftPoolSnap.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            seasonId: activeSeason.id,
-            seasonName: activeSeason.name,
-            ...data,
-            ageGroup: data.ageGroupName || 'Unknown'
-          };
-        });
+        // Load registrants from all draft_pool registrations
+        const allPlayers: any[] = [];
+        
+        for (const reg of draftPoolRegistrations) {
+          const registrantsRef = collection(db, 'programs', programData.id, 'registrations', reg.id, 'registrants');
+          const registrantsSnap = await getDocs(registrantsRef);
+          
+          registrantsSnap.docs.forEach(doc => {
+            const data = doc.data();
+            // Only show unassigned/available players
+            if (data.assignmentStatus !== 'assigned' && data.confirmationStatus !== 'declined') {
+              allPlayers.push({
+                id: doc.id,
+                registrationId: reg.id,
+                registrationName: reg.name,
+                linkedSeasonId: reg.linkedSeasonId,
+                linkedSeasonName: reg.linkedSeasonName,
+                ...data,
+                // Map new field names to old field names for compatibility
+                athleteFirstName: data.firstName || data.athleteFirstName || 'Unknown',
+                athleteLastName: data.lastName || data.athleteLastName || '',
+                fullName: data.fullName || `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Unknown',
+                ageGroup: data.ageGroupLabel || data.selectedAgeGroup || data.ageGroup || data.calculatedAgeGroup || 'Unknown',
+                position: data.position || data.preferences?.position || 'No position',
+                status: data.assignmentStatus || 'available'
+              });
+            }
+          });
+        }
         
         console.log('📋 Dashboard draft pool loaded:', allPlayers.length, 'players');
         setDashboardDraftPoolPlayers(allPlayers);
@@ -521,14 +696,58 @@ export const CommissionerDashboard: React.FC = () => {
     };
     
     loadDashboardDraftPool();
-  }, [programData?.id, filteredSeasons]);
+  }, [programData?.id, registrations, selectedSport]);
 
   // Get unique age groups from dashboard draft pool
   const dashboardAgeGroups = [...new Set(dashboardDraftPoolPlayers.map(p => p.ageGroup))].filter(Boolean).sort();
 
+  // Handle finalizing teams for league season
+  const handleFinalizeTeams = async () => {
+    if (!programData?.id || !programLeagueInfo?.id || !currentLeagueSeason?.id) return;
+    
+    setFinalizingTeams(true);
+    try {
+      // Get teams for this sport that are linked to the league
+      const leagueTeams = filteredTeams.filter(t => t.leagueId === programLeagueInfo.id);
+      
+      if (leagueTeams.length === 0) {
+        toastError('No teams linked to this league. Add teams first.');
+        return;
+      }
+      
+      const teamIds = leagueTeams.map(t => t.id);
+      const programName = programData.name || 'Unknown Program';
+      
+      await finalizeTeamsForSeason(
+        programLeagueInfo.id,
+        currentLeagueSeason.id,
+        programData.id,
+        programName,
+        teamIds,
+        user?.uid || '',
+        userData?.displayName || userData?.email || 'Commissioner'
+      );
+      
+      setFinalizationStatus({
+        finalized: true,
+        teamCount: teamIds.length
+      });
+      
+      setShowFinalizeModal(false);
+      toastSuccess(`Teams finalized! ${teamIds.length} teams locked in for ${currentLeagueSeason.name}`);
+    } catch (error: any) {
+      console.error('Error finalizing teams:', error);
+      toastError(`Failed to finalize: ${error.message}`);
+    } finally {
+      setFinalizingTeams(false);
+    }
+  };
+
   // Handle drafting a player to a team
   const handleDraftPlayer = async (player: any, teamId: string, teamName: string) => {
-    if (!programData?.id || !player.seasonId) return;
+    // Support both old season-based and new registration-based draft pools
+    const isNewSystem = !!player.registrationId;
+    if (!programData?.id || (!player.registrationId && !player.seasonId)) return;
     
     setDraftingPlayerId(player.id);
     try {
@@ -558,16 +777,16 @@ export const CommissionerDashboard: React.FC = () => {
       
       // 1. Add player to team roster (teams/{teamId}/players collection)
       const playerData = {
-        name: `${player.athleteFirstName} ${player.athleteLastName}`,
-        firstName: player.athleteFirstName,
-        lastName: player.athleteLastName,
+        name: `${player.athleteFirstName || player.firstName} ${player.athleteLastName || player.lastName}`,
+        firstName: player.athleteFirstName || player.firstName,
+        lastName: player.athleteLastName || player.lastName,
         number: player.jerseyNumber || null,
         position: player.position || null,
         parentName: player.parentName,
         parentEmail: player.parentEmail,
         parentPhone: player.parentPhone,
-        parentId: player.parentUserId || null,
-        parentUserId: player.parentUserId || null,
+        parentId: player.parentUserId || player.parentId || null,
+        parentUserId: player.parentUserId || player.parentId || null,
         athleteId: player.athleteId || null,
         dateOfBirth: dobValue,
         dob: dobValue, // Also save as dob for roster compatibility
@@ -578,7 +797,13 @@ export const CommissionerDashboard: React.FC = () => {
         draftedAt: serverTimestamp(),
         draftedBy: user?.uid,
         draftedByName: userData?.displayName || 'Commissioner',
-        seasonId: player.seasonId,
+        // Link to registration or season
+        ...(isNewSystem ? { 
+          registrationId: player.registrationId,
+          registrationName: player.registrationName,
+          linkedSeasonId: player.linkedSeasonId,
+          linkedSeasonName: player.linkedSeasonName
+        } : { seasonId: player.seasonId }),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
@@ -586,23 +811,55 @@ export const CommissionerDashboard: React.FC = () => {
       const rosterRef = await addDoc(collection(db, 'teams', teamId, 'players'), playerData);
       console.log('✅ Step 1: Added player to roster:', rosterRef.id);
       
-      // 2. Update the draft pool entry
-      const draftPoolRef = doc(db, 'programs', programData.id, 'seasons', player.seasonId, 'draftPool', player.id);
-      await updateDoc(draftPoolRef, {
-        status: 'drafted',
-        draftedToTeamId: teamId,
-        draftedToTeamName: teamName,
-        rosterPlayerId: rosterRef.id,
-        draftedAt: serverTimestamp(),
-        draftedBy: user?.uid,
-        updatedAt: serverTimestamp()
-      });
-      console.log('✅ Step 2: Updated draft pool entry');
+      // 2. Update the registrant/draft pool entry
+      if (isNewSystem) {
+        // NEW SYSTEM: Update registrant in the registration
+        const registrantRef = doc(db, 'programs', programData.id, 'registrations', player.registrationId, 'registrants', player.id);
+        await updateDoc(registrantRef, {
+          assignmentStatus: 'assigned',
+          assignedTeamId: teamId,
+          assignedTeamName: teamName,
+          rosterPlayerId: rosterRef.id,
+          draftedAt: serverTimestamp(),
+          draftedBy: user?.uid,
+          updatedAt: serverTimestamp()
+        });
+        console.log('✅ Step 2: Updated registrant entry (new system)');
+      } else {
+        // OLD SYSTEM: Update draft pool entry
+        const draftPoolRef = doc(db, 'programs', programData.id, 'seasons', player.seasonId, 'draftPool', player.id);
+        await updateDoc(draftPoolRef, {
+          status: 'drafted',
+          draftedToTeamId: teamId,
+          draftedToTeamName: teamName,
+          rosterPlayerId: rosterRef.id,
+          draftedAt: serverTimestamp(),
+          draftedBy: user?.uid,
+          updatedAt: serverTimestamp()
+        });
+        console.log('✅ Step 2: Updated draft pool entry (old system)');
+      }
       
       // 3. Update the player document in top-level players collection
       // SYNC coach-assigned fields so parent's "My Athletes" view shows them
       if (player.athleteId) {
         const playerRef = doc(db, 'players', player.athleteId);
+        
+        // Create team history entry for tracking stats across teams/seasons
+        const teamHistoryEntry = {
+          teamId: teamId,
+          teamName: teamName,
+          programId: programData.id,
+          programName: programData.name || '',
+          sport: (programData.sport || 'football'),
+          seasonId: player.seasonId || player.linkedSeasonId || null,
+          seasonYear: new Date().getFullYear(),
+          ageGroup: player.ageGroup || null,
+          joinedAt: serverTimestamp(),
+          leftAt: null,
+          status: 'active' as const
+        };
+        
         await updateDoc(playerRef, {
           teamId: teamId,
           teamName: teamName,
@@ -614,9 +871,11 @@ export const CommissionerDashboard: React.FC = () => {
           draftPoolDraftedAt: serverTimestamp(),
           draftPoolDraftedBy: userData?.displayName || 'Commissioner',
           status: 'active',
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
+          // Add to team history array for historical stats tracking
+          teamHistory: arrayUnion(teamHistoryEntry)
         });
-        console.log('✅ Step 3: Updated top-level player document with number/position');
+        console.log('✅ Step 3: Updated top-level player document with team history');
       }
       
       // 4. Send notification to parent
@@ -681,22 +940,36 @@ export const CommissionerDashboard: React.FC = () => {
 
   // Handle declining a player registration
   const handleDeclinePlayer = async (player: any) => {
-    if (!programData?.id || !player.seasonId) return;
+    // Support both old season-based and new registration-based systems
+    const isNewSystem = !!player.registrationId;
+    if (!programData?.id || (!player.registrationId && !player.seasonId)) return;
     
     const reason = prompt('Enter reason for declining (optional):');
     
     setDecliningPlayerId(player.id);
     try {
-      const draftPoolRef = doc(db, 'programs', programData.id, 'seasons', player.seasonId, 'draftPool', player.id);
-      
-      // Update the draft pool entry
-      await updateDoc(draftPoolRef, {
-        status: 'declined',
-        declinedAt: serverTimestamp(),
-        declinedBy: user?.uid,
-        declinedReason: reason || 'Registration declined by commissioner',
-        updatedAt: serverTimestamp()
-      });
+      if (isNewSystem) {
+        // NEW SYSTEM: Update registrant in the registration
+        const registrantRef = doc(db, 'programs', programData.id, 'registrations', player.registrationId, 'registrants', player.id);
+        await updateDoc(registrantRef, {
+          confirmationStatus: 'declined',
+          assignmentStatus: 'declined',
+          declinedAt: serverTimestamp(),
+          declinedBy: user?.uid,
+          declinedReason: reason || 'Registration declined by commissioner',
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        // OLD SYSTEM: Update draft pool entry
+        const draftPoolRef = doc(db, 'programs', programData.id, 'seasons', player.seasonId, 'draftPool', player.id);
+        await updateDoc(draftPoolRef, {
+          status: 'declined',
+          declinedAt: serverTimestamp(),
+          declinedBy: user?.uid,
+          declinedReason: reason || 'Registration declined by commissioner',
+          updatedAt: serverTimestamp()
+        });
+      }
       
       // Update the player document
       if (player.athleteId) {
@@ -711,12 +984,98 @@ export const CommissionerDashboard: React.FC = () => {
       // Remove from local state
       setDashboardDraftPoolPlayers(prev => prev.filter(p => p.id !== player.id));
       
-      toastSuccess(`${player.athleteFirstName} ${player.athleteLastName} registration declined`);
+      const playerName = player.athleteFirstName || player.firstName || 'Player';
+      const playerLast = player.athleteLastName || player.lastName || '';
+      toastSuccess(`${playerName} ${playerLast} registration declined`);
     } catch (error: any) {
       console.error('Error declining player:', error);
       toastError(error.message || 'Failed to decline registration');
     } finally {
       setDecliningPlayerId(null);
+    }
+  };
+
+  // Handle accepting league invitation - open team selection modal first
+  const handleAcceptLeagueInvitation = (invitation: any) => {
+    setPendingInvitation(invitation);
+    setSelectedTeamsForLeague(teams.map(t => t.id!)); // Default: select all teams
+    setShowTeamSelectionModal(true);
+  };
+
+  // Confirm joining league with selected teams
+  const confirmJoinLeague = async () => {
+    if (!programData?.id || !pendingInvitation) return;
+    
+    setRespondingToInvite(pendingInvitation.id);
+    try {
+      // Update the invitation status
+      await updateDoc(doc(db, 'leagueRequests', pendingInvitation.id), {
+        status: 'approved',
+        respondedAt: serverTimestamp(),
+        respondedBy: user?.uid,
+        selectedTeamIds: selectedTeamsForLeague
+      });
+      
+      // Update the program to join the league
+      await updateDoc(doc(db, 'programs', programData.id), {
+        leagueId: pendingInvitation.leagueId,
+        leagueName: pendingInvitation.leagueName,
+        leagueJoinedAt: serverTimestamp(),
+        leagueStatus: 'active',
+        leagueTeamIds: selectedTeamsForLeague // Track which teams are in the league
+      });
+      
+      // Update each selected team to be part of the league
+      for (const teamId of selectedTeamsForLeague) {
+        await updateDoc(doc(db, 'teams', teamId), {
+          leagueId: pendingInvitation.leagueId,
+          leagueName: pendingInvitation.leagueName,
+          inLeague: true
+        });
+      }
+      
+      // Notify the league owner
+      await addDoc(collection(db, 'notifications'), {
+        userId: pendingInvitation.createdBy === 'league_owner' ? null : pendingInvitation.createdBy,
+        type: 'league_join_approved',
+        title: 'Program Joined League',
+        message: `${programData.name} has joined ${pendingInvitation.leagueName} with ${selectedTeamsForLeague.length} teams.`,
+        read: false,
+        createdAt: serverTimestamp(),
+        data: {
+          leagueId: pendingInvitation.leagueId,
+          programId: programData.id,
+          teamCount: selectedTeamsForLeague.length
+        }
+      });
+      
+      toastSuccess(`Joined ${pendingInvitation.leagueName} with ${selectedTeamsForLeague.length} teams!`);
+      setShowTeamSelectionModal(false);
+      setPendingInvitation(null);
+    } catch (error: any) {
+      console.error('Error accepting invitation:', error);
+      toastError(error.message || 'Failed to accept invitation');
+    } finally {
+      setRespondingToInvite(null);
+    }
+  };
+
+  // Handle declining league invitation
+  const handleDeclineLeagueInvitation = async (invitation: any) => {
+    setRespondingToInvite(invitation.id);
+    try {
+      await updateDoc(doc(db, 'leagueRequests', invitation.id), {
+        status: 'declined',
+        respondedAt: serverTimestamp(),
+        respondedBy: user?.uid
+      });
+      
+      toastSuccess('Invitation declined');
+    } catch (error: any) {
+      console.error('Error declining invitation:', error);
+      toastError(error.message || 'Failed to decline invitation');
+    } finally {
+      setRespondingToInvite(null);
     }
   };
 
@@ -1578,6 +1937,69 @@ export const CommissionerDashboard: React.FC = () => {
           </div>
         )}
 
+        {/* League Invitations - Show pending league invites for Team Commissioners */}
+        {!isLeagueCommissioner && hasProgram && leagueInvitations.length > 0 && (
+          <div className={`rounded-xl overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-slate-200'}`}>
+            <div className={`px-4 py-3 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700' : 'border-slate-200'}`}>
+              <div className="flex items-center gap-2">
+                <Layers className={`w-5 h-5 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
+                <h2 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  League Invitations
+                </h2>
+                <span className={`text-sm px-2 py-0.5 rounded-full ${theme === 'dark' ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-700'}`}>
+                  {leagueInvitations.length} pending
+                </span>
+              </div>
+            </div>
+            <div className={`divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-slate-200'}`}>
+              {leagueInvitations.map((invitation: any) => (
+                <div key={invitation.id} className={`px-4 py-4 ${theme === 'dark' ? 'hover:bg-gray-750' : 'hover:bg-slate-50'}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
+                        <Trophy className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                          {invitation.leagueName}
+                        </p>
+                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                          Invited you to join their league
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleDeclineLeagueInvitation(invitation)}
+                        disabled={respondingToInvite === invitation.id}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                          theme === 'dark'
+                            ? 'bg-white/10 hover:bg-white/20 text-white'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        Decline
+                      </button>
+                      <button
+                        onClick={() => handleAcceptLeagueInvitation(invitation)}
+                        disabled={respondingToInvite === invitation.id}
+                        className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+                      >
+                        {respondingToInvite === invitation.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Check className="w-4 h-4" />
+                        )}
+                        Join League
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Draft Pool Section - Only for Team Commissioners with pending registrations */}
         {!isLeagueCommissioner && hasProgram && dashboardDraftPoolPlayers.filter(p => p.status === 'available' || !p.status).length > 0 && (
           <div className={`rounded-xl overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-slate-200'}`}>
@@ -1643,17 +2065,26 @@ export const CommissionerDashboard: React.FC = () => {
                       key={player.id}
                       className={`px-4 py-3 flex items-center justify-between ${theme === 'dark' ? 'hover:bg-gray-750' : 'hover:bg-slate-50'}`}
                     >
-                      <div className="flex items-center gap-3">
+                      <div 
+                        className="flex items-center gap-3 flex-1 cursor-pointer"
+                        onClick={() => navigate('/commissioner/registrations')}
+                      >
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${theme === 'dark' ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700'}`}>
                           {player.athleteFirstName?.charAt(0) || '?'}{player.athleteLastName?.charAt(0) || ''}
                         </div>
-                        <div>
+                        <div className="min-w-0 flex-1">
                           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                             {player.athleteFirstName} {player.athleteLastName}
                           </p>
                           <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
                             {player.ageGroup} • {player.position || 'No position'}
                           </p>
+                          {/* Show notes if present */}
+                          {(player.preferences?.notes || player.parentNotes) && (
+                            <p className={`text-xs mt-0.5 truncate ${theme === 'dark' ? 'text-amber-400' : 'text-amber-600'}`}>
+                              💬 {player.preferences?.notes || player.parentNotes}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1774,6 +2205,308 @@ export const CommissionerDashboard: React.FC = () => {
                   <Building2 className="w-4 h-4" />
                   Setup Your Program
                 </button>
+              </div>
+            ) : programData?.leagueId && programLeagueInfo ? (
+              // IN A LEAGUE - Show league-controlled message
+              <div className="p-6">
+                <div className={`rounded-xl p-5 border ${
+                  theme === 'dark' 
+                    ? 'bg-purple-500/10 border-purple-500/30' 
+                    : 'bg-purple-50 border-purple-200'
+                }`}>
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                      {programLeagueInfo.logoUrl ? (
+                        <img src={programLeagueInfo.logoUrl} alt="" className="w-full h-full object-cover rounded-xl" />
+                      ) : (
+                        <Trophy className="w-6 h-6 text-white" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                          League-Managed Season
+                        </h3>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          theme === 'dark' 
+                            ? 'bg-purple-500/30 text-purple-300 border border-purple-500/40' 
+                            : 'bg-purple-100 text-purple-700 border border-purple-300'
+                        }`}>
+                          In League
+                        </span>
+                      </div>
+                      <p className={`text-sm mb-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                        Your program is part of <strong className={theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}>{programLeagueInfo.name}</strong>. 
+                        Season scheduling and management is controlled by the league.
+                      </p>
+                      
+                      {/* League Season Status */}
+                      {loadingLeagueInfo ? (
+                        <div className="flex items-center gap-2 text-sm text-slate-400">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Loading league season...
+                        </div>
+                      ) : currentLeagueSeason ? (
+                        <div className={`flex items-center gap-3 p-3 rounded-lg ${
+                          theme === 'dark' ? 'bg-white/5' : 'bg-white'
+                        }`}>
+                          <Calendar className={`w-5 h-5 ${
+                            currentLeagueSeason.status === 'active' ? 'text-green-500' : 'text-blue-500'
+                          }`} />
+                          <div className="flex-1">
+                            <p className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                              {currentLeagueSeason.name}
+                            </p>
+                            <p className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                              {currentLeagueSeason.status === 'active' ? '🟢 Season Active' : '🔵 Upcoming Season'}
+                              {currentLeagueSeason.startDate && (
+                                <span className="ml-2">
+                                  • Starts {new Date(currentLeagueSeason.startDate.toDate?.() || currentLeagueSeason.startDate).toLocaleDateString()}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className={`flex items-center gap-2 p-3 rounded-lg ${
+                          theme === 'dark' ? 'bg-white/5' : 'bg-white'
+                        }`}>
+                          <Calendar className="w-5 h-5 text-slate-400" />
+                          <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                            No active league season yet
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* View League Button */}
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <Link
+                          to={`/league/${programLeagueInfo.id}`}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-sm font-medium"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          View League Page
+                        </Link>
+                        <Link
+                          to="/commissioner/leagues"
+                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
+                            theme === 'dark'
+                              ? 'bg-white/10 hover:bg-white/15 text-white'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          Manage Membership
+                        </Link>
+                      </div>
+                      
+                      {/* Team Finalization Status */}
+                      {currentLeagueSeason && (
+                        <div className={`mt-4 p-4 rounded-lg border ${
+                          finalizationStatus?.finalized
+                            ? theme === 'dark' ? 'bg-green-500/10 border-green-500/30' : 'bg-green-50 border-green-200'
+                            : theme === 'dark' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50 border-amber-200'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              {finalizationStatus?.finalized ? (
+                                <Lock className="w-5 h-5 text-green-500" />
+                              ) : (
+                                <Unlock className="w-5 h-5 text-amber-500" />
+                              )}
+                              <div>
+                                <p className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                                  {finalizationStatus?.finalized 
+                                    ? `✅ Teams Finalized (${finalizationStatus.teamCount} teams)`
+                                    : '⏳ Teams Not Finalized'
+                                  }
+                                </p>
+                                <p className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                                  {finalizationStatus?.finalized 
+                                    ? 'League can now create game schedules'
+                                    : 'Finalize teams so the league can schedule games'
+                                  }
+                                </p>
+                              </div>
+                            </div>
+                            {!finalizationStatus?.finalized && (
+                              <button
+                                onClick={() => setShowFinalizeModal(true)}
+                                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                              >
+                                <Lock className="w-4 h-4" />
+                                Finalize Teams
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Player Registration Section - NEW INDEPENDENT SYSTEM */}
+                <div className={`mt-4 p-4 rounded-xl border ${
+                  theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        registrations.length > 0
+                          ? registrations.some(r => r.status === 'open')
+                            ? theme === 'dark' ? 'bg-green-500/20' : 'bg-green-100'
+                            : theme === 'dark' ? 'bg-purple-500/20' : 'bg-purple-100'
+                          : theme === 'dark' ? 'bg-amber-500/20' : 'bg-amber-100'
+                      }`}>
+                        <UserPlus className={`w-5 h-5 ${
+                          registrations.length > 0 
+                            ? registrations.some(r => r.status === 'open') ? 'text-green-500' : 'text-purple-500'
+                            : 'text-amber-500'
+                        }`} />
+                      </div>
+                      <div>
+                        <h4 className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                          Player Registration
+                        </h4>
+                        <p className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                          {loadingRegistrations 
+                            ? 'Loading...'
+                            : registrations.length > 0 
+                              ? registrations.some(r => r.status === 'open') 
+                                ? `${registrations.filter(r => r.status === 'open').length} registration(s) open`
+                                : `${registrations.length} registration(s) created`
+                              : 'No registration created yet - click to set one up'
+                          }
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowPromoCodesModal(true)}
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
+                          theme === 'dark'
+                            ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30'
+                            : 'bg-purple-100 hover:bg-purple-200 text-purple-700 border border-purple-200'
+                        }`}
+                      >
+                        <Tag className="w-4 h-4" />
+                        Promo Codes
+                      </button>
+                      {registrations.length > 0 && (
+                        <Link
+                          to="/commissioner/registrations"
+                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
+                            theme === 'dark'
+                              ? 'bg-white/10 hover:bg-white/15 text-white'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          <Users className="w-4 h-4" />
+                          Manage
+                        </Link>
+                      )}
+                      <button
+                        onClick={() => setShowRegistrationModal(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-medium"
+                      >
+                        <Plus className="w-4 h-4" />
+                        {registrations.length > 0 ? 'New' : 'Create Registration'}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Show recent registrations summary */}
+                  {registrations.length > 0 && (
+                    <div className="mt-4 space-y-3">
+                      {registrations.slice(0, 3).map(reg => {
+                        const statusInfo = getRegistrationStatusInfo(reg.status);
+                        // Use hash for HashRouter compatibility
+                        const registrationUrl = `${window.location.origin}/#/register/${programData?.id}/${reg.id}`;
+                        return (
+                          <div 
+                            key={reg.id}
+                            className={`p-4 rounded-lg border ${
+                              theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                                  {reg.name}
+                                </span>
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                  reg.status === 'open' 
+                                    ? 'bg-green-500/20 text-green-400'
+                                    : reg.status === 'scheduled'
+                                      ? 'bg-blue-500/20 text-blue-400'
+                                      : reg.status === 'closed'
+                                        ? 'bg-amber-500/20 text-amber-400'
+                                        : 'bg-slate-500/20 text-slate-400'
+                                }`}>
+                                  {statusInfo.label}
+                                </span>
+                              </div>
+                            </div>
+                            <div className={`text-xs mb-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                              {reg.registrationCount || reg.registrantCount || 0} registered • ${reg.registrationFee}
+                            </div>
+                            
+                            {/* Registration Link Section */}
+                            <div className={`flex items-center gap-2 p-2 rounded-lg ${
+                              theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'
+                            }`}>
+                              <Link2 className={`w-4 h-4 flex-shrink-0 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
+                              <input
+                                type="text"
+                                readOnly
+                                value={registrationUrl}
+                                className={`flex-1 text-xs bg-transparent border-none outline-none truncate ${
+                                  theme === 'dark' ? 'text-slate-300' : 'text-slate-600'
+                                }`}
+                              />
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(registrationUrl);
+                                  toastSuccess('Registration link copied!');
+                                }}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                                  theme === 'dark' 
+                                    ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300' 
+                                    : 'bg-purple-100 hover:bg-purple-200 text-purple-700'
+                                }`}
+                              >
+                                Copy Link
+                              </button>
+                              {reg.status === 'open' && (
+                                <a
+                                  href={registrationUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                                    theme === 'dark' 
+                                      ? 'bg-green-500/20 hover:bg-green-500/30 text-green-300' 
+                                      : 'bg-green-100 hover:bg-green-200 text-green-700'
+                                  }`}
+                                >
+                                  Open
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Tip about league vs program control */}
+                <div className={`mt-4 p-4 rounded-lg border ${
+                  theme === 'dark' ? 'bg-amber-500/10 border-amber-500/20' : 'bg-amber-50 border-amber-200'
+                }`}>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-amber-300' : 'text-amber-800'}`}>
+                    <strong>💡 How it works:</strong> You manage player registrations and team rosters. 
+                    The league ({programLeagueInfo.name}) controls official game schedules and standings.
+                  </p>
+                </div>
               </div>
             ) : filteredSeasons.length === 0 ? (
               // No season yet - show create season CTA or warning
@@ -2468,6 +3201,134 @@ export const CommissionerDashboard: React.FC = () => {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Team Selection Modal for League Invite */}
+      {showTeamSelectionModal && pendingInvitation && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className={`rounded-2xl w-full max-w-md border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
+            <div className={`p-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-slate-200'}`}>
+              <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                Join {pendingInvitation.leagueName}
+              </h2>
+              <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                Select which teams will participate in this league
+              </p>
+            </div>
+            
+            <div className="p-4 max-h-[50vh] overflow-y-auto">
+              {teams.length === 0 ? (
+                <div className={`text-center py-6 ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                  <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>No teams found. Create teams first.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {/* Select All */}
+                  <div className={`p-3 rounded-xl border ${theme === 'dark' ? 'border-gray-700' : 'border-slate-200'}`}>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedTeamsForLeague.length === teams.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedTeamsForLeague(teams.map(t => t.id!));
+                          } else {
+                            setSelectedTeamsForLeague([]);
+                          }
+                        }}
+                        className="w-5 h-5 rounded text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                        Select All Teams ({teams.length})
+                      </span>
+                    </label>
+                  </div>
+                  
+                  {/* Individual Teams */}
+                  {teams.map(team => (
+                    <div 
+                      key={team.id} 
+                      className={`p-3 rounded-xl border cursor-pointer transition-colors ${
+                        selectedTeamsForLeague.includes(team.id!)
+                          ? theme === 'dark'
+                            ? 'border-purple-500 bg-purple-500/10'
+                            : 'border-purple-500 bg-purple-50'
+                          : theme === 'dark'
+                            ? 'border-gray-700 hover:border-gray-600'
+                            : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                      onClick={() => {
+                        if (selectedTeamsForLeague.includes(team.id!)) {
+                          setSelectedTeamsForLeague(selectedTeamsForLeague.filter(id => id !== team.id));
+                        } else {
+                          setSelectedTeamsForLeague([...selectedTeamsForLeague, team.id!]);
+                        }
+                      }}
+                    >
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedTeamsForLeague.includes(team.id!)}
+                          onChange={() => {}}
+                          className="w-5 h-5 rounded text-purple-600 focus:ring-purple-500"
+                        />
+                        <div className="flex items-center gap-3 flex-1">
+                          <div 
+                            className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+                            style={{ 
+                              background: team.primaryColor && team.secondaryColor
+                                ? `linear-gradient(135deg, ${team.primaryColor}, ${team.secondaryColor})`
+                                : 'linear-gradient(135deg, #7c3aed, #ec4899)'
+                            }}
+                          >
+                            {team.name?.charAt(0) || 'T'}
+                          </div>
+                          <div>
+                            <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                              {team.name}
+                            </p>
+                            <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                              {team.ageGroup || 'No age group'} • {team.sport}
+                            </p>
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className={`p-4 border-t flex gap-3 ${theme === 'dark' ? 'border-gray-700' : 'border-slate-200'}`}>
+              <button
+                onClick={() => {
+                  setShowTeamSelectionModal(false);
+                  setPendingInvitation(null);
+                }}
+                className={`flex-1 py-2.5 rounded-lg font-medium transition-colors ${
+                  theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-900'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmJoinLeague}
+                disabled={selectedTeamsForLeague.length === 0 || respondingToInvite === pendingInvitation?.id}
+                className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {respondingToInvite === pendingInvitation?.id ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Join with {selectedTeamsForLeague.length} Team{selectedTeamsForLeague.length !== 1 ? 's' : ''}
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -3410,14 +4271,32 @@ export const CommissionerDashboard: React.FC = () => {
               <CommissionerSeasonSetup
                 programId={programData?.id}
                 selectedSport={selectedSport}
+                isLeagueMember={!!programData?.leagueId}
+                leagueName={programLeagueInfo?.name}
                 onComplete={(seasonId) => {
                   setShowSeasonModal(false);
-                  toastSuccess('Season created successfully!');
+                  toastSuccess(programData?.leagueId ? 'Registration created successfully!' : 'Season created successfully!');
                 }}
                 onCancel={() => setShowSeasonModal(false)}
               />
             </div>
           </div>
+        </div>
+      )}
+      
+      {/* NEW: Independent Registration Creation Modal */}
+      {showRegistrationModal && programData && (
+        <div className="fixed inset-0 z-[80]">
+          <CommissionerRegistrationSetup
+            programId={programData.id}
+            program={programData}
+            sport={selectedSport as any}
+            onComplete={(registrationId) => {
+              setShowRegistrationModal(false);
+              toastSuccess('Registration created successfully! You can now open it for signups.');
+            }}
+            onCancel={() => setShowRegistrationModal(false)}
+          />
         </div>
       )}
       
@@ -3655,6 +4534,41 @@ export const CommissionerDashboard: React.FC = () => {
         </div>
       )}
       
+      {/* Promo Codes Modal */}
+      {showPromoCodesModal && programData && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className={`w-full max-w-4xl max-h-[90vh] rounded-xl shadow-xl overflow-hidden ${theme === 'dark' ? 'bg-zinc-900 border border-white/10' : 'bg-white'}`}>
+            {/* Header */}
+            <div className={`flex items-center justify-between p-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-gray-200'}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                  <Tag className="w-5 h-5 text-purple-400" />
+                </div>
+                <div>
+                  <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    Promo Codes
+                  </h3>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                    Manage discount codes for all registrations
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPromoCodesModal(false)}
+                className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Promo Code Manager Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              <PromoCodeManager programId={programData.id} />
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Rules Modal */}
       <RulesModal
         isOpen={showRulesModal}
@@ -3672,6 +4586,78 @@ export const CommissionerDashboard: React.FC = () => {
         canEdit={true}
         type="codeOfConduct"
       />
+      
+      {/* Finalize Teams Confirmation Modal */}
+      {showFinalizeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className={`w-full max-w-md rounded-xl p-6 ${
+            theme === 'dark' ? 'bg-zinc-900 border border-zinc-800' : 'bg-white'
+          }`}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                <Lock className="w-6 h-6 text-green-500" />
+              </div>
+              <div>
+                <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  Finalize Teams?
+                </h3>
+                <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                  Lock in your teams for {currentLeagueSeason?.name}
+                </p>
+              </div>
+            </div>
+            
+            <div className={`p-4 rounded-lg mb-4 ${theme === 'dark' ? 'bg-white/5' : 'bg-slate-50'}`}>
+              <p className={`text-sm mb-2 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
+                <strong>{filteredTeams.filter(t => t.leagueId === programLeagueInfo?.id).length} teams</strong> will be finalized:
+              </p>
+              <ul className={`text-sm space-y-1 max-h-32 overflow-y-auto ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                {filteredTeams.filter(t => t.leagueId === programLeagueInfo?.id).map(team => (
+                  <li key={team.id} className="flex items-center gap-2">
+                    <CheckCircle2 className="w-3 h-3 text-green-500" />
+                    {team.name} {team.ageGroup && <span className="text-xs opacity-60">({team.ageGroup})</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            
+            <p className={`text-xs mb-4 ${theme === 'dark' ? 'text-amber-400' : 'text-amber-600'}`}>
+              ⚠️ Once finalized, only the league owner can unlock teams for changes.
+            </p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowFinalizeModal(false)}
+                disabled={finalizingTeams}
+                className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-colors ${
+                  theme === 'dark'
+                    ? 'bg-white/10 hover:bg-white/15 text-white'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleFinalizeTeams}
+                disabled={finalizingTeams}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
+              >
+                {finalizingTeams ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Finalizing...
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    Finalize Teams
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

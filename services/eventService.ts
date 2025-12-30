@@ -6,6 +6,7 @@
 
 import { 
   collection, 
+  collectionGroup,
   doc, 
   addDoc, 
   getDoc, 
@@ -22,7 +23,7 @@ import {
 } from 'firebase/firestore';
 import { sanitizeText, sanitizeEmail, sanitizePhone, sanitizeUrl } from './sanitize';
 import { checkRateLimit, RATE_LIMITS } from './rateLimit';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import { 
   Event, 
   NewEvent,
@@ -917,9 +918,53 @@ export async function getPlayerRegistrationStatus(
     console.log('[PlayerStatus] Checking player doc at players/' + playerId);
     if (playerDoc.exists()) {
       const playerData = playerDoc.data();
-      console.log('[PlayerStatus] Player doc draft status:', playerData.draftPoolStatus);
+      console.log('[PlayerStatus] Player doc draft status:', playerData.draftPoolStatus, 'programId:', playerData.draftPoolProgramId, 'registrationId:', playerData.draftPoolRegistrationId, 'seasonId:', playerData.draftPoolSeasonId);
       
-      // Check for PROGRAM-based draft pool (new system) - uses programId/seasonId instead of teamId
+      // Check for INDEPENDENT REGISTRATION (newest system) - uses programId/registrationId
+      if (playerData.draftPoolStatus === 'waiting' && playerData.draftPoolProgramId && playerData.draftPoolRegistrationId) {
+        // Fetch program and registration info
+        let programName = 'Unknown Program';
+        let sportSpecificName = '';
+        let registrationName = '';
+        let sport: string = playerData.draftPoolSport || 'football';
+        try {
+          const programDoc = await getDoc(doc(db, 'programs', playerData.draftPoolProgramId));
+          if (programDoc.exists()) {
+            const programData = programDoc.data();
+            sport = playerData.draftPoolSport || programData.sport || 'football';
+            
+            // Use sport-specific name if available (commissioner sets this per sport)
+            const sportLower = sport.toLowerCase();
+            const sportNames = programData.sportNames as { [key: string]: string } | undefined;
+            sportSpecificName = sportNames?.[sportLower] || '';
+            programName = programData.name || 'Unknown Program';
+            console.log('[PlayerStatus] Sport:', sport, 'sportNames:', sportNames, 'sportSpecificName:', sportSpecificName, 'programName:', programName);
+          }
+          
+          // Get registration name
+          const regDoc = await getDoc(doc(db, 'programs', playerData.draftPoolProgramId, 'registrations', playerData.draftPoolRegistrationId));
+          if (regDoc.exists()) {
+            const regData = regDoc.data();
+            registrationName = regData.name || regData.title || '';
+          }
+        } catch (err) {
+          console.log('[PlayerStatus] Could not fetch registration program info:', err);
+        }
+        
+        // Priority: sport-specific name > registration name > program name
+        const displayName = sportSpecificName || registrationName || programName;
+        
+        return {
+          status: 'in-draft-pool',
+          draftPoolProgramId: playerData.draftPoolProgramId,
+          draftPoolRegistrationId: playerData.draftPoolRegistrationId,
+          draftPoolTeamName: displayName,
+          draftPoolAgeGroup: playerData.draftPoolAgeGroup,
+          sport,
+        };
+      }
+      
+      // Check for PROGRAM-based draft pool (season system) - uses programId/seasonId instead of teamId
       if (playerData.draftPoolStatus === 'waiting' && playerData.draftPoolProgramId && playerData.draftPoolSeasonId) {
         // Fetch program info for name
         let programName = 'Unknown Program';
@@ -1012,6 +1057,76 @@ export async function getPlayerRegistrationStatus(
           teamName: teamDoc.exists() ? teamDoc.data().name : 'Unknown Team'
         };
       }
+      
+      // FALLBACK: Check registrants collection for legacy registrations
+      // This handles registrations made BEFORE draftPoolRegistrationId was added to player doc
+      console.log('[PlayerStatus] No draft pool fields found, checking registrants collection...');
+      const currentUserId = auth.currentUser?.uid;
+      if (currentUserId) {
+        const registrantsQuery = query(
+          collectionGroup(db, 'registrants'),
+          where('parentId', '==', currentUserId)
+        );
+        const registrantsSnap = await getDocs(registrantsQuery);
+        console.log('[PlayerStatus] Registrants found by parentId:', registrantsSnap.size);
+        
+        for (const regDoc of registrantsSnap.docs) {
+          const regData = regDoc.data();
+          
+          // Only process registrations that match THIS player
+          if (regData.existingPlayerId !== playerId) {
+            continue;
+          }
+          
+          // Get path parts to extract programId and registrationId
+          const pathParts = regDoc.ref.path.split('/');
+          // Path: programs/{programId}/registrations/{regId}/registrants/{registrantId}
+          const programId = pathParts[1];
+          const registrationId = pathParts[3];
+          
+          console.log('[PlayerStatus] Found legacy registration via fallback:', programId, registrationId);
+          
+          // Only consider registrations that haven't been assigned to a team yet
+          if (!regData.assignedTeamId) {
+            try {
+              const programDoc = await getDoc(doc(db, 'programs', programId));
+              if (programDoc.exists()) {
+                const programData = programDoc.data();
+                const sport = (programData.sport || regData.sport || 'football');
+                
+                // Use sport-specific name if available (commissioner sets this per sport)
+                const sportLower = sport.toLowerCase();
+                const sportNames = programData.sportNames as { [key: string]: string } | undefined;
+                const sportSpecificName = sportNames?.[sportLower] || '';
+                const programName = programData.name || 'Unknown Program';
+                
+                // Get registration name
+                let registrationName = '';
+                try {
+                  const regInfoDoc = await getDoc(doc(db, 'programs', programId, 'registrations', registrationId));
+                  if (regInfoDoc.exists()) {
+                    registrationName = regInfoDoc.data().name || regInfoDoc.data().title || '';
+                  }
+                } catch (e) {}
+                
+                // Priority: sport-specific name > registration name > program name
+                const displayName = sportSpecificName || registrationName || programName;
+                
+                return {
+                  status: 'in-draft-pool',
+                  draftPoolProgramId: programId,
+                  draftPoolRegistrationId: registrationId,
+                  draftPoolTeamName: displayName,
+                  draftPoolAgeGroup: regData.ageGroupLabel || regData.calculatedAgeGroup,
+                  sport,
+                };
+              }
+            } catch (e) {
+              console.warn('[PlayerStatus] Error fetching program for registration fallback:', e);
+            }
+          }
+        }
+      }
     }
   } catch (err) {
     console.log('[PlayerStatus] Could not read player doc, trying fallback:', err);
@@ -1021,17 +1136,34 @@ export async function getPlayerRegistrationStatus(
   // Draft pool entries are stored under teams/{teamId}/draftPool
   // We need to find entries where playerId matches
   try {
+    // Get current user to comply with Firestore rules (registrations collection requires parentUserId filter)
+    const currentUserId = auth.currentUser?.uid;
+    
     // First get recent registrations for this player to find which teams to check
-    const registrationsQuery = query(
-      collection(db, REGISTRATIONS_COLLECTION),
-      where('athleteId', '==', playerId),
-      limit(5)
-    );
-    const regSnapshot = await getDocs(registrationsQuery);
-    console.log('[PlayerStatus] Found registrations:', regSnapshot.size);
+    // Include parentUserId filter to comply with Firestore rules
+    let regSnapshot;
+    if (currentUserId) {
+      const registrationsQuery = query(
+        collection(db, REGISTRATIONS_COLLECTION),
+        where('athleteId', '==', playerId),
+        where('parentUserId', '==', currentUserId),
+        limit(5)
+      );
+      regSnapshot = await getDocs(registrationsQuery);
+    } else {
+      // Not logged in - skip registrations query
+      regSnapshot = { empty: true, docs: [] };
+    }
+    console.log('[PlayerStatus] Found registrations:', regSnapshot.empty ? 0 : regSnapshot.docs.length);
     
     // If no registrations found, try to search draft pool directly via teams
     if (regSnapshot.empty) {
+      // Only search teams if user is authenticated (draftPool requires auth)
+      if (!currentUserId) {
+        console.log('[PlayerStatus] Not authenticated, skipping teams search');
+        return { status: 'not-registered' };
+      }
+      
       // Fallback: Check all teams for draft pool entries with this playerId
       const teamsSnapshot = await getDocs(collection(db, 'teams'));
       console.log('[PlayerStatus] Searching', teamsSnapshot.size, 'teams for draft pool entries');

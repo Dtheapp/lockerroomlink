@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, getDocs, query, onSnapshot, where } from 'firebase/firestore';
+import { collection, getDocs, query, onSnapshot, where, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -8,9 +8,10 @@ import TeamStatsSummary from './stats/TeamStatsSummary';
 import StatsDashboard from './stats/StatsDashboard';
 import PlayerStatsDashboard from './stats/PlayerStatsDashboard';
 import type { Team, PlayerSeasonStats, Player } from '../types';
-import { BarChart3, Users, TrendingUp, ArrowUpDown, ChevronDown, ChevronUp, Trophy, User, Gamepad2 } from 'lucide-react';
+import { BarChart3, Users, TrendingUp, ArrowUpDown, ChevronDown, ChevronUp, Trophy, User, Gamepad2, RefreshCw } from 'lucide-react';
 import NoAthleteBlock from './NoAthleteBlock';
 import { getStats, getSportConfig, type StatConfig } from '../config/sportConfig';
+import { toastSuccess, toastError } from '../services/toast';
 
 const Stats: React.FC = () => {
   const { userData, teamData, players, loading: authLoading, selectedPlayer } = useAuth();
@@ -127,17 +128,124 @@ const Stats: React.FC = () => {
     return sortDirection === 'asc' ? <ChevronUp className="w-3 h-3 text-purple-500" /> : <ChevronDown className="w-3 h-3 text-purple-500" />;
   };
 
+  // Backfill state for admin
+  const [isBackfilling, setIsBackfilling] = useState(false);
+
+  // One-click backfill for all players on team rosters
+  const handleBackfillHistory = async () => {
+    if (userData?.role !== 'SuperAdmin') return;
+    
+    setIsBackfilling(true);
+    let updated = 0;
+    let skipped = 0;
+    let noTeam = 0;
+    
+    try {
+      // APPROACH: Scan global players collection and look for teamId field
+      console.log('📊 Backfill: Scanning global players collection...');
+      const globalPlayersSnap = await getDocs(collection(db, 'players'));
+      console.log('📊 Backfill: Found', globalPlayersSnap.docs.length, 'global players');
+      
+      // Cache teams for lookup
+      const teamsSnap = await getDocs(collection(db, 'teams'));
+      const teamsMap = new Map<string, any>();
+      teamsSnap.docs.forEach(d => teamsMap.set(d.id, { id: d.id, ...d.data() }));
+      console.log('📊 Backfill: Cached', teamsMap.size, 'teams');
+      
+      for (const playerDoc of globalPlayersSnap.docs) {
+        const player = playerDoc.data();
+        const playerId = playerDoc.id;
+        const teamId = player.teamId;
+        
+        console.log('📊 Player:', player.firstName, player.lastName, '| teamId:', teamId);
+        
+        if (!teamId) {
+          console.log('📊 No teamId, checking if player is in any team roster subcollection...');
+          noTeam++;
+          continue;
+        }
+        
+        // Get team data
+        const team = teamsMap.get(teamId);
+        if (!team) {
+          console.log('📊 Team not found:', teamId);
+          skipped++;
+          continue;
+        }
+        
+        if (!team.programId) {
+          console.log('📊 Team has no programId:', teamId);
+          skipped++;
+          continue;
+        }
+        
+        const existingHistory = player.teamHistory || [];
+        
+        // Check if already has this team in history
+        if (existingHistory.some((e: any) => e.teamId === teamId)) {
+          console.log('📊 Already has history for team:', teamId);
+          skipped++;
+          continue;
+        }
+        
+        // Add team history entry
+        const historyEntry = {
+          teamId,
+          teamName: team.name || 'Team',
+          programId: team.programId,
+          programName: team.programName || '',
+          sport: team.sport || 'football',
+          seasonId: team.currentSeasonId || null,
+          seasonYear: new Date().getFullYear(),
+          ageGroup: player.ageGroup || team.ageGroup || null,
+          joinedAt: player.draftedAt || player.createdAt || new Date(),
+          leftAt: null,
+          status: 'active'
+        };
+        
+        await updateDoc(doc(db, 'players', playerId), {
+          teamHistory: [...existingHistory, historyEntry]
+        });
+        
+        console.log('📊 ✅ Added history for:', player.firstName, player.lastName, '-> team:', team.name);
+        updated++;
+      }
+      
+      toastSuccess(`Backfill complete! Updated: ${updated}, Skipped: ${skipped}, No team: ${noTeam}`);
+      console.log('📊 Backfill Summary - Updated:', updated, 'Skipped:', skipped, 'No team:', noTeam);
+    } catch (err: any) {
+      console.error('Backfill error:', err);
+      toastError(`Backfill failed: ${err.message}`);
+    } finally {
+      setIsBackfilling(false);
+    }
+  };
+
   return (
-    <NoAthleteBlock featureName="Stats">
+    <NoAthleteBlock featureName="Stats" allowDraftPool>
     <div className="space-y-6 pb-20">
-      <div className="flex items-center gap-3">
-        <BarChart3 className="w-8 h-8 text-purple-500" />
-        <div>
-          <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">
-            {(userData?.role === 'Parent' || userData?.role === 'Athlete') ? 'My Stats' : 'Team Stats'}
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">{currentYear} Season</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <BarChart3 className="w-8 h-8 text-purple-500" />
+          <div>
+            <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">
+              {(userData?.role === 'Parent' || userData?.role === 'Athlete') ? 'My Stats' : 'Team Stats'}
+            </h1>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{currentYear} Season</p>
+          </div>
         </div>
+        
+        {/* SuperAdmin: Backfill button */}
+        {userData?.role === 'SuperAdmin' && (
+          <button
+            onClick={handleBackfillHistory}
+            disabled={isBackfilling}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-400 text-white rounded-lg font-semibold text-sm transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${isBackfilling ? 'animate-spin' : ''}`} />
+            {isBackfilling ? 'Syncing...' : 'Sync Stats History'}
+          </button>
+        )}
       </div>
 
       {/* Athlete View: Individual Player Stats */}

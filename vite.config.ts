@@ -2,6 +2,30 @@ import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
+// Custom plugin to redirect non-hash routes to hash routes for HashRouter
+const hashRouterRedirect = () => ({
+  name: 'hash-router-redirect',
+  configureServer(server: any) {
+    server.middlewares.use((req: any, res: any, next: any) => {
+      const url = req.url || '';
+      // List of routes that should be redirected to hash routes
+      const hashRoutes = ['/register/', '/event/', '/league/', '/team/', '/athlete/', '/dashboard', '/login'];
+      
+      // Check if URL starts with any hash route (but isn't already a hash route or asset)
+      if (!url.includes('#') && !url.startsWith('/@') && !url.startsWith('/node_modules') && !url.includes('.')) {
+        const matchedRoute = hashRoutes.find(route => url.startsWith(route));
+        if (matchedRoute) {
+          // Redirect to hash URL
+          res.writeHead(302, { Location: `/#${url}` });
+          res.end();
+          return;
+        }
+      }
+      next();
+    });
+  }
+});
+
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     const isProd = mode === 'production';
@@ -11,7 +35,7 @@ export default defineConfig(({ mode }) => {
         port: 3000,
         host: '0.0.0.0',
       },
-      plugins: [react()],
+      plugins: [hashRouterRedirect(), react()],
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)

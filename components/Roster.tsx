@@ -885,11 +885,40 @@ const Roster: React.FC = () => {
       // 1. Delete from team roster
       await deleteDoc(doc(db, 'teams', teamData.id, 'players', deletePlayerConfirm.id));
       
-      // 2. If player has an athlete profile, clear ALL team-related fields
+      // 2. If player has an athlete profile, clear ALL team-related fields AND update teamHistory
       if (deletePlayerConfirm.athleteId) {
         const athleteRef = doc(db, 'players', deletePlayerConfirm.athleteId);
         const athleteSnap = await getDoc(athleteRef);
         if (athleteSnap.exists()) {
+          const athleteData = athleteSnap.data();
+          
+          // Update teamHistory - mark this team entry as 'removed'
+          const existingHistory = athleteData.teamHistory || [];
+          const updatedHistory = existingHistory.map((entry: any) => {
+            if (entry.teamId === teamData.id && !entry.leftAt) {
+              return { ...entry, leftAt: new Date(), status: 'removed' };
+            }
+            return entry;
+          });
+          
+          // If no history entry existed for this team, create one with leftAt
+          const hasHistoryForTeam = existingHistory.some((e: any) => e.teamId === teamData.id);
+          if (!hasHistoryForTeam && teamData.programId) {
+            updatedHistory.push({
+              teamId: teamData.id,
+              teamName: teamData.name || 'Team',
+              programId: teamData.programId,
+              programName: teamData.programName || '',
+              sport: teamData.sport || 'football',
+              seasonId: teamData.currentSeasonId || null,
+              seasonYear: new Date().getFullYear(),
+              ageGroup: athleteData.ageGroup || teamData.ageGroup || null,
+              joinedAt: athleteData.draftedAt || athleteData.createdAt || new Date(),
+              leftAt: new Date(),
+              status: 'removed'
+            });
+          }
+          
           await updateDoc(athleteRef, {
             teamId: null,
             teamName: null,
@@ -897,9 +926,10 @@ const Roster: React.FC = () => {
             isCaptain: false,
             number: null,
             position: null,
-            removedFromTeamAt: serverTimestamp()
+            removedFromTeamAt: serverTimestamp(),
+            teamHistory: updatedHistory
           });
-          console.log('[Roster] Cleared team fields from athlete profile:', deletePlayerConfirm.athleteId);
+          console.log('[Roster] Cleared team fields and updated history for athlete:', deletePlayerConfirm.athleteId);
         }
       } else if (deletePlayerConfirm.parentId) {
         // FALLBACK: If no athleteId stored, find athlete by parentId + name match
@@ -914,6 +944,33 @@ const Roster: React.FC = () => {
           const athleteData = athleteDoc.data();
           // Match by name to be safe
           if (athleteData.name === playerName || `${athleteData.firstName} ${athleteData.lastName}` === playerName) {
+            // Update teamHistory - mark this team entry as 'removed'
+            const existingHistory = athleteData.teamHistory || [];
+            const updatedHistory = existingHistory.map((entry: any) => {
+              if (entry.teamId === teamData.id && !entry.leftAt) {
+                return { ...entry, leftAt: new Date(), status: 'removed' };
+              }
+              return entry;
+            });
+            
+            // If no history entry existed for this team, create one with leftAt
+            const hasHistoryForTeam = existingHistory.some((e: any) => e.teamId === teamData.id);
+            if (!hasHistoryForTeam && teamData.programId) {
+              updatedHistory.push({
+                teamId: teamData.id,
+                teamName: teamData.name || 'Team',
+                programId: teamData.programId,
+                programName: teamData.programName || '',
+                sport: teamData.sport || 'football',
+                seasonId: teamData.currentSeasonId || null,
+                seasonYear: new Date().getFullYear(),
+                ageGroup: athleteData.ageGroup || teamData.ageGroup || null,
+                joinedAt: athleteData.draftedAt || athleteData.createdAt || new Date(),
+                leftAt: new Date(),
+                status: 'removed'
+              });
+            }
+            
             await updateDoc(doc(db, 'players', athleteDoc.id), {
               teamId: null,
               teamName: null,
@@ -921,9 +978,10 @@ const Roster: React.FC = () => {
               isCaptain: false,
               number: null,
               position: null,
-              removedFromTeamAt: serverTimestamp()
+              removedFromTeamAt: serverTimestamp(),
+              teamHistory: updatedHistory
             });
-            console.log('[Roster] Cleared team fields from athlete (fallback lookup):', athleteDoc.id);
+            console.log('[Roster] Cleared team fields and updated history (fallback lookup):', athleteDoc.id);
             break;
           }
         }

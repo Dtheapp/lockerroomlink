@@ -56,14 +56,33 @@ export default function PublicLeaguePage() {
     if (!leagueId) return;
 
     try {
-      // Load league
+      let leagueData: League | null = null;
+
+      // First try to load by document ID
       const leagueDoc = await getDoc(doc(db, 'leagues', leagueId));
-      if (!leagueDoc.exists()) {
+      if (leagueDoc.exists()) {
+        leagueData = { id: leagueDoc.id, ...leagueDoc.data() } as League;
+      } else {
+        // If not found by ID, try to find by username
+        const usernameQuery = query(
+          collection(db, 'leagues'),
+          where('username', '==', leagueId)
+        );
+        const usernameSnap = await getDocs(usernameQuery);
+        if (!usernameSnap.empty) {
+          const doc = usernameSnap.docs[0];
+          leagueData = { id: doc.id, ...doc.data() } as League;
+        }
+      }
+
+      if (!leagueData) {
         setLoading(false);
         return;
       }
-      const leagueData = { id: leagueDoc.id, ...leagueDoc.data() } as League;
       setLeague(leagueData);
+
+      // Use the actual league ID for subsequent queries
+      const actualLeagueId = leagueData.id!;
 
       // Check if league allows public view
       if ((leagueData as any).publicProfile === false) {
@@ -74,7 +93,7 @@ export default function PublicLeaguePage() {
       // Load seasons
       const seasonsQuery = query(
         collection(db, 'leagueSeasons'),
-        where('leagueId', '==', leagueId),
+        where('leagueId', '==', actualLeagueId),
         orderBy('startDate', 'desc')
       );
       const seasonsSnap = await getDocs(seasonsQuery);
@@ -90,7 +109,7 @@ export default function PublicLeaguePage() {
       // Load programs and teams
       const programsQuery = query(
         collection(db, 'programs'),
-        where('leagueId', '==', leagueId)
+        where('leagueId', '==', actualLeagueId)
       );
       const programsSnap = await getDocs(programsQuery);
       const programsList = programsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Program));

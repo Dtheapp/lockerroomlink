@@ -32,6 +32,12 @@ service firebase.storage {
       allow write: if isAuthenticated();
     }
     
+    // League assets (logos, banners, etc)
+    match /leagues/{leagueId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
     // Event images
     match /events/{eventId}/{allPaths=**} {
       allow read: if true;

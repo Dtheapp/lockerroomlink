@@ -124,13 +124,13 @@ const PlayerSportSelector: React.FC = () => {
   };
 
   // Button display - use CONTEXT directly, not local status
-  const currentSport = selectedSportContext?.sport;
-  const sportInfo = currentSport ? SPORTS.find(s => s.sport === currentSport) : null;
+  // Default to football if no sport context is set
+  const currentSport = selectedSportContext?.sport || 'football';
+  const sportInfo = SPORTS.find(s => s.sport === currentSport) || SPORTS[0]; // Football is first in array
   
   // Get label from context first, fall back to local status
   const getButtonLabel = () => {
     if (loading) return 'Loading...';
-    if (!sportInfo) return 'Select Sport';
     
     // Use context status directly
     if (selectedSportContext?.status === 'draft_pool') {

@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { collection, query, where, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { useTheme } from '../../contexts/ThemeContext';
+import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, addDoc, serverTimestamp, limit } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { Program } from '../../types';
-import { ChevronLeft, Search, Users, Building2, MapPin, Filter, MoreVertical, Check, X, Mail, AlertCircle, Loader2 } from 'lucide-react';
+import { ChevronLeft, Search, Users, Building2, MapPin, Filter, MoreVertical, Check, X, Mail, AlertCircle, Loader2, Plus, Send } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { toastSuccess, toastError } from '../../services/toast';
 
 export default function LeaguePrograms() {
   const { leagueData, user } = useAuth();
+  const { theme } = useTheme();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'pending' | 'inactive'>('all');
   const [selectedProgram, setSelectedProgram] = useState<string | null>(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
   useEffect(() => {
     loadPrograms();
@@ -88,32 +92,51 @@ export default function LeaguePrograms() {
 
   if (!leagueData) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${
+        theme === 'dark' ? 'bg-zinc-900' : 'bg-slate-50'
+      }`}>
         <div className="text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-white">No League Found</h2>
-          <p className="text-gray-400 mt-2">You are not associated with any league.</p>
+          <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>No League Found</h2>
+          <p className={`mt-2 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>You are not associated with any league.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className={`min-h-screen ${
+      theme === 'dark' ? 'bg-zinc-900 text-white' : 'bg-slate-50 text-slate-900'
+    }`}>
       {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700">
+      <div className={`border-b ${
+        theme === 'dark' 
+          ? 'bg-black/40 border-white/10' 
+          : 'bg-white border-slate-200 shadow-sm'
+      }`}>
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
-            <Link to="/league" className="p-2 hover:bg-gray-700 rounded-lg transition-colors">
+            <Link to="/league" className={`p-2 rounded-lg transition-colors ${
+              theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+            }`}>
               <ChevronLeft className="w-5 h-5" />
             </Link>
             <div className="flex-1">
-              <h1 className="text-xl font-bold flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-blue-400" />
+              <h1 className={`text-xl font-bold flex items-center gap-2 ${
+                theme === 'dark' ? 'text-white' : 'text-slate-900'
+              }`}>
+                <Building2 className={theme === 'dark' ? 'w-5 h-5 text-purple-400' : 'w-5 h-5 text-purple-600'} />
                 Programs
               </h1>
-              <p className="text-sm text-gray-400">{programs.length} programs in {leagueData.name}</p>
+              <p className={theme === 'dark' ? 'text-sm text-slate-400' : 'text-sm text-slate-600'}>{programs.length} programs in {leagueData.name}</p>
             </div>
+            <button
+              onClick={() => setShowInviteModal(true)}
+              className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 px-4 py-2 rounded-xl font-medium text-white transition-all shadow-lg shadow-purple-500/25"
+            >
+              <Plus className="w-5 h-5" />
+              Invite Program
+            </button>
           </div>
         </div>
       </div>
@@ -122,22 +145,32 @@ export default function LeaguePrograms() {
       <div className="max-w-6xl mx-auto px-4 py-4">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${
+              theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+            }`} />
             <input
               type="text"
               placeholder="Search programs..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={`w-full rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
+                theme === 'dark'
+                  ? 'bg-white/5 border border-white/10 text-white placeholder-slate-500'
+                  : 'bg-white border border-slate-200 text-slate-900 placeholder-slate-400'
+              }`}
             />
           </div>
           
           <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-gray-400" />
+            <Filter className={theme === 'dark' ? 'w-5 h-5 text-slate-400' : 'w-5 h-5 text-slate-500'} />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500"
+              className={`rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
+                theme === 'dark'
+                  ? 'bg-white/5 border border-white/10 text-white'
+                  : 'bg-white border border-slate-200 text-slate-900'
+              }`}
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
@@ -152,13 +185,21 @@ export default function LeaguePrograms() {
       <div className="max-w-6xl mx-auto px-4 py-4">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
           </div>
         ) : filteredPrograms.length === 0 ? (
-          <div className="text-center py-12">
-            <Building2 className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-400">No Programs Found</h3>
-            <p className="text-gray-500 mt-2">
+          <div className={`text-center py-12 rounded-2xl border ${
+            theme === 'dark' 
+              ? 'bg-white/5 border-white/10' 
+              : 'bg-white border-slate-200 shadow-sm'
+          }`}>
+            <Building2 className={`w-16 h-16 mx-auto mb-4 ${
+              theme === 'dark' ? 'text-slate-600' : 'text-slate-400'
+            }`} />
+            <h3 className={`text-lg font-medium ${
+              theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+            }`}>No Programs Found</h3>
+            <p className={`mt-2 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>
               {searchTerm || statusFilter !== 'all' 
                 ? 'Try adjusting your filters'
                 : 'No programs have joined your league yet'}
@@ -167,15 +208,23 @@ export default function LeaguePrograms() {
         ) : (
           <div className="grid gap-4">
             {filteredPrograms.map(program => (
-              <div key={program.id} className="bg-gray-800 rounded-xl p-5 border border-gray-700 hover:border-gray-600 transition-colors">
+              <div key={program.id} className={`rounded-2xl p-5 border transition-colors ${
+                theme === 'dark'
+                  ? 'bg-white/5 border-white/10 hover:border-white/20'
+                  : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
+              }`}>
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
                       <Building2 className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-lg">{program.name}</h3>
-                      <div className="flex items-center gap-3 mt-1 text-sm text-gray-400">
+                      <h3 className={`font-semibold text-lg ${
+                        theme === 'dark' ? 'text-white' : 'text-slate-900'
+                      }`}>{program.name}</h3>
+                      <div className={`flex items-center gap-3 mt-1 text-sm ${
+                        theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                      }`}>
                         {program.city && (
                           <span className="flex items-center gap-1">
                             <MapPin className="w-4 h-4" />
@@ -188,11 +237,15 @@ export default function LeaguePrograms() {
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mt-2">
-                        <span className={`text-xs px-2 py-0.5 rounded-full border ${getStatusColor((program as any).status || 'active')}`}>
-                          {(program as any).status || 'Active'}
+                        <span className={`text-xs px-2 py-0.5 rounded-full border ${getStatusColor((program as any).leagueStatus || 'active')}`}>
+                          {(program as any).leagueStatus || 'Active'}
                         </span>
                         {program.sport && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-700 text-gray-300">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            theme === 'dark' 
+                              ? 'bg-white/10 text-slate-300' 
+                              : 'bg-slate-100 text-slate-600'
+                          }`}>
                             {program.sport.charAt(0).toUpperCase() + program.sport.slice(1)}
                           </span>
                         )}
@@ -203,30 +256,42 @@ export default function LeaguePrograms() {
                   <div className="relative">
                     <button
                       onClick={() => setSelectedProgram(selectedProgram === program.id ? null : program.id)}
-                      className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                      className={`p-2 rounded-lg transition-colors ${
+                        theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+                      }`}
                     >
                       <MoreVertical className="w-5 h-5" />
                     </button>
                     
                     {selectedProgram === program.id && (
-                      <div className="absolute right-0 top-full mt-1 w-48 bg-gray-700 rounded-lg shadow-lg border border-gray-600 py-1 z-10">
+                      <div className={`absolute right-0 top-full mt-1 w-48 rounded-xl shadow-lg border py-1 z-10 ${
+                        theme === 'dark'
+                          ? 'bg-zinc-800 border-white/10'
+                          : 'bg-white border-slate-200'
+                      }`}>
                         <Link
                           to={`/league/programs/${program.id}`}
-                          className="flex items-center gap-2 px-4 py-2 hover:bg-gray-600 text-sm"
+                          className={`flex items-center gap-2 px-4 py-2 text-sm ${
+                            theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+                          }`}
                         >
                           <Users className="w-4 h-4" />
                           View Details
                         </Link>
                         <button
                           onClick={() => handleStatusChange(program.id, 'active')}
-                          className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-600 text-sm text-left"
+                          className={`w-full flex items-center gap-2 px-4 py-2 text-sm text-left ${
+                            theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+                          }`}
                         >
                           <Check className="w-4 h-4 text-green-400" />
                           Set Active
                         </button>
                         <button
                           onClick={() => handleStatusChange(program.id, 'inactive')}
-                          className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-600 text-sm text-left"
+                          className={`w-full flex items-center gap-2 px-4 py-2 text-sm text-left ${
+                            theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+                          }`}
                         >
                           <X className="w-4 h-4 text-yellow-400" />
                           Set Inactive
@@ -238,15 +303,19 @@ export default function LeaguePrograms() {
                               window.location.href = `mailto:${email}`;
                             }
                           }}
-                          className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-600 text-sm text-left"
+                          className={`w-full flex items-center gap-2 px-4 py-2 text-sm text-left ${
+                            theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+                          }`}
                         >
                           <Mail className="w-4 h-4" />
                           Contact
                         </button>
-                        <hr className="my-1 border-gray-600" />
+                        <hr className={`my-1 ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'}`} />
                         <button
                           onClick={() => handleRemoveProgram(program.id)}
-                          className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-600 text-sm text-left text-red-400"
+                          className={`w-full flex items-center gap-2 px-4 py-2 text-sm text-left text-red-400 ${
+                            theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+                          }`}
                         >
                           <X className="w-4 h-4" />
                           Remove from League
@@ -259,6 +328,397 @@ export default function LeaguePrograms() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Invite Program Modal */}
+      {showInviteModal && (
+        <InviteProgramModal
+          leagueId={leagueData.id!}
+          leagueName={leagueData.name}
+          leagueSport={leagueData.sport || 'football'}
+          existingProgramIds={programs.map(p => p.id!)}
+          theme={theme}
+          onClose={() => setShowInviteModal(false)}
+          onInvited={() => {
+            setShowInviteModal(false);
+            loadPrograms();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Invite Program Modal Component
+interface InviteProgramModalProps {
+  leagueId: string;
+  leagueName: string;
+  leagueSport: string;
+  existingProgramIds: string[];
+  theme: 'dark' | 'light';
+  onClose: () => void;
+  onInvited: () => void;
+}
+
+function InviteProgramModal({ leagueId, leagueName, leagueSport, existingProgramIds, theme, onClose, onInvited }: InviteProgramModalProps) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<(Program & { sportSpecificName?: string; currentLeagueName?: string })[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [inviting, setInviting] = useState<string | null>(null);
+  const [pendingInvites, setPendingInvites] = useState<string[]>([]);
+  const [showSuccessMessage, setShowSuccessMessage] = useState<string | null>(null);
+
+  // Load existing pending invites
+  useEffect(() => {
+    const loadPendingInvites = async () => {
+      try {
+        const q = query(
+          collection(db, 'leagueRequests'),
+          where('leagueId', '==', leagueId),
+          where('status', '==', 'pending'),
+          where('type', '==', 'league_invitation')
+        );
+        const snap = await getDocs(q);
+        setPendingInvites(snap.docs.map(d => d.data().programId));
+      } catch (error) {
+        console.error('Error loading pending invites:', error);
+      }
+    };
+    loadPendingInvites();
+  }, [leagueId]);
+
+  // Auto-search with debounce
+  useEffect(() => {
+    if (!searchTerm.trim() || searchTerm.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    
+    const debounceTimer = setTimeout(() => {
+      handleSearch();
+    }, 300); // 300ms debounce
+    
+    return () => clearTimeout(debounceTimer);
+  }, [searchTerm]);
+
+  const handleSearch = async () => {
+    if (!searchTerm.trim()) return;
+    
+    setSearching(true);
+    try {
+      // Search by name (case-insensitive via client-side filter)
+      const q = query(
+        collection(db, 'programs'),
+        limit(50)
+      );
+      const snap = await getDocs(q);
+      
+      // Normalize league sport for lookup (try both cases)
+      const sportKey = leagueSport.charAt(0).toUpperCase() + leagueSport.slice(1).toLowerCase();
+      const sportKeyLower = leagueSport.toLowerCase();
+      
+      const results = snap.docs
+        .map(d => {
+          const data = d.data();
+          // Get sport-specific name if available (check both cases)
+          // Field is called 'sportNames' not 'sportSpecificNames'
+          const sportNames = data.sportNames || {};
+          const sportSpecificName = sportNames[sportKey] || sportNames[sportKeyLower] || sportNames[leagueSport] || null;
+          
+          // Also get all sport names for searching
+          const allSportNames = Object.values(sportNames).filter(Boolean).join(' ').toLowerCase();
+          
+          return { 
+            id: d.id, 
+            ...data,
+            sportSpecificName,
+            allSportNames,
+            currentLeagueName: data.leagueName || null
+          } as Program & { sportSpecificName?: string; allSportNames?: string; currentLeagueName?: string };
+        })
+        .filter(p => {
+          const searchLower = searchTerm.toLowerCase();
+          const matchesSearch = 
+            p.name.toLowerCase().includes(searchLower) ||
+            p.city?.toLowerCase().includes(searchLower) ||
+            p.state?.toLowerCase().includes(searchLower) ||
+            (p.sportSpecificName && p.sportSpecificName.toLowerCase().includes(searchLower)) ||
+            (p.allSportNames && p.allSportNames.includes(searchLower));
+          
+          return matchesSearch;
+        });
+      
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Error searching programs:', error);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleInvite = async (program: Program & { sportSpecificName?: string; currentLeagueName?: string }) => {
+    // Don't allow if already in league
+    if (existingProgramIds.includes(program.id!)) {
+      toastError('This program is already in your league');
+      return;
+    }
+    
+    // Don't allow if already has pending invite
+    if (pendingInvites.includes(program.id!)) {
+      toastError('Invitation already pending for this program');
+      return;
+    }
+    
+    setInviting(program.id!);
+    try {
+      const isSwitchLeague = !!program.currentLeagueName;
+      
+      // Create a league invitation request
+      await addDoc(collection(db, 'leagueRequests'), {
+        type: 'league_invitation',
+        leagueId,
+        leagueName,
+        programId: program.id,
+        programName: program.name,
+        sportSpecificName: program.sportSpecificName || null,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        createdBy: 'league_owner',
+        isSwitchLeague, // If they're switching from another league
+        previousLeagueName: program.currentLeagueName || null,
+        message: isSwitchLeague 
+          ? `${leagueName} has invited your program to switch to their league.`
+          : `${leagueName} has invited your program to join their league.`
+      });
+
+      // Create notification for program commissioner
+      // Role can be 'Commissioner', 'ProgramCommissioner', or user has commissionerType='program'
+      const programDoc = await getDocs(query(
+        collection(db, 'users'),
+        where('programId', '==', program.id)
+      ));
+      
+      // Filter to find commissioner (check multiple role possibilities)
+      const commissioners = programDoc.docs.filter(d => {
+        const data = d.data();
+        return data.role === 'Commissioner' || 
+               data.role === 'ProgramCommissioner' || 
+               data.commissionerType === 'program';
+      });
+      
+      if (commissioners.length > 0) {
+        const commissionerId = commissioners[0].id;
+        await addDoc(collection(db, 'notifications'), {
+          userId: commissionerId,
+          type: 'league_invitation',
+          title: isSwitchLeague ? 'League Switch Invitation' : 'League Invitation',
+          message: isSwitchLeague 
+            ? `${leagueName} has invited your program to switch to their league.`
+            : `${leagueName} has invited your program to join their league.`,
+          read: false,
+          createdAt: serverTimestamp(),
+          data: {
+            leagueId,
+            leagueName,
+            programId: program.id,
+            isSwitchLeague
+          }
+        });
+      }
+
+      setPendingInvites([...pendingInvites, program.id!]);
+      setShowSuccessMessage(program.name);
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setShowSuccessMessage(null), 3000);
+    } catch (error) {
+      console.error('Error sending invitation:', error);
+      toastError('Failed to send invitation');
+    } finally {
+      setInviting(null);
+    }
+  };
+
+  // Get display status for a program
+  const getProgramStatus = (program: Program & { sportSpecificName?: string; currentLeagueName?: string }) => {
+    if (existingProgramIds.includes(program.id!)) {
+      return { label: 'Already in your league', color: 'bg-green-500/20 text-green-400', disabled: true };
+    }
+    if (pendingInvites.includes(program.id!)) {
+      return { label: 'Invitation pending', color: 'bg-amber-500/20 text-amber-400', disabled: true };
+    }
+    if (program.currentLeagueName) {
+      return { label: `In ${program.currentLeagueName}`, color: 'bg-blue-500/20 text-blue-400', disabled: false };
+    }
+    return { label: 'No league', color: 'bg-slate-500/20 text-slate-400', disabled: false };
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className={`rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col ${
+        theme === 'dark'
+          ? 'bg-zinc-900 border border-white/10'
+          : 'bg-white border border-slate-200 shadow-xl'
+      }`}>
+        {/* Header */}
+        <div className={`flex items-center justify-between p-4 border-b shrink-0 ${
+          theme === 'dark' ? 'border-white/10' : 'border-slate-200'
+        }`}>
+          <h2 className={`text-lg font-semibold ${
+            theme === 'dark' ? 'text-white' : 'text-slate-900'
+          }`}>Invite Program to League</h2>
+          <button onClick={onClose} className={`p-2 rounded-xl transition-colors ${
+            theme === 'dark' ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'
+          }`}>
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        {/* Success Message */}
+        {showSuccessMessage && (
+          <div className={`mx-4 mt-4 p-3 rounded-xl flex items-start gap-3 ${
+            theme === 'dark' ? 'bg-green-500/20 border border-green-500/30' : 'bg-green-50 border border-green-200'
+          }`}>
+            <Check className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
+            <div>
+              <p className={`font-medium ${theme === 'dark' ? 'text-green-400' : 'text-green-700'}`}>
+                Invitation Sent!
+              </p>
+              <p className={`text-sm mt-0.5 ${theme === 'dark' ? 'text-green-400/80' : 'text-green-600'}`}>
+                The program commissioner will review your request. You can track pending invitations in the <Link to="/league/requests" className="underline font-medium" onClick={onClose}>Requests</Link> area.
+              </p>
+            </div>
+          </div>
+        )}
+        
+        {/* Search */}
+        <div className="p-4 shrink-0">
+          <div className="relative">
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${
+              theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+            }`} />
+            <input
+              type="text"
+              placeholder="Start typing to search programs..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              autoFocus
+              className={`w-full rounded-xl pl-10 pr-10 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
+                theme === 'dark'
+                  ? 'bg-white/5 border border-white/10 text-white placeholder-slate-500'
+                  : 'bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400'
+              }`}
+            />
+            {searching && (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 animate-spin text-purple-500" />
+            )}
+          </div>
+          {searchTerm.length > 0 && searchTerm.length < 2 && (
+            <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>
+              Type at least 2 characters to search
+            </p>
+          )}
+        </div>
+        
+        {/* Results */}
+        <div className={`flex-1 overflow-y-auto px-4 pb-4 ${
+          theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+        }`}>
+          {searchResults.length === 0 ? (
+            <div className="text-center py-8">
+              <Building2 className={`w-12 h-12 mx-auto mb-3 ${
+                theme === 'dark' ? 'text-slate-600' : 'text-slate-400'
+              }`} />
+              <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>
+                {searchTerm.length >= 2 && !searching ? 'No programs found. Try a different search.' : 'Start typing to search for programs'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {searchResults.map(program => {
+                const status = getProgramStatus(program);
+                
+                return (
+                  <div 
+                    key={program.id}
+                    className={`p-3 rounded-xl border transition-colors ${
+                      status.disabled
+                        ? theme === 'dark'
+                          ? 'bg-white/5 border-white/5 opacity-60'
+                          : 'bg-slate-50 border-slate-100 opacity-60'
+                        : theme === 'dark'
+                          ? 'bg-white/5 border-white/10 hover:border-white/20'
+                          : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center shrink-0">
+                          <Building2 className="w-5 h-5 text-white" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          {/* Primary: Sport-specific name OR program name */}
+                          <p className={`font-medium truncate ${
+                            theme === 'dark' ? 'text-white' : 'text-slate-900'
+                          }`}>
+                            {program.sportSpecificName || program.name}
+                          </p>
+                          
+                          {/* Sport badge */}
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${
+                              theme === 'dark' ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'
+                            }`}>
+                              {leagueSport}
+                            </span>
+                            {/* Show org name if different from display name */}
+                            {program.sportSpecificName && program.sportSpecificName !== program.name && (
+                              <span className={`text-xs ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>
+                                ({program.name})
+                              </span>
+                            )}
+                          </div>
+                          
+                          <p className={`text-sm truncate mt-0.5 ${
+                            theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                          }`}>
+                            {program.city && `${program.city}, ${program.state}`}
+                          </p>
+                          
+                          {/* League Status Badge */}
+                          <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full mt-1 ${status.color}`}>
+                            {status.label}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {!status.disabled && (
+                        <button
+                          onClick={() => handleInvite(program)}
+                          disabled={inviting === program.id}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${
+                            program.currentLeagueName
+                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                              : 'bg-purple-600 hover:bg-purple-700 text-white'
+                          } disabled:opacity-50`}
+                        >
+                          {inviting === program.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Send className="w-4 h-4" />
+                              {program.currentLeagueName ? 'Suggest Switch' : 'Invite'}
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

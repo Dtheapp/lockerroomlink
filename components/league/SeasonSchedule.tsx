@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs, doc, getDoc, addDoc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { LeagueSeason, LeagueSchedule, LeagueGame, Team, Program } from '../../types';
-import { ChevronLeft, Calendar, Plus, Play, Clock, CheckCircle, MapPin, Users, Loader2, AlertCircle, Edit, Trash2, X, Save, Filter, ChevronDown, Trophy } from 'lucide-react';
+import { ChevronLeft, Calendar, Plus, Play, Clock, CheckCircle, MapPin, Users, Loader2, AlertCircle, Edit, Trash2, X, Save, Filter, ChevronDown, Trophy, Settings, PlayCircle, StopCircle, Wand2, Palette } from 'lucide-react';
+import { toastSuccess, toastError } from '../../services/toast';
 
 type ViewMode = 'list' | 'calendar' | 'by-team';
 
 export default function SeasonSchedule() {
   const { seasonId } = useParams<{ seasonId: string }>();
   const { leagueData, user } = useAuth();
+  const { theme } = useTheme();
   const navigate = useNavigate();
   
   const [season, setSeason] = useState<LeagueSeason | null>(null);
@@ -19,6 +22,7 @@ export default function SeasonSchedule() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [showAddGame, setShowAddGame] = useState(false);
+  const [showEditSeason, setShowEditSeason] = useState(false);
   const [filterTeam, setFilterTeam] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
@@ -85,41 +89,6 @@ export default function SeasonSchedule() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'scheduled':
-        return (
-          <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
-            <Clock className="w-3 h-3" />
-            Scheduled
-          </span>
-        );
-      case 'in_progress':
-        return (
-          <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
-            <Play className="w-3 h-3" />
-            In Progress
-          </span>
-        );
-      case 'completed':
-        return (
-          <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
-            <CheckCircle className="w-3 h-3" />
-            Completed
-          </span>
-        );
-      case 'cancelled':
-        return (
-          <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
-            <X className="w-3 h-3" />
-            Cancelled
-          </span>
-        );
-      default:
-        return null;
-    }
-  };
-
   const formatGameDate = (dateTime: any) => {
     const date = dateTime instanceof Timestamp ? dateTime.toDate() : new Date(dateTime);
     return {
@@ -144,45 +113,95 @@ export default function SeasonSchedule() {
 
   if (!leagueData) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <AlertCircle className="w-16 h-16 text-red-500" />
+      <div className={`min-h-screen flex items-center justify-center ${
+        theme === 'dark' ? 'bg-zinc-900' : 'bg-slate-50'
+      }`}>
+        <AlertCircle className={`w-16 h-16 ${theme === 'dark' ? 'text-red-500' : 'text-red-600'}`} />
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      <div className={`min-h-screen flex items-center justify-center ${
+        theme === 'dark' ? 'bg-zinc-900' : 'bg-slate-50'
+      }`}>
+        <Loader2 className={`w-8 h-8 animate-spin ${theme === 'dark' ? 'text-purple-500' : 'text-purple-600'}`} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className={`min-h-screen pb-20 ${
+      theme === 'dark'
+        ? 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 text-white'
+        : 'bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900'
+    }`}>
       {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700">
+      <div className={`border-b ${
+        theme === 'dark'
+          ? 'bg-black/40 backdrop-blur-xl border-white/10'
+          : 'bg-white/80 backdrop-blur-xl border-slate-200'
+      }`}>
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link to="/league/seasons" className="p-2 hover:bg-gray-700 rounded-lg transition-colors">
+              <Link 
+                to="/league/seasons" 
+                className={`p-2 rounded-xl transition-colors ${
+                  theme === 'dark'
+                    ? 'hover:bg-white/10 text-slate-400 hover:text-white'
+                    : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900'
+                }`}
+              >
                 <ChevronLeft className="w-5 h-5" />
               </Link>
               <div>
-                <h1 className="text-xl font-bold flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-blue-400" />
+                <h1 className={`text-xl font-bold flex items-center gap-2 ${
+                  theme === 'dark' ? 'text-white' : 'text-slate-900'
+                }`}>
+                  <Calendar className={`w-5 h-5 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
                   {season?.name || 'Season Schedule'}
                 </h1>
-                <p className="text-sm text-gray-400">{games.length} games scheduled</p>
+                <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                  {games.length} games scheduled
+                </p>
               </div>
             </div>
-            <button
-              onClick={() => setShowAddGame(true)}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              Add Game
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate(`/league/seasons/${seasonId}/schedule-studio`)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white shadow-lg shadow-purple-500/25`}
+              >
+                <Palette className="w-4 h-4" />
+                <span className="hidden sm:inline">🎨 Studio</span>
+              </button>
+              <button
+                onClick={() => navigate(`/league/seasons/${seasonId}/schedule-wizard`)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-black shadow-lg shadow-amber-500/25`}
+              >
+                <Wand2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Auto-Generate</span>
+              </button>
+              <button
+                onClick={() => setShowEditSeason(true)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all ${
+                  theme === 'dark'
+                    ? 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                }`}
+              >
+                <Settings className="w-4 h-4" />
+                <span className="hidden sm:inline">Edit Season</span>
+              </button>
+              <button
+                onClick={() => setShowAddGame(true)}
+                className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 px-4 py-2 rounded-xl font-medium text-white transition-all shadow-lg shadow-purple-500/25"
+              >
+                <Plus className="w-5 h-5" />
+                Add Game
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -191,13 +210,19 @@ export default function SeasonSchedule() {
       <div className="max-w-6xl mx-auto px-4 py-4">
         <div className="flex flex-wrap gap-4 items-center">
           {/* View Mode */}
-          <div className="flex bg-gray-800 rounded-lg p-1">
+          <div className={`flex rounded-xl p-1 ${
+            theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-slate-100 border border-slate-200'
+          }`}>
             {(['list', 'calendar', 'by-team'] as ViewMode[]).map(mode => (
               <button
                 key={mode}
                 onClick={() => setViewMode(mode)}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === mode ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  viewMode === mode 
+                    ? 'bg-purple-600 text-white shadow-md'
+                    : theme === 'dark'
+                      ? 'text-slate-400 hover:text-white hover:bg-white/10'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
                 }`}
               >
                 {mode === 'by-team' ? 'By Team' : mode.charAt(0).toUpperCase() + mode.slice(1)}
@@ -207,11 +232,15 @@ export default function SeasonSchedule() {
 
           {/* Team Filter */}
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-gray-400" />
+            <Filter className={`w-4 h-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
             <select
               value={filterTeam}
               onChange={(e) => setFilterTeam(e.target.value)}
-              className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white"
+              className={`rounded-xl px-3 py-1.5 text-sm focus:ring-2 focus:ring-purple-500/50 ${
+                theme === 'dark'
+                  ? 'bg-white/5 border border-white/10 text-white'
+                  : 'bg-white border border-slate-200 text-slate-900'
+              }`}
             >
               <option value="all">All Teams</option>
               {teams.map(team => (
@@ -224,7 +253,11 @@ export default function SeasonSchedule() {
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white"
+            className={`rounded-xl px-3 py-1.5 text-sm focus:ring-2 focus:ring-purple-500/50 ${
+              theme === 'dark'
+                ? 'bg-white/5 border border-white/10 text-white'
+                : 'bg-white border border-slate-200 text-slate-900'
+            }`}
           >
             <option value="all">All Status</option>
             <option value="scheduled">Scheduled</option>
@@ -238,10 +271,18 @@ export default function SeasonSchedule() {
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 py-4">
         {filteredGames.length === 0 ? (
-          <div className="text-center py-12 bg-gray-800 rounded-xl border border-gray-700">
-            <Calendar className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-400">No Games Found</h3>
-            <p className="text-gray-500 mt-2">
+          <div className={`text-center py-12 rounded-2xl border-2 border-dashed ${
+            theme === 'dark'
+              ? 'bg-white/5 border-white/10'
+              : 'bg-slate-50 border-slate-200'
+          }`}>
+            <Calendar className={`w-16 h-16 mx-auto mb-4 ${
+              theme === 'dark' ? 'text-slate-600' : 'text-slate-400'
+            }`} />
+            <h3 className={`text-lg font-medium ${
+              theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+            }`}>No Games Found</h3>
+            <p className={`mt-2 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>
               {filterTeam !== 'all' || filterStatus !== 'all'
                 ? 'Try adjusting your filters'
                 : 'Add your first game to this season'}
@@ -251,13 +292,15 @@ export default function SeasonSchedule() {
           <div className="space-y-6">
             {Object.entries(gamesByDate).map(([date, dateGames]) => (
               <div key={date}>
-                <h3 className="text-sm font-medium text-gray-400 mb-3 flex items-center gap-2">
+                <h3 className={`text-sm font-medium mb-3 flex items-center gap-2 ${
+                  theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                }`}>
                   <Calendar className="w-4 h-4" />
                   {date}
                 </h3>
                 <div className="space-y-3">
                   {dateGames.map((game, idx) => (
-                    <GameCard key={`${game.homeTeamId}-${game.awayTeamId}-${idx}`} game={game} teams={teams} />
+                    <GameCard key={`${game.homeTeamId}-${game.awayTeamId}-${idx}`} game={game} teams={teams} theme={theme} />
                   ))}
                 </div>
               </div>
@@ -272,17 +315,27 @@ export default function SeasonSchedule() {
               if (teamGames.length === 0) return null;
               
               return (
-                <div key={team.id} className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-                  <div className="p-4 bg-gray-750 border-b border-gray-700">
-                    <h3 className="font-semibold flex items-center gap-2">
-                      <Users className="w-5 h-5 text-blue-400" />
+                <div key={team.id} className={`rounded-2xl border overflow-hidden ${
+                  theme === 'dark'
+                    ? 'bg-white/5 border-white/10'
+                    : 'bg-white border-slate-200 shadow-sm'
+                }`}>
+                  <div className={`p-4 border-b ${
+                    theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'
+                  }`}>
+                    <h3 className={`font-semibold flex items-center gap-2 ${
+                      theme === 'dark' ? 'text-white' : 'text-slate-900'
+                    }`}>
+                      <Users className={`w-5 h-5 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
                       {team.name}
-                      <span className="text-sm text-gray-400 font-normal">({teamGames.length} games)</span>
+                      <span className={`text-sm font-normal ${
+                        theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                      }`}>({teamGames.length} games)</span>
                     </h3>
                   </div>
-                  <div className="divide-y divide-gray-700">
+                  <div className={`divide-y ${theme === 'dark' ? 'divide-white/10' : 'divide-slate-200'}`}>
                     {teamGames.map((game, idx) => (
-                      <GameCard key={`${team.id}-${idx}`} game={game} teams={teams} compact />
+                      <GameCard key={`${team.id}-${idx}`} game={game} teams={teams} compact theme={theme} />
                     ))}
                   </div>
                 </div>
@@ -290,9 +343,18 @@ export default function SeasonSchedule() {
             })}
           </div>
         ) : (
-          // Calendar view - simplified grid
-          <div className="bg-gray-800 rounded-xl border border-gray-700 p-4">
-            <p className="text-gray-400 text-center">Calendar view coming soon...</p>
+          // Calendar view - coming soon
+          <div className={`rounded-2xl p-8 text-center ${
+            theme === 'dark'
+              ? 'bg-white/5 border border-white/10'
+              : 'bg-white border border-slate-200 shadow-sm'
+          }`}>
+            <Calendar className={`w-12 h-12 mx-auto mb-4 ${
+              theme === 'dark' ? 'text-slate-500' : 'text-slate-400'
+            }`} />
+            <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>
+              Calendar view coming soon...
+            </p>
           </div>
         )}
       </div>
@@ -303,9 +365,23 @@ export default function SeasonSchedule() {
           seasonId={seasonId}
           leagueId={leagueData.id}
           teams={teams}
+          theme={theme}
           onClose={() => setShowAddGame(false)}
           onAdded={() => {
             setShowAddGame(false);
+            loadData();
+          }}
+        />
+      )}
+
+      {/* Edit Season Modal */}
+      {showEditSeason && season && (
+        <EditSeasonModal
+          season={season}
+          theme={theme}
+          onClose={() => setShowEditSeason(false)}
+          onSaved={() => {
+            setShowEditSeason(false);
             loadData();
           }}
         />
@@ -319,9 +395,10 @@ interface GameCardProps {
   game: LeagueGame;
   teams: Team[];
   compact?: boolean;
+  theme: 'dark' | 'light';
 }
 
-function GameCard({ game, teams, compact }: GameCardProps) {
+function GameCard({ game, teams, compact, theme }: GameCardProps) {
   const homeTeam = teams.find(t => t.id === game.homeTeamId);
   const awayTeam = teams.find(t => t.id === game.awayTeamId);
   
@@ -336,13 +413,21 @@ function GameCard({ game, teams, compact }: GameCardProps) {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'scheduled':
-        return <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">Scheduled</span>;
+        return <span className={`text-xs px-2 py-0.5 rounded-full ${
+          theme === 'dark' ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'
+        }`}>Scheduled</span>;
       case 'in_progress':
-        return <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400">Live</span>;
+        return <span className={`text-xs px-2 py-0.5 rounded-full ${
+          theme === 'dark' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-100 text-yellow-700'
+        }`}>Live</span>;
       case 'completed':
-        return <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">Final</span>;
+        return <span className={`text-xs px-2 py-0.5 rounded-full ${
+          theme === 'dark' ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700'
+        }`}>Final</span>;
       case 'cancelled':
-        return <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">Cancelled</span>;
+        return <span className={`text-xs px-2 py-0.5 rounded-full ${
+          theme === 'dark' ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-700'
+        }`}>Cancelled</span>;
       default:
         return null;
     }
@@ -350,20 +435,26 @@ function GameCard({ game, teams, compact }: GameCardProps) {
 
   if (compact) {
     return (
-      <div className="p-3 flex items-center justify-between hover:bg-gray-750 transition-colors">
+      <div className={`p-3 flex items-center justify-between transition-colors ${
+        theme === 'dark' ? 'hover:bg-white/5' : 'hover:bg-slate-50'
+      }`}>
         <div className="flex items-center gap-4">
-          <div className="text-sm text-gray-400 w-24">
+          <div className={`text-sm w-24 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
             {date}
           </div>
           <div className="text-sm">
-            <span className="font-medium">{homeTeam?.name || 'TBD'}</span>
-            <span className="text-gray-500 mx-2">vs</span>
-            <span className="font-medium">{awayTeam?.name || 'TBD'}</span>
+            <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+              {homeTeam?.name || 'TBD'}
+            </span>
+            <span className={`mx-2 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>vs</span>
+            <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+              {awayTeam?.name || 'TBD'}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-3">
           {game.status === 'completed' && (
-            <span className="font-bold">
+            <span className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
               {game.homeScore} - {game.awayScore}
             </span>
           )}
@@ -374,51 +465,69 @@ function GameCard({ game, teams, compact }: GameCardProps) {
   }
 
   return (
-    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-colors">
+    <div className={`rounded-2xl p-4 border transition-all ${
+      theme === 'dark'
+        ? 'bg-white/5 border-white/10 hover:border-purple-500/30'
+        : 'bg-white border-slate-200 hover:border-purple-300 shadow-sm'
+    }`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="text-center">
-            <div className="text-lg font-bold">{time}</div>
+            <div className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+              {time}
+            </div>
             {game.location && (
-              <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+              <div className={`text-xs flex items-center gap-1 mt-1 ${
+                theme === 'dark' ? 'text-slate-500' : 'text-slate-500'
+              }`}>
                 <MapPin className="w-3 h-3" />
                 {game.location}
               </div>
             )}
           </div>
           
-          <div className="h-12 w-px bg-gray-700" />
+          <div className={`h-12 w-px ${theme === 'dark' ? 'bg-white/10' : 'bg-slate-200'}`} />
           
           <div className="flex items-center gap-6">
             {/* Home Team */}
             <div className="text-center min-w-[120px]">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mx-auto mb-1">
-                <Users className="w-5 h-5" />
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-1">
+                <Users className="w-5 h-5 text-white" />
               </div>
-              <div className="font-medium">{homeTeam?.name || 'TBD'}</div>
-              <div className="text-xs text-gray-500">Home</div>
+              <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                {homeTeam?.name || 'TBD'}
+              </div>
+              <div className={`text-xs ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>Home</div>
             </div>
 
             {/* Score or VS */}
             <div className="text-center">
               {game.status === 'completed' ? (
                 <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold">{game.homeScore}</span>
-                  <span className="text-gray-500">-</span>
-                  <span className="text-2xl font-bold">{game.awayScore}</span>
+                  <span className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                    {game.homeScore}
+                  </span>
+                  <span className={theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}>-</span>
+                  <span className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                    {game.awayScore}
+                  </span>
                 </div>
               ) : (
-                <span className="text-xl font-bold text-gray-500">VS</span>
+                <span className={`text-xl font-bold ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>
+                  VS
+                </span>
               )}
             </div>
 
             {/* Away Team */}
             <div className="text-center min-w-[120px]">
-              <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-red-600 rounded-lg flex items-center justify-center mx-auto mb-1">
-                <Users className="w-5 h-5" />
+              <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center mx-auto mb-1">
+                <Users className="w-5 h-5 text-white" />
               </div>
-              <div className="font-medium">{awayTeam?.name || 'TBD'}</div>
-              <div className="text-xs text-gray-500">Away</div>
+              <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                {awayTeam?.name || 'TBD'}
+              </div>
+              <div className={`text-xs ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>Away</div>
             </div>
           </div>
         </div>
@@ -431,16 +540,257 @@ function GameCard({ game, teams, compact }: GameCardProps) {
   );
 }
 
+// Edit Season Modal
+interface EditSeasonModalProps {
+  season: LeagueSeason;
+  theme: 'dark' | 'light';
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function EditSeasonModal({ season, theme, onClose, onSaved }: EditSeasonModalProps) {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: season.name || '',
+    startDate: season.startDate instanceof Timestamp 
+      ? season.startDate.toDate().toISOString().split('T')[0]
+      : new Date(season.startDate as any).toISOString().split('T')[0],
+    endDate: season.endDate instanceof Timestamp 
+      ? season.endDate.toDate().toISOString().split('T')[0]
+      : new Date(season.endDate as any).toISOString().split('T')[0],
+    registrationDeadline: season.registrationDeadline instanceof Timestamp 
+      ? season.registrationDeadline.toDate().toISOString().split('T')[0]
+      : season.registrationDeadline 
+        ? new Date(season.registrationDeadline as any).toISOString().split('T')[0]
+        : '',
+    status: season.status || 'upcoming'
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      await updateDoc(doc(db, 'leagueSeasons', season.id!), {
+        name: formData.name,
+        startDate: Timestamp.fromDate(new Date(formData.startDate)),
+        endDate: Timestamp.fromDate(new Date(formData.endDate)),
+        registrationDeadline: formData.registrationDeadline 
+          ? Timestamp.fromDate(new Date(formData.registrationDeadline))
+          : null,
+        status: formData.status,
+        updatedAt: Timestamp.now()
+      });
+      
+      toastSuccess('Season updated successfully!');
+      onSaved();
+    } catch (error) {
+      console.error('Error updating season:', error);
+      toastError('Failed to update season');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStartSeason = async () => {
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, 'leagueSeasons', season.id!), {
+        status: 'active',
+        updatedAt: Timestamp.now()
+      });
+      toastSuccess('Season started!');
+      onSaved();
+    } catch (error) {
+      console.error('Error starting season:', error);
+      toastError('Failed to start season');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEndSeason = async () => {
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, 'leagueSeasons', season.id!), {
+        status: 'completed',
+        updatedAt: Timestamp.now()
+      });
+      toastSuccess('Season ended!');
+      onSaved();
+    } catch (error) {
+      console.error('Error ending season:', error);
+      toastError('Failed to end season');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className={`rounded-2xl w-full max-w-md ${
+        theme === 'dark'
+          ? 'bg-zinc-900 border border-white/10'
+          : 'bg-white border border-slate-200 shadow-xl'
+      }`}>
+        <div className={`flex items-center justify-between p-4 border-b ${
+          theme === 'dark' ? 'border-white/10' : 'border-slate-200'
+        }`}>
+          <h2 className={`text-lg font-semibold ${
+            theme === 'dark' ? 'text-white' : 'text-slate-900'
+          }`}>Edit Season</h2>
+          <button 
+            onClick={onClose} 
+            className={`p-2 rounded-xl transition-colors ${
+              theme === 'dark'
+                ? 'hover:bg-white/10 text-slate-400'
+                : 'hover:bg-slate-100 text-slate-500'
+            }`}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          <div>
+            <label className={`block text-sm font-medium mb-1 ${
+              theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+            }`}>
+              Season Name *
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className={`w-full rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-purple-500/50 ${
+                theme === 'dark'
+                  ? 'bg-white/5 border border-white/10 text-white placeholder-slate-500'
+                  : 'bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400'
+              }`}
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${
+                theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+              }`}>
+                Start Date *
+              </label>
+              <input
+                type="date"
+                value={formData.startDate}
+                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                className={`w-full rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-purple-500/50 ${
+                  theme === 'dark'
+                    ? 'bg-white/5 border border-white/10 text-white'
+                    : 'bg-slate-50 border border-slate-200 text-slate-900'
+                }`}
+                required
+              />
+            </div>
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${
+                theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+              }`}>
+                End Date *
+              </label>
+              <input
+                type="date"
+                value={formData.endDate}
+                onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                className={`w-full rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-purple-500/50 ${
+                  theme === 'dark'
+                    ? 'bg-white/5 border border-white/10 text-white'
+                    : 'bg-slate-50 border border-slate-200 text-slate-900'
+                }`}
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className={`block text-sm font-medium mb-1 ${
+              theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+            }`}>
+              Team Registration Deadline
+            </label>
+            <input
+              type="date"
+              value={formData.registrationDeadline}
+              onChange={(e) => setFormData({ ...formData, registrationDeadline: e.target.value })}
+              className={`w-full rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-purple-500/50 ${
+                theme === 'dark'
+                  ? 'bg-white/5 border border-white/10 text-white'
+                  : 'bg-slate-50 border border-slate-200 text-slate-900'
+              }`}
+            />
+          </div>
+
+          {/* Quick Actions */}
+          {season.status === 'upcoming' && (
+            <button
+              type="button"
+              onClick={handleStartSeason}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-medium transition-colors"
+            >
+              <PlayCircle className="w-5 h-5" />
+              Start Season
+            </button>
+          )}
+
+          {season.status === 'active' && (
+            <button
+              type="button"
+              onClick={handleEndSeason}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-xl font-medium transition-colors"
+            >
+              <StopCircle className="w-5 h-5" />
+              End Season
+            </button>
+          )}
+
+          <div className={`flex justify-end gap-3 pt-4 border-t ${
+            theme === 'dark' ? 'border-white/10' : 'border-slate-200'
+          }`}>
+            <button
+              type="button"
+              onClick={onClose}
+              className={`px-4 py-2 transition-colors ${
+                theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 px-4 py-2 rounded-xl font-medium text-white transition-colors"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // Add Game Modal
 interface AddGameModalProps {
   seasonId: string;
   leagueId: string;
   teams: Team[];
+  theme: 'dark' | 'light';
   onClose: () => void;
   onAdded: () => void;
 }
 
-function AddGameModal({ seasonId, leagueId, teams, onClose, onAdded }: AddGameModalProps) {
+function AddGameModal({ seasonId, leagueId, teams, theme, onClose, onAdded }: AddGameModalProps) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     homeTeamId: '',
@@ -502,9 +852,11 @@ function AddGameModal({ seasonId, leagueId, teams, onClose, onAdded }: AddGameMo
         });
       }
 
+      toastSuccess('Game added successfully!');
       onAdded();
     } catch (error) {
       console.error('Error adding game:', error);
+      toastError('Failed to add game');
     } finally {
       setLoading(false);
     }
@@ -512,10 +864,25 @@ function AddGameModal({ seasonId, leagueId, teams, onClose, onAdded }: AddGameMo
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-xl w-full max-w-md border border-gray-700">
-        <div className="flex items-center justify-between p-4 border-b border-gray-700">
-          <h2 className="text-lg font-semibold">Add New Game</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-700 rounded-lg">
+      <div className={`rounded-2xl w-full max-w-md ${
+        theme === 'dark'
+          ? 'bg-zinc-900 border border-white/10'
+          : 'bg-white border border-slate-200 shadow-xl'
+      }`}>
+        <div className={`flex items-center justify-between p-4 border-b ${
+          theme === 'dark' ? 'border-white/10' : 'border-slate-200'
+        }`}>
+          <h2 className={`text-lg font-semibold ${
+            theme === 'dark' ? 'text-white' : 'text-slate-900'
+          }`}>Add New Game</h2>
+          <button 
+            onClick={onClose} 
+            className={`p-2 rounded-xl transition-colors ${
+              theme === 'dark'
+                ? 'hover:bg-white/10 text-slate-400'
+                : 'hover:bg-slate-100 text-slate-500'
+            }`}
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -523,13 +890,19 @@ function AddGameModal({ seasonId, leagueId, teams, onClose, onAdded }: AddGameMo
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
+              <label className={`block text-sm font-medium mb-1 ${
+                theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+              }`}>
                 Home Team *
               </label>
               <select
                 value={formData.homeTeamId}
                 onChange={(e) => setFormData({ ...formData, homeTeamId: e.target.value })}
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500"
+                className={`w-full rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-purple-500/50 ${
+                  theme === 'dark'
+                    ? 'bg-white/5 border border-white/10 text-white'
+                    : 'bg-slate-50 border border-slate-200 text-slate-900'
+                }`}
                 required
               >
                 <option value="">Select team</option>
@@ -541,13 +914,19 @@ function AddGameModal({ seasonId, leagueId, teams, onClose, onAdded }: AddGameMo
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
+              <label className={`block text-sm font-medium mb-1 ${
+                theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+              }`}>
                 Away Team *
               </label>
               <select
                 value={formData.awayTeamId}
                 onChange={(e) => setFormData({ ...formData, awayTeamId: e.target.value })}
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500"
+                className={`w-full rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-purple-500/50 ${
+                  theme === 'dark'
+                    ? 'bg-white/5 border border-white/10 text-white'
+                    : 'bg-slate-50 border border-slate-200 text-slate-900'
+                }`}
                 required
               >
                 <option value="">Select team</option>
@@ -562,56 +941,78 @@ function AddGameModal({ seasonId, leagueId, teams, onClose, onAdded }: AddGameMo
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
+              <label className={`block text-sm font-medium mb-1 ${
+                theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+              }`}>
                 Date *
               </label>
               <input
                 type="date"
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500"
+                className={`w-full rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-purple-500/50 ${
+                  theme === 'dark'
+                    ? 'bg-white/5 border border-white/10 text-white'
+                    : 'bg-slate-50 border border-slate-200 text-slate-900'
+                }`}
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
+              <label className={`block text-sm font-medium mb-1 ${
+                theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+              }`}>
                 Time *
               </label>
               <input
                 type="time"
                 value={formData.time}
                 onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500"
+                className={`w-full rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-purple-500/50 ${
+                  theme === 'dark'
+                    ? 'bg-white/5 border border-white/10 text-white'
+                    : 'bg-slate-50 border border-slate-200 text-slate-900'
+                }`}
                 required
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
+            <label className={`block text-sm font-medium mb-1 ${
+              theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+            }`}>
               Location
             </label>
             <input
               type="text"
               value={formData.location}
               onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500"
+              className={`w-full rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-purple-500/50 ${
+                theme === 'dark'
+                  ? 'bg-white/5 border border-white/10 text-white placeholder-slate-500'
+                  : 'bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400'
+              }`}
               placeholder="Field name or address"
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          <div className={`flex justify-end gap-3 pt-4 border-t ${
+            theme === 'dark' ? 'border-white/10' : 'border-slate-200'
+          }`}>
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+              className={`px-4 py-2 transition-colors ${
+                theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || !formData.homeTeamId || !formData.awayTeamId}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 px-4 py-2 rounded-lg font-medium transition-colors"
+              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 px-4 py-2 rounded-xl font-medium text-white transition-colors"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
               Add Game

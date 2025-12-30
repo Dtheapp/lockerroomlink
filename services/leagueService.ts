@@ -45,9 +45,16 @@ import type {
  * Release all players from a team's roster
  * - Deletes all docs from teams/{teamId}/players subcollection
  * - Clears team-related fields from top-level players/{athleteId} documents
+ * - Updates teamHistory to mark season as ended (for stat history tracking)
  * - Returns count of players released
  */
 export const releaseAllPlayersFromTeam = async (teamId: string): Promise<number> => {
+  // First get team info for history tracking
+  const teamDoc = await getDoc(doc(db, 'teams', teamId));
+  const teamData = teamDoc.exists() ? teamDoc.data() : null;
+  const teamName = teamData?.name || 'Unknown Team';
+  const programId = teamData?.programId || '';
+  
   const playersSnapshot = await getDocs(collection(db, 'teams', teamId, 'players'));
   
   if (playersSnapshot.empty) {
@@ -63,19 +70,58 @@ export const releaseAllPlayersFromTeam = async (teamId: string): Promise<number>
     // 1. Delete from team roster subcollection
     batch.delete(playerDoc.ref);
     
-    // 2. Clear team fields from top-level athlete profile
+    // 2. Clear team fields AND update teamHistory on top-level athlete profile
     const athleteId = playerData.athleteId;
     if (athleteId) {
       const athleteRef = doc(db, 'players', athleteId);
-      batch.update(athleteRef, {
-        teamId: null,
-        teamName: null,
-        isStarter: false,
-        isCaptain: false,
-        number: null,
-        position: null,
-        removedFromTeamAt: serverTimestamp()
-      });
+      
+      // Get current athlete data to update teamHistory
+      const athleteSnap = await getDoc(athleteRef);
+      if (athleteSnap.exists()) {
+        const athleteData = athleteSnap.data();
+        const teamHistory = athleteData.teamHistory || [];
+        
+        // Find and update the matching history entry
+        const updatedHistory = teamHistory.map((entry: any) => {
+          if (entry.teamId === teamId && entry.status === 'active') {
+            return {
+              ...entry,
+              leftAt: new Date(),
+              status: 'season_ended'
+            };
+          }
+          return entry;
+        });
+        
+        // If no history entry exists for this team, add one (backfill)
+        const hasEntry = teamHistory.some((e: any) => e.teamId === teamId);
+        if (!hasEntry && programId) {
+          updatedHistory.push({
+            teamId,
+            teamName,
+            programId,
+            programName: teamData?.programName || '',
+            sport: teamData?.sport || 'football',
+            seasonId: teamData?.currentSeasonId || null,
+            seasonYear: new Date().getFullYear(),
+            ageGroup: playerData.ageGroup || teamData?.ageGroup || null,
+            joinedAt: playerData.draftedAt || playerData.createdAt || new Date(),
+            leftAt: new Date(),
+            status: 'season_ended'
+          });
+        }
+        
+        batch.update(athleteRef, {
+          teamId: null,
+          teamName: null,
+          isStarter: false,
+          isCaptain: false,
+          number: null,
+          position: null,
+          removedFromTeamAt: serverTimestamp(),
+          teamHistory: updatedHistory
+        });
+      }
     } else if (playerData.parentId) {
       // Fallback: Find athlete by parentId + teamId match
       const athleteQuery = query(
@@ -89,6 +135,38 @@ export const releaseAllPlayersFromTeam = async (teamId: string): Promise<number>
         // Match by name to be safe
         const playerName = playerData.name || `${playerData.firstName} ${playerData.lastName}`;
         if (athleteData.name === playerName || `${athleteData.firstName} ${athleteData.lastName}` === playerName) {
+          const teamHistory = athleteData.teamHistory || [];
+          
+          // Find and update the matching history entry
+          const updatedHistory = teamHistory.map((entry: any) => {
+            if (entry.teamId === teamId && entry.status === 'active') {
+              return {
+                ...entry,
+                leftAt: new Date(),
+                status: 'season_ended'
+              };
+            }
+            return entry;
+          });
+          
+          // If no history entry exists, add one (backfill)
+          const hasEntry = teamHistory.some((e: any) => e.teamId === teamId);
+          if (!hasEntry && programId) {
+            updatedHistory.push({
+              teamId,
+              teamName,
+              programId,
+              programName: teamData?.programName || '',
+              sport: teamData?.sport || 'football',
+              seasonId: teamData?.currentSeasonId || null,
+              seasonYear: new Date().getFullYear(),
+              ageGroup: playerData.ageGroup || teamData?.ageGroup || null,
+              joinedAt: playerData.draftedAt || playerData.createdAt || new Date(),
+              leftAt: new Date(),
+              status: 'season_ended'
+            });
+          }
+          
           batch.update(doc(db, 'players', athleteDoc.id), {
             teamId: null,
             teamName: null,
@@ -96,7 +174,8 @@ export const releaseAllPlayersFromTeam = async (teamId: string): Promise<number>
             isCaptain: false,
             number: null,
             position: null,
-            removedFromTeamAt: serverTimestamp()
+            removedFromTeamAt: serverTimestamp(),
+            teamHistory: updatedHistory
           });
           break;
         }
@@ -107,7 +186,7 @@ export const releaseAllPlayersFromTeam = async (teamId: string): Promise<number>
   }
   
   await batch.commit();
-  console.log(`[leagueService] Released ${count} players from team ${teamId}`);
+  console.log(`[leagueService] Released ${count} players from team ${teamId} (teamHistory updated)`);
   return count;
 };
 
@@ -354,22 +433,32 @@ export const createLeagueSeason = async (leagueId: string, seasonData: Omit<Leag
 };
 
 export const getLeagueSeasons = async (leagueId: string): Promise<LeagueSeason[]> => {
+  // Query from top-level leagueSeasons collection (not subcollection)
   const snapshot = await getDocs(
-    query(collection(db, 'leagues', leagueId, 'seasons'), orderBy('startDate', 'desc'))
+    query(
+      collection(db, 'leagueSeasons'), 
+      where('leagueId', '==', leagueId),
+      orderBy('startDate', 'desc')
+    )
   );
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeagueSeason));
 };
 
 export const getActiveLeagueSeason = async (leagueId: string): Promise<LeagueSeason | null> => {
   const snapshot = await getDocs(
-    query(collection(db, 'leagues', leagueId, 'seasons'), where('status', '==', 'active'))
+    query(
+      collection(db, 'leagueSeasons'), 
+      where('leagueId', '==', leagueId),
+      where('status', '==', 'active')
+    )
   );
   if (snapshot.empty) return null;
   return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as LeagueSeason;
 };
 
 export const updateLeagueSeason = async (leagueId: string, seasonId: string, data: Partial<LeagueSeason>): Promise<void> => {
-  await updateDoc(doc(db, 'leagues', leagueId, 'seasons', seasonId), {
+  // Seasons are stored in top-level leagueSeasons collection
+  await updateDoc(doc(db, 'leagueSeasons', seasonId), {
     ...data,
     updatedAt: serverTimestamp(),
   });
@@ -1124,4 +1213,173 @@ export const getInfractionThreadsForUser = async (userId: string, role: 'league'
     query(collection(db, 'infractionThreads'), where(fieldPath, '==', userId))
   );
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as InfractionThread));
+};
+
+// =============================================================================
+// TEAM FINALIZATION FOR LEAGUE SEASONS
+// =============================================================================
+
+/**
+ * Finalize a program's teams for a league season
+ * This locks in the teams so the league can create schedules
+ */
+export const finalizeTeamsForSeason = async (
+  leagueId: string,
+  seasonId: string,
+  programId: string,
+  programName: string,
+  teamIds: string[],
+  userId: string,
+  userName: string
+): Promise<void> => {
+  // Seasons are stored in top-level leagueSeasons collection
+  const seasonRef = doc(db, 'leagueSeasons', seasonId);
+  const seasonSnap = await getDoc(seasonRef);
+  
+  if (!seasonSnap.exists()) {
+    throw new Error('Season not found');
+  }
+  
+  const seasonData = seasonSnap.data();
+  const currentFinalizations = seasonData.programFinalizations || {};
+  
+  // Update this program's finalization
+  currentFinalizations[programId] = {
+    finalized: true,
+    finalizedAt: serverTimestamp(),
+    finalizedBy: userId,
+    finalizedByName: userName,
+    teamCount: teamIds.length,
+    teamIds,
+    programName
+  };
+  
+  // Check if all programs in the league are now finalized
+  // Get member programs by querying programs with this leagueId
+  const programsSnap = await getDocs(
+    query(collection(db, 'programs'), where('leagueId', '==', leagueId))
+  );
+  const memberProgramIds = programsSnap.docs.map(d => d.id);
+  
+  const allFinalized = memberProgramIds.length > 0 && memberProgramIds.every((pid: string) => 
+    currentFinalizations[pid]?.finalized === true
+  );
+  
+  await updateDoc(seasonRef, {
+    programFinalizations: currentFinalizations,
+    allProgramsFinalized: allFinalized,
+    updatedAt: serverTimestamp()
+  });
+};
+
+/**
+ * Unfinalize a program's teams (unlock for editing)
+ * Only league owner can do this
+ */
+export const unfinalizeTeamsForSeason = async (
+  leagueId: string,
+  seasonId: string,
+  programId: string
+): Promise<void> => {
+  // Seasons are stored in top-level leagueSeasons collection
+  const seasonRef = doc(db, 'leagueSeasons', seasonId);
+  const seasonSnap = await getDoc(seasonRef);
+  
+  if (!seasonSnap.exists()) {
+    throw new Error('Season not found');
+  }
+  
+  const seasonData = seasonSnap.data();
+  const currentFinalizations = seasonData.programFinalizations || {};
+  
+  if (currentFinalizations[programId]) {
+    currentFinalizations[programId] = {
+      ...currentFinalizations[programId],
+      finalized: false
+    };
+  }
+  
+  await updateDoc(seasonRef, {
+    programFinalizations: currentFinalizations,
+    allProgramsFinalized: false, // If we're unlocking one, not all are finalized
+    updatedAt: serverTimestamp()
+  });
+};
+
+/**
+ * Get finalization status for a season
+ */
+export const getSeasonFinalizationStatus = async (
+  leagueId: string,
+  seasonId: string
+): Promise<{
+  programFinalizations: { [programId: string]: any };
+  allProgramsFinalized: boolean;
+  totalPrograms: number;
+  finalizedCount: number;
+}> => {
+  // Seasons are stored in top-level leagueSeasons collection
+  const seasonSnap = await getDoc(doc(db, 'leagueSeasons', seasonId));
+  
+  if (!seasonSnap.exists()) {
+    return { 
+      programFinalizations: {}, 
+      allProgramsFinalized: false, 
+      totalPrograms: 0, 
+      finalizedCount: 0 
+    };
+  }
+  
+  // Get member programs by querying programs with this leagueId
+  const programsSnap = await getDocs(
+    query(collection(db, 'programs'), where('leagueId', '==', leagueId))
+  );
+  const memberProgramIds = programsSnap.docs.map(d => d.id);
+  
+  const seasonData = seasonSnap.data();
+  const programFinalizations = seasonData.programFinalizations || {};
+  
+  const finalizedCount = memberProgramIds.filter((pid: string) => 
+    programFinalizations[pid]?.finalized === true
+  ).length;
+  
+  const allFinalized = memberProgramIds.length > 0 && 
+    memberProgramIds.every((pid: string) => programFinalizations[pid]?.finalized === true);
+  
+  return {
+    programFinalizations,
+    allProgramsFinalized: allFinalized,
+    totalPrograms: memberProgramIds.length,
+    finalizedCount
+  };
+};
+
+/**
+ * Get teams for a program that are part of a league season
+ */
+export const getTeamsForProgramSeason = async (
+  programId: string,
+  leagueId: string,
+  seasonId: string,
+  ageGroups?: string[]
+): Promise<Team[]> => {
+  // Get teams that belong to this program and are linked to this league
+  let q = query(
+    collection(db, 'teams'),
+    where('programId', '==', programId),
+    where('leagueId', '==', leagueId)
+  );
+  
+  const snapshot = await getDocs(q);
+  let teams = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Team));
+  
+  // Filter by age groups if specified
+  if (ageGroups && ageGroups.length > 0) {
+    teams = teams.filter(t => {
+      if (!t.ageGroup) return true; // Include teams without age group
+      return ageGroups.some(ag => t.ageGroup?.includes(ag) || ag.includes(t.ageGroup || ''));
+    });
+  }
+  
+  return teams;
 };

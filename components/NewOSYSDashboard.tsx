@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { collection, query, orderBy, limit, getDocs, getDoc, onSnapshot, where, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, deleteField } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, getDoc, onSnapshot, where, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, deleteField, arrayUnion } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -139,9 +139,30 @@ const NewOSYSDashboard: React.FC = () => {
   const [showCompletedSeasons, setShowCompletedSeasons] = useState(false);
   const [seasonManagerCollapsed, setSeasonManagerCollapsed] = useState(true); // Collapsed by default
   
+  // Games from completed seasons (for historical display)
+  const [completedSeasonGames, setCompletedSeasonGames] = useState<Record<string, TeamGame[]>>({});
+  const [loadingCompletedGames, setLoadingCompletedGames] = useState(false);
+  // Track expanded seasons and whether to show all games
+  const [expandedSeasonId, setExpandedSeasonId] = useState<string | null>(null);
+  const [showAllGamesForSeason, setShowAllGamesForSeason] = useState<Record<string, boolean>>({});
+  // Show all draft pool players (expanded view)
+  const [showAllDraftPool, setShowAllDraftPool] = useState(false);
+  
   // Draft pool state for coach dashboard
   const [draftPoolPlayers, setDraftPoolPlayers] = useState<any[]>([]);
   const [loadingDraftPool, setLoadingDraftPool] = useState(false);
+  
+  // League info state (for teams in a program that's in a league)
+  const [programData, setProgramDataState] = useState<any | null>(null);
+  const [programLeagueInfo, setProgramLeagueInfo] = useState<{ id: string; name: string; sport?: string; logoUrl?: string } | null>(null);
+  const [currentLeagueSeason, setCurrentLeagueSeason] = useState<{ id: string; name: string; status: string; startDate?: any; endDate?: any } | null>(null);
+  const [loadingLeagueInfo, setLoadingLeagueInfo] = useState(false);
+  
+  // Independent registrations state (for coach dashboard)
+  const [registrations, setRegistrations] = useState<any[]>([]);
+  const [dashboardDraftPoolPlayers, setDashboardDraftPoolPlayers] = useState<any[]>([]);
+  const [loadingRegistrations, setLoadingRegistrations] = useState(false);
+  const [dashboardDraftFilter, setDashboardDraftFilter] = useState<string>('all');
   
   // Draft player modal state
   const [draftModalPlayer, setDraftModalPlayer] = useState<any | null>(null);
@@ -323,17 +344,18 @@ const NewOSYSDashboard: React.FC = () => {
     }
 
     // Find the active season for this team's program
+    // IMPORTANT: Only use seasons that are NOT completed
     const activeSeason = programSeasons.find(s => s.status === 'active') || 
-                         programSeasons.find(s => s.status !== 'completed') ||
-                         programSeasons[0];
+                         programSeasons.find(s => s.status !== 'completed');
     
+    // If all seasons are completed or there are no seasons, don't load games
     if (!activeSeason) {
-      console.log('[GameDayHub] No active season found');
+      console.log('[GameDayHub] No active season found - all seasons completed or none exist');
       setAllGames([]);
       return;
     }
 
-    console.log('[GameDayHub] Loading games from program season:', teamData.programId, '/', activeSeason.id);
+    console.log('[GameDayHub] Loading games from program season:', teamData.programId, '/', activeSeason.id, 'status:', activeSeason.status);
 
     // SINGLE SOURCE: Listen to programs/{programId}/seasons/{seasonId}/games
     const gamesRef = collection(db, 'programs', teamData.programId, 'seasons', activeSeason.id, 'games');
@@ -599,6 +621,233 @@ const NewOSYSDashboard: React.FC = () => {
     return () => unsubscribe();
   }, [teamData?.programId]);
 
+  // Fetch games from completed seasons when expanded
+  useEffect(() => {
+    const fetchCompletedSeasonGames = async () => {
+      if (!showCompletedSeasons || !teamData?.id || !teamData?.programId) return;
+      
+      const completedSeasons = programSeasons.filter(s => s.status === 'completed');
+      if (completedSeasons.length === 0) return;
+      
+      setLoadingCompletedGames(true);
+      const gamesMap: Record<string, TeamGame[]> = {};
+      
+      for (const season of completedSeasons) {
+        try {
+          const gamesRef = collection(db, 'programs', teamData.programId, 'seasons', season.id, 'games');
+          const gamesSnap = await getDocs(gamesRef);
+          
+          const games: TeamGame[] = [];
+          gamesSnap.forEach(docSnap => {
+            const data = docSnap.data();
+            
+            // Only include games where THIS team is home or away
+            if (data.homeTeamId !== teamData.id && data.awayTeamId !== teamData.id) {
+              return;
+            }
+            
+            const isHome = data.homeTeamId === teamData.id;
+            
+            games.push({
+              id: docSnap.id,
+              teamId: teamData.id,
+              opponent: isHome ? data.awayTeamName : data.homeTeamName,
+              isHome,
+              week: data.week,
+              scheduledDate: data.weekDate,
+              scheduledTime: data.time || '',
+              location: data.location || '',
+              homeScore: data.homeScore || 0,
+              awayScore: data.awayScore || 0,
+              status: data.status || 'completed',
+              homeTeamId: data.homeTeamId,
+              homeTeamName: data.homeTeamName,
+              awayTeamId: data.awayTeamId,
+              awayTeamName: data.awayTeamName,
+            } as TeamGame);
+          });
+          
+          // Sort by week
+          games.sort((a, b) => (a.week || 0) - (b.week || 0));
+          gamesMap[season.id] = games;
+          console.log('[Dashboard] Fetched', games.length, 'games for completed season:', season.id, season.name);
+        } catch (error) {
+          console.error('Error fetching games for season:', season.id, error);
+        }
+      }
+      
+      setCompletedSeasonGames(gamesMap);
+      setLoadingCompletedGames(false);
+    };
+    
+    fetchCompletedSeasonGames();
+  }, [showCompletedSeasons, programSeasons, teamData?.id, teamData?.programId]);
+
+  // Fetch program data and league info for coaches
+  useEffect(() => {
+    const fetchProgramAndLeague = async () => {
+      const programId = teamData?.programId;
+      if (!programId || userData?.role !== 'Coach') {
+        setProgramDataState(null);
+        setProgramLeagueInfo(null);
+        setCurrentLeagueSeason(null);
+        return;
+      }
+      
+      setLoadingLeagueInfo(true);
+      try {
+        // Fetch program data
+        const programDoc = await getDoc(doc(db, 'programs', programId));
+        if (programDoc.exists()) {
+          const pData = programDoc.data();
+          setProgramDataState({ id: programDoc.id, ...pData });
+          
+          // If program is in a league, fetch league info
+          if (pData.leagueId) {
+            const leagueDoc = await getDoc(doc(db, 'leagues', pData.leagueId));
+            if (leagueDoc.exists()) {
+              const leagueData = leagueDoc.data();
+              setProgramLeagueInfo({
+                id: leagueDoc.id,
+                name: leagueData.name,
+                sport: leagueData.sport,
+                logoUrl: leagueData.logoUrl
+              });
+              
+              // Fetch current active/upcoming league season
+              const seasonsQuery = query(
+                collection(db, 'leagueSeasons'),
+                where('leagueId', '==', pData.leagueId),
+                where('status', 'in', ['active', 'upcoming'])
+              );
+              const seasonsSnap = await getDocs(seasonsQuery);
+              if (!seasonsSnap.empty) {
+                const leagueSeasons = seasonsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                const activeSeason = leagueSeasons.find((s: any) => s.status === 'active') || leagueSeasons[0];
+                if (activeSeason) {
+                  setCurrentLeagueSeason({
+                    id: activeSeason.id,
+                    name: (activeSeason as any).name,
+                    status: (activeSeason as any).status,
+                    startDate: (activeSeason as any).startDate,
+                    endDate: (activeSeason as any).endDate
+                  });
+                }
+              } else {
+                setCurrentLeagueSeason(null);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching program/league info:', error);
+      } finally {
+        setLoadingLeagueInfo(false);
+      }
+    };
+    
+    fetchProgramAndLeague();
+  }, [teamData?.programId, userData?.role]);
+
+  // Fetch independent registrations and draft pool for coach dashboard
+  useEffect(() => {
+    const fetchRegistrationsAndDraftPool = async () => {
+      const programId = teamData?.programId;
+      if (!programId || userData?.role !== 'Coach') {
+        setRegistrations([]);
+        setDashboardDraftPoolPlayers([]);
+        return;
+      }
+      
+      setLoadingRegistrations(true);
+      try {
+        // Fetch registrations for this program with live counts
+        const regsSnap = await getDocs(collection(db, 'programs', programId, 'registrations'));
+        const regsWithCounts = await Promise.all(regsSnap.docs.map(async d => {
+          const regData = d.data();
+          // Get live registrant count
+          const registrantsSnap = await getDocs(collection(db, 'programs', programId, 'registrations', d.id, 'registrants'));
+          return { 
+            id: d.id, 
+            ...regData,
+            registrantCount: registrantsSnap.size // Live count
+          };
+        }));
+        setRegistrations(regsWithCounts);
+        
+        // Fetch registrants from draft_pool outcome registrations for draft pool display
+        const draftPoolRegs = regsWithCounts.filter((r: any) => r.outcome === 'draft_pool');
+        let allPlayers: any[] = [];
+        
+        for (const reg of draftPoolRegs) {
+          const registrantsSnap = await getDocs(
+            collection(db, 'programs', programId, 'registrations', reg.id, 'registrants')
+          );
+          
+          // Check if registration is closed (status or date)
+          const now = new Date();
+          const regEndDate = reg.endDate ? new Date(reg.endDate) : null;
+          const isRegistrationClosed = reg.status === 'closed' || (regEndDate && regEndDate < now);
+          
+          const players = registrantsSnap.docs.map(d => ({
+            id: d.id,
+            registrationId: reg.id,
+            registrationName: (reg as any).name,
+            registrationStatus: reg.status,
+            registrationEndDate: reg.endDate,
+            isRegistrationClosed, // Flag to know if drafting is allowed
+            ...d.data()
+          }));
+          allPlayers = [...allPlayers, ...players];
+        }
+        
+        // Filter to only available (not yet assigned to a team, not declined)
+        // Include players with confirmationStatus 'confirmed' or 'pending' or undefined
+        const availablePlayers = allPlayers.filter(p => 
+          !p.assignedTeamId && 
+          p.confirmationStatus !== 'declined'
+        );
+        console.log('📋 Dashboard draft pool players:', availablePlayers.length, 'from', allPlayers.length, 'total');
+        console.log('📋 First player data:', availablePlayers[0]);
+        
+        // Fetch photos for players that have athleteId
+        const playersWithPhotos = await Promise.all(
+          availablePlayers.map(async (player) => {
+            const athleteId = player.athleteId || player.playerId || player.globalPlayerId || player.existingPlayerId;
+            console.log('🖼️ Checking photo for player:', player.firstName || player.athleteFirstName, 'athleteId:', athleteId, 'existingPlayerId:', player.existingPlayerId);
+            if (athleteId) {
+              try {
+                const playerDoc = await getDoc(doc(db, 'players', athleteId));
+                console.log('🖼️ Player doc exists:', playerDoc.exists(), 'for athleteId:', athleteId);
+                if (playerDoc.exists()) {
+                  const playerData = playerDoc.data();
+                  console.log('🖼️ Player data photoUrl:', playerData.photoUrl, 'username:', playerData.username);
+                  return {
+                    ...player,
+                    photoUrl: playerData.photoUrl || playerData.avatarUrl || null,
+                    athleteUsername: playerData.username || player.athleteUsername || player.username || player.existingPlayerUsername,
+                    athleteId: athleteId // Ensure we have this for the profile link
+                  };
+                }
+              } catch (err) {
+                console.log('Could not fetch player photo for:', athleteId, err);
+              }
+            }
+            return player;
+          })
+        );
+        
+        setDashboardDraftPoolPlayers(playersWithPhotos);
+      } catch (error) {
+        console.error('Error fetching registrations:', error);
+      } finally {
+        setLoadingRegistrations(false);
+      }
+    };
+    
+    fetchRegistrationsAndDraftPool();
+  }, [teamData?.programId, userData?.role]);
+
   // Fetch draft pool players for coach view
   useEffect(() => {
     const loadDraftPool = async () => {
@@ -689,7 +938,30 @@ const NewOSYSDashboard: React.FC = () => {
         }
         
         console.log('📋 Total draft pool players (filtered):', allPlayers.length);
-        setDraftPoolPlayers(allPlayers);
+        
+        // Fetch photos for players that have athleteId
+        const playersWithPhotos = await Promise.all(
+          allPlayers.map(async (player) => {
+            if (player.athleteId) {
+              try {
+                const playerDoc = await getDoc(doc(db, 'players', player.athleteId));
+                if (playerDoc.exists()) {
+                  const playerData = playerDoc.data();
+                  return {
+                    ...player,
+                    photoUrl: playerData.photoUrl || playerData.avatarUrl || null,
+                    athleteUsername: playerData.username || player.athleteUsername
+                  };
+                }
+              } catch (err) {
+                console.log('Could not fetch player photo for:', player.athleteId);
+              }
+            }
+            return player;
+          })
+        );
+        
+        setDraftPoolPlayers(playersWithPhotos);
       } catch (error) {
         console.error('Error loading draft pool:', error);
       } finally {
@@ -934,6 +1206,21 @@ const NewOSYSDashboard: React.FC = () => {
       // 3. Update the top-level player document if athleteId exists
       if (player.athleteId) {
         try {
+          // Create team history entry for tracking stats across teams/seasons
+          const teamHistoryEntry = {
+            teamId: teamData.id,
+            teamName: teamData.name,
+            programId: programId,
+            programName: teamData.programName || '',
+            sport: (teamData.sport || 'football'),
+            seasonId: seasonId,
+            seasonYear: new Date().getFullYear(),
+            ageGroup: player.ageGroup || teamData?.ageGroup || null,
+            joinedAt: serverTimestamp(),
+            leftAt: null,
+            status: 'active' as const
+          };
+          
           await updateDoc(doc(db, 'players', player.athleteId), {
             teamId: teamData.id,
             teamName: teamData.name,
@@ -944,8 +1231,10 @@ const NewOSYSDashboard: React.FC = () => {
             draftPoolDraftedBy: userData?.name || 'Coach',
             status: 'active',
             updatedAt: serverTimestamp(),
+            // Add to team history array for historical stats tracking
+            teamHistory: arrayUnion(teamHistoryEntry)
           });
-          console.log('✅ Updated top-level player document');
+          console.log('✅ Updated top-level player document with team history');
         } catch (err) {
           console.error('⚠️ Failed to update player document (non-fatal):', err);
         }
@@ -2218,6 +2507,295 @@ const NewOSYSDashboard: React.FC = () => {
         />
       )}
 
+      {/* DRAFT POOL - For coaches with independent registrations (program-based) */}
+      {userData?.role === 'Coach' && teamData?.programId && dashboardDraftPoolPlayers.length > 0 && (
+        <GlassCard className={`${theme === 'light' ? 'bg-white border-slate-200 shadow-lg' : ''}`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Users className={`w-6 h-6 ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`} />
+              <div>
+                <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Draft Pool</h2>
+                <p className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
+                  {dashboardDraftPoolPlayers.length} player{dashboardDraftPoolPlayers.length !== 1 ? 's' : ''} pending
+                </p>
+              </div>
+            </div>
+            {dashboardDraftPoolPlayers.length > 10 && (
+              <button
+                onClick={() => setShowAllDraftPool(!showAllDraftPool)}
+                className={`text-sm ${theme === 'dark' ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-500'} flex items-center gap-1`}
+              >
+                {showAllDraftPool ? 'Show Less' : `View All (${dashboardDraftPoolPlayers.length})`} 
+                <ChevronDown className={`w-4 h-4 transition-transform ${showAllDraftPool ? 'rotate-180' : ''}`} />
+              </button>
+            )}
+          </div>
+          
+          {/* Age Group Filter Pills */}
+          {(() => {
+            const ageGroups = [...new Set(dashboardDraftPoolPlayers.map(p => p.ageGroupLabel || p.calculatedAgeGroup || 'Unknown'))];
+            if (ageGroups.length <= 1) return null;
+            return (
+              <div className="flex flex-wrap gap-2 mb-4">
+                <button
+                  onClick={() => setDashboardDraftFilter('all')}
+                  className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
+                    dashboardDraftFilter === 'all'
+                      ? 'bg-purple-600 text-white'
+                      : theme === 'dark' ? 'bg-white/10 text-gray-300 hover:bg-white/20' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  All
+                </button>
+                {ageGroups.map(ag => (
+                  <button
+                    key={ag}
+                    onClick={() => setDashboardDraftFilter(ag)}
+                    className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
+                      dashboardDraftFilter === ag
+                        ? 'bg-purple-600 text-white'
+                        : theme === 'dark' ? 'bg-white/10 text-gray-300 hover:bg-white/20' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {ag}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
+          
+          {/* Draft Pool Players */}
+          <div className={`divide-y ${theme === 'dark' ? 'divide-white/10' : 'divide-slate-200'} ${showAllDraftPool ? 'max-h-[600px] overflow-y-auto' : ''}`}>
+            {(() => {
+              const filteredPlayers = dashboardDraftPoolPlayers
+                .filter(p => dashboardDraftFilter === 'all' || (p.ageGroupLabel || p.calculatedAgeGroup) === dashboardDraftFilter);
+              const playersToShow = showAllDraftPool ? filteredPlayers : filteredPlayers.slice(0, 10);
+              
+              return playersToShow.map((player) => {
+                // Check both new format (preferences.*) and old format (preferredJerseyNumber, coachNotes)
+                const jerseyRequest = player.preferences?.jerseyNumber || player.preferredJerseyNumber;
+                const coachRequest = player.preferences?.coachRequest || player.coachNotes || player.coachRequest;
+                const hasPreferences = jerseyRequest || coachRequest;
+                const playerPhoto = player.photoUrl || player.athletePhotoUrl || player.avatarUrl;
+                const playerUsername = player.athleteUsername || player.username;
+                const athleteId = player.athleteId || player.playerId;
+                
+                // Check if drafting is allowed (registration must be closed)
+                const canDraft = player.isRegistrationClosed === true;
+                
+                return (
+                <div
+                  key={player.id}
+                  className={`py-3 flex items-center justify-between ${theme === 'dark' ? 'hover:bg-white/5' : 'hover:bg-slate-50'} rounded-lg px-2 -mx-2`}
+                >
+                  <div className="flex items-center gap-3 flex-1">
+                    {/* Player Photo or Initials */}
+                    {playerPhoto ? (
+                      <img 
+                        src={playerPhoto} 
+                        alt={`${player.firstName || player.athleteFirstName} ${player.lastName || player.athleteLastName}`}
+                        className="w-10 h-10 rounded-full object-cover border-2 border-green-500/30"
+                      />
+                    ) : (
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${theme === 'dark' ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700'}`}>
+                        {(player.firstName || player.athleteFirstName)?.charAt(0) || '?'}{(player.lastName || player.athleteLastName)?.charAt(0) || ''}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                          {player.firstName || player.athleteFirstName} {player.lastName || player.athleteLastName}
+                        </p>
+                        {/* Clickable username link to profile */}
+                        {playerUsername && athleteId && (
+                          <Link
+                            to={`/athlete/${athleteId}`}
+                            className={`text-xs px-2 py-0.5 rounded-full transition-colors ${
+                              theme === 'dark' 
+                                ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' 
+                                : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                            }`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            @{playerUsername}
+                          </Link>
+                        )}
+                      </div>
+                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-600'}`}>
+                        {player.ageGroupLabel || player.calculatedAgeGroup} • {player.preferences?.positions?.[0] || player.preferredPosition || 'No position'}
+                      </p>
+                      {/* Preferences & Notes */}
+                      {hasPreferences && (
+                        <div className={`flex flex-wrap gap-2 mt-1`}>
+                          {jerseyRequest && (
+                            <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
+                              theme === 'dark' ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'
+                            }`}>
+                              🏷️ #{jerseyRequest}
+                            </span>
+                          )}
+                          {coachRequest && (
+                            <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
+                              theme === 'dark' ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-700'
+                            }`}>
+                              👨‍🏫 {coachRequest}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {canDraft ? (
+                      <button
+                        onClick={() => setDraftModalPlayer(player)}
+                        className="px-3 py-1.5 text-sm font-medium rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors"
+                      >
+                        Draft
+                      </button>
+                    ) : (
+                      <span 
+                        className={`px-3 py-1.5 text-xs font-medium rounded-lg cursor-not-allowed ${
+                          theme === 'dark' 
+                            ? 'bg-gray-600/50 text-gray-400' 
+                            : 'bg-gray-200 text-gray-500'
+                        }`}
+                        title="Registration must close before drafting"
+                      >
+                        🔒 Reg Open
+                      </span>
+                    )}
+                    <button
+                      onClick={() => {
+                        setDeclineModalPlayer(player);
+                        setDeclineReason('');
+                      }}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                        theme === 'dark' 
+                          ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' 
+                          : 'bg-red-100 text-red-600 hover:bg-red-200'
+                      }`}
+                    >
+                      Decline
+                    </button>
+                  </div>
+                </div>
+              );});
+            })()}
+          </div>
+          
+          {/* Show more/less button at bottom when there are more than 10 players */}
+          {dashboardDraftPoolPlayers.length > 10 && (
+            <button
+              onClick={() => setShowAllDraftPool(!showAllDraftPool)}
+              className={`w-full mt-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                theme === 'dark' 
+                  ? 'text-purple-400 hover:bg-purple-500/10 border border-purple-500/30' 
+                  : 'text-purple-600 hover:bg-purple-50 border border-purple-200'
+              }`}
+            >
+              {showAllDraftPool 
+                ? '⬆️ Show Less' 
+                : `⬇️ Show All ${dashboardDraftPoolPlayers.length} Players`
+              }
+            </button>
+          )}
+        </GlassCard>
+      )}
+
+      {/* PLAYER REGISTRATION - For coaches with a program */}
+      {userData?.role === 'Coach' && teamData?.programId && registrations.length > 0 && (
+        <GlassCard className={`${theme === 'light' ? 'bg-white border-slate-200 shadow-lg' : ''}`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <UserPlus className={`w-6 h-6 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
+              <div>
+                <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Player Registration</h2>
+                <p className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
+                  {registrations.filter(r => r.status === 'open').length} registration{registrations.filter(r => r.status === 'open').length !== 1 ? 's' : ''} open
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            {registrations.slice(0, 3).map(reg => {
+              const registrationUrl = `${window.location.origin}/#/register/${teamData.programId}/${reg.id}`;
+              return (
+                <div 
+                  key={reg.id}
+                  className={`p-4 rounded-lg border ${
+                    theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                        {reg.name}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        reg.status === 'open' 
+                          ? 'bg-green-500/20 text-green-400'
+                          : reg.status === 'scheduled'
+                            ? 'bg-blue-500/20 text-blue-400'
+                            : 'bg-amber-500/20 text-amber-400'
+                      }`}>
+                        {reg.status === 'open' ? 'Open' : reg.status === 'scheduled' ? 'Scheduled' : 'Closed'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className={`text-xs mb-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                    {reg.registrantCount || 0} registered • ${reg.registrationFee || 0}
+                  </div>
+                  
+                  {/* Registration Link */}
+                  <div className={`flex items-center gap-2 p-2 rounded-lg ${
+                    theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'
+                  }`}>
+                    <Link2 className={`w-4 h-4 flex-shrink-0 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
+                    <input
+                      type="text"
+                      readOnly
+                      value={registrationUrl}
+                      className={`flex-1 text-xs bg-transparent border-none outline-none truncate ${
+                        theme === 'dark' ? 'text-slate-300' : 'text-slate-600'
+                      }`}
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(registrationUrl);
+                        toastSuccess('Registration link copied!');
+                      }}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                        theme === 'dark' 
+                          ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300' 
+                          : 'bg-purple-100 hover:bg-purple-200 text-purple-700'
+                      }`}
+                    >
+                      Copy Link
+                    </button>
+                    {reg.status === 'open' && (
+                      <a
+                        href={registrationUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                          theme === 'dark' 
+                            ? 'bg-green-500/20 hover:bg-green-500/30 text-green-300' 
+                            : 'bg-green-100 hover:bg-green-200 text-green-700'
+                        }`}
+                      >
+                        Open
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </GlassCard>
+      )}
+
       {/* SEASON MANAGEMENT (Coaches & Parents) */}
       {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin' || userData?.role === 'Parent') && teamData?.id && (
         <GlassCard className={`${theme === 'light' ? 'bg-white border-slate-200 shadow-lg' : ''}`}>
@@ -2276,6 +2854,92 @@ const NewOSYSDashboard: React.FC = () => {
           {!seasonManagerCollapsed && (
             <div className="mt-4">
           
+          {/* If team is in a league via program, show League-Managed Season info first */}
+          {programData?.leagueId && programLeagueInfo && (
+            <div className={`mb-4 rounded-xl p-5 border ${
+              theme === 'dark' 
+                ? 'bg-purple-500/10 border-purple-500/30' 
+                : 'bg-purple-50 border-purple-200'
+            }`}>
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                  {programLeagueInfo.logoUrl ? (
+                    <img src={programLeagueInfo.logoUrl} alt="" className="w-full h-full object-cover rounded-xl" />
+                  ) : (
+                    <Trophy className="w-6 h-6 text-white" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                      League-Managed Season
+                    </h3>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      theme === 'dark' 
+                        ? 'bg-purple-500/30 text-purple-300 border border-purple-500/40' 
+                        : 'bg-purple-100 text-purple-700 border border-purple-300'
+                    }`}>
+                      In League
+                    </span>
+                  </div>
+                  <p className={`text-sm mb-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                    Your program is part of <strong className={theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}>{programLeagueInfo.name}</strong>. 
+                    Season scheduling and management is controlled by the league.
+                  </p>
+                  
+                  {/* League Season Status */}
+                  {loadingLeagueInfo ? (
+                    <div className="flex items-center gap-2 text-sm text-slate-400">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading league season...
+                    </div>
+                  ) : currentLeagueSeason ? (
+                    <div className={`flex items-center gap-3 p-3 rounded-lg ${
+                      theme === 'dark' ? 'bg-white/5' : 'bg-white'
+                    }`}>
+                      <Calendar className={`w-5 h-5 ${
+                        currentLeagueSeason.status === 'active' ? 'text-green-500' : 'text-blue-500'
+                      }`} />
+                      <div className="flex-1">
+                        <p className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                          {currentLeagueSeason.name}
+                        </p>
+                        <p className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                          {currentLeagueSeason.status === 'active' ? '🟢 Season Active' : '🔵 Upcoming Season'}
+                          {currentLeagueSeason.startDate && (
+                            <span className="ml-2">
+                              • Starts {new Date(currentLeagueSeason.startDate.toDate?.() || currentLeagueSeason.startDate).toLocaleDateString()}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className={`flex items-center gap-2 p-3 rounded-lg ${
+                      theme === 'dark' ? 'bg-white/5' : 'bg-white'
+                    }`}>
+                      <Calendar className="w-5 h-5 text-slate-400" />
+                      <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                        No active league season yet
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* View League Button */}
+                  <div className="mt-4">
+                    <Link
+                      to={`/league/${programLeagueInfo.id}`}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-sm font-medium"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      View League Page
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* If team belongs to a program, show program seasons */}
           {teamData?.programId && programSeasons.length > 0 ? (
             (() => {
@@ -2301,7 +2965,155 @@ const NewOSYSDashboard: React.FC = () => {
               };
               
               // Render a single season card
-              const renderSeasonCard = (season: ProgramSeason) => (
+              const renderSeasonCard = (season: ProgramSeason) => {
+                // For completed seasons, calculate record from games
+                const seasonGames = completedSeasonGames[season.id] || [];
+                const wins = seasonGames.filter(g => {
+                  if (g.homeScore === undefined || g.awayScore === undefined) return false;
+                  // If team is home, win if homeScore > awayScore, else if away, win if awayScore > homeScore
+                  return g.isHome ? g.homeScore > g.awayScore : g.awayScore > g.homeScore;
+                }).length;
+                const losses = seasonGames.filter(g => {
+                  if (g.homeScore === undefined || g.awayScore === undefined) return false;
+                  return g.isHome ? g.homeScore < g.awayScore : g.awayScore < g.homeScore;
+                }).length;
+                const ties = seasonGames.filter(g => {
+                  if (g.homeScore === undefined || g.awayScore === undefined) return false;
+                  return g.homeScore === g.awayScore;
+                }).length;
+                
+                const isExpanded = expandedSeasonId === season.id;
+                const showAllGames = showAllGamesForSeason[season.id] || false;
+                const gamesToShow = showAllGames ? seasonGames : seasonGames.slice(0, 5);
+                
+                // For completed seasons, make it collapsible
+                if (season.status === 'completed') {
+                  return (
+                    <div 
+                      key={season.id}
+                      className={`rounded-xl ${theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-slate-50 border border-slate-200'}`}
+                    >
+                      {/* Clickable Header */}
+                      <button
+                        onClick={() => setExpandedSeasonId(isExpanded ? null : season.id)}
+                        className={`w-full p-4 flex items-center justify-between text-left transition-colors rounded-xl ${
+                          theme === 'dark' ? 'hover:bg-white/5' : 'hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <h3 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                            {season.name}
+                          </h3>
+                          {/* Quick record preview when collapsed */}
+                          {!isExpanded && seasonGames.length > 0 && (
+                            <span className={`text-sm font-medium ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-600'}`}>
+                              ({wins}-{losses}{ties > 0 ? `-${ties}` : ''})
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[season.status] || statusColors['setup']}`}>
+                            {statusLabels[season.status] || season.status}
+                          </span>
+                          <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''} ${
+                            theme === 'dark' ? 'text-zinc-500' : 'text-slate-400'
+                          }`} />
+                        </div>
+                      </button>
+                      
+                      {/* Expandable Content */}
+                      {isExpanded && (
+                        <div className="px-4 pb-4 space-y-3">
+                          {/* Season Record */}
+                          <div className={`flex items-center gap-4 p-3 rounded-lg ${
+                            theme === 'dark' ? 'bg-black/30' : 'bg-white'
+                          }`}>
+                            <div className="text-center">
+                              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                                {wins}-{losses}{ties > 0 ? `-${ties}` : ''}
+                              </p>
+                              <p className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
+                                Season Record
+                              </p>
+                            </div>
+                            <div className={`flex-1 text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-slate-600'}`}>
+                              <p>🎮 {seasonGames.length} games played</p>
+                              {seasonGames.length > 0 && (
+                                <p className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
+                                  Win Rate: {seasonGames.length > 0 ? Math.round((wins / seasonGames.length) * 100) : 0}%
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Game List */}
+                          {loadingCompletedGames ? (
+                            <div className={`text-center py-4 ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
+                              Loading game history...
+                            </div>
+                          ) : seasonGames.length > 0 ? (
+                            <div className="space-y-2">
+                              <p className={`text-xs font-medium ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
+                                Game Results:
+                              </p>
+                              {gamesToShow.map((game, idx) => {
+                                const hasScore = game.homeScore !== undefined && game.awayScore !== undefined;
+                                const isWin = hasScore && (game.isHome ? game.homeScore > game.awayScore : game.awayScore > game.homeScore);
+                                const isLoss = hasScore && (game.isHome ? game.homeScore < game.awayScore : game.awayScore < game.homeScore);
+                                const isTie = hasScore && game.homeScore === game.awayScore;
+                                const teamScore = game.isHome ? game.homeScore : game.awayScore;
+                                const oppScore = game.isHome ? game.awayScore : game.homeScore;
+                                return (
+                                  <div 
+                                    key={game.id || idx}
+                                    className={`flex items-center justify-between p-2 rounded-lg text-sm ${
+                                      theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                        isWin ? 'bg-green-500/20 text-green-400' :
+                                        isLoss ? 'bg-red-500/20 text-red-400' :
+                                        'bg-gray-500/20 text-gray-400'
+                                      }`}>
+                                        {isWin ? 'W' : isLoss ? 'L' : isTie ? 'T' : '-'}
+                                      </span>
+                                      <span className={theme === 'dark' ? 'text-zinc-300' : 'text-slate-700'}>
+                                        vs {game.opponent || 'Unknown'}
+                                      </span>
+                                    </div>
+                                    <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                                      {hasScore ? `${teamScore}-${oppScore}` : '-'}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                              {seasonGames.length > 5 && (
+                                <button
+                                  onClick={() => setShowAllGamesForSeason(prev => ({ ...prev, [season.id]: !showAllGames }))}
+                                  className={`w-full py-2 text-xs font-medium rounded-lg transition-colors ${
+                                    theme === 'dark' 
+                                      ? 'text-purple-400 hover:bg-purple-500/10' 
+                                      : 'text-purple-600 hover:bg-purple-50'
+                                  }`}
+                                >
+                                  {showAllGames ? '⬆️ Show less' : `⬇️ +${seasonGames.length - 5} more games`}
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <p className={`text-sm ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
+                              No game data recorded for this season
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                
+                // Non-completed seasons render as before
+                return (
                 <div 
                   key={season.id}
                   className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-slate-50 border border-slate-200'}`}
@@ -2329,7 +3141,7 @@ const NewOSYSDashboard: React.FC = () => {
                     </div>
                   </div>
                   
-                  {season.registrationFee > 0 && (
+                  {season.registrationFee > 0 && season.status !== 'completed' && (
                     <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
                       Registration Fee: ${(season.registrationFee / 100).toFixed(2)}
                     </p>
@@ -2435,7 +3247,8 @@ const NewOSYSDashboard: React.FC = () => {
                     </button>
                   )}
                 </div>
-              );
+                );
+              };
               
               return (
                 <div className="space-y-3">

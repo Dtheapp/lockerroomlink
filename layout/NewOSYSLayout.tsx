@@ -18,6 +18,7 @@ import { Menu, X, LogOut, Sun, Moon, ChevronDown, ChevronLeft, ChevronRight, Coi
 import WelcomeModal from '../components/WelcomeModal';
 import FeedbackButton from '../components/ui/FeedbackButton';
 import { NotificationBell } from '../components/ui/NotificationBell';
+import { ToastContainer } from '../components/ui/ToastContainer';
 
 const NewOSYSLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -147,18 +148,37 @@ const NewOSYSLayout: React.FC = () => {
 
   // Navigation items based on role and config
   const getNavItems = () => {
-    // Check if user is a commissioner
-    const isCommissioner = ['Commissioner', 'TeamCommissioner', 'LeagueCommissioner', 'ProgramCommissioner'].includes(userData?.role || '');
+    // Check if user is a commissioner (excluding LeagueCommissioner which uses League dashboard)
+    const isCommissioner = ['Commissioner', 'TeamCommissioner', 'ProgramCommissioner'].includes(userData?.role || '');
     const isTeamCommissioner = userData?.role === 'TeamCommissioner' || 
                                 (userData?.commissionerType === 'team') ||
                                 (!userData?.commissionerType && !['LeagueCommissioner', 'LeagueOwner'].includes(userData?.role || ''));
+    
+    // LeagueOwner/LeagueCommissioner-specific navigation
+    if (userData?.role === 'LeagueOwner' || userData?.role === 'LeagueCommissioner') {
+      return [
+        { icon: '📊', label: 'Dashboard', path: '/league', section: 'Main' },
+        { icon: '🏟️', label: 'Programs', path: '/league/programs', section: 'Main' },
+        { icon: '📅', label: 'Seasons', path: '/league/seasons', section: 'Main' },
+        { icon: '🏆', label: 'Standings', path: '/league/standings', section: 'Main' },
+        { icon: '🎖️', label: 'Playoffs', path: '/league/playoffs', section: 'Create' },
+        { icon: '📋', label: 'Requests', path: '/league/requests', section: 'Create', unreadKey: 'requests' },
+        { icon: '💬', label: 'Messages', path: '/messenger', section: 'Engage', configKey: 'messengerEnabled', unreadKey: 'messenger' },
+        { icon: '⚠️', label: 'Grievances', path: '/commissioner/grievances', section: 'Admin', unreadKey: 'grievances' },
+        { icon: '🎫', label: 'Infractions', path: '/league/infractions', section: 'Admin', unreadKey: 'infractions' },
+      ].filter(item => {
+        if (item.configKey && !config[item.configKey as keyof typeof config]) return false;
+        return true;
+      });
+    }
     
     // Commissioner-specific navigation
     if (isCommissioner) {
       return [
         { icon: '📊', label: 'Dashboard', path: '/commissioner', section: 'Main' },
         { icon: '👥', label: 'Roster', path: '/commissioner/roster', section: 'Main' },
-        { icon: '🏟️', label: isTeamCommissioner ? 'Manage Teams' : 'Manage Leagues', path: isTeamCommissioner ? '/commissioner/teams' : '/commissioner/leagues', section: 'Create' },
+        { icon: '🏟️', label: 'Manage Teams', path: '/commissioner/teams', section: 'Create' },
+        { icon: '🏆', label: 'Manage Leagues', path: '/commissioner/leagues', section: 'Create' },
         { icon: '💬', label: 'Messages', path: '/messenger', section: 'Engage', configKey: 'messengerEnabled', unreadKey: 'messenger' },
         { icon: '🗨️', label: 'Team Chat', path: '/commissioner/chat', section: 'Engage', configKey: 'chatEnabled', unreadKey: 'teamChat' },
         { icon: '📣', label: 'Announcements', path: '/commissioner/announcements', section: 'Engage' },
@@ -174,9 +194,12 @@ const NewOSYSLayout: React.FC = () => {
       // === ALWAYS SHOWN (Dashboard special case - shown but may have no data) ===
       { icon: '📊', label: 'Dashboard', path: '/dashboard', section: 'Main' },
       
+      // === PARENT-SPECIFIC ===
+      { icon: '📝', label: 'Registrations', path: '/my-registrations', section: 'Main', parentOnly: true },
+      
       // === USER-SPECIFIC (Always shown regardless of team/sport) ===
       { icon: '🎨', label: 'Design Studio', path: '/design', section: 'Create' },
-      { icon: '�', label: 'My Designs', path: '/marketing', section: 'Create' },
+      { icon: '📢', label: 'My Designs', path: '/marketing', section: 'Create' },
       { icon: '💬', label: 'Messenger', path: '/messenger', section: 'Engage', configKey: 'messengerEnabled', unreadKey: 'messenger' },
       
       // === SPORT-SPECIFIC (Shown when sport is selected, doesn't require team) ===
@@ -190,7 +213,7 @@ const NewOSYSLayout: React.FC = () => {
       { icon: '🛡️', label: 'Strategy', path: '/strategies', section: 'Engage', configKey: 'chatEnabled', coachOnly: true, unreadKey: 'strategy', teamRequired: true },
       { icon: '📺', label: 'Film Room', path: '/videos', section: 'Engage', configKey: 'videoLibraryEnabled', teamRequired: true },
       { icon: '📢', label: 'Marketing', path: '/team-marketing', section: 'Engage', teamRequired: true },
-      { icon: '📈', label: 'Stats', path: '/stats', section: 'Analyze', configKey: 'statsEnabled', teamRequired: true },
+      { icon: '📈', label: 'Stats', path: '/stats', section: 'Analyze', configKey: 'statsEnabled', teamRequired: true, showForParent: true },
       
       // === OTHER ===
       { icon: '🛒', label: 'Marketplace', path: '#marketplace', section: 'Shop', comingSoon: true },
@@ -203,8 +226,17 @@ const NewOSYSLayout: React.FC = () => {
       if (item.configKey === 'playbookEnabled' && !hasPlaybook) return false;
       if (item.coachOnly && userData?.role !== 'Coach') return false;
       if (item.hideForParent && userData?.role === 'Parent') return false;
+      // Parent-only items (like My Registrations)
+      if ((item as any).parentOnly && userData?.role !== 'Parent') return false;
       // Team-required items only show when a team is selected
-      if ((item as any).teamRequired && !teamData) return false;
+      // BUT allow showForParent items to show for parents even without team
+      if ((item as any).teamRequired && !teamData) {
+        if ((item as any).showForParent && userData?.role === 'Parent') {
+          // Allow this item for parents even without team
+        } else {
+          return false;
+        }
+      }
       return true;
     });
   };
@@ -580,6 +612,9 @@ const NewOSYSLayout: React.FC = () => {
 
       {/* Floating Feedback Button */}
       <FeedbackButton />
+      
+      {/* Global Toast Notifications */}
+      <ToastContainer />
     </div>
   );
 };
