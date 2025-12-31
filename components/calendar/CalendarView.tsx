@@ -284,6 +284,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // State for program games (from commissioner schedule)
   const [programGames, setProgramGames] = useState<CalendarEvent[]>([]);
   
+  // State for team games (from teams/{teamId}/games - includes league-managed games)
+  const [teamGames, setTeamGames] = useState<CalendarEvent[]>([]);
+  
   // Handle event/game click - route to appropriate handler
   const handleEventClick = (event: CalendarEvent) => {
     // If it's a program game (from commissioner schedule), show modal instead of navigating
@@ -475,14 +478,116 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     fetchProgramGames();
   }, [programId, seasonId, teamId]);
 
-  // Combine events and program games
+  // Fetch games from teams/{teamId}/games (includes league-managed games)
+  useEffect(() => {
+    if (!teamId) {
+      setTeamGames([]);
+      return;
+    }
+
+    const gamesRef = collection(db, 'teams', teamId, 'games');
+    const q = query(gamesRef, orderBy('date', 'asc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const games: CalendarEvent[] = [];
+      
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        
+        // Parse date - games have 'date' as YYYY-MM-DD string
+        let eventStartDate: Timestamp | null = null;
+        if (data.date) {
+          if (typeof data.date === 'string') {
+            // Parse YYYY-MM-DD and combine with time
+            const [year, month, day] = data.date.split('-').map(Number);
+            if (year && month && day) {
+              // Also parse time if available
+              let hours = 0, minutes = 0;
+              if (data.time) {
+                const timeParts = data.time.split(':');
+                hours = parseInt(timeParts[0]) || 0;
+                minutes = parseInt(timeParts[1]) || 0;
+              }
+              const dateObj = new Date(year, month - 1, day, hours, minutes);
+              eventStartDate = Timestamp.fromDate(dateObj);
+            }
+          } else if (data.date.toDate) {
+            eventStartDate = data.date;
+          }
+        }
+
+        if (!eventStartDate) {
+          console.log('[CalendarView] Skipping team game without valid date:', doc.id);
+          return;
+        }
+
+        // Determine opponent and if home/away
+        const opponent = data.opponent || 'TBD';
+        const isHome = data.isHome !== false; // Default to true
+
+        games.push({
+          id: doc.id,
+          type: 'game' as EventType,
+          title: `vs ${opponent}`,
+          eventStartDate,
+          eventStartTime: data.time || '',
+          location: data.location ? { name: data.location } : undefined,
+          teamId,
+          status: data.status || 'scheduled',
+          opponent,
+          isHome,
+          isBye: false,
+          source: data.leagueManaged ? 'league' : 'team',
+          // Score data
+          teamScore: data.ourScore,
+          opponentScore: data.opponentScore,
+          homeScore: isHome ? data.ourScore : data.opponentScore,
+          awayScore: isHome ? data.opponentScore : data.ourScore,
+          result: data.result,
+        });
+      });
+
+      console.log('[CalendarView] Loaded', games.length, 'team games from teams/{teamId}/games');
+      setTeamGames(games);
+    }, (error) => {
+      console.error('Error fetching team games:', error);
+      setTeamGames([]);
+    });
+
+    return () => unsubscribe();
+  }, [teamId]);
+
+  // Combine events, program games, and team games
+  // Deduplicate by checking for matching opponents on same date
   const allEvents = useMemo(() => {
-    return [...events, ...programGames].sort((a, b) => {
+    // Start with events (practices, etc.)
+    const combined = [...events];
+    
+    // Add program games
+    combined.push(...programGames);
+    
+    // Add team games, but skip duplicates (if a game appears in both program and team collections)
+    teamGames.forEach(tg => {
+      // Check if this game already exists in programGames (same date, same opponent)
+      const isDuplicate = programGames.some(pg => {
+        const tgDate = getDateFromTimestamp(tg.eventStartDate);
+        const pgDate = getDateFromTimestamp(pg.eventStartDate);
+        return isSameDay(tgDate, pgDate) && 
+               (tg.opponent?.toLowerCase() === pg.opponent?.toLowerCase() ||
+                tg.title?.toLowerCase() === pg.title?.toLowerCase());
+      });
+      
+      if (!isDuplicate) {
+        combined.push(tg);
+      }
+    });
+    
+    return combined.sort((a, b) => {
       const dateA = getDateFromTimestamp(a.eventStartDate);
       const dateB = getDateFromTimestamp(b.eventStartDate);
       return dateA.getTime() - dateB.getTime();
     });
-  }, [events, programGames]);
+  }, [events, programGames, teamGames]);
 
   // Navigation - view-mode aware
   const goToPrevious = () => {

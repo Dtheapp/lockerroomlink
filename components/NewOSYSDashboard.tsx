@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { collection, query, orderBy, limit, getDocs, getDoc, onSnapshot, where, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, deleteField, arrayUnion } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -132,8 +132,10 @@ const NewOSYSDashboard: React.FC = () => {
   // Program season state (for teams in a program)
   const [programSeasons, setProgramSeasons] = useState<ProgramSeason[]>([]);
 
-  // All scheduled games for Game Day Hub
+  // All scheduled games for Game Day Hub (from program seasons)
   const [allGames, setAllGames] = useState<TeamGame[]>([]);
+  // League-managed games (from teams/{teamId}/games)
+  const [leagueGames, setLeagueGames] = useState<TeamGame[]>([]);
   const [loadingProgramSeasons, setLoadingProgramSeasons] = useState(false);
   const [copiedSeasonLink, setCopiedSeasonLink] = useState<string | null>(null);
   const [showCompletedSeasons, setShowCompletedSeasons] = useState(false);
@@ -461,6 +463,71 @@ const NewOSYSDashboard: React.FC = () => {
       unsubscribeGames();
     };
   }, [teamData?.id, teamData?.programId, programSeasons]);
+
+  // Fetch LEAGUE-MANAGED games from teams/{teamId}/games
+  useEffect(() => {
+    if (!teamData?.id) {
+      setLeagueGames([]);
+      return;
+    }
+
+    console.log('[NewOSYSDashboard] Loading league games from teams/', teamData.id, '/games');
+
+    const gamesRef = collection(db, 'teams', teamData.id, 'games');
+    const unsubscribeLeagueGames = onSnapshot(gamesRef, (snapshot) => {
+      const games: TeamGame[] = [];
+      
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        
+        // Only include league-managed games (skip if already loaded from program)
+        if (!data.leagueManaged) {
+          return;
+        }
+        
+        // Parse game date
+        let scheduledDate: Date | undefined;
+        if (data.date) {
+          if (typeof data.date === 'string') {
+            const parts = data.date.split('-');
+            if (parts.length === 3) {
+              scheduledDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            }
+          } else if (data.date?.toDate) {
+            scheduledDate = data.date.toDate();
+          }
+        }
+        
+        games.push({
+          id: docSnap.id,
+          teamId: teamData.id,
+          source: 'league',
+          opponent: data.opponent || 'TBD',
+          isHome: data.isHome ?? true,
+          week: data.week || 1,
+          scheduledDate: scheduledDate,
+          scheduledTime: data.time || '',
+          location: data.location || '',
+          homeScore: data.ourScore || 0,
+          awayScore: data.opponentScore || 0,
+          status: data.status || 'scheduled',
+          leagueId: data.leagueId,
+          leagueManaged: true,
+          ageGroup: data.ageGroup,
+        } as TeamGame);
+      });
+      
+      console.log('[NewOSYSDashboard] Loaded', games.length, 'league games for team', teamData.id);
+      setLeagueGames(games);
+    }, (error) => {
+      console.error('Error fetching league games:', error);
+      setLeagueGames([]);
+    });
+
+    return () => {
+      unsubscribeLeagueGames();
+    };
+  }, [teamData?.id]);
 
   // Fetch coaching staff
   useEffect(() => {
@@ -1416,10 +1483,15 @@ const NewOSYSDashboard: React.FC = () => {
     return 'Good evening';
   };
 
+  // Combine program games and league-managed games
+  const combinedGames = useMemo(() => {
+    return [...allGames, ...leagueGames];
+  }, [allGames, leagueGames]);
+
   // Calculate team record from COMPLETED games only
   const getTeamRecord = () => {
     // Only count games with status === 'completed'
-    const completedGames = allGames.filter(g => g.status === 'completed');
+    const completedGames = combinedGames.filter(g => g.status === 'completed');
     
     let wins = 0;
     let losses = 0;
@@ -1785,8 +1857,8 @@ const NewOSYSDashboard: React.FC = () => {
     return `${hour}:${minute} ${ampm}`;
   };
 
-  // Convert program games to event format for unified display in Upcoming
-  const gamesAsEvents: EventData[] = allGames
+  // Convert all games (program + league) to event format for unified display in Upcoming
+  const gamesAsEvents: EventData[] = combinedGames
     .filter(game => game.status !== 'completed') // Only upcoming games
     .map(game => {
       // Get date from scheduledDate
@@ -2245,7 +2317,7 @@ const NewOSYSDashboard: React.FC = () => {
       )}
 
       {/* Live Stream Banner - Show when there's a live stream AND no live game (Game Day Hub handles live game streams) */}
-      {liveStreams.length > 0 && !allGames.some(g => g.status === 'live') && (
+      {liveStreams.length > 0 && !combinedGames.some(g => g.status === 'live') && (
         <LiveStreamBanner
           streams={liveStreams}
           teamName={teamData?.name || 'Team'}
@@ -2265,7 +2337,7 @@ const NewOSYSDashboard: React.FC = () => {
       )}
 
       {/* Go Live Button for Coaches - Show when no active stream AND no live game */}
-      {canGoLive && !hasOwnLiveStream && !allGames.some(g => g.status === 'live') && (
+      {canGoLive && !hasOwnLiveStream && !combinedGames.some(g => g.status === 'live') && (
         <button
           onClick={() => setShowGoLiveModal(true)}
           className={`w-full p-4 rounded-2xl border-2 border-dashed transition flex items-center justify-center gap-3 ${
@@ -2495,11 +2567,11 @@ const NewOSYSDashboard: React.FC = () => {
         />
       )}
 
-      {/* 🏈 GAME DAY HUB - Shows ALL games, coach can select any to view/manage */}
-      {teamData?.id && allGames.length > 0 && (
+      {/* 🏈 GAME DAY HUB - Shows ALL games (program + league), coach can select any to view/manage */}
+      {teamData?.id && combinedGames.length > 0 && (
         <GameDayHub
           key={`gamedayhub-${teamData.id}`}
-          games={allGames}
+          games={combinedGames}
           liveStreams={liveStreams}
           onGoLive={() => setShowGoLiveModal(true)}
           onOpenStats={() => navigate('/stats')}

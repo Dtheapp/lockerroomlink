@@ -41,10 +41,12 @@ const Dashboard: React.FC = () => {
   const [posts, setPosts] = useState<BulletinPost[]>([]);
   const [playerStats, setPlayerStats] = useState<PlayerSeasonStats[]>([]);
   const [teamEvents, setTeamEvents] = useState<TeamEvent[]>([]);
+  const [teamGames, setTeamGames] = useState<TeamEvent[]>([]); // Games from teams/{teamId}/games
   const [newPost, setNewPost] = useState('');
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
   const [eventsLoading, setEventsLoading] = useState(true);
+  const [gamesLoading, setGamesLoading] = useState(true);
   const [isCopied, setIsCopied] = useState(false);
   const [isPublicLinkCopied, setIsPublicLinkCopied] = useState(false);
   
@@ -168,6 +170,62 @@ const Dashboard: React.FC = () => {
     }, (error) => { console.error("Error fetching events:", error); setEventsLoading(false); });
     return () => unsubscribe();
   }, [teamData?.id]);
+
+  // Fetch games from teams/{teamId}/games (includes league-managed games)
+  useEffect(() => {
+    if (!teamData?.id) {
+      setTeamGames([]);
+      setGamesLoading(false);
+      return;
+    }
+    setGamesLoading(true);
+    const gamesCollection = collection(db, 'teams', teamData.id, 'games');
+    const gamesQuery = query(gamesCollection, orderBy('date', 'asc'));
+
+    const unsubscribe = onSnapshot(gamesQuery, (snapshot) => {
+      const gamesData = snapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        // Convert game data to TeamEvent format for unified display
+        return {
+          id: docSnap.id,
+          title: `vs ${data.opponent || 'TBD'}`,
+          date: data.date || '',
+          time: data.time || '',
+          location: data.location || '',
+          description: data.leagueManaged ? 'League-managed game' : '',
+          type: 'Game' as const,
+          // Keep additional game data
+          opponent: data.opponent,
+          isHome: data.isHome,
+          leagueManaged: data.leagueManaged,
+          status: data.status,
+          ourScore: data.ourScore,
+          opponentScore: data.opponentScore,
+        } as TeamEvent;
+      });
+      setTeamGames(gamesData);
+      setGamesLoading(false);
+    }, (error) => { console.error("Error fetching games:", error); setGamesLoading(false); });
+    return () => unsubscribe();
+  }, [teamData?.id]);
+
+  // Combined events and games for display
+  const allUpcomingEvents = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+    
+    // Combine events and games
+    const combined = [...teamEvents, ...teamGames];
+    
+    // Filter to only upcoming (today or future) and sort by date
+    return combined
+      .filter(e => e.date >= todayStr)
+      .sort((a, b) => {
+        if (a.date !== b.date) return a.date.localeCompare(b.date);
+        return (a.time || '').localeCompare(b.time || '');
+      });
+  }, [teamEvents, teamGames]);
 
   // Fetch coaches for this team
   useEffect(() => {
@@ -1753,7 +1811,7 @@ const Dashboard: React.FC = () => {
 
 
             <div className="space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar">
-                 {eventsLoading ? <p className="text-zinc-500">Loading...</p> : teamEvents.filter(event => eventFilter === 'All' || event.type?.toLowerCase() === eventFilter.toLowerCase()).length > 0 ? teamEvents.filter(event => eventFilter === 'All' || event.type?.toLowerCase() === eventFilter.toLowerCase()).map(event => (
+                 {(eventsLoading || gamesLoading) ? <p className="text-zinc-500">Loading...</p> : allUpcomingEvents.filter(event => eventFilter === 'All' || event.type?.toLowerCase() === eventFilter.toLowerCase()).length > 0 ? allUpcomingEvents.filter(event => eventFilter === 'All' || event.type?.toLowerCase() === eventFilter.toLowerCase()).map(event => (
                      <div 
                        key={event.id} 
                        className="relative bg-zinc-50 dark:bg-black p-4 rounded-lg border-l-4 border-l-orange-500 border-t border-t-zinc-200 dark:border-t-zinc-800 border-b border-b-zinc-200 dark:border-b-zinc-800 border-r border-r-zinc-200 dark:border-r-zinc-800 group cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-900/50 transition-colors"
@@ -1762,7 +1820,7 @@ const Dashboard: React.FC = () => {
                         <div className="flex justify-between items-start">
                             <div>
                                 <h4 className="text-zinc-900 dark:text-white font-bold text-sm">{event.title}</h4>
-                                <p className="text-orange-600 dark:text-orange-500 text-[10px] uppercase font-black tracking-wider mt-1">{event.type}</p>
+                                <p className="text-orange-600 dark:text-orange-500 text-[10px] uppercase font-black tracking-wider mt-1">{event.type}{(event as any).leagueManaged && <span className="ml-2 text-purple-500">• League</span>}</p>
                             </div>
                             <div className="text-right">
                                 <p className="text-zinc-700 dark:text-zinc-300 font-mono text-xs">{formatEventDate(event.date, { month: 'short', day: 'numeric' })}</p>
@@ -1816,7 +1874,7 @@ const Dashboard: React.FC = () => {
                             </div>
                         )}
                      </div>
-                 )) : <p className="text-zinc-500 italic text-sm text-center py-4">No upcoming events.</p>}
+                 )) : <p className="text-zinc-500 italic text-sm text-center py-4">No upcoming events or games.</p>}
             </div>
             </div>
         </div>

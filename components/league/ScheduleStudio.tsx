@@ -83,6 +83,8 @@ interface ScheduledGame {
   venue: Venue | null;
   status: 'incomplete' | 'complete' | 'conflict';
   conflictReason?: string;
+  weekNumber?: number;      // For loading existing games
+  date?: string | Date;     // For loading existing games
 }
 
 interface WeekData {
@@ -729,7 +731,7 @@ function WeekLane({
             </span>
           </DropZone>
         ) : (
-          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {week.games.map(game => (
               <GameCard
                 key={game.id}
@@ -1015,18 +1017,61 @@ export default function ScheduleStudio({
     })
   );
 
-  // Initialize weeks on first render only
+  // Initialize weeks on first render - use existingGames if available
   useEffect(() => {
     if (weeks.length === 0) {
       const initialWeeks: WeekData[] = [];
-      for (let i = 1; i <= totalWeeks; i++) {
+      
+      // Group existing games by week
+      const gamesByWeek: Record<number, any[]> = {};
+      if (existingGames && existingGames.length > 0) {
+        existingGames.forEach(game => {
+          const weekNum = game.weekNumber || 1;
+          if (!gamesByWeek[weekNum]) gamesByWeek[weekNum] = [];
+          gamesByWeek[weekNum].push(game);
+        });
+        console.log(`Loading ${existingGames.length} existing games into studio`);
+      }
+      
+      // Determine how many weeks we need
+      const maxWeekFromGames = existingGames && existingGames.length > 0 
+        ? Math.max(...existingGames.map(g => g.weekNumber || 1), totalWeeks)
+        : totalWeeks;
+      
+      for (let i = 1; i <= maxWeekFromGames; i++) {
+        const weekGames = gamesByWeek[i] || [];
+        // Convert existing games to proper ScheduledGame format
+        const games: ScheduledGame[] = weekGames.map((g, idx) => ({
+          id: g.id || `game-${i}-${idx}`,
+          homeTeam: g.homeTeam || null,
+          awayTeam: g.awayTeam || null,
+          time: g.time || null,
+          venue: g.venue || null,
+          status: (g.homeTeam && g.awayTeam && g.time && g.venue) ? 'complete' : 'incomplete',
+          date: g.date,
+        }));
+        
+        // Parse custom date from first game in week if exists
+        let customDate: Date | undefined;
+        if (weekGames.length > 0 && weekGames[0].date) {
+          customDate = new Date(weekGames[0].date);
+        }
+        
         initialWeeks.push({
           weekNumber: i,
-          games: [],
+          games: games.length > 0 ? games : [],
           isByeWeek: false,
+          customDate,
         });
       }
       setWeeks(initialWeeks);
+      setTotalWeeks(maxWeekFromGames);
+      
+      // If we loaded existing games, mark as no changes initially
+      if (existingGames && existingGames.length > 0) {
+        // Small delay to let state settle
+        setTimeout(() => setHasChanges(false), 100);
+      }
     }
   }, []); // Only run once on mount
 
@@ -1085,12 +1130,11 @@ export default function ScheduleStudio({
   // CONFLICT DETECTION SYSTEM - Prevents double-booking
   // ============================================================================
   
-  // Helper to create a unique venue key (uses name + location for matching)
+  // Helper to create a unique venue key (uses ONLY venue name for matching)
+  // We use just the name because address formats vary between entries
   const getVenueKey = useCallback((venue: Venue): string => {
-    // Normalize: lowercase, trim whitespace
-    const name = venue.name.toLowerCase().trim();
-    const location = (venue.location || '').toLowerCase().trim();
-    return `${name}|${location}`;
+    // Normalize: lowercase, trim whitespace, remove common suffixes
+    return venue.name.toLowerCase().trim();
   }, []);
   
   // Check for venue+time conflicts across all games
@@ -1101,8 +1145,8 @@ export default function ScheduleStudio({
     // Add existing bookings from other age groups
     existingBookings.forEach(booking => {
       const dateStr = booking.date.toDateString();
-      // Create normalized venue key for external bookings
-      const venueKey = `${booking.venueName.toLowerCase().trim()}|${(booking.venueId || '').toLowerCase().trim()}`;
+      // Create normalized venue key for external bookings (just venue name for consistency)
+      const venueKey = booking.venueName.toLowerCase().trim();
       const key = `${dateStr}|${booking.time}|${venueKey}`;
       bookingMap.set(key, {
         gameId: 'external',
@@ -1859,9 +1903,9 @@ export default function ScheduleStudio({
           }}
         />
 
-        {/* 🏟️ STADIUM-INSPIRED HEADER */}
+        {/* 🏟️ STADIUM-INSPIRED HEADER - Compact on mobile landscape */}
         <div className={`
-          relative shrink-0 px-4 py-4 overflow-hidden
+          relative shrink-0 px-2 py-2 sm:px-4 sm:py-4 overflow-hidden
           ${theme === 'dark' 
             ? 'bg-gradient-to-r from-zinc-900 via-purple-900/20 to-zinc-900 border-b border-purple-500/20' 
             : 'bg-gradient-to-r from-white via-purple-50 to-white border-b border-purple-200'}
@@ -1874,26 +1918,26 @@ export default function ScheduleStudio({
           <div className="absolute top-0 right-1/4 w-2 h-2 rounded-full bg-purple-400/30 blur-sm" />
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-purple-400/20 blur-md" />
           
-          <div className="relative flex items-center justify-between">
-            <div className="flex items-center gap-4">
+          <div className="relative flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <button
                 onClick={handleClose}
-                className={`p-2.5 rounded-xl transition-all duration-200 ${
+                className={`p-1.5 sm:p-2.5 rounded-xl transition-all duration-200 shrink-0 ${
                   theme === 'dark' 
                     ? 'bg-white/5 hover:bg-white/10 hover:scale-105' 
                     : 'bg-slate-100 hover:bg-slate-200 hover:scale-105'
                 }`}
               >
-                <ChevronLeft className="w-5 h-5" />
+                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">🎨</span>
-                  <h1 className={`text-2xl font-black tracking-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <span className="text-lg sm:text-2xl">🎨</span>
+                  <h1 className={`text-base sm:text-2xl font-black tracking-tight truncate ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                     Schedule Studio
                   </h1>
                   <span className={`
-                    ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider
+                    hidden sm:inline ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider
                     ${theme === 'dark' 
                       ? 'bg-gradient-to-r from-purple-500/30 to-pink-500/30 text-purple-300 border border-purple-500/30' 
                       : 'bg-purple-100 text-purple-700'}
@@ -1901,14 +1945,14 @@ export default function ScheduleStudio({
                     Pro
                   </span>
                 </div>
-                <p className={`text-sm mt-0.5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                <p className={`hidden sm:block text-sm mt-0.5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
                   <span className="font-medium text-purple-400">{ageGroup}</span> • {teams.length} Teams
                 </p>
               </div>
             </div>
 
-            {/* 📊 SCOREBOARD-STYLE STATS */}
-            <div className="hidden md:flex items-center gap-2">
+            {/* 📊 SCOREBOARD-STYLE STATS - Hidden on mobile, show on lg+ */}
+            <div className="hidden lg:flex items-center gap-2">
               {/* Total Games */}
               <div className={`
                 relative px-3 py-2 rounded-xl overflow-hidden min-w-[72px]
@@ -2040,24 +2084,24 @@ export default function ScheduleStudio({
               )}
             </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-2" data-onboarding="header">
+            {/* Actions - Compact on mobile */}
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0" data-onboarding="header">
               <button
                 onClick={() => setShowOnboarding(true)}
-                className={`p-2.5 rounded-xl transition-all duration-200 ${
+                className={`p-1.5 sm:p-2.5 rounded-xl transition-all duration-200 ${
                   theme === 'dark' 
                     ? 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white hover:scale-105' 
                     : 'bg-slate-100 hover:bg-slate-200 text-slate-600 hover:scale-105'
                 }`}
                 title="Show Tutorial"
               >
-                <HelpCircle className="w-5 h-5" />
+                <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               <button
                 onClick={handleAutoFill}
                 data-onboarding="autofill"
                 className={`
-                  relative flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-all duration-200 overflow-hidden group
+                  relative flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2.5 rounded-xl font-semibold transition-all duration-200 overflow-hidden group text-sm sm:text-base
                   ${theme === 'dark'
                     ? 'bg-gradient-to-r from-purple-600/20 to-pink-600/20 text-purple-300 border border-purple-500/30 hover:border-purple-500/50 hover:scale-105'
                     : 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 border border-purple-200 hover:scale-105'
@@ -2066,17 +2110,18 @@ export default function ScheduleStudio({
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-purple-500/0 via-purple-500/10 to-purple-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
                 <Wand2 className="w-4 h-4" />
-                <span className="relative">Auto-Fill</span>
+                <span className="relative hidden sm:inline">Auto-Fill</span>
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
                 data-onboarding="save"
-                className="relative flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 px-5 py-2.5 rounded-xl font-semibold text-white transition-all duration-200 shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 overflow-hidden group"
+                className="relative flex items-center gap-1 sm:gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 px-3 sm:px-5 py-1.5 sm:py-2.5 rounded-xl font-semibold text-white transition-all duration-200 shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 overflow-hidden group text-sm sm:text-base"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                <span className="relative">Save Schedule</span>
+                <span className="relative hidden sm:inline">Save Schedule</span>
+                <span className="relative sm:hidden">Save</span>
               </button>
             </div>
           </div>
@@ -2084,12 +2129,12 @@ export default function ScheduleStudio({
 
         {/* Main Content */}
         <div className="flex-1 flex overflow-hidden relative">
-          {/* Palette Sidebar - Premium Design */}
+          {/* Palette Sidebar - Narrower on landscape mobile */}
           <div 
             data-onboarding="palette"
             className={`
               shrink-0 overflow-y-auto transition-all duration-300 relative
-              ${showPalette ? 'w-72' : 'w-0 overflow-hidden'}
+              ${showPalette ? 'w-48 sm:w-56 lg:w-72' : 'w-0 overflow-hidden'}
               ${theme === 'dark' 
                 ? 'bg-gradient-to-b from-zinc-900/95 to-zinc-950/95 border-r border-white/10' 
                 : 'bg-gradient-to-b from-white to-slate-50 border-r border-slate-200'}

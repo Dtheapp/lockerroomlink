@@ -5,10 +5,17 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs, doc, getDoc, addDoc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { LeagueSeason, LeagueSchedule, LeagueGame, Team, Program } from '../../types';
-import { ChevronLeft, Calendar, Plus, Play, Clock, CheckCircle, MapPin, Users, Loader2, AlertCircle, Edit, Trash2, X, Save, Filter, ChevronDown, Trophy, Settings, PlayCircle, StopCircle, Wand2, Palette } from 'lucide-react';
+import { ChevronLeft, Calendar, Plus, Play, Clock, CheckCircle, MapPin, Users, Loader2, AlertCircle, Edit, Trash2, X, Save, Filter, ChevronDown, Trophy, Settings, PlayCircle, StopCircle, Palette } from 'lucide-react';
 import { toastSuccess, toastError } from '../../services/toast';
 
 type ViewMode = 'list' | 'calendar' | 'by-team';
+
+interface AgeGroupInfo {
+  name: string;
+  teamCount: number;
+  gameCount: number;
+  isScheduled: boolean;
+}
 
 export default function SeasonSchedule() {
   const { seasonId } = useParams<{ seasonId: string }>();
@@ -25,6 +32,9 @@ export default function SeasonSchedule() {
   const [showEditSeason, setShowEditSeason] = useState(false);
   const [filterTeam, setFilterTeam] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterAgeGroup, setFilterAgeGroup] = useState<string>('all');
+  const [ageGroupInfos, setAgeGroupInfos] = useState<AgeGroupInfo[]>([]);
+  const [collapsedDates, setCollapsedDates] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadData();
@@ -40,7 +50,8 @@ export default function SeasonSchedule() {
         navigate('/league/seasons');
         return;
       }
-      setSeason({ id: seasonDoc.id, ...seasonDoc.data() } as LeagueSeason);
+      const seasonData = { id: seasonDoc.id, ...seasonDoc.data() } as LeagueSeason;
+      setSeason(seasonData);
 
       // Load schedule
       const scheduleQuery = query(
@@ -50,10 +61,20 @@ export default function SeasonSchedule() {
       const scheduleSnap = await getDocs(scheduleQuery);
       
       const allGames: LeagueGame[] = [];
+      const scheduledAgeGroups = new Set<string>();
+      const gameCountByAgeGroup: Record<string, number> = {};
+      
       scheduleSnap.docs.forEach(doc => {
         const schedule = doc.data() as LeagueSchedule;
+        if (schedule.ageGroup) {
+          scheduledAgeGroups.add(schedule.ageGroup);
+        }
         if (schedule.games) {
           allGames.push(...schedule.games.map(g => ({ ...g, scheduleId: doc.id })));
+          // Count games per age group
+          if (schedule.ageGroup) {
+            gameCountByAgeGroup[schedule.ageGroup] = (gameCountByAgeGroup[schedule.ageGroup] || 0) + schedule.games.length;
+          }
         }
       });
       
@@ -73,15 +94,35 @@ export default function SeasonSchedule() {
       );
       const programsSnap = await getDocs(programsQuery);
       const programIds = programsSnap.docs.map(d => d.id);
+      
+      let allTeams: Team[] = [];
 
       if (programIds.length > 0) {
-        const teamsQuery = query(
-          collection(db, 'teams'),
-          where('programId', 'in', programIds.slice(0, 10)) // Firestore limit
-        );
-        const teamsSnap = await getDocs(teamsQuery);
-        setTeams(teamsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Team)));
+        // Batch by 10 for Firestore limit
+        for (let i = 0; i < programIds.length; i += 10) {
+          const batch = programIds.slice(i, i + 10);
+          const teamsQuery = query(
+            collection(db, 'teams'),
+            where('programId', 'in', batch)
+          );
+          const teamsSnap = await getDocs(teamsQuery);
+          allTeams.push(...teamsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Team)));
+        }
+        setTeams(allTeams);
       }
+      
+      // Build age group info from season data
+      const ageGroups = seasonData.ageGroups || [];
+      const infos: AgeGroupInfo[] = ageGroups.map(ag => {
+        const teamCount = allTeams.filter(t => t.ageGroup === ag).length;
+        return {
+          name: ag,
+          teamCount,
+          gameCount: gameCountByAgeGroup[ag] || 0,
+          isScheduled: scheduledAgeGroups.has(ag),
+        };
+      });
+      setAgeGroupInfos(infos);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -100,7 +141,8 @@ export default function SeasonSchedule() {
   const filteredGames = games.filter(game => {
     const matchesTeam = filterTeam === 'all' || game.homeTeamId === filterTeam || game.awayTeamId === filterTeam;
     const matchesStatus = filterStatus === 'all' || game.status === filterStatus;
-    return matchesTeam && matchesStatus;
+    const matchesAgeGroup = filterAgeGroup === 'all' || game.ageGroup === filterAgeGroup;
+    return matchesTeam && matchesStatus && matchesAgeGroup;
   });
 
   // Group games by date for list view
@@ -163,9 +205,38 @@ export default function SeasonSchedule() {
                   <Calendar className={`w-5 h-5 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
                   {season?.name || 'Season Schedule'}
                 </h1>
-                <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-                  {games.length} games scheduled
-                </p>
+                <div className="flex items-center gap-3">
+                  <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                    {games.length} games scheduled
+                  </p>
+                  {/* Setup Progress Indicator */}
+                  {ageGroupInfos.length > 0 && (() => {
+                    const totalTeams = ageGroupInfos.reduce((sum, ag) => sum + ag.teamCount, 0);
+                    const teamsWithGames = ageGroupInfos.reduce((sum, ag) => ag.gameCount > 0 ? sum + ag.teamCount : sum, 0);
+                    const percent = totalTeams > 0 ? Math.round((teamsWithGames / totalTeams) * 100) : 0;
+                    return (
+                      <div className="flex items-center gap-2">
+                        <div className={`h-1.5 w-16 rounded-full overflow-hidden ${
+                          theme === 'dark' ? 'bg-white/10' : 'bg-slate-200'
+                        }`}>
+                          <div 
+                            className={`h-full transition-all duration-500 ${
+                              percent === 100 ? 'bg-emerald-500' : 'bg-purple-500'
+                            }`}
+                            style={{ width: `${percent}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs font-medium ${
+                          percent === 100 
+                            ? 'text-emerald-400' 
+                            : theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                        }`}>
+                          {percent}%
+                        </span>
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -175,13 +246,6 @@ export default function SeasonSchedule() {
               >
                 <Palette className="w-4 h-4" />
                 <span className="hidden sm:inline">🎨 Studio</span>
-              </button>
-              <button
-                onClick={() => navigate(`/league/seasons/${seasonId}/schedule-wizard`)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-black shadow-lg shadow-amber-500/25`}
-              >
-                <Wand2 className="w-4 h-4" />
-                <span className="hidden sm:inline">Auto-Generate</span>
               </button>
               <button
                 onClick={() => setShowEditSeason(true)}
@@ -198,6 +262,59 @@ export default function SeasonSchedule() {
           </div>
         </div>
       </div>
+
+      {/* Age Group Cards - Quick access to Schedule Studio per age group */}
+      {ageGroupInfos.length > 0 && (
+        <div className="max-w-6xl mx-auto px-4 py-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Users className={`w-4 h-4 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
+            <h2 className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+              Age Groups
+            </h2>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+            {ageGroupInfos.filter(ag => ag.teamCount > 0).map((ag) => (
+              <div
+                key={ag.name}
+                onClick={() => navigate(`/league/seasons/${seasonId}/schedule-studio?ageGroup=${encodeURIComponent(ag.name)}`)}
+                className={`flex-shrink-0 cursor-pointer rounded-xl p-4 transition-all hover:scale-[1.02] ${
+                  theme === 'dark'
+                    ? 'bg-white/5 border border-white/10 hover:border-purple-500/50 hover:bg-white/10'
+                    : 'bg-white border border-slate-200 hover:border-purple-400 hover:shadow-md'
+                }`}
+                style={{ minWidth: '160px' }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                    {ag.name}
+                  </span>
+                  {ag.isScheduled && (
+                    <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-500/20 text-emerald-400">
+                      Scheduled
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 text-xs">
+                  <span className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>
+                    {ag.teamCount} teams
+                  </span>
+                  <span className={theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}>
+                    {ag.gameCount} games
+                  </span>
+                </div>
+                <div className={`mt-2 flex items-center gap-1 text-xs ${
+                  ag.gameCount > 0 
+                    ? 'text-amber-400' 
+                    : theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                }`}>
+                  <Palette className="w-3 h-3" />
+                  {ag.gameCount > 0 ? 'Edit Schedule' : 'Open Studio'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="max-w-6xl mx-auto px-4 py-4">
@@ -258,6 +375,24 @@ export default function SeasonSchedule() {
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
+
+          {/* Age Group Filter - only show if multiple age groups have games */}
+          {ageGroupInfos.filter(ag => ag.gameCount > 0).length > 1 && (
+            <select
+              value={filterAgeGroup}
+              onChange={(e) => setFilterAgeGroup(e.target.value)}
+              className={`rounded-xl px-3 py-1.5 text-sm focus:ring-2 focus:ring-purple-500/50 ${
+                theme === 'dark'
+                  ? 'bg-white/5 border border-white/10 text-white'
+                  : 'bg-white border border-slate-200 text-slate-900'
+              }`}
+            >
+              <option value="all">All Age Groups</option>
+              {ageGroupInfos.filter(ag => ag.gameCount > 0).map(ag => (
+                <option key={ag.name} value={ag.name}>{ag.name} ({ag.gameCount})</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -282,22 +417,61 @@ export default function SeasonSchedule() {
             </p>
           </div>
         ) : viewMode === 'list' ? (
-          <div className="space-y-6">
-            {Object.entries(gamesByDate).map(([date, dateGames]) => (
-              <div key={date}>
-                <h3 className={`text-sm font-medium mb-3 flex items-center gap-2 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+          <div className="space-y-4">
+            {Object.entries(gamesByDate).map(([date, dateGames]) => {
+              const isCollapsed = collapsedDates.has(date);
+              const toggleCollapse = () => {
+                setCollapsedDates(prev => {
+                  const next = new Set(prev);
+                  if (next.has(date)) {
+                    next.delete(date);
+                  } else {
+                    next.add(date);
+                  }
+                  return next;
+                });
+              };
+              
+              return (
+                <div key={date} className={`rounded-xl overflow-hidden border ${
+                  theme === 'dark' ? 'border-white/10' : 'border-slate-200'
                 }`}>
-                  <Calendar className="w-4 h-4" />
-                  {date}
-                </h3>
-                <div className="space-y-3">
-                  {dateGames.map((game, idx) => (
-                    <GameCard key={`${game.homeTeamId}-${game.awayTeamId}-${idx}`} game={game} teams={teams} theme={theme} />
-                  ))}
+                  {/* Collapsible Header */}
+                  <button
+                    onClick={toggleCollapse}
+                    className={`w-full px-4 py-3 flex items-center justify-between transition-colors ${
+                      theme === 'dark'
+                        ? 'bg-white/5 hover:bg-white/10'
+                        : 'bg-slate-50 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Calendar className={`w-4 h-4 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
+                      <span className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                        {date}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        theme === 'dark' ? 'bg-white/10 text-slate-400' : 'bg-slate-200 text-slate-600'
+                      }`}>
+                        {dateGames.length} {dateGames.length === 1 ? 'game' : 'games'}
+                      </span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 transition-transform ${
+                      isCollapsed ? '-rotate-90' : ''
+                    } ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
+                  </button>
+                  
+                  {/* Games - Collapsible */}
+                  {!isCollapsed && (
+                    <div className={`divide-y ${theme === 'dark' ? 'divide-white/5' : 'divide-slate-100'}`}>
+                      {dateGames.map((game, idx) => (
+                        <GameCard key={`${game.homeTeamId}-${game.awayTeamId}-${idx}`} game={game} teams={teams} theme={theme} />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : viewMode === 'by-team' ? (
           <div className="grid gap-6">
@@ -435,17 +609,33 @@ function GameCard({ game, teams, compact, theme }: GameCardProps) {
           <div className={`text-sm w-24 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
             {date}
           </div>
-          <div className="text-sm">
+          <div className={`text-sm w-16 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`}>
+            {time}
+          </div>
+          <div className="text-sm flex items-center gap-2">
+            {homeTeam?.logoUrl ? (
+              <img src={homeTeam.logoUrl} alt="" className="w-5 h-5 rounded object-cover" />
+            ) : null}
             <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
               {homeTeam?.name || 'TBD'}
             </span>
-            <span className={`mx-2 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>vs</span>
+            <span className={`mx-1 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>vs</span>
+            {awayTeam?.logoUrl ? (
+              <img src={awayTeam.logoUrl} alt="" className="w-5 h-5 rounded object-cover" />
+            ) : null}
             <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
               {awayTeam?.name || 'TBD'}
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {game.ageGroup && (
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+              theme === 'dark' ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-700'
+            }`}>
+              {game.ageGroup}
+            </span>
+          )}
           {game.status === 'completed' && (
             <span className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
               {game.homeScore} - {game.awayScore}
@@ -484,9 +674,17 @@ function GameCard({ game, teams, compact, theme }: GameCardProps) {
           <div className="flex items-center gap-6">
             {/* Home Team */}
             <div className="text-center min-w-[120px]">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-1">
-                <Users className="w-5 h-5 text-white" />
-              </div>
+              {homeTeam?.logoUrl ? (
+                <img 
+                  src={homeTeam.logoUrl} 
+                  alt={homeTeam.name}
+                  className="w-10 h-10 rounded-xl object-cover mx-auto mb-1"
+                />
+              ) : (
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-1">
+                  <Users className="w-5 h-5 text-white" />
+                </div>
+              )}
               <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                 {homeTeam?.name || 'TBD'}
               </div>
@@ -514,9 +712,17 @@ function GameCard({ game, teams, compact, theme }: GameCardProps) {
 
             {/* Away Team */}
             <div className="text-center min-w-[120px]">
-              <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center mx-auto mb-1">
-                <Users className="w-5 h-5 text-white" />
-              </div>
+              {awayTeam?.logoUrl ? (
+                <img 
+                  src={awayTeam.logoUrl} 
+                  alt={awayTeam.name}
+                  className="w-10 h-10 rounded-xl object-cover mx-auto mb-1"
+                />
+              ) : (
+                <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center mx-auto mb-1">
+                  <Users className="w-5 h-5 text-white" />
+                </div>
+              )}
               <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                 {awayTeam?.name || 'TBD'}
               </div>
@@ -525,7 +731,14 @@ function GameCard({ game, teams, compact, theme }: GameCardProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col items-end gap-1">
+          {game.ageGroup && (
+            <span className={`text-xs px-2 py-0.5 rounded-full ${
+              theme === 'dark' ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-700'
+            }`}>
+              {game.ageGroup}
+            </span>
+          )}
           {getStatusBadge(game.status)}
         </div>
       </div>

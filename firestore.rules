@@ -1479,6 +1479,7 @@ service cloud.firestore {
       
       // Games subcollection - Team game schedules
       // Updated: Dec 31 2025 - Added protection for league-managed games and completed games
+      // Updated: Dec 31 2025 - Allow league owners to manage league-created games
       match /games/{gameId} {
         // Allow public read for public profiles
         allow read: if true;
@@ -1493,7 +1494,13 @@ service cloud.firestore {
         
         // Update: Team coaches can update non-league games, 
         // OR update score/status fields on any game (for game day tracking)
+        // League owners can update their league-managed games
         allow update: if isAdmin() || (
+          // League owners can fully update their league-managed games
+          resource.data.leagueManaged == true && 
+          resource.data.leagueId != null &&
+          isLeagueOwnerOf(resource.data.leagueId)
+        ) || (
           isTeamCoach(teamId) && (
             // Non-league games: full edit access
             resource.data.leagueManaged != true ||
@@ -1507,10 +1514,16 @@ service cloud.firestore {
         
         // Delete: 
         // - Admins can always delete
+        // - League owners can delete their league-managed games
         // - Team coaches can delete non-league games that are NOT completed with scores
-        // - League-managed games can only be deleted by league (handled via leagueSchedules)
         // - NEVER allow deletion of completed games with scores (data integrity protection)
         allow delete: if isAdmin() || (
+          // League owners can delete their league-managed games (for re-scheduling)
+          resource.data.leagueManaged == true && 
+          resource.data.leagueId != null &&
+          isLeagueOwnerOf(resource.data.leagueId) &&
+          !(resource.data.status == 'completed' && resource.data.ourScore != null)
+        ) || (
           isTeamCoach(teamId) &&
           resource.data.leagueManaged != true &&
           !(resource.data.status == 'completed' && resource.data.ourScore != null)

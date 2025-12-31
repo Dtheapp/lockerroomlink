@@ -52,11 +52,113 @@ export default function ScheduleStudioWrapper() {
   const [scheduledAgeGroups, setScheduledAgeGroups] = useState<string[]>([]);
   const [showStudio, setShowStudio] = useState(!!ageGroupParam);
   const [existingBookings, setExistingBookings] = useState<ExistingBooking[]>([]);
+  const [existingGamesForEdit, setExistingGamesForEdit] = useState<any[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
+  const [hasLoadedForUrlParam, setHasLoadedForUrlParam] = useState(false);
 
   useEffect(() => {
     loadData();
   }, [seasonId, leagueData]);
+
+  // When navigating with URL param, load existing games after data is ready
+  useEffect(() => {
+    if (
+      ageGroupParam && 
+      showStudio && 
+      selectedAgeGroup && 
+      teams.length > 0 && 
+      !loadingBookings && 
+      !hasLoadedForUrlParam
+    ) {
+      setHasLoadedForUrlParam(true);
+      // We need to load existing bookings for this age group
+      loadExistingBookingsForUrlParam(selectedAgeGroup);
+    }
+  }, [ageGroupParam, showStudio, selectedAgeGroup, teams.length, loadingBookings, hasLoadedForUrlParam]);
+
+  // Separate function to load bookings when coming from URL (called from useEffect)
+  const loadExistingBookingsForUrlParam = async (currentAgeGroup: string) => {
+    if (!seasonId) return;
+    
+    setLoadingBookings(true);
+    try {
+      const schedulesQuery = query(
+        collection(db, 'leagueSchedules'),
+        where('seasonId', '==', seasonId)
+      );
+      const schedulesSnap = await getDocs(schedulesQuery);
+      
+      const bookings: ExistingBooking[] = [];
+      let currentAgeGroupGames: any[] = [];
+      
+      schedulesSnap.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        const ageGroup = data.ageGroup;
+        const games = data.games as LeagueGame[] || [];
+        
+        if (ageGroup === currentAgeGroup) {
+          // Convert games for editing
+          const teamsInAg = teams.filter(t => t.ageGroup === currentAgeGroup);
+          currentAgeGroupGames = games.map((game, idx) => {
+            const gameDate = game.dateTime instanceof Timestamp 
+              ? game.dateTime.toDate() 
+              : new Date(game.dateTime as any);
+            const hours = gameDate.getHours().toString().padStart(2, '0');
+            const minutes = gameDate.getMinutes().toString().padStart(2, '0');
+            const time24 = `${hours}:${minutes}`;
+            const hour12 = gameDate.getHours() > 12 ? gameDate.getHours() - 12 : gameDate.getHours() === 0 ? 12 : gameDate.getHours();
+            const ampm = gameDate.getHours() >= 12 ? 'PM' : 'AM';
+            
+            return {
+              id: game.id || `game-${idx}`,
+              weekNumber: game.week || 1,
+              date: gameDate.toISOString(),
+              homeTeam: teamsInAg.find(t => t.id === game.homeTeamId) || null,
+              awayTeam: teamsInAg.find(t => t.id === game.awayTeamId) || null,
+              time: {
+                id: `time-${time24}`,
+                time: time24,
+                label: `${hour12}:${minutes.padStart(2, '0')} ${ampm}`,
+              },
+              venue: game.location ? {
+                id: `venue-${game.location.toLowerCase().replace(/\s+/g, '-')}`,
+                name: game.location,
+                address: game.locationAddress || '',
+              } : null,
+              status: 'complete' as const,
+            };
+          });
+          console.log(`[URL Param] Loaded ${currentAgeGroupGames.length} existing games for ${currentAgeGroup}`);
+          return;
+        }
+        
+        // Other age groups for conflict detection
+        games.forEach(game => {
+          const gameDate = game.dateTime instanceof Timestamp 
+            ? game.dateTime.toDate() 
+            : new Date(game.dateTime as any);
+          const hours = gameDate.getHours().toString().padStart(2, '0');
+          const minutes = gameDate.getMinutes().toString().padStart(2, '0');
+          bookings.push({
+            date: gameDate,
+            time: `${hours}:${minutes}`,
+            venueId: game.location?.toLowerCase().replace(/\s+/g, '-') || '',
+            venueName: game.location || '',
+            ageGroup: ageGroup,
+            homeTeam: game.homeTeamName || '',
+            awayTeam: game.awayTeamName || '',
+          });
+        });
+      });
+      
+      setExistingBookings(bookings);
+      setExistingGamesForEdit(currentAgeGroupGames);
+    } catch (error) {
+      console.error('Error loading bookings for URL param:', error);
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
 
   const loadData = async () => {
     if (!seasonId || !leagueData) return;
@@ -153,19 +255,50 @@ export default function ScheduleStudioWrapper() {
       // Convert studio games to LeagueGame format
       const leagueGames = games
         .filter(g => g.homeTeam && g.awayTeam) // Only complete games
-        .map((game, idx) => ({
-          id: `game-${Date.now()}-${idx}`,
-          homeTeamId: game.homeTeam.id,
-          homeTeamName: game.homeTeam.name,
-          awayTeamId: game.awayTeam.id,
-          awayTeamName: game.awayTeam.name,
-          dateTime: game.date ? Timestamp.fromDate(new Date(game.date)) : Timestamp.now(),
-          location: game.venue?.name || '',
-          locationAddress: game.venue?.address || '',
-          week: game.weekNumber || 1,
-          status: 'scheduled' as const,
-          ageGroup: selectedAgeGroup,
-        }));
+        .map((game, idx) => {
+          // Combine date and time properly
+          let gameDateTime: Date;
+          
+          // Debug: Log the input values
+          console.log(`Game ${idx}: date =`, game.date, `time =`, game.time);
+          
+          if (game.date && game.time?.time) {
+            // Parse the time (e.g., "18:00" or "14:30")
+            const [hours, minutes] = game.time.time.split(':').map(Number);
+            
+            // game.date might be a Date object or a string
+            const baseDate = game.date instanceof Date 
+              ? new Date(game.date.getTime()) // Clone the Date
+              : new Date(game.date);          // Parse the string
+            
+            // Important: Set the time on the date
+            baseDate.setHours(hours, minutes, 0, 0);
+            gameDateTime = baseDate;
+            
+            console.log(`Game ${idx}: Parsed hours=${hours}, minutes=${minutes}, final dateTime =`, gameDateTime.toISOString());
+          } else if (game.date) {
+            gameDateTime = game.date instanceof Date ? new Date(game.date.getTime()) : new Date(game.date);
+            console.log(`Game ${idx}: No time, using date as-is:`, gameDateTime.toISOString());
+          } else {
+            gameDateTime = new Date();
+            console.log(`Game ${idx}: No date, using now:`, gameDateTime.toISOString());
+          }
+          
+          return {
+            id: `game-${Date.now()}-${idx}`,
+            homeTeamId: game.homeTeam.id,
+            homeTeamName: game.homeTeam.name,
+            awayTeamId: game.awayTeam.id,
+            awayTeamName: game.awayTeam.name,
+            dateTime: Timestamp.fromDate(gameDateTime),
+            location: game.venue?.name || '',
+            locationAddress: game.venue?.address || '',
+            week: game.weekNumber || 1,
+            status: 'scheduled' as const,
+            ageGroup: selectedAgeGroup,
+            timeLabel: game.time?.label || '', // Store time label for display
+          };
+        });
 
       // Check for existing schedule for this age group
       const existingQuery = query(
@@ -330,12 +463,13 @@ export default function ScheduleStudioWrapper() {
   };
 
   // Load existing bookings from OTHER age groups for conflict detection
+  // Also load existing games for the CURRENT age group for editing
   const loadExistingBookings = async (currentAgeGroup: string) => {
     if (!seasonId) return;
     
     setLoadingBookings(true);
     try {
-      // Load all schedules for this season EXCEPT the current age group
+      // Load all schedules for this season
       const schedulesQuery = query(
         collection(db, 'leagueSchedules'),
         where('seasonId', '==', seasonId)
@@ -343,23 +477,57 @@ export default function ScheduleStudioWrapper() {
       const schedulesSnap = await getDocs(schedulesQuery);
       
       const bookings: ExistingBooking[] = [];
+      let currentAgeGroupGames: any[] = [];
+      let currentAgeGroupWeeks: any[] = [];
       
       schedulesSnap.docs.forEach(doc => {
         const data = doc.data();
         const ageGroup = data.ageGroup;
-        
-        // Skip current age group (we're editing it)
-        if (ageGroup === currentAgeGroup) return;
-        
         const games = data.games as LeagueGame[] || [];
         
+        // If this is the current age group, save games for editing
+        if (ageGroup === currentAgeGroup) {
+          currentAgeGroupWeeks = data.weeks || [];
+          // Convert LeagueGame format to ScheduledGame format for the studio
+          const teamsInAgeGroup = teams.filter(t => t.ageGroup === currentAgeGroup);
+          currentAgeGroupGames = games.map((game, idx) => {
+            const gameDate = game.dateTime instanceof Timestamp 
+              ? game.dateTime.toDate() 
+              : new Date(game.dateTime as any);
+            const hours = gameDate.getHours().toString().padStart(2, '0');
+            const minutes = gameDate.getMinutes().toString().padStart(2, '0');
+            const time24 = `${hours}:${minutes}`;
+            const hour12 = gameDate.getHours() > 12 ? gameDate.getHours() - 12 : gameDate.getHours() === 0 ? 12 : gameDate.getHours();
+            const ampm = gameDate.getHours() >= 12 ? 'PM' : 'AM';
+            
+            return {
+              id: game.id || `game-${idx}`,
+              weekNumber: game.week || 1,
+              date: gameDate.toISOString(),
+              homeTeam: teamsInAgeGroup.find(t => t.id === game.homeTeamId) || null,
+              awayTeam: teamsInAgeGroup.find(t => t.id === game.awayTeamId) || null,
+              time: {
+                id: `time-${time24}`,
+                time: time24,
+                label: `${hour12}:${minutes.padStart(2, '0')} ${ampm}`,
+              },
+              venue: game.location ? {
+                id: `venue-${game.location.toLowerCase().replace(/\s+/g, '-')}`,
+                name: game.location,
+                address: game.locationAddress || '',
+              } : null,
+              status: 'complete' as const,
+            };
+          });
+          console.log(`Loaded ${currentAgeGroupGames.length} existing games for ${currentAgeGroup}`);
+          return; // Don't add to bookings
+        }
+        
+        // For other age groups, add to bookings for conflict detection
         games.forEach(game => {
-          // Convert Firestore Timestamp to Date
           const gameDate = game.dateTime instanceof Timestamp 
             ? game.dateTime.toDate() 
             : new Date(game.dateTime as any);
-          
-          // Convert to 24hr time for conflict detection
           const hours = gameDate.getHours().toString().padStart(2, '0');
           const minutes = gameDate.getMinutes().toString().padStart(2, '0');
           const time24 = `${hours}:${minutes}`;
@@ -377,6 +545,7 @@ export default function ScheduleStudioWrapper() {
       });
       
       setExistingBookings(bookings);
+      setExistingGamesForEdit(currentAgeGroupGames);
       console.log(`Loaded ${bookings.length} existing bookings from other age groups`);
     } catch (error) {
       console.error('Error loading existing bookings:', error);
@@ -455,6 +624,7 @@ export default function ScheduleStudioWrapper() {
         teams={teamsInAgeGroup}
         seasonStartDate={startDate}
         existingBookings={existingBookings}
+        existingGames={existingGamesForEdit}
         onSave={handleSaveSchedule}
         onClose={handleClose}
       />
