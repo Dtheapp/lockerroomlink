@@ -430,7 +430,7 @@ export default function LeagueSeasons() {
                           }`}
                         >
                           <Calendar className="w-3.5 h-3.5" />
-                          Edit Schedule
+                          {season.gamesCount > 0 ? 'Edit Schedule' : 'Build Schedule'}
                         </button>
                       </div>
                     )}

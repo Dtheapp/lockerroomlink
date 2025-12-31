@@ -7,6 +7,9 @@ interface UnsavedChangesContextType {
   setSaveChanges: (fn: (() => Promise<void>) | null) => void;
   clearChanges: (() => void) | null;
   setClearChanges: (fn: (() => void) | null) => void;
+  // Fullscreen overlay state - hides sidebar collapse button when true
+  isFullscreenOpen: boolean;
+  setIsFullscreenOpen: (value: boolean) => void;
 }
 
 const UnsavedChangesContext = createContext<UnsavedChangesContextType | undefined>(undefined);
@@ -15,6 +18,7 @@ export const UnsavedChangesProvider: React.FC<{ children: ReactNode }> = ({ chil
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [saveChanges, setSaveChanges] = useState<(() => Promise<void>) | null>(null);
   const [clearChanges, setClearChanges] = useState<(() => void) | null>(null);
+  const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
 
   return (
     <UnsavedChangesContext.Provider 
@@ -25,6 +29,8 @@ export const UnsavedChangesProvider: React.FC<{ children: ReactNode }> = ({ chil
         setSaveChanges: useCallback((fn) => setSaveChanges(() => fn), []),
         clearChanges,
         setClearChanges: useCallback((fn) => setClearChanges(() => fn), []),
+        isFullscreenOpen,
+        setIsFullscreenOpen,
       }}
     >
       {children}

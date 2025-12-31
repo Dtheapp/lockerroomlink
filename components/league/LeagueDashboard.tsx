@@ -438,6 +438,11 @@ export const LeagueDashboard: React.FC = () => {
   const upcomingSeason = seasons.find(s => s.status === 'upcoming');
   const displaySeason = activeSeason || upcomingSeason; // Show active first, then upcoming
   
+  // Check if a season has schedules created
+  const seasonHasSchedule = (seasonId: string): boolean => {
+    return schedules.some(s => s.leagueSeasonId === seasonId || (s as any).seasonId === seasonId);
+  };
+  
   // Live games (status === 'live')
   const liveGames = todaysGames.filter(g => g.status === 'live');
   const upcomingGames = todaysGames.filter(g => g.status !== 'live' && g.status !== 'completed');
@@ -1150,7 +1155,7 @@ export const LeagueDashboard: React.FC = () => {
                     }`}
                   >
                     <Calendar className="w-3.5 h-3.5" />
-                    Edit Schedule
+                    {seasonHasSchedule(displaySeason.id) ? 'Edit Schedule' : 'Build Schedule'}
                   </Link>
                 ) : (
                   <div
@@ -1162,7 +1167,7 @@ export const LeagueDashboard: React.FC = () => {
                     }`}
                   >
                     <Calendar className="w-3.5 h-3.5" />
-                    Edit Schedule
+                    {seasonHasSchedule(displaySeason.id) ? 'Edit Schedule' : 'Build Schedule'}
                     <Lock className="w-3 h-3 ml-1" />
                   </div>
                 )}

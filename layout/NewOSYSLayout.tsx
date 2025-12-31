@@ -26,7 +26,7 @@ const NewOSYSLayout: React.FC = () => {
   const { teamData, userData } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { config } = useAppConfig();
-  const { hasUnsavedChanges, setHasUnsavedChanges } = useUnsavedChanges();
+  const { hasUnsavedChanges, setHasUnsavedChanges, isFullscreenOpen } = useUnsavedChanges();
   const { unread, markAsRead } = useUnreadMessages();
   const { hasPlaybook } = useSportConfig();
   const { balance: creditBalance, loading: creditsLoading } = useCredits();
@@ -293,18 +293,21 @@ const NewOSYSLayout: React.FC = () => {
       )}
 
       {/* Sidebar Collapse Toggle Button - Desktop only - matches Design Studio style */}
-      <button
-        onClick={toggleSidebarCollapse}
-        className={`hidden lg:flex fixed top-1/2 -translate-y-1/2 z-[60] w-5 h-12 items-center justify-center rounded-r-md transition-colors ${
-          theme === 'dark' 
-            ? 'bg-zinc-800 hover:bg-zinc-700 text-slate-400 hover:text-white border border-l-0 border-zinc-700' 
-            : 'bg-slate-200 hover:bg-slate-300 text-slate-600 hover:text-slate-900 border border-l-0 border-slate-300'
-        }`}
-        style={{ left: isSidebarCollapsed ? '64px' : '256px' }}
-        title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-      >
-        {isSidebarCollapsed ? '›' : '‹'}
-      </button>
+      {/* Hidden when fullscreen overlay is open (e.g., Schedule Studio) */}
+      {!isFullscreenOpen && (
+        <button
+          onClick={toggleSidebarCollapse}
+          className={`hidden lg:flex fixed top-1/2 -translate-y-1/2 z-40 w-5 h-12 items-center justify-center rounded-r-md transition-colors ${
+            theme === 'dark' 
+              ? 'bg-zinc-800 hover:bg-zinc-700 text-slate-400 hover:text-white border border-l-0 border-zinc-700' 
+              : 'bg-slate-200 hover:bg-slate-300 text-slate-600 hover:text-slate-900 border border-l-0 border-slate-300'
+          }`}
+          style={{ left: isSidebarCollapsed ? '64px' : '256px' }}
+          title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {isSidebarCollapsed ? '›' : '‹'}
+        </button>
+      )}
 
       {/* Sidebar */}
       <aside className={`

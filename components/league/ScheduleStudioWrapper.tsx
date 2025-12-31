@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { collection, query, where, getDocs, doc, getDoc, addDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, addDoc, updateDoc, serverTimestamp, Timestamp, writeBatch, deleteDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { Loader2, AlertCircle, ChevronLeft, Users, Calendar } from 'lucide-react';
 import { toastSuccess, toastError, toastWarning } from '../../services/toast';
-import ScheduleStudio from './ScheduleStudio';
+import ScheduleStudio, { ExistingBooking } from './ScheduleStudio';
 import { LeagueSeason, Program, Team } from '../../types';
 
 interface TeamWithProgram {
@@ -18,6 +18,21 @@ interface TeamWithProgram {
   homeField?: string;
   homeFieldAddress?: string;
   color?: string;
+  logoUrl?: string;
+}
+
+interface LeagueGame {
+  id: string;
+  homeTeamId: string;
+  homeTeamName: string;
+  awayTeamId: string;
+  awayTeamName: string;
+  dateTime: Timestamp;
+  location: string;
+  locationAddress?: string;
+  week: number;
+  status: string;
+  ageGroup: string;
 }
 
 export default function ScheduleStudioWrapper() {
@@ -36,6 +51,8 @@ export default function ScheduleStudioWrapper() {
   const [ageGroups, setAgeGroups] = useState<string[]>([]);
   const [scheduledAgeGroups, setScheduledAgeGroups] = useState<string[]>([]);
   const [showStudio, setShowStudio] = useState(!!ageGroupParam);
+  const [existingBookings, setExistingBookings] = useState<ExistingBooking[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -91,6 +108,7 @@ export default function ScheduleStudioWrapper() {
               homeField: data.homeField?.name,
               homeFieldAddress: data.homeField?.address,
               color: data.primaryColor,
+              logoUrl: data.logo,
             });
           });
         }
@@ -156,19 +174,21 @@ export default function ScheduleStudioWrapper() {
         where('ageGroup', '==', selectedAgeGroup)
       );
       const existingSnap = await getDocs(existingQuery);
+      
+      let scheduleDocId: string;
 
       if (existingSnap.docs.length > 0) {
         // Update existing schedule
         const existingDoc = existingSnap.docs[0];
+        scheduleDocId = existingDoc.id;
         await updateDoc(doc(db, 'leagueSchedules', existingDoc.id), {
           games: leagueGames,
           updatedAt: serverTimestamp(),
           updatedBy: user?.uid,
         });
-        toastSuccess(`Updated schedule for ${selectedAgeGroup}`);
       } else {
         // Create new schedule
-        await addDoc(collection(db, 'leagueSchedules'), {
+        const newDoc = await addDoc(collection(db, 'leagueSchedules'), {
           leagueId: leagueData.id,
           seasonId: seasonId,
           ageGroup: selectedAgeGroup,
@@ -179,8 +199,117 @@ export default function ScheduleStudioWrapper() {
           createdBy: user?.uid,
           updatedAt: serverTimestamp(),
         });
-        toastSuccess(`Created schedule for ${selectedAgeGroup} with ${leagueGames.length} games`);
+        scheduleDocId = newDoc.id;
       }
+
+      // =========================================================================
+      // SYNC GAMES TO TEAM CALENDARS
+      // For each game, create entries in both teams' games subcollections
+      // This enables team views (calendar, upcoming, gameday) to see league games
+      // Games are marked as leagueManaged so teams can't edit them
+      // =========================================================================
+      
+      const completeGames = games.filter(g => g.homeTeam && g.awayTeam);
+      
+      // First, delete existing league-managed games for this schedule to avoid duplicates
+      for (const teamData of teams) {
+        const teamGamesQuery = query(
+          collection(db, 'teams', teamData.id, 'games'),
+          where('leagueScheduleId', '==', scheduleDocId)
+        );
+        const existingTeamGames = await getDocs(teamGamesQuery);
+        
+        for (const gameDoc of existingTeamGames.docs) {
+          // Don't delete games that have scores (completed games with stats)
+          const data = gameDoc.data();
+          if (data.status === 'completed' && (data.ourScore !== undefined || data.statsEntered)) {
+            console.log(`Skipping deletion of completed game ${gameDoc.id} with stats`);
+            continue;
+          }
+          await deleteDoc(gameDoc.ref);
+        }
+      }
+      
+      // Now create fresh game entries for each team
+      const batch = writeBatch(db);
+      let gameNumber = 1;
+      
+      for (const game of completeGames) {
+        const gameDate = game.date ? new Date(game.date) : new Date();
+        const dateStr = gameDate.toISOString().split('T')[0];
+        const timeStr = game.time?.time || '12:00';
+        
+        // Create game for HOME team
+        const homeTeamGameRef = doc(collection(db, 'teams', game.homeTeam.id, 'games'));
+        batch.set(homeTeamGameRef, {
+          seasonId: seasonId,
+          teamId: game.homeTeam.id,
+          gameNumber: gameNumber,
+          opponent: game.awayTeam.name,
+          opponentTeamId: game.awayTeam.id,
+          opponentLogoUrl: game.awayTeam.logoUrl || null,
+          date: dateStr,
+          time: timeStr,
+          location: game.venue?.name || game.homeTeam.homeField || 'TBD',
+          address: game.venue?.address || game.homeTeam.homeFieldAddress || '',
+          isHome: true,
+          isPlayoff: false,
+          tags: [],
+          status: 'scheduled',
+          ticketsEnabled: false,
+          statsEntered: false,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+          createdBy: user?.uid || 'system',
+          // League management fields - teams cannot edit these games
+          leagueManaged: true,
+          leagueId: leagueData.id,
+          leagueScheduleId: scheduleDocId,
+          leagueGameId: leagueGames[gameNumber - 1]?.id || `lg-${Date.now()}-${gameNumber}`,
+          ageGroup: selectedAgeGroup,
+          week: game.weekNumber || 1,
+        });
+        
+        // Create game for AWAY team
+        const awayTeamGameRef = doc(collection(db, 'teams', game.awayTeam.id, 'games'));
+        batch.set(awayTeamGameRef, {
+          seasonId: seasonId,
+          teamId: game.awayTeam.id,
+          gameNumber: gameNumber,
+          opponent: game.homeTeam.name,
+          opponentTeamId: game.homeTeam.id,
+          opponentLogoUrl: game.homeTeam.logoUrl || null,
+          date: dateStr,
+          time: timeStr,
+          location: game.venue?.name || game.homeTeam.homeField || 'TBD',
+          address: game.venue?.address || game.homeTeam.homeFieldAddress || '',
+          isHome: false, // Away team
+          isPlayoff: false,
+          tags: [],
+          status: 'scheduled',
+          ticketsEnabled: false,
+          statsEntered: false,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+          createdBy: user?.uid || 'system',
+          // League management fields - teams cannot edit these games
+          leagueManaged: true,
+          leagueId: leagueData.id,
+          leagueScheduleId: scheduleDocId,
+          leagueGameId: leagueGames[gameNumber - 1]?.id || `lg-${Date.now()}-${gameNumber}`,
+          ageGroup: selectedAgeGroup,
+          week: game.weekNumber || 1,
+        });
+        
+        gameNumber++;
+      }
+      
+      // Commit all team game writes at once
+      await batch.commit();
+      
+      console.log(`Synced ${completeGames.length} games to ${teams.length * 2} team calendars`);
+      
+      toastSuccess(`Schedule saved! ${completeGames.length} games synced to team calendars`);
 
       // Navigate back to season schedule
       navigate(`/league/seasons/${seasonId}`);
@@ -194,9 +323,74 @@ export default function ScheduleStudioWrapper() {
     if (showStudio) {
       setShowStudio(false);
       setSelectedAgeGroup(null);
+      setExistingBookings([]); // Clear bookings when closing
     } else {
       navigate(`/league/seasons/${seasonId}`);
     }
+  };
+
+  // Load existing bookings from OTHER age groups for conflict detection
+  const loadExistingBookings = async (currentAgeGroup: string) => {
+    if (!seasonId) return;
+    
+    setLoadingBookings(true);
+    try {
+      // Load all schedules for this season EXCEPT the current age group
+      const schedulesQuery = query(
+        collection(db, 'leagueSchedules'),
+        where('seasonId', '==', seasonId)
+      );
+      const schedulesSnap = await getDocs(schedulesQuery);
+      
+      const bookings: ExistingBooking[] = [];
+      
+      schedulesSnap.docs.forEach(doc => {
+        const data = doc.data();
+        const ageGroup = data.ageGroup;
+        
+        // Skip current age group (we're editing it)
+        if (ageGroup === currentAgeGroup) return;
+        
+        const games = data.games as LeagueGame[] || [];
+        
+        games.forEach(game => {
+          // Convert Firestore Timestamp to Date
+          const gameDate = game.dateTime instanceof Timestamp 
+            ? game.dateTime.toDate() 
+            : new Date(game.dateTime as any);
+          
+          // Convert to 24hr time for conflict detection
+          const hours = gameDate.getHours().toString().padStart(2, '0');
+          const minutes = gameDate.getMinutes().toString().padStart(2, '0');
+          const time24 = `${hours}:${minutes}`;
+          
+          bookings.push({
+            date: gameDate,
+            time: time24,
+            venueId: game.location?.toLowerCase().trim() || '',
+            venueName: game.location || 'Unknown Venue',
+            ageGroup: ageGroup,
+            homeTeam: game.homeTeamName,
+            awayTeam: game.awayTeamName,
+          });
+        });
+      });
+      
+      setExistingBookings(bookings);
+      console.log(`Loaded ${bookings.length} existing bookings from other age groups`);
+    } catch (error) {
+      console.error('Error loading existing bookings:', error);
+      // Non-fatal - continue without conflict detection for other age groups
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
+
+  // Handle age group selection
+  const handleSelectAgeGroup = async (ag: string) => {
+    setSelectedAgeGroup(ag);
+    await loadExistingBookings(ag);
+    setShowStudio(true);
   };
 
   const teamsInAgeGroup = selectedAgeGroup 
@@ -230,6 +424,25 @@ export default function ScheduleStudioWrapper() {
 
   // If we have a selected age group and showing studio
   if (showStudio && selectedAgeGroup) {
+    // Show loading while fetching existing bookings
+    if (loadingBookings) {
+      return (
+        <div className={`min-h-screen flex items-center justify-center ${
+          theme === 'dark' ? 'bg-zinc-900' : 'bg-slate-50'
+        }`}>
+          <div className="text-center">
+            <Loader2 className="w-10 h-10 animate-spin text-purple-500 mx-auto mb-4" />
+            <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+              Checking for Conflicts...
+            </h2>
+            <p className={`text-sm mt-2 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+              Loading schedules from other age groups
+            </p>
+          </div>
+        </div>
+      );
+    }
+    
     const startDate = season.startDate instanceof Timestamp 
       ? season.startDate.toDate() 
       : new Date(season.startDate as any);
@@ -241,6 +454,7 @@ export default function ScheduleStudioWrapper() {
         ageGroup={selectedAgeGroup}
         teams={teamsInAgeGroup}
         seasonStartDate={startDate}
+        existingBookings={existingBookings}
         onSave={handleSaveSchedule}
         onClose={handleClose}
       />
@@ -299,12 +513,11 @@ export default function ScheduleStudioWrapper() {
             return (
               <button
                 key={ag}
-                onClick={() => {
-                  setSelectedAgeGroup(ag);
-                  setShowStudio(true);
-                }}
+                onClick={() => handleSelectAgeGroup(ag)}
+                disabled={loadingBookings}
                 className={`
                   p-5 rounded-2xl border text-left transition-all group
+                  ${loadingBookings ? 'opacity-50 cursor-wait' : ''}
                   ${isScheduled
                     ? theme === 'dark'
                       ? 'bg-green-500/10 border-green-500/30 hover:border-green-500/50'

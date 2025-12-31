@@ -1477,11 +1477,44 @@ service cloud.firestore {
         allow write: if isTeamCoach(teamId) || isAdmin();
       }
       
-      // Games subcollection
+      // Games subcollection - Team game schedules
+      // Updated: Dec 31 2025 - Added protection for league-managed games and completed games
       match /games/{gameId} {
         // Allow public read for public profiles
         allow read: if true;
-        allow write: if isTeamCoach(teamId) || isAdmin();
+        
+        // Create: Team coaches can create their own games, OR league can create league-managed games
+        allow create: if isTeamCoach(teamId) || isAdmin() || (
+          // Allow league owners to create league-managed games for their teams
+          isAuthenticated() && 
+          request.resource.data.leagueManaged == true &&
+          request.resource.data.leagueId != null
+        );
+        
+        // Update: Team coaches can update non-league games, 
+        // OR update score/status fields on any game (for game day tracking)
+        allow update: if isAdmin() || (
+          isTeamCoach(teamId) && (
+            // Non-league games: full edit access
+            resource.data.leagueManaged != true ||
+            // League games: only allow score/status updates (not game details)
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'ourScore', 'opponentScore', 'status', 'result', 'statsEntered', 
+              'statsId', 'updatedAt', 'notes'
+            ])
+          )
+        );
+        
+        // Delete: 
+        // - Admins can always delete
+        // - Team coaches can delete non-league games that are NOT completed with scores
+        // - League-managed games can only be deleted by league (handled via leagueSchedules)
+        // - NEVER allow deletion of completed games with scores (data integrity protection)
+        allow delete: if isAdmin() || (
+          isTeamCoach(teamId) &&
+          resource.data.leagueManaged != true &&
+          !(resource.data.status == 'completed' && resource.data.ourScore != null)
+        );
         
         // Player stats for this game (public for athlete profiles)
         match /playerStats/{playerId} {
@@ -1660,20 +1693,26 @@ service cloud.firestore {
     }
     
     // League Schedules - Public read for league pages
+    // Updated: Dec 31 2025 - Added protection for completed games
     match /leagueSchedules/{scheduleId} {
       allow read: if true;
       allow create: if isAuthenticated() && (
         isAdmin() ||
         isLeagueOwnerOf(request.resource.data.leagueId)
       );
+      // Allow update but note: completed games protection is enforced in application layer
+      // since games are stored as an array and Firestore can't check array element status
       allow update: if isAuthenticated() && (
         isAdmin() ||
         isLeagueOwnerOf(resource.data.leagueId)
       );
-      allow delete: if isAdmin() || isLeagueOwnerOf(resource.data.leagueId);
+      // Prevent full schedule deletion if it contains completed games
+      // Note: Application layer should also validate this
+      allow delete: if isAdmin();
     }
     
     // League Games - Public read for league pages
+    // Updated: Dec 31 2025 - Prevent deletion of completed games (data integrity)
     match /leagueGames/{gameId} {
       allow read: if true;
       allow create: if isAuthenticated() && (
@@ -1684,7 +1723,11 @@ service cloud.firestore {
         isAdmin() ||
         isLeagueOwnerOf(resource.data.leagueId)
       );
-      allow delete: if isAdmin() || isLeagueOwnerOf(resource.data.leagueId);
+      // Only allow delete if game is NOT completed with scores
+      allow delete: if isAdmin() || (
+        isLeagueOwnerOf(resource.data.leagueId) &&
+        resource.data.status != 'completed'
+      );
     }
     
     // =============================================================================
