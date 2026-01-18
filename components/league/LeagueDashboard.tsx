@@ -10,21 +10,20 @@
  * - Premium gradient design
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { 
   getProgramsByLeague,
   getLeagueSeasons,
-  getLeagueSchedules,
   getLeagueRequestsByLeague,
   getSeasonFinalizationStatus,
   unfinalizeTeamsForSeason
 } from '../../services/leagueService';
-import { collection, getDocs, query, where, orderBy, Timestamp, doc, updateDoc, serverTimestamp, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, Timestamp, doc, updateDoc, serverTimestamp, deleteDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import type { Program, LeagueSeason, LeagueSchedule, LeagueRequest, Team, TeamGame } from '../../types';
+import type { Program, LeagueSeason, LeagueSchedule, LeagueRequest, Team, TeamGame, League } from '../../types';
 import { 
   Building2, 
   Users, 
@@ -57,9 +56,66 @@ import {
 } from 'lucide-react';
 
 export const LeagueDashboard: React.FC = () => {
-  const { user, userData, leagueData } = useAuth();
+  const { user, userData, leagueData: contextLeagueData } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
+  
+  // Local league data state - allows manual refresh
+  const [localLeagueData, setLocalLeagueData] = useState<League | null>(null);
+  const [leagueLoading, setLeagueLoading] = useState(true);
+  
+  // Use local league data if available, otherwise fall back to context
+  const leagueData = localLeagueData || contextLeagueData;
+  
+  // Function to load league for current sport
+  const loadLeagueForSport = useCallback(async () => {
+    if (!user) {
+      setLeagueLoading(false);
+      return;
+    }
+    
+    const selectedSport = localStorage.getItem('commissioner_selected_sport')?.toLowerCase() || 'football';
+    
+    try {
+      const leaguesQuery = query(
+        collection(db, 'leagues'),
+        where('ownerId', '==', user.uid)
+      );
+      const leaguesSnap = await getDocs(leaguesQuery);
+      
+      const matchingLeague = leaguesSnap.docs.find(doc => {
+        const data = doc.data();
+        return data.sport?.toLowerCase() === selectedSport;
+      });
+      
+      if (matchingLeague) {
+        setLocalLeagueData({ id: matchingLeague.id, ...matchingLeague.data() } as League);
+      } else {
+        setLocalLeagueData(null);
+      }
+    } catch (error) {
+      console.error('Error loading league for sport:', error);
+      setLocalLeagueData(null);
+    } finally {
+      setLeagueLoading(false);
+    }
+  }, [user]);
+  
+  // Load league on mount and when sport changes
+  useEffect(() => {
+    loadLeagueForSport();
+    
+    // Listen for sport changes
+    const handleSportChange = () => {
+      setLeagueLoading(true);
+      loadLeagueForSport();
+    };
+    
+    window.addEventListener('commissioner-sport-changed', handleSportChange);
+    return () => {
+      window.removeEventListener('commissioner-sport-changed', handleSportChange);
+    };
+  }, [loadLeagueForSport]);
   
   const [programs, setPrograms] = useState<Program[]>([]);
   const [seasons, setSeasons] = useState<LeagueSeason[]>([]);
@@ -80,6 +136,7 @@ export const LeagueDashboard: React.FC = () => {
   const [memberProgramsExpanded, setMemberProgramsExpanded] = useState(true);
   const [seasonToDelete, setSeasonToDelete] = useState<LeagueSeason | null>(null);
   const [deletingSeason, setDeletingSeason] = useState(false);
+  const [teamCountsLoaded, setTeamCountsLoaded] = useState(false);
   
   // Team finalization state
   const [finalizationStatus, setFinalizationStatus] = useState<{
@@ -117,9 +174,16 @@ export const LeagueDashboard: React.FC = () => {
           }
         }
         
-        // Load schedules
-        const schedulesData = await getLeagueSchedules(leagueData.id!);
-        setSchedules(schedulesData);
+        // Load schedules from leagueSchedules collection for active/upcoming season
+        if (activeSeason?.id) {
+          const schedulesQuery = query(
+            collection(db, 'leagueSchedules'),
+            where('seasonId', '==', activeSeason.id)
+          );
+          const schedulesSnap = await getDocs(schedulesQuery);
+          const schedulesData = schedulesSnap.docs.map(d => ({ id: d.id, ...d.data() })) as LeagueSchedule[];
+          setSchedules(schedulesData);
+        }
         
         // Load pending requests
         const requestsData = await getLeagueRequestsByLeague(leagueData.id!);
@@ -243,27 +307,31 @@ export const LeagueDashboard: React.FC = () => {
     return () => unsubscribe();
   }, [leagueData?.id, seasons]);
 
-  // Load team counts for programs
+  // Load team counts and age groups for programs - always load fresh counts for this league
   useEffect(() => {
-    if (!leagueData?.id || programs.length === 0) return;
+    if (!leagueData?.id || programs.length === 0 || teamCountsLoaded) return;
     
     const loadTeamCounts = async () => {
       const programsWithCounts = await Promise.all(
         programs.map(async (program) => {
           const teamsSnap = await getDocs(
-            query(collection(db, 'teams'), where('programId', '==', program.id))
+            query(
+              collection(db, 'teams'), 
+              where('programId', '==', program.id),
+              where('leagueId', '==', leagueData.id)
+            )
           );
-          return { ...program, teamCount: teamsSnap.size };
+          // Get unique age groups from teams
+          const ageGroups = [...new Set(teamsSnap.docs.map(d => d.data().ageGroup).filter(Boolean))] as string[];
+          return { ...program, teamCount: teamsSnap.size, leagueAgeGroups: ageGroups };
         })
       );
       setPrograms(programsWithCounts);
+      setTeamCountsLoaded(true);
     };
     
-    // Only load if teamCount is missing from first program
-    if (programs.length > 0 && programs[0].teamCount === undefined) {
-      loadTeamCounts();
-    }
-  }, [leagueData?.id, programs.length]);
+    loadTeamCounts();
+  }, [leagueData?.id, programs.length, teamCountsLoaded]);
 
   // Handle unlocking a program's teams
   const handleUnlockProgram = async (programId: string) => {
@@ -286,7 +354,7 @@ export const LeagueDashboard: React.FC = () => {
     }
   };
 
-  if (loading) {
+  if (loading || leagueLoading) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${
         theme === 'dark' ? 'bg-zinc-900' : 'bg-slate-50'
@@ -325,8 +393,13 @@ export const LeagueDashboard: React.FC = () => {
     );
   }
 
-  // No league yet - show create league flow
+  // No league yet for this sport - show create league flow
   if (!leagueData) {
+    // Get current selected sport from localStorage
+    const selectedSport = typeof window !== 'undefined' 
+      ? localStorage.getItem('commissioner_selected_sport') || 'Football'
+      : 'Football';
+    
     return (
       <div className={`min-h-screen pb-20 ${
         theme === 'dark' 
@@ -352,19 +425,19 @@ export const LeagueDashboard: React.FC = () => {
             <h1 className={`text-2xl font-bold mb-2 ${
               theme === 'dark' ? 'text-white' : 'text-slate-900'
             }`}>
-              🎉 Welcome to OSYS League Management!
+              No {selectedSport} League Yet
             </h1>
             <p className={`text-lg mb-6 ${
               theme === 'dark' ? 'text-slate-300' : 'text-slate-600'
             }`}>
-              You're ready to build your league. Let's create your first one!
+              You don't have a {selectedSport.toLowerCase()} league set up. Create one to get started!
             </p>
             <Link
               to="/league/create"
               className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white font-semibold rounded-xl transition-all shadow-lg shadow-purple-500/25"
             >
               <Plus className="w-5 h-5" />
-              Create Your First League
+              Create {selectedSport} League
             </Link>
           </div>
 
@@ -478,8 +551,8 @@ export const LeagueDashboard: React.FC = () => {
                   ? 'bg-gradient-to-br from-purple-600/30 to-blue-600/30 border border-purple-500/30'
                   : 'bg-gradient-to-br from-purple-100 to-blue-100 border border-purple-200'
               }`}>
-                {leagueData?.logo ? (
-                  <img src={leagueData.logo} alt="" className="w-full h-full object-cover" />
+                {leagueData?.logoUrl ? (
+                  <img src={leagueData.logoUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <Building2 className={`w-8 h-8 ${
                     theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
@@ -1069,24 +1142,39 @@ export const LeagueDashboard: React.FC = () => {
                     {programs.map(program => {
                       const pFinal = finalizationStatus.programFinalizations[program.id!];
                       const isFinalized = pFinal?.finalized;
+                      // Use sport-specific name if available
+                      const sportName = (program as any).sportNames?.[leagueData?.sport || ''] || program.name;
+                      // Get age groups from loaded team data (leagueAgeGroups)
+                      const ageGroupsList = (program as any).leagueAgeGroups || [];
+                      // Check if any schedules exist for this season
+                      const hasSchedules = schedules.length > 0;
                       return (
                         <div key={program.id} className="flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             {isFinalized ? (
                               <CheckCircle2 className="w-3 h-3 text-green-500" />
                             ) : (
                               <Clock className="w-3 h-3 text-amber-500" />
                             )}
                             <span className={theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}>
-                              {program.name}
+                              {sportName}
                             </span>
                             {isFinalized && (
                               <span className={theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}>
                                 ({pFinal.teamCount} teams)
                               </span>
                             )}
+                            {ageGroupsList.length > 0 && (
+                              <div className="flex gap-1 flex-wrap">
+                                {ageGroupsList.map((ag: string) => (
+                                  <span key={ag} className="px-1.5 py-0.5 bg-purple-500/20 text-purple-300 rounded text-[10px]">
+                                    {ag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                          {isFinalized && (
+                          {isFinalized && !hasSchedules && (
                             <button
                               onClick={() => handleUnlockProgram(program.id!)}
                               disabled={unlockingProgram === program.id}

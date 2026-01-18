@@ -1,5 +1,5 @@
 rules_version = '2';
-// Updated: Dec 24, 2025 v4 - Added collectionGroup rule for registrants (parent view)
+// Updated: Jan 17, 2026 - Fixed coach draft permission for registrants
 service cloud.firestore {
   match /databases/{database}/documents {
     
@@ -75,8 +75,12 @@ service cloud.firestore {
       return isLeagueCommissionerOf(programId) || 
              isAssistantCommissionerOf(programId) || 
              isProgramCommissionerOf(programId) ||
-             // Fallback: Check user's programId directly (for ProgramCommissioner role)
+             // Fallback: Check user's programId directly (for any Commissioner role)
              (isCommissioner() && getUserData().programId == programId) ||
+             // Direct check for TeamCommissioner with matching programId
+             (isTeamCommissioner() && getUserData().programId == programId) ||
+             // Also check if commissionerPrograms array contains this programId
+             (isAuthenticated() && getUserData().commissionerPrograms != null && programId in getUserData().commissionerPrograms) ||
              isAdmin();
     }
     
@@ -115,9 +119,15 @@ service cloud.firestore {
     function isCoachInProgram(programId) {
       let userData = getUserData();
       // Check if user is a coach and their team is in this program
-      return isCoach() && userData.teamId != null &&
+      // Check both teamId (single team) and coachTeams array (multiple teams)
+      let hasTeamId = userData.teamId != null &&
              exists(/databases/$(database)/documents/teams/$(userData.teamId)) &&
              get(/databases/$(database)/documents/teams/$(userData.teamId)).data.programId == programId;
+      
+      // Also check if any team in coachTeams is in this program
+      let hasCoachTeam = userData.coachTeams != null && userData.coachTeams.size() > 0;
+      
+      return isCoach() && (hasTeamId || hasCoachTeam);
     }
     
     function isTeamMember(teamId) {
@@ -125,6 +135,16 @@ service cloud.firestore {
         getUserData().teamId == teamId || 
         (getUserData().teamIds != null && teamId in getUserData().teamIds)
       );
+    }
+    
+    // Check if user is a parent with a child on this team
+    // Parents get added to team's parentIds array when their child is drafted
+    function isParentOnTeam(teamId) {
+      let teamDoc = get(/databases/$(database)/documents/teams/$(teamId)).data;
+      return isAuthenticated() && 
+             getUserData().role == 'Parent' &&
+             teamDoc.parentIds != null &&
+             request.auth.uid in teamDoc.parentIds;
     }
 
     // Check if user is parent of player (for team roster player updates)
@@ -482,15 +502,18 @@ service cloud.firestore {
           allow read: if canManageProgram(programId) || 
                         isAdmin() ||
                         isCoachInProgram(programId) ||
+                        isCoach() ||
                         resource.data.parentId == request.auth.uid;
           
           // Anyone authenticated can register (parent registering child)
           allow create: if isAuthenticated();
           
           // Commissioner or admin can update all fields
+          // Any coach can update registrants (for drafting players)
           // Parent can update limited fields (not status/assignment fields)
           allow update: if canManageProgram(programId) || 
                           isAdmin() ||
+                          isCoach() ||
                           (resource.data.parentId == request.auth.uid && 
                            !request.resource.data.diff(resource.data).affectedKeys().hasAny([
                              'confirmationStatus', 'assignmentStatus', 'assignedTeamId', 
@@ -532,6 +555,25 @@ service cloud.firestore {
           // No updates or deletes to usage records (audit trail)
           allow update, delete: if false;
         }
+      }
+      
+      // =============================================================================
+      // PROGRAM SCHEDULES - Season schedules for Team Commissioners
+      // Path: programs/{programId}/schedules/{scheduleId}
+      // Created by ProgramScheduleStudioWrapper for non-league programs
+      // =============================================================================
+      match /schedules/{scheduleId} {
+        // Public can read schedules (for schedule display)
+        allow read: if true;
+        
+        // Commissioner or admin can create schedules
+        allow create: if canManageProgram(programId) || isAdmin();
+        
+        // Commissioner or admin can update schedules
+        allow update: if canManageProgram(programId) || isAdmin();
+        
+        // Commissioner or admin can delete schedules
+        allow delete: if canManageProgram(programId) || isAdmin();
       }
     }
     
@@ -1331,11 +1373,15 @@ service cloud.firestore {
       // Any authenticated user can create teams (they become the owner)
       allow create: if isAuthenticated();
       // Team owner or authorized roles can update
+      // Parents can add themselves to parentIds for chat access
       allow update: if isAuthenticated() && (
         resource.data.ownerId == request.auth.uid ||
         isTeamCoach(teamId) || 
         isCommissioner() || 
-        isAdmin()
+        isAdmin() ||
+        // Allow any parent to update parentIds only (they add themselves for chat)
+        (getUserData().role == 'Parent' && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['parentIds']))
       );
       // Team owner or admin can delete
       allow delete: if isAuthenticated() && (
@@ -1464,10 +1510,25 @@ service cloud.firestore {
         allow write: if isTeamCoach(teamId) || isAdmin();
       }
       
-      // Team chat messages
+      // Team chat messages (legacy path: /messages)
+      // Updated: Jan 17 2026 - Allow parents with children on team to access chat
       match /messages/{messageId} {
-        allow read: if isTeamMember(teamId) || isAdmin();
-        allow write: if isTeamMember(teamId) || isAdmin();
+        allow read: if isTeamMember(teamId) || isTeamCoach(teamId) || isTeamProgramCommissioner(teamId) || isParentOnTeam(teamId) || isAdmin();
+        allow write: if isTeamMember(teamId) || isTeamCoach(teamId) || isTeamProgramCommissioner(teamId) || isParentOnTeam(teamId) || isAdmin();
+      }
+      
+      // Team chat subcollection (used by CommissionerTeamChat)
+      // Updated: Jan 17 2026 - Allow parents with children on team to access chat
+      match /chat/{messageId} {
+        allow read: if isTeamMember(teamId) || isTeamCoach(teamId) || isTeamProgramCommissioner(teamId) || isParentOnTeam(teamId) || isAdmin();
+        allow write: if isTeamMember(teamId) || isTeamCoach(teamId) || isTeamProgramCommissioner(teamId) || isParentOnTeam(teamId) || isAdmin();
+      }
+      
+      // Team chat muted users
+      // Updated: Jan 17 2026 - Allow program commissioners to manage muted users
+      match /mutedUsers/{mutedId} {
+        allow read: if isTeamCoach(teamId) || isTeamProgramCommissioner(teamId) || isAdmin();
+        allow write: if isTeamCoach(teamId) || isTeamProgramCommissioner(teamId) || isAdmin();
       }
       
       // Season stats subcollection
@@ -1480,26 +1541,40 @@ service cloud.firestore {
       // Games subcollection - Team game schedules
       // Updated: Dec 31 2025 - Added protection for league-managed games and completed games
       // Updated: Dec 31 2025 - Allow league owners to manage league-created games
+      // Updated: Jan 17 2026 - Allow program commissioners to manage program-managed games
       match /games/{gameId} {
         // Allow public read for public profiles
         allow read: if true;
         
         // Create: Team coaches can create their own games, OR league can create league-managed games
+        // OR program commissioners can create program-managed games
         allow create: if isTeamCoach(teamId) || isAdmin() || (
           // Allow league owners to create league-managed games for their teams
           isAuthenticated() && 
           request.resource.data.leagueManaged == true &&
           request.resource.data.leagueId != null
+        ) || (
+          // Allow program commissioners to create program-managed games for their teams
+          isAuthenticated() && 
+          request.resource.data.programManaged == true &&
+          request.resource.data.programId != null &&
+          canManageProgram(request.resource.data.programId)
         );
         
         // Update: Team coaches can update non-league games, 
         // OR update score/status fields on any game (for game day tracking)
         // League owners can update their league-managed games
+        // Program commissioners can update their program-managed games
         allow update: if isAdmin() || (
           // League owners can fully update their league-managed games
           resource.data.leagueManaged == true && 
           resource.data.leagueId != null &&
           isLeagueOwnerOf(resource.data.leagueId)
+        ) || (
+          // Program commissioners can fully update their program-managed games
+          resource.data.programManaged == true && 
+          resource.data.programId != null &&
+          canManageProgram(resource.data.programId)
         ) || (
           isTeamCoach(teamId) && (
             // Non-league games: full edit access
@@ -1515,6 +1590,7 @@ service cloud.firestore {
         // Delete: 
         // - Admins can always delete
         // - League owners can delete their league-managed games
+        // - Program commissioners can delete their program-managed games
         // - Team coaches can delete non-league games that are NOT completed with scores
         // - NEVER allow deletion of completed games with scores (data integrity protection)
         allow delete: if isAdmin() || (
@@ -1522,6 +1598,12 @@ service cloud.firestore {
           resource.data.leagueManaged == true && 
           resource.data.leagueId != null &&
           isLeagueOwnerOf(resource.data.leagueId) &&
+          !(resource.data.status == 'completed' && resource.data.ourScore != null)
+        ) || (
+          // Program commissioners can delete their program-managed games (for re-scheduling)
+          resource.data.programManaged == true && 
+          resource.data.programId != null &&
+          canManageProgram(resource.data.programId) &&
           !(resource.data.status == 'completed' && resource.data.ourScore != null)
         ) || (
           isTeamCoach(teamId) &&

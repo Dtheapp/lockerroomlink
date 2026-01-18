@@ -1,16 +1,17 @@
 /**
  * Commissioner Season Setup Component
- * Wizard for commissioners to create a new season and auto-generate registration pools
+ * Simple wizard for commissioners to create a new season
  * 
- * Flow:
- * 1. Season Info (name, dates)
- * 2. Sports Selection (which sports for this season)
- * 3. Registration Settings (fees, requirements)
- * 4. Review & Create
+ * Flow (Just 2 steps):
+ * 1. Season Info (name, year, start/end dates)
+ * 2. Review & Create
+ * 
+ * NOTE: Age groups, draft pools, registration settings (fees, requirements, dates) 
+ * are all configured separately via CommissionerRegistrationSetup.
  * 
  * On create:
- * - Creates ProgramSeason document
- * - Auto-creates RegistrationPool for each sport + age group division
+ * - Creates a ProgramSeason document with basic info
+ * - NO draft pools created here - those come with registration setup
  */
 
 import React, { useState, useEffect } from 'react';
@@ -30,20 +31,16 @@ import {
 import { 
   Calendar, 
   Trophy, 
-  DollarSign, 
-  FileText,
   ChevronRight, 
   ChevronLeft,
   Check,
   Loader2,
-  Settings,
-  Users,
   ClipboardList,
-  CheckCircle2,
   AlertTriangle,
   X,
-  Plus,
-  Search
+  Users,
+  Search,
+  Plus
 } from 'lucide-react';
 import { toastSuccess, toastError } from '../../services/toast';
 
@@ -81,30 +78,15 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
   const [program, setProgram] = useState<Program | null>(null);
   const [loadingProgram, setLoadingProgram] = useState(true);
   
-  // Wizard step
+  // Wizard step - simplified to 2 steps
   const [step, setStep] = useState(1);
-  const TOTAL_STEPS = 4;
+  const TOTAL_STEPS = 2; // Simplified: Season Info → Review
   
   // Step 1: Season Info
   const [seasonName, setSeasonName] = useState('');
   const [seasonYear, setSeasonYear] = useState(new Date().getFullYear());
-  const [registrationOpenDate, setRegistrationOpenDate] = useState('');
-  const [registrationCloseDate, setRegistrationCloseDate] = useState('');
   const [seasonStartDate, setSeasonStartDate] = useState('');
   const [seasonEndDate, setSeasonEndDate] = useState('');
-  
-  // Step 2: Sports Selection (from program's available sports)
-  const [selectedSports, setSelectedSports] = useState<SportType[]>([]);
-  
-  // Step 3: Registration Settings
-  const [registrationFee, setRegistrationFee] = useState(150); // Default $150
-  const [requireMedicalInfo, setRequireMedicalInfo] = useState(true);
-  const [requireEmergencyContact, setRequireEmergencyContact] = useState(true);
-  const [requireUniformSizes, setRequireUniformSizes] = useState(true);
-  const [requireWaiver, setRequireWaiver] = useState(true);
-  const [allowPayInFull, setAllowPayInFull] = useState(true);
-  const [allowPaymentPlan, setAllowPaymentPlan] = useState(false);
-  const [allowInPersonPayment, setAllowInPersonPayment] = useState(true);
   
   // Loading/Error state
   const [creating, setCreating] = useState(false);
@@ -131,18 +113,8 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
         if (programDoc.exists()) {
           setProgram({ id: programDoc.id, ...programDoc.data() } as Program);
           
-          // Pre-select sport based on filter or all sports
-          const programData = programDoc.data();
-          if (propSelectedSport) {
-            // If sport filter is active, only use that sport
-            setSelectedSports([propSelectedSport.toLowerCase() as SportType]);
-          } else if (programData.sports) {
-            setSelectedSports(programData.sports);
-          } else if (programData.sport) {
-            setSelectedSports([programData.sport]);
-          }
-          
           // Set default season name
+          const programData = programDoc.data();
           const month = new Date().getMonth();
           const year = new Date().getFullYear();
           if (month >= 7 && month <= 11) {
@@ -153,20 +125,15 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
             setSeasonName(`${year} Season`);
           }
           
-          // Set default dates
+          // Set default season dates
           const today = new Date();
-          const openDate = new Date(today);
-          const closeDate = new Date(today);
-          closeDate.setDate(closeDate.getDate() + 30); // 30 days from now
           
-          // Season dates (start after registration closes, run for ~4 months)
-          const startDate = new Date(closeDate);
-          startDate.setDate(startDate.getDate() + 7); // 1 week after registration closes
+          // Season starts 1 month from now, runs for ~4 months
+          const startDate = new Date(today);
+          startDate.setMonth(startDate.getMonth() + 1);
           const endDate = new Date(startDate);
           endDate.setMonth(endDate.getMonth() + 4); // 4 months season
           
-          setRegistrationOpenDate(openDate.toISOString().split('T')[0]);
-          setRegistrationCloseDate(closeDate.toISOString().split('T')[0]);
           setSeasonStartDate(startDate.toISOString().split('T')[0]);
           setSeasonEndDate(endDate.toISOString().split('T')[0]);
         }
@@ -326,18 +293,6 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
           setError('Season name is required');
           return false;
         }
-        if (!registrationOpenDate) {
-          setError('Registration open date is required');
-          return false;
-        }
-        if (!registrationCloseDate) {
-          setError('Registration close date is required');
-          return false;
-        }
-        if (new Date(registrationCloseDate) <= new Date(registrationOpenDate)) {
-          setError('Registration close date must be after open date');
-          return false;
-        }
         if (!seasonStartDate) {
           setError('Season start date is required');
           return false;
@@ -353,32 +308,7 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
         return true;
         
       case 2:
-        if (selectedSports.length === 0) {
-          setError('Please select at least one sport for this season');
-          return false;
-        }
-        // Check all age groups for EACH selected sport have at least one team
-        for (const sport of selectedSports) {
-          const sportAgeGroups = getAgeGroupsForSport(sport);
-          const uncoveredGroups = sportAgeGroups.filter(ag => getTeamsForAgeGroup(ag, sport).length === 0);
-          if (uncoveredGroups.length > 0) {
-            const sportName = sport.charAt(0).toUpperCase() + sport.slice(1);
-            setError(`${sportName}: ${uncoveredGroups.length} age group${uncoveredGroups.length > 1 ? 's' : ''} still need teams: ${uncoveredGroups.join(', ')}`);
-            return false;
-          }
-        }
-        return true;
-        
-      case 3:
-        if (registrationFee < 0) {
-          setError('Registration fee cannot be negative');
-          return false;
-        }
-        // Only require payment method if fee > 0
-        if (registrationFee > 0 && !allowPayInFull && !allowPaymentPlan && !allowInPersonPayment) {
-          setError('At least one payment method must be enabled');
-          return false;
-        }
+        // Step 2 is Review - no additional validation needed
         return true;
         
       default:
@@ -397,26 +327,7 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
     setStep(step - 1);
   };
   
-  // Toggle sport selection
-  const toggleSport = (sport: SportType) => {
-    setSelectedSports(prev => 
-      prev.includes(sport) 
-        ? prev.filter(s => s !== sport)
-        : [...prev, sport]
-    );
-  };
-  
-  // Calculate total pools that will be created (sport-specific age groups)
-  const getTotalPools = (): number => {
-    let total = 0;
-    for (const sport of selectedSports) {
-      const sportAgeGroups = getAgeGroupsForSport(sport);
-      total += sportAgeGroups.length;
-    }
-    return total;
-  };
-  
-  // Create the season
+  // Create the season (simple - no draft pools, those are created with registration)
   const handleCreate = async () => {
     if (!validateStep(step) || !program) return;
     
@@ -424,26 +335,10 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
     setError('');
     
     try {
-      // Build sports offered using SPORT-SPECIFIC ageGroups from sportConfigs
-      const sportsOffered: SportAgeGroupConfig[] = selectedSports.map(sport => {
-        // Get age groups for THIS sport
-        const sportAgeGroups = getAgeGroupsForSport(sport);
-        
-        // Convert flat ageGroups array to AgeGroupDivision format
-        const ageGroupDivisions = sportAgeGroups.map(ag => ({
-          id: `${sport}-${ag}`.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-          label: ag,
-          type: ag.includes('-') ? 'combined' as const : 'single' as const,
-          ageGroups: ag.includes('-') ? ag.split('-') : [ag],
-          minBirthYear: 2010,
-          maxBirthYear: 2020
-        }));
-        
-        return {
-          sport,
-          ageGroups: ageGroupDivisions
-        };
-      });
+      // Get sports from the selected sport filter or program sports
+      const sportToUse = propSelectedSport 
+        ? [propSelectedSport.toLowerCase() as SportType]
+        : (program as any).sports || [(program as any).sport];
       
       const seasonId = await createProgramSeason(
         programId,
@@ -452,24 +347,26 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
           name: seasonName.trim(),
           year: seasonYear,
           status: 'setup',
-          registrationOpenDate,
-          registrationCloseDate,
           seasonStartDate,
           seasonEndDate,
-          sportsOffered,
-          registrationFee: registrationFee * 100, // Convert to cents
-          requireMedicalInfo,
-          requireEmergencyContact,
-          requireUniformSizes,
-          requireWaiver,
-          allowPayInFull,
-          allowPaymentPlan,
-          allowInPersonPayment,
+          // Empty sportsOffered - draft pools will be created when registration is set up
+          sportsOffered: sportToUse.map((s: SportType) => ({ sport: s, ageGroups: [] })),
+          // Placeholder registration settings - will be configured via separate registration setup
+          registrationOpenDate: seasonStartDate,
+          registrationCloseDate: seasonStartDate,
+          registrationFee: 0,
+          requireMedicalInfo: true,
+          requireEmergencyContact: true,
+          requireUniformSizes: false,
+          requireWaiver: true,
+          allowPayInFull: true,
+          allowPaymentPlan: false,
+          allowInPersonPayment: true,
           createdBy: user!.uid
         }
       );
       
-      toastSuccess(`Season created with ${getTotalPools()} draft pools!`);
+      toastSuccess('Season created! Now set up registration to open signups.');
       
       if (onComplete) {
         onComplete(seasonId);
@@ -479,8 +376,8 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
       
     } catch (err: any) {
       console.error('Error creating season:', err);
-      setError(err.message || (isLeagueMember ? 'Failed to create registration' : 'Failed to create season'));
-      toastError(isLeagueMember ? 'Failed to create registration' : 'Failed to create season');
+      setError(err.message || 'Failed to create season');
+      toastError('Failed to create season');
     } finally {
       setCreating(false);
     }
@@ -526,27 +423,21 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
             </button>
           )}
           <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            {isLeagueMember 
-              ? `Create Player Registration`
-              : `Create New ${propSelectedSport ? `${propSelectedSport.charAt(0).toUpperCase()}${propSelectedSport.slice(1).toLowerCase()} ` : ''}Season`
-            }
+            Create New {propSelectedSport ? `${propSelectedSport.charAt(0).toUpperCase()}${propSelectedSport.slice(1).toLowerCase()} ` : ''}Season
           </h1>
           <p className={`${isDark ? 'text-slate-400' : 'text-gray-600'}`}>
-            {isLeagueMember 
-              ? `${program.name} • Open registration for players to join your age groups`
-              : `${program.name} • Set up registration for your upcoming season`
-            }
+            {program.name} • Set up your upcoming season
           </p>
           {isLeagueMember && leagueName && (
             <p className={`mt-2 text-sm px-3 py-1 rounded-full inline-block ${isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-700'}`}>
-              League schedules managed by {leagueName}
+              Part of {leagueName} league
             </p>
           )}
         </div>
         
-        {/* Progress Steps */}
+        {/* Progress Steps - Just 2 steps */}
         <div className="flex items-center justify-center gap-2 mb-8">
-          {[1, 2, 3, 4].map((s) => (
+          {[1, 2].map((s) => (
             <React.Fragment key={s}>
               <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
                 s < step
@@ -559,7 +450,7 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
               }`}>
                 {s < step ? <Check className="w-5 h-5" /> : s}
               </div>
-              {s < 4 && (
+              {s < 2 && (
                 <div className={`w-12 h-1 rounded ${
                   s < step 
                     ? 'bg-green-500' 
@@ -571,17 +462,11 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
         </div>
         
         {/* Step Labels */}
-        <div className="flex justify-between text-xs mb-8 px-4">
+        <div className="flex justify-between text-xs mb-8 px-16">
           <span className={step >= 1 ? (isDark ? 'text-purple-400' : 'text-purple-600') : (isDark ? 'text-slate-500' : 'text-gray-400')}>
-            {isLeagueMember ? 'Registration Info' : 'Season Info'}
+            Season Info
           </span>
           <span className={step >= 2 ? (isDark ? 'text-purple-400' : 'text-purple-600') : (isDark ? 'text-slate-500' : 'text-gray-400')}>
-            Age Groups
-          </span>
-          <span className={step >= 3 ? (isDark ? 'text-purple-400' : 'text-purple-600') : (isDark ? 'text-slate-500' : 'text-gray-400')}>
-            Settings
-          </span>
-          <span className={step >= 4 ? (isDark ? 'text-purple-400' : 'text-purple-600') : (isDark ? 'text-slate-500' : 'text-gray-400')}>
             Review
           </span>
         </div>
@@ -644,40 +529,6 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
                 </select>
               </div>
               
-              {/* Registration Dates */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
-                    Registration Opens *
-                  </label>
-                  <input
-                    type="date"
-                    value={registrationOpenDate}
-                    onChange={(e) => setRegistrationOpenDate(e.target.value)}
-                    className={`w-full px-4 py-3 rounded-lg border ${
-                      isDark 
-                        ? 'bg-white/5 border-white/10 text-white' 
-                        : 'bg-white border-gray-300 text-gray-900'
-                    } focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
-                    Registration Closes *
-                  </label>
-                  <input
-                    type="date"
-                    value={registrationCloseDate}
-                    onChange={(e) => setRegistrationCloseDate(e.target.value)}
-                    className={`w-full px-4 py-3 rounded-lg border ${
-                      isDark 
-                        ? 'bg-white/5 border-white/10 text-white' 
-                        : 'bg-white border-gray-300 text-gray-900'
-                    } focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
-                  />
-                </div>
-              </div>
-              
               {/* Season Dates */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -714,293 +565,8 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
             </div>
           )}
           
-          {/* Step 2: Sports Selection */}
+          {/* Step 2: Review - Simple summary */}
           {step === 2 && (
-            <div className="space-y-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-purple-600 flex items-center justify-center">
-                  <Trophy className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    Sports & Age Groups
-                  </h2>
-                  <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                    Review team coverage for each age group
-                  </p>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                {/* Filter to only show the selected sport if one is passed from dropdown */}
-                {(program.sports || [program.sport])
-                  .filter(Boolean)
-                  .filter(sport => !propSelectedSport || sport.toLowerCase() === propSelectedSport.toLowerCase())
-                  .map(sport => {
-                  const isSelected = selectedSports.includes(sport as SportType);
-                  // Get sport-specific age groups
-                  const sportAgeGroups: string[] = getAgeGroupsForSport(sport);
-                  const coveredGroups = sportAgeGroups.filter(ag => getTeamsForAgeGroup(ag, sport).length > 0);
-                  
-                  return (
-                    <div key={sport} className="space-y-3">
-                      {/* Sport Header - Non-clickable when single sport is filtered */}
-                      {propSelectedSport ? (
-                        // Single sport mode - just show header, no toggle
-                        <div className={`w-full p-4 rounded-xl border-2 flex items-center justify-between border-purple-500 bg-purple-500/20`}>
-                          <div className="flex items-center gap-3">
-                            <span className="text-2xl">{SPORT_ICONS[sport as SportType]}</span>
-                            <div className="text-left">
-                              <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                {sport?.charAt(0).toUpperCase()}{sport?.slice(1)}
-                              </div>
-                              <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                                {coveredGroups.length}/{sportAgeGroups.length} age groups have teams
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="w-6 h-6 rounded-full bg-purple-600 border-2 border-purple-600 flex items-center justify-center">
-                            <Check className="w-4 h-4 text-white" />
-                          </div>
-                        </div>
-                      ) : (
-                        // Multi-sport mode - allow toggling
-                        <button
-                          onClick={() => toggleSport(sport as SportType)}
-                          className={`w-full p-4 rounded-xl border-2 flex items-center justify-between transition-all ${
-                            isSelected
-                              ? 'border-purple-500 bg-purple-500/20'
-                              : isDark
-                                ? 'border-white/10 bg-white/5 hover:border-white/30'
-                                : 'border-gray-200 bg-white hover:border-gray-300'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="text-2xl">{SPORT_ICONS[sport as SportType]}</span>
-                            <div className="text-left">
-                              <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                {sport?.charAt(0).toUpperCase()}{sport?.slice(1)}
-                              </div>
-                              <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                                {coveredGroups.length}/{sportAgeGroups.length} age groups have teams
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                            isSelected
-                              ? 'bg-purple-600 border-purple-600'
-                              : isDark
-                                ? 'border-white/30'
-                                : 'border-gray-300'
-                          }`}>
-                            {isSelected && <Check className="w-4 h-4 text-white" />}
-                          </div>
-                        </button>
-                      )}
-                      
-                      {/* Age Groups Grid - Show when sport is selected */}
-                      {isSelected && (
-                        <div className={`ml-4 p-4 rounded-lg ${isDark ? 'bg-white/5 border border-white/10' : 'bg-gray-50 border border-gray-200'}`}>
-                          <p className={`text-xs font-medium mb-3 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                            Click an age group to see teams • Green = has team(s)
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {sportAgeGroups.map((ag: string) => {
-                              const teamsForGroup = getTeamsForAgeGroup(ag, sport);
-                              const hasTeams = teamsForGroup.length > 0;
-                              
-                              return (
-                                <button
-                                  key={ag}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedAgeGroup(ag);
-                                  }}
-                                  className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all hover:scale-105 ${
-                                    hasTeams
-                                      ? isDark 
-                                        ? 'bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30' 
-                                        : 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
-                                      : isDark
-                                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30'
-                                        : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
-                                  }`}
-                                >
-                                  {hasTeams ? (
-                                    <CheckCircle2 className="w-4 h-4" />
-                                  ) : (
-                                    <AlertTriangle className="w-4 h-4" />
-                                  )}
-                                  {ag}
-                                  {hasTeams && (
-                                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${isDark ? 'bg-green-500/30' : 'bg-green-200'}`}>
-                                      {teamsForGroup.length}
-                                    </span>
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          
-                          {/* Coverage summary */}
-                          <div className={`mt-3 pt-3 border-t flex items-center justify-between ${isDark ? 'border-white/10' : 'border-gray-200'}`}>
-                            <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                              {coveredGroups.length === sportAgeGroups.length 
-                                ? '✅ All age groups have at least 1 team'
-                                : `⚠️ ${sportAgeGroups.length - coveredGroups.length} age group(s) need teams`
-                              }
-                            </span>
-                            <button
-                              onClick={() => {
-                                if (onCancel) onCancel();
-                                navigate('/commissioner/teams');
-                              }}
-                              className="text-xs text-purple-500 hover:text-purple-400 flex items-center gap-1"
-                            >
-                              <Plus className="w-3 h-3" />
-                              Manage Teams
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              
-              {selectedSports.length > 0 && (
-                <div className={`p-3 rounded-lg ${isDark ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-purple-50 border border-purple-200'}`}>
-                  <p className={`text-sm ${isDark ? 'text-purple-400' : 'text-purple-700'}`}>
-                    📊 {getTotalPools()} draft pool{getTotalPools() !== 1 ? 's' : ''} will be created
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-          
-          {/* Step 3: Registration Settings */}
-          {step === 3 && (
-            <div className="space-y-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-purple-600 flex items-center justify-center">
-                  <Settings className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    Registration Settings
-                  </h2>
-                  <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                    Fees, requirements, and payment options
-                  </p>
-                </div>
-              </div>
-              
-              {/* Registration Fee */}
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
-                  Registration Fee
-                </label>
-                <div className="relative">
-                  <span className={`absolute left-4 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>$</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="5"
-                    value={registrationFee}
-                    onChange={(e) => setRegistrationFee(parseInt(e.target.value) || 0)}
-                    className={`w-full pl-8 pr-4 py-3 rounded-lg border ${
-                      isDark 
-                        ? 'bg-white/5 border-white/10 text-white' 
-                        : 'bg-white border-gray-300 text-gray-900'
-                    } focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
-                  />
-                </div>
-                <p className={`text-sm mt-1 ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>
-                  Set to $0 for free registration
-                </p>
-              </div>
-              
-              {/* Requirements */}
-              <div>
-                <label className={`block text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
-                  Required Information
-                </label>
-                <div className="space-y-3">
-                  {[
-                    { key: 'medical', label: 'Medical Information', value: requireMedicalInfo, setter: setRequireMedicalInfo, desc: 'Allergies, medications, conditions' },
-                    { key: 'emergency', label: 'Emergency Contact', value: requireEmergencyContact, setter: setRequireEmergencyContact, desc: 'Name, phone, relationship' },
-                    { key: 'uniform', label: 'Uniform Sizes', value: requireUniformSizes, setter: setRequireUniformSizes, desc: 'Jersey, shorts, helmet sizes' },
-                    { key: 'waiver', label: 'Liability Waiver', value: requireWaiver, setter: setRequireWaiver, desc: 'Digital waiver signature' },
-                  ].map(item => (
-                    <label
-                      key={item.key}
-                      className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer ${
-                        isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={item.value}
-                        onChange={(e) => item.setter(e.target.checked)}
-                        className="mt-1 w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                      />
-                      <div>
-                        <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          {item.label}
-                        </div>
-                        <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                          {item.desc}
-                        </div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Payment Options - Only show if fee > 0 */}
-              {registrationFee > 0 && (
-              <div>
-                <label className={`block text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
-                  Payment Options
-                </label>
-                <div className="space-y-3">
-                  {[
-                    { key: 'full', label: 'Pay in Full', value: allowPayInFull, setter: setAllowPayInFull, desc: 'Full payment at registration' },
-                    { key: 'plan', label: 'Payment Plan', value: allowPaymentPlan, setter: setAllowPaymentPlan, desc: 'Allow installments over time' },
-                    { key: 'person', label: 'Pay in Person', value: allowInPersonPayment, setter: setAllowInPersonPayment, desc: 'Cash/check at first practice' },
-                  ].map(item => (
-                    <label
-                      key={item.key}
-                      className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer ${
-                        isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={item.value}
-                        onChange={(e) => item.setter(e.target.checked)}
-                        className="mt-1 w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                      />
-                      <div>
-                        <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          {item.label}
-                        </div>
-                        <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                          {item.desc}
-                        </div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              )}
-            </div>
-          )}
-          
-          {/* Step 4: Review */}
-          {step === 4 && (
             <div className="space-y-6">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-lg bg-purple-600 flex items-center justify-center">
@@ -1011,7 +577,7 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
                     Review & Create
                   </h2>
                   <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                    Confirm your season setup
+                    Confirm your season details
                   </p>
                 </div>
               </div>
@@ -1026,81 +592,33 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
                       {seasonName}
                     </div>
                     <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                      Season: {new Date(seasonStartDate).toLocaleDateString()} - {new Date(seasonEndDate).toLocaleDateString()}
-                    </div>
-                    <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                      Registration: {new Date(registrationOpenDate).toLocaleDateString()} - {new Date(registrationCloseDate).toLocaleDateString()}
+                      {new Date(seasonStartDate).toLocaleDateString()} - {new Date(seasonEndDate).toLocaleDateString()}
                     </div>
                   </div>
                 </div>
                 
-                {/* Sports & Pools */}
+                {/* Sport */}
                 <div className={`border-t ${isDark ? 'border-white/10' : 'border-gray-200'} pt-4`}>
                   <div className="flex items-start gap-3">
                     <Trophy className={`w-5 h-5 mt-0.5 ${isDark ? 'text-purple-400' : 'text-purple-600'}`} />
                     <div className="flex-1">
-                      <div className={`font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        Sports & Draft Pools
-                      </div>
-                      {selectedSports.map(sport => {
-                        const sportConfig = program.sportConfigs?.find(sc => sc.sport === sport);
-                        const divisions = sportConfig?.ageGroups || [];
-                        
-                        return (
-                          <div key={sport} className="mb-2">
-                            <div className="flex items-center gap-2">
-                              <span>{SPORT_ICONS[sport]}</span>
-                              <span className={isDark ? 'text-white' : 'text-gray-900'}>
-                                {sport.charAt(0).toUpperCase()}{sport.slice(1)}
-                              </span>
-                              <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                                ({divisions.length} pool{divisions.length !== 1 ? 's' : ''})
-                              </span>
-                            </div>
-                            <div className="flex flex-wrap gap-1 ml-7 mt-1">
-                              {divisions.map(div => (
-                                <span
-                                  key={div.id}
-                                  className={`text-xs px-2 py-0.5 rounded ${
-                                    isDark ? 'bg-white/10 text-slate-300' : 'bg-gray-200 text-gray-600'
-                                  }`}
-                                >
-                                  {div.label}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Fee */}
-                <div className={`border-t ${isDark ? 'border-white/10' : 'border-gray-200'} pt-4`}>
-                  <div className="flex items-start gap-3">
-                    <DollarSign className={`w-5 h-5 mt-0.5 ${isDark ? 'text-purple-400' : 'text-purple-600'}`} />
-                    <div>
                       <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        ${registrationFee} per player
-                      </div>
-                      <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                        {[
-                          allowPayInFull && 'Pay in Full',
-                          allowPaymentPlan && 'Payment Plan',
-                          allowInPersonPayment && 'Pay in Person'
-                        ].filter(Boolean).join(', ')}
+                        {propSelectedSport 
+                          ? `${propSelectedSport.charAt(0).toUpperCase()}${propSelectedSport.slice(1).toLowerCase()}`
+                          : (program.sports || [program.sport]).filter(Boolean).map(s => 
+                              `${s.charAt(0).toUpperCase()}${s.slice(1).toLowerCase()}`
+                            ).join(', ')
+                        }
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
               
-              {/* Info Banner */}
-              <div className={`p-4 rounded-lg ${isDark ? 'bg-green-500/10 border border-green-500/20' : 'bg-green-50 border border-green-200'}`}>
-                <p className={`text-sm ${isDark ? 'text-green-400' : 'text-green-700'}`}>
-                  ✓ <strong>{getTotalPools()} draft pools</strong> will be created automatically.
-                  Parents will register to the correct pool based on their child's age.
+              {/* Next Step Hint */}
+              <div className={`p-4 rounded-lg ${isDark ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-purple-50 border border-purple-200'}`}>
+                <p className={`text-sm ${isDark ? 'text-purple-400' : 'text-purple-700'}`}>
+                  💡 <strong>Next step:</strong> After creating the season, use "Create Registration" to set up age groups, draft pools, fees, and requirements.
                 </p>
               </div>
             </div>
@@ -1165,7 +683,7 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
                   ) : (
                     <>
                       <Check className="w-4 h-4" />
-                      {isLeagueMember ? 'Create Registration' : 'Create Season'}
+                      Create Season
                     </>
                   )}
                 </button>

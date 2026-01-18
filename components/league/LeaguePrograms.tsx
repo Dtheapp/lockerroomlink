@@ -1,26 +1,149 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, addDoc, serverTimestamp, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, addDoc, serverTimestamp, limit, orderBy } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import { Program } from '../../types';
-import { ChevronLeft, Search, Users, Building2, MapPin, Filter, MoreVertical, Check, X, Mail, AlertCircle, Loader2, Plus, Send } from 'lucide-react';
+import { Program, Team } from '../../types';
+import { ChevronLeft, Search, Users, Building2, MapPin, Filter, MoreVertical, Check, X, Mail, AlertCircle, Loader2, Plus, Send, Eye, Calendar, Shield, Clock, Inbox } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { toastSuccess, toastError } from '../../services/toast';
+import { toastSuccess, toastError, toastWarning, toastInfo } from '../../services/toast';
+
+// Join request interface
+interface JoinRequest {
+  id: string;
+  programId: string;
+  programName: string;
+  leagueId: string;
+  sport: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdBy: string;
+  createdByName: string;
+  createdAt: any;
+  message?: string;
+}
 
 export default function LeaguePrograms() {
   const { leagueData, user } = useAuth();
   const { theme } = useTheme();
-  const [programs, setPrograms] = useState<Program[]>([]);
+  const [programs, setPrograms] = useState<(Program & { teamCount?: number; hasUnplayedGames?: boolean; teams?: Team[] })[]>([]);
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'pending' | 'inactive'>('all');
   const [selectedProgram, setSelectedProgram] = useState<string | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [detailProgram, setDetailProgram] = useState<(Program & { teams?: Team[] }) | null>(null);
+  const [processingRequest, setProcessingRequest] = useState<string | null>(null);
 
   useEffect(() => {
     loadPrograms();
+    loadJoinRequests();
   }, [leagueData]);
+  
+  // Load pending join requests
+  const loadJoinRequests = async () => {
+    if (!leagueData?.id) return;
+    
+    try {
+      const q = query(
+        collection(db, 'leagueRequests'),
+        where('leagueId', '==', leagueData.id),
+        where('type', '==', 'join_request'),
+        where('status', '==', 'pending'),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      const requests = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as JoinRequest[];
+      setJoinRequests(requests);
+    } catch (error) {
+      console.error('Error loading join requests:', error);
+    }
+  };
+  
+  // Accept join request
+  const handleAcceptJoinRequest = async (request: JoinRequest) => {
+    setProcessingRequest(request.id);
+    try {
+      // Update request status
+      await updateDoc(doc(db, 'leagueRequests', request.id), {
+        status: 'approved',
+        respondedAt: serverTimestamp(),
+        respondedBy: user?.uid
+      });
+      
+      // Update the program to be part of this league
+      const sportKey = request.sport?.toLowerCase() || leagueData?.sport?.toLowerCase() || 'football';
+      await updateDoc(doc(db, 'programs', request.programId), {
+        leagueId: leagueData?.id,
+        [`leagueIds.${sportKey}`]: leagueData?.id,
+        leagueName: leagueData?.name,
+        leagueJoinedAt: serverTimestamp(),
+        leagueStatus: 'active'
+      });
+      
+      // Notify the program commissioner
+      await addDoc(collection(db, 'notifications'), {
+        userId: request.createdBy,
+        type: 'join_request_approved',
+        title: 'League Request Approved!',
+        message: `Your request to join ${leagueData?.name} has been approved.`,
+        read: false,
+        createdAt: serverTimestamp(),
+        data: {
+          leagueId: leagueData?.id,
+          leagueName: leagueData?.name,
+          programId: request.programId
+        }
+      });
+      
+      toastSuccess(`${request.programName} has been added to the league!`);
+      setJoinRequests(prev => prev.filter(r => r.id !== request.id));
+      loadPrograms(); // Refresh programs list
+    } catch (error) {
+      console.error('Error accepting join request:', error);
+      toastError('Failed to accept request');
+    } finally {
+      setProcessingRequest(null);
+    }
+  };
+  
+  // Decline join request
+  const handleDeclineJoinRequest = async (request: JoinRequest) => {
+    setProcessingRequest(request.id);
+    try {
+      await updateDoc(doc(db, 'leagueRequests', request.id), {
+        status: 'rejected',
+        respondedAt: serverTimestamp(),
+        respondedBy: user?.uid
+      });
+      
+      // Notify the program commissioner
+      await addDoc(collection(db, 'notifications'), {
+        userId: request.createdBy,
+        type: 'join_request_declined',
+        title: 'League Request Declined',
+        message: `Your request to join ${leagueData?.name} was not approved.`,
+        read: false,
+        createdAt: serverTimestamp(),
+        data: {
+          leagueId: leagueData?.id,
+          leagueName: leagueData?.name,
+          programId: request.programId
+        }
+      });
+      
+      toastInfo('Request declined');
+      setJoinRequests(prev => prev.filter(r => r.id !== request.id));
+    } catch (error) {
+      console.error('Error declining join request:', error);
+      toastError('Failed to decline request');
+    } finally {
+      setProcessingRequest(null);
+    }
+  };
 
   const loadPrograms = async () => {
     if (!leagueData) return;
@@ -36,7 +159,47 @@ export default function LeaguePrograms() {
         ...doc.data()
       })) as Program[];
       
-      setPrograms(programsList.sort((a, b) => a.name.localeCompare(b.name)));
+      // Load team counts for each program filtered by leagueId
+      const programsWithCounts = await Promise.all(
+        programsList.map(async (program) => {
+          const teamsSnap = await getDocs(
+            query(
+              collection(db, 'teams'),
+              where('programId', '==', program.id),
+              where('leagueId', '==', leagueData.id)
+            )
+          );
+          const teams = teamsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Team[];
+          
+          // Check for unplayed games in leagueSchedules
+          const schedulesSnap = await getDocs(
+            query(
+              collection(db, 'leagueSchedules'),
+              where('leagueId', '==', leagueData.id)
+            )
+          );
+          
+          let hasUnplayedGames = false;
+          const teamIds = teams.map(t => t.id);
+          
+          for (const schedDoc of schedulesSnap.docs) {
+            const games = schedDoc.data().games || [];
+            for (const game of games) {
+              // Check if this program's teams are in any unplayed games
+              if ((teamIds.includes(game.homeTeamId) || teamIds.includes(game.awayTeamId)) && 
+                  game.status !== 'completed' && game.status !== 'cancelled') {
+                hasUnplayedGames = true;
+                break;
+              }
+            }
+            if (hasUnplayedGames) break;
+          }
+          
+          return { ...program, teamCount: teamsSnap.size, hasUnplayedGames, teams };
+        })
+      );
+      
+      setPrograms(programsWithCounts.sort((a, b) => a.name.localeCompare(b.name)));
     } catch (error) {
       console.error('Error loading programs:', error);
     } finally {
@@ -183,6 +346,97 @@ export default function LeaguePrograms() {
 
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 py-4">
+        {/* Join Requests Section */}
+        {joinRequests.length > 0 && (
+          <div className={`rounded-2xl border mb-6 overflow-hidden ${
+            theme === 'dark'
+              ? 'bg-amber-500/10 border-amber-500/30'
+              : 'bg-amber-50 border-amber-200'
+          }`}>
+            <div className={`px-5 py-3 flex items-center justify-between border-b ${
+              theme === 'dark' ? 'bg-amber-500/10 border-amber-500/20' : 'bg-amber-100 border-amber-200'
+            }`}>
+              <h3 className={`font-medium flex items-center gap-2 ${
+                theme === 'dark' ? 'text-amber-300' : 'text-amber-800'
+              }`}>
+                <Inbox className="w-5 h-5" />
+                Join Requests
+                <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                  theme === 'dark' ? 'bg-amber-500 text-black' : 'bg-amber-500 text-white'
+                }`}>
+                  {joinRequests.length}
+                </span>
+              </h3>
+            </div>
+            <div className="p-4 space-y-3">
+              {joinRequests.map(request => (
+                <div 
+                  key={request.id}
+                  className={`flex items-center justify-between p-4 rounded-xl border ${
+                    theme === 'dark'
+                      ? 'bg-white/5 border-white/10'
+                      : 'bg-white border-amber-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      theme === 'dark' ? 'bg-purple-500/20' : 'bg-purple-100'
+                    }`}>
+                      <Building2 className="w-5 h-5 text-purple-500" />
+                    </div>
+                    <div>
+                      <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                        {request.programName}
+                      </p>
+                      <p className={`text-xs flex items-center gap-1 ${
+                        theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                      }`}>
+                        <Clock className="w-3 h-3" />
+                        Requested by {request.createdByName}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleDeclineJoinRequest(request)}
+                      disabled={processingRequest === request.id}
+                      className={`p-2 rounded-lg transition-colors ${
+                        theme === 'dark'
+                          ? 'hover:bg-red-500/20 text-red-400'
+                          : 'hover:bg-red-100 text-red-600'
+                      } disabled:opacity-50`}
+                    >
+                      {processingRequest === request.id ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <X className="w-5 h-5" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleAcceptJoinRequest(request)}
+                      disabled={processingRequest === request.id}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                        theme === 'dark'
+                          ? 'bg-green-500 hover:bg-green-600 text-white'
+                          : 'bg-green-600 hover:bg-green-700 text-white'
+                      } disabled:opacity-50`}
+                    >
+                      {processingRequest === request.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Accept
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
@@ -221,7 +475,7 @@ export default function LeaguePrograms() {
                     <div>
                       <h3 className={`font-semibold text-lg ${
                         theme === 'dark' ? 'text-white' : 'text-slate-900'
-                      }`}>{program.name}</h3>
+                      }`}>{(program as any).sportNames?.[leagueData?.sport || ''] || program.name}</h3>
                       <div className={`flex items-center gap-3 mt-1 text-sm ${
                         theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
                       }`}>
@@ -269,15 +523,18 @@ export default function LeaguePrograms() {
                           ? 'bg-zinc-800 border-white/10'
                           : 'bg-white border-slate-200'
                       }`}>
-                        <Link
-                          to={`/league/programs/${program.id}`}
-                          className={`flex items-center gap-2 px-4 py-2 text-sm ${
+                        <button
+                          onClick={() => {
+                            setDetailProgram(program as any);
+                            setSelectedProgram(null);
+                          }}
+                          className={`w-full flex items-center gap-2 px-4 py-2 text-sm text-left ${
                             theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
                           }`}
                         >
-                          <Users className="w-4 h-4" />
+                          <Eye className="w-4 h-4" />
                           View Details
-                        </Link>
+                        </button>
                         <button
                           onClick={() => handleStatusChange(program.id, 'active')}
                           className={`w-full flex items-center gap-2 px-4 py-2 text-sm text-left ${
@@ -301,7 +558,10 @@ export default function LeaguePrograms() {
                             const email = (program as any).contactEmail;
                             if (email) {
                               window.location.href = `mailto:${email}`;
+                            } else {
+                              toastInfo('No contact email available for this program');
                             }
+                            setSelectedProgram(null);
                           }}
                           className={`w-full flex items-center gap-2 px-4 py-2 text-sm text-left ${
                             theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
@@ -312,8 +572,19 @@ export default function LeaguePrograms() {
                         </button>
                         <hr className={`my-1 ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'}`} />
                         <button
-                          onClick={() => handleRemoveProgram(program.id)}
-                          className={`w-full flex items-center gap-2 px-4 py-2 text-sm text-left text-red-400 ${
+                          onClick={() => {
+                            if ((program as any).hasUnplayedGames) {
+                              toastError('Cannot remove program while there are unplayed games scheduled. Delete or complete games first.');
+                              setSelectedProgram(null);
+                              return;
+                            }
+                            handleRemoveProgram(program.id);
+                          }}
+                          className={`w-full flex items-center gap-2 px-4 py-2 text-sm text-left ${
+                            (program as any).hasUnplayedGames 
+                              ? 'text-slate-500 cursor-not-allowed' 
+                              : 'text-red-400'
+                          } ${
                             theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
                           }`}
                         >
@@ -344,6 +615,91 @@ export default function LeaguePrograms() {
             loadPrograms();
           }}
         />
+      )}
+
+      {/* Program Details Modal */}
+      {detailProgram && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className={`w-full max-w-lg rounded-2xl overflow-hidden ${
+            theme === 'dark' ? 'bg-zinc-900 border border-white/10' : 'bg-white'
+          }`}>
+            <div className={`px-6 py-4 border-b flex items-center justify-between ${
+              theme === 'dark' ? 'border-white/10' : 'border-slate-200'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                    {(detailProgram as any).sportNames?.[leagueData?.sport || ''] || detailProgram.name}
+                  </h2>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                    {detailProgram.city}, {detailProgram.state}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDetailProgram(null)}
+                className={`p-2 rounded-lg transition-colors ${
+                  theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+                }`}
+              >
+                <X className={`w-5 h-5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`} />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <h3 className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
+                Teams in League ({(detailProgram as any).teams?.length || 0})
+              </h3>
+              
+              {(detailProgram as any).teams?.length === 0 ? (
+                <div className={`text-center py-8 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>
+                  <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>No teams from this program in the league yet</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {(detailProgram as any).teams?.map((team: Team) => (
+                    <div key={team.id} className={`flex items-center gap-3 p-3 rounded-xl ${
+                      theme === 'dark' ? 'bg-white/5' : 'bg-slate-50'
+                    }`}>
+                      {team.logo ? (
+                        <img src={team.logo} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                      ) : (
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          theme === 'dark' ? 'bg-white/10' : 'bg-slate-200'
+                        }`}>
+                          <Shield className="w-5 h-5 text-slate-400" />
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                          {team.name}
+                        </p>
+                        {team.ageGroup && (
+                          <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full">
+                            {team.ageGroup}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {(detailProgram as any).contactEmail && (
+                <div className={`mt-4 pt-4 border-t ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'}`}>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                    <Mail className="w-4 h-4 inline mr-2" />
+                    {(detailProgram as any).contactEmail}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

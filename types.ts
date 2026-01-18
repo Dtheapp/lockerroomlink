@@ -234,7 +234,8 @@ export interface Program {
   
   // Status
   status?: 'active' | 'inactive';
-  leagueId?: string | null;
+  leagueId?: string | null;              // Legacy: single league ID
+  leagueIds?: { [sport: string]: string }; // Multi-sport: league ID per sport
   
   // Branding
   primaryColor?: string;             // Hex color

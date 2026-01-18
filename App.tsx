@@ -147,7 +147,9 @@ const CommissionerAssignCoach = lazyWithRetry(() => import('./components/commiss
 const CommissionerGrievances = lazyWithRetry(() => import('./components/commissioner/CommissionerGrievances'));
 const CommissionerInfractions = lazyWithRetry(() => import('./components/commissioner/CommissionerInfractions'));
 const CommissionerSchedule = lazyWithRetry(() => import('./components/commissioner/CommissionerSchedule'));
+const CommissionerSchedules = lazyWithRetry(() => import('./components/commissioner/CommissionerSchedules'));
 const ScheduleBuilder = lazyWithRetry(() => import('./components/commissioner/ScheduleBuilder'));
+const ProgramScheduleStudioWrapper = lazyWithRetry(() => import('./components/commissioner/ProgramScheduleStudioWrapper'));
 const TeamScheduleView = lazyWithRetry(() => import('./components/commissioner/TeamScheduleView'));
 const CommissionerRoster = lazyWithRetry(() => import('./components/commissioner/CommissionerRoster'));
 const CommissionerTeamChat = lazyWithRetry(() => import('./components/commissioner/CommissionerTeamChat'));
@@ -166,6 +168,7 @@ const LeagueSettings = lazyWithRetry(() => import('./components/league/LeagueSet
 const LeaguePrograms = lazyWithRetry(() => import('./components/league/LeaguePrograms'));
 const LeagueRequests = lazyWithRetry(() => import('./components/league/LeagueRequests'));
 const LeagueSeasons = lazyWithRetry(() => import('./components/league/LeagueSeasons'));
+const LeagueSchedulesList = lazyWithRetry(() => import('./components/league/LeagueSchedulesList'));
 const SeasonSchedule = lazyWithRetry(() => import('./components/league/SeasonSchedule'));
 const LeagueScheduleWizard = lazyWithRetry(() => import('./components/league/LeagueScheduleWizard'));
 const ScheduleStudioWrapper = lazyWithRetry(() => import('./components/league/ScheduleStudioWrapper'));
@@ -362,6 +365,7 @@ const AppContent: React.FC = () => {
                 <Route path="league/programs" element={<LeaguePrograms />} />
                 <Route path="league/requests" element={<LeagueRequests />} />
                 <Route path="league/seasons" element={<LeagueSeasons />} />
+                <Route path="league/schedules" element={<LeagueSchedulesList />} />
                 <Route path="league/seasons/:seasonId" element={<SeasonSchedule />} />
                 <Route path="league/seasons/:seasonId/schedule-wizard" element={<LeagueScheduleWizard />} />
                 <Route path="league/seasons/:seasonId/schedule-studio" element={<ScheduleStudioWrapper />} />
@@ -398,8 +402,10 @@ const AppContent: React.FC = () => {
                 <Route path="commissioner/chat" element={<CommissionerTeamChat />} />
                 <Route path="commissioner/grievances" element={<CommissionerGrievances />} />
                 <Route path="commissioner/infractions" element={<CommissionerInfractions />} />
+                <Route path="commissioner/schedules" element={<CommissionerSchedules />} />
                 <Route path="commissioner/schedule/:seasonId" element={<CommissionerSchedule />} />
                 <Route path="commissioner/schedule-builder/:seasonId" element={<ScheduleBuilder />} />
+                <Route path="commissioner/schedule-studio/:seasonId" element={<ProgramScheduleStudioWrapper />} />
                 <Route path="team/:teamId" element={<CommissionerTeamDetail />} />
                 <Route path="profile" element={<Profile />} />
                 <Route path="notifications" element={<NotificationsPage />} />

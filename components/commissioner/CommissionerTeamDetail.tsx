@@ -858,7 +858,22 @@ export const CommissionerTeamDetail: React.FC = () => {
                   Age Group <span className="text-slate-400 text-xs">(optional)</span>
                 </label>
                 {(() => {
-                  const programAgeGroups = programData?.ageGroups || [];
+                  // Get sport-specific age groups from sportConfigs
+                  const teamSport = team?.sport?.toLowerCase() || '';
+                  const sportConfigs = programData?.sportConfigs || [];
+                  const sportConfig = sportConfigs.find((c: any) => 
+                    c.sport?.toLowerCase() === teamSport
+                  );
+                  
+                  // Extract age group labels from sportConfig
+                  let programAgeGroups: string[] = [];
+                  if (sportConfig?.ageGroups) {
+                    programAgeGroups = sportConfig.ageGroups.map((ag: any) => ag.label || ag.id || ag);
+                  } else {
+                    // Fallback to legacy ageGroups
+                    programAgeGroups = programData?.ageGroups || [];
+                  }
+                  
                   return (
                     <div>
                       <div className={`w-full border rounded-lg py-2.5 px-3 mb-2 ${theme === 'dark' ? 'bg-purple-500/10 border-purple-500/30 text-purple-300' : 'bg-purple-50 border-purple-200 text-purple-700'}`}>
@@ -885,7 +900,7 @@ export const CommissionerTeamDetail: React.FC = () => {
                         </div>
                       ) : (
                         <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-500'}`}>
-                          No age groups configured. Go to Age Groups to add some.
+                          No age groups configured for {team?.sport || 'this sport'}. Go to Age Groups to add some.
                         </p>
                       )}
                       <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-gray-500' : 'text-slate-500'}`}>

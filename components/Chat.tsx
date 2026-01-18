@@ -223,6 +223,47 @@ const Chat: React.FC = () => {
 
     return () => unsubscribe();
   }, [teamData?.id]);
+
+  // Auto-add parent to team's parentIds if they have a child on the roster
+  // This fixes chat access for parents whose children were drafted before this feature
+  useEffect(() => {
+    const ensureParentAccess = async () => {
+      if (!teamData?.id || !user?.uid || userData?.role !== 'Parent') return;
+      
+      // Check if parent already has access (is in parentIds)
+      const teamDoc = await import('firebase/firestore').then(m => m.getDoc(doc(db, 'teams', teamData.id)));
+      if (!teamDoc.exists()) return;
+      
+      const teamDocData = teamDoc.data();
+      const parentIds = teamDocData?.parentIds || [];
+      
+      // Already has access
+      if (parentIds.includes(user.uid)) return;
+      
+      // Check if this parent has a child on the roster
+      const { getDocs, collection: firestoreCollection, query: firestoreQuery, where } = await import('firebase/firestore');
+      const rosterQuery = firestoreQuery(
+        firestoreCollection(db, 'teams', teamData.id, 'players'),
+        where('parentUserId', '==', user.uid)
+      );
+      const rosterSnap = await getDocs(rosterQuery);
+      
+      if (rosterSnap.docs.length > 0) {
+        // Parent has a child on this team - add them to parentIds
+        console.log('🔧 Auto-fixing parent chat access...');
+        try {
+          await updateDoc(doc(db, 'teams', teamData.id), {
+            parentIds: arrayUnion(user.uid)
+          });
+          console.log('✅ Parent added to team parentIds for chat access');
+        } catch (err) {
+          console.error('Could not auto-add parent to parentIds:', err);
+        }
+      }
+    };
+    
+    ensureParentAccess();
+  }, [teamData?.id, user?.uid, userData?.role]);
   
   // Auto-scroll to bottom when new messages arrive (but not on initial load)
   const prevMessagesLengthRef = useRef<number>(0);

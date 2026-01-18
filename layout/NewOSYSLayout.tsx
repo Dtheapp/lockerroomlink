@@ -160,6 +160,7 @@ const NewOSYSLayout: React.FC = () => {
         { icon: '📊', label: 'Dashboard', path: '/league', section: 'Main' },
         { icon: '🏟️', label: 'Programs', path: '/league/programs', section: 'Main' },
         { icon: '📅', label: 'Seasons', path: '/league/seasons', section: 'Main' },
+        { icon: '📋', label: 'Schedules', path: '/league/schedules', section: 'Main' },
         { icon: '🏆', label: 'Standings', path: '/league/standings', section: 'Main' },
         { icon: '🎖️', label: 'Playoffs', path: '/league/playoffs', section: 'Create' },
         { icon: '📋', label: 'Requests', path: '/league/requests', section: 'Create', unreadKey: 'requests' },
@@ -178,6 +179,7 @@ const NewOSYSLayout: React.FC = () => {
         { icon: '📊', label: 'Dashboard', path: '/commissioner', section: 'Main' },
         { icon: '👥', label: 'Roster', path: '/commissioner/roster', section: 'Main' },
         { icon: '🏟️', label: 'Manage Teams', path: '/commissioner/teams', section: 'Create' },
+        { icon: '📅', label: 'Manage Schedules', path: '/commissioner/schedules', section: 'Create' },
         { icon: '🏆', label: 'Manage Leagues', path: '/commissioner/leagues', section: 'Create' },
         { icon: '💬', label: 'Messages', path: '/messenger', section: 'Engage', configKey: 'messengerEnabled', unreadKey: 'messenger' },
         { icon: '🗨️', label: 'Team Chat', path: '/commissioner/chat', section: 'Engage', configKey: 'chatEnabled', unreadKey: 'teamChat' },
@@ -350,10 +352,10 @@ const NewOSYSLayout: React.FC = () => {
           </button>
         </div>
 
-        {/* Team Selector (for Coaches) or Player/Sport Selector (for Parents) or Sport Selector (for Commissioners) */}
+        {/* Team Selector (for Coaches) or Player/Sport Selector (for Parents) or Sport Selector (for Commissioners/League Owners) */}
         <div className={`p-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'} ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
-          {['Commissioner', 'TeamCommissioner', 'LeagueCommissioner', 'ProgramCommissioner'].includes(userData?.role || '') ? (
-            // Sport Selector for Commissioners
+          {['Commissioner', 'TeamCommissioner', 'LeagueCommissioner', 'ProgramCommissioner', 'LeagueOwner'].includes(userData?.role || '') ? (
+            // Sport Selector for Commissioners and League Owners
             <CommissionerSportSelector />
           ) : userData?.role === 'Parent' ? (
             // Unified Player + Sport Selector for Parents

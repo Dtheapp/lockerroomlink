@@ -266,6 +266,13 @@ export const CommissionerDashboard: React.FC = () => {
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [loadingRegistrations, setLoadingRegistrations] = useState(true);
   
+  // Filter registrations by selected sport
+  const filteredRegistrations = useMemo(() => {
+    return selectedSport
+      ? registrations.filter(r => r.sport?.toLowerCase() === selectedSport.toLowerCase())
+      : registrations;
+  }, [registrations, selectedSport]);
+  
   // Promo Codes Manager
   const [showPromoCodesModal, setShowPromoCodesModal] = useState(false);
   
@@ -521,18 +528,42 @@ export const CommissionerDashboard: React.FC = () => {
   }, [programData?.id]);
 
   // Fetch league info when program is in a league (for Season Manager display)
+  // Sport-specific: use leagueIds[sport] if available, fallback to leagueId
   useEffect(() => {
     const fetchLeagueInfo = async () => {
-      if (!programData?.leagueId || !isTeamCommissioner) {
+      // Get the league ID for the selected sport
+      const sportKey = selectedSport?.toLowerCase() || 'football';
+      
+      // Check for sport-specific leagueId in the leagueIds map first
+      let sportLeagueId = (programData as any)?.leagueIds?.[sportKey];
+      
+      // If no sport-specific league, check if the legacy leagueId matches the selected sport
+      // by fetching the league and checking its sport
+      if (!sportLeagueId && programData?.leagueId) {
+        try {
+          const legacyLeagueDoc = await getDoc(doc(db, 'leagues', programData.leagueId));
+          if (legacyLeagueDoc.exists()) {
+            const legacyLeagueSport = legacyLeagueDoc.data().sport?.toLowerCase() || 'football';
+            if (legacyLeagueSport === sportKey) {
+              sportLeagueId = programData.leagueId;
+            }
+          }
+        } catch (err) {
+          console.log('Error checking legacy league sport:', err);
+        }
+      }
+      
+      if (!sportLeagueId || !isTeamCommissioner) {
         setProgramLeagueInfo(null);
         setCurrentLeagueSeason(null);
+        setFinalizationStatus(null);
         return;
       }
       
       setLoadingLeagueInfo(true);
       try {
         // Fetch league basic info
-        const leagueDoc = await getDoc(doc(db, 'leagues', programData.leagueId));
+        const leagueDoc = await getDoc(doc(db, 'leagues', sportLeagueId));
         if (leagueDoc.exists()) {
           const leagueData = leagueDoc.data();
           setProgramLeagueInfo({
@@ -545,7 +576,7 @@ export const CommissionerDashboard: React.FC = () => {
           // Fetch current active/upcoming league season from root leagueSeasons collection
           const seasonsQuery = query(
             collection(db, 'leagueSeasons'),
-            where('leagueId', '==', programData.leagueId),
+            where('leagueId', '==', sportLeagueId),
             where('status', 'in', ['active', 'upcoming'])
           );
           const seasonsSnap = await getDocs(seasonsQuery);
@@ -564,7 +595,7 @@ export const CommissionerDashboard: React.FC = () => {
               
               // Fetch finalization status for this program
               try {
-                const status = await getSeasonFinalizationStatus(programData.leagueId, activeSeason.id);
+                const status = await getSeasonFinalizationStatus(sportLeagueId, activeSeason.id);
                 const myFinalization = status.programFinalizations[programData.id];
                 setFinalizationStatus(myFinalization ? {
                   finalized: myFinalization.finalized,
@@ -588,7 +619,7 @@ export const CommissionerDashboard: React.FC = () => {
     };
     
     fetchLeagueInfo();
-  }, [programData?.leagueId, isTeamCommissioner]);
+  }, [programData?.id, programData?.leagueId, (programData as any)?.leagueIds, selectedSport, isTeamCommissioner]);
 
   // Load draft pool players when modal opens
   useEffect(() => {
@@ -1016,9 +1047,12 @@ export const CommissionerDashboard: React.FC = () => {
         selectedTeamIds: selectedTeamsForLeague
       });
       
-      // Update the program to join the league
+      // Update the program to join the league (multi-sport: store by sport)
+      const leagueSport = pendingInvitation.leagueSport?.toLowerCase() || pendingInvitation.sport?.toLowerCase() || 'football';
+      const existingLeagueIds = (programData as any)?.leagueIds || {};
       await updateDoc(doc(db, 'programs', programData.id), {
-        leagueId: pendingInvitation.leagueId,
+        leagueId: pendingInvitation.leagueId, // Keep for backwards compatibility
+        [`leagueIds.${leagueSport}`]: pendingInvitation.leagueId, // Multi-sport support
         leagueName: pendingInvitation.leagueName,
         leagueJoinedAt: serverTimestamp(),
         leagueStatus: 'active',
@@ -2351,15 +2385,15 @@ export const CommissionerDashboard: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        registrations.length > 0
-                          ? registrations.some(r => r.status === 'open')
+                        filteredRegistrations.length > 0
+                          ? filteredRegistrations.some(r => r.status === 'open')
                             ? theme === 'dark' ? 'bg-green-500/20' : 'bg-green-100'
                             : theme === 'dark' ? 'bg-purple-500/20' : 'bg-purple-100'
                           : theme === 'dark' ? 'bg-amber-500/20' : 'bg-amber-100'
                       }`}>
                         <UserPlus className={`w-5 h-5 ${
-                          registrations.length > 0 
-                            ? registrations.some(r => r.status === 'open') ? 'text-green-500' : 'text-purple-500'
+                          filteredRegistrations.length > 0 
+                            ? filteredRegistrations.some(r => r.status === 'open') ? 'text-green-500' : 'text-purple-500'
                             : 'text-amber-500'
                         }`} />
                       </div>
@@ -2370,10 +2404,10 @@ export const CommissionerDashboard: React.FC = () => {
                         <p className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
                           {loadingRegistrations 
                             ? 'Loading...'
-                            : registrations.length > 0 
-                              ? registrations.some(r => r.status === 'open') 
-                                ? `${registrations.filter(r => r.status === 'open').length} registration(s) open`
-                                : `${registrations.length} registration(s) created`
+                            : filteredRegistrations.length > 0 
+                              ? filteredRegistrations.some(r => r.status === 'open') 
+                                ? `${filteredRegistrations.filter(r => r.status === 'open').length} registration(s) open`
+                                : `${filteredRegistrations.length} registration(s) created`
                               : 'No registration created yet - click to set one up'
                           }
                         </p>
@@ -2391,7 +2425,7 @@ export const CommissionerDashboard: React.FC = () => {
                         <Tag className="w-4 h-4" />
                         Promo Codes
                       </button>
-                      {registrations.length > 0 && (
+                      {filteredRegistrations.length > 0 && (
                         <Link
                           to="/commissioner/registrations"
                           className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
@@ -2409,15 +2443,15 @@ export const CommissionerDashboard: React.FC = () => {
                         className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-medium"
                       >
                         <Plus className="w-4 h-4" />
-                        {registrations.length > 0 ? 'New' : 'Create Registration'}
+                        {filteredRegistrations.length > 0 ? 'New' : 'Create Registration'}
                       </button>
                     </div>
                   </div>
                   
                   {/* Show recent registrations summary */}
-                  {registrations.length > 0 && (
+                  {filteredRegistrations.length > 0 && (
                     <div className="mt-4 space-y-3">
-                      {registrations.slice(0, 3).map(reg => {
+                      {filteredRegistrations.slice(0, 3).map(reg => {
                         const statusInfo = getRegistrationStatusInfo(reg.status);
                         // Use hash for HashRouter compatibility
                         const registrationUrl = `${window.location.origin}/#/register/${programData?.id}/${reg.id}`;
@@ -2447,7 +2481,7 @@ export const CommissionerDashboard: React.FC = () => {
                               </div>
                             </div>
                             <div className={`text-xs mb-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-                              {reg.registrationCount || reg.registrantCount || 0} registered • ${reg.registrationFee}
+                              {reg.registrationCount || 0} registered • ${reg.registrationFee}
                             </div>
                             
                             {/* Registration Link Section */}
@@ -2532,7 +2566,7 @@ export const CommissionerDashboard: React.FC = () => {
                       <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                         {missingAgeGroups && (
                           <button
-                            onClick={() => setShowAgeGroupsModal(true)}
+                            onClick={() => navigate('/commissioner/age-groups')}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-sm"
                           >
                             <Settings className="w-4 h-4" />
@@ -2548,6 +2582,53 @@ export const CommissionerDashboard: React.FC = () => {
                             Create Team
                           </button>
                         )}
+                      </div>
+                      
+                      {/* Player Registration Section - Available even without age groups/teams */}
+                      <div className={`mt-6 text-left p-4 rounded-xl border ${
+                        theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                              filteredRegistrations.length > 0
+                                ? filteredRegistrations.some(r => r.status === 'open')
+                                  ? theme === 'dark' ? 'bg-green-500/20' : 'bg-green-100'
+                                  : theme === 'dark' ? 'bg-purple-500/20' : 'bg-purple-100'
+                                : theme === 'dark' ? 'bg-amber-500/20' : 'bg-amber-100'
+                            }`}>
+                              <UserPlus className={`w-5 h-5 ${
+                                filteredRegistrations.length > 0 
+                                  ? filteredRegistrations.some(r => r.status === 'open') ? 'text-green-500' : 'text-purple-500'
+                                  : 'text-amber-500'
+                              }`} />
+                            </div>
+                            <div>
+                              <h4 className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                                Player Registration
+                              </h4>
+                              <p className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                                {loadingRegistrations 
+                                  ? 'Loading...'
+                                  : filteredRegistrations.length > 0 
+                                    ? filteredRegistrations.some(r => r.status === 'open') 
+                                      ? `${filteredRegistrations.filter(r => r.status === 'open').length} registration(s) open`
+                                      : `${filteredRegistrations.length} registration(s) created`
+                                    : 'No registration created yet - click to set one up'
+                                }
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setShowRegistrationModal(true)}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-medium"
+                            >
+                              <Plus className="w-4 h-4" />
+                              {filteredRegistrations.length > 0 ? 'New' : 'Create Registration'}
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   );
@@ -2569,6 +2650,145 @@ export const CommissionerDashboard: React.FC = () => {
                       <Calendar className="w-5 h-5" />
                       Create Season
                     </button>
+                    
+                    {/* Player Registration Section - ALSO available for non-league programs */}
+                    <div className={`mt-6 text-left p-4 rounded-xl border ${
+                      theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                            filteredRegistrations.length > 0
+                              ? filteredRegistrations.some(r => r.status === 'open')
+                                ? theme === 'dark' ? 'bg-green-500/20' : 'bg-green-100'
+                                : theme === 'dark' ? 'bg-purple-500/20' : 'bg-purple-100'
+                              : theme === 'dark' ? 'bg-amber-500/20' : 'bg-amber-100'
+                          }`}>
+                            <UserPlus className={`w-5 h-5 ${
+                              filteredRegistrations.length > 0 
+                                ? filteredRegistrations.some(r => r.status === 'open') ? 'text-green-500' : 'text-purple-500'
+                                : 'text-amber-500'
+                            }`} />
+                          </div>
+                          <div>
+                            <h4 className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                              Player Registration
+                            </h4>
+                            <p className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                              {loadingRegistrations 
+                                ? 'Loading...'
+                                : filteredRegistrations.length > 0 
+                                  ? filteredRegistrations.some(r => r.status === 'open') 
+                                    ? `${filteredRegistrations.filter(r => r.status === 'open').length} registration(s) open`
+                                    : `${filteredRegistrations.length} registration(s) created`
+                                  : 'No registration created yet - click to set one up'
+                              }
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setShowPromoCodesModal(true)}
+                            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${
+                              theme === 'dark'
+                                ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30'
+                                : 'bg-purple-100 hover:bg-purple-200 text-purple-700 border border-purple-200'
+                            }`}
+                          >
+                            <Tag className="w-4 h-4" />
+                            <span className="hidden sm:inline">Promo Codes</span>
+                          </button>
+                          {filteredRegistrations.length > 0 && (
+                            <Link
+                              to="/commissioner/registrations"
+                              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${
+                                theme === 'dark'
+                                  ? 'bg-white/10 hover:bg-white/15 text-white'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                              }`}
+                            >
+                              <Users className="w-4 h-4" />
+                              <span className="hidden sm:inline">Manage</span>
+                            </Link>
+                          )}
+                          <button
+                            onClick={() => setShowRegistrationModal(true)}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-medium"
+                          >
+                            <Plus className="w-4 h-4" />
+                            {filteredRegistrations.length > 0 ? 'New' : 'Create Registration'}
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* Show recent registrations summary */}
+                      {filteredRegistrations.length > 0 && (
+                        <div className="mt-4 space-y-3">
+                          {filteredRegistrations.slice(0, 3).map(reg => {
+                            const statusInfo = getRegistrationStatusInfo(reg.status);
+                            const registrationUrl = `${window.location.origin}/#/register/${programData?.id}/${reg.id}`;
+                            return (
+                              <div 
+                                key={reg.id}
+                                className={`p-4 rounded-lg border ${
+                                  theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                                      {reg.name}
+                                    </span>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                      reg.status === 'open' 
+                                        ? 'bg-green-500/20 text-green-400'
+                                        : reg.status === 'scheduled'
+                                          ? 'bg-blue-500/20 text-blue-400'
+                                          : reg.status === 'closed'
+                                            ? 'bg-amber-500/20 text-amber-400'
+                                            : 'bg-slate-500/20 text-slate-400'
+                                    }`}>
+                                      {statusInfo.label}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className={`text-xs mb-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                                  {reg.registrationCount || 0} registered • ${reg.registrationFee}
+                                </div>
+                                
+                                {/* Registration Link Section */}
+                                <div className={`flex items-center gap-2 p-2 rounded-lg ${
+                                  theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'
+                                }`}>
+                                  <Link2 className={`w-4 h-4 flex-shrink-0 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
+                                  <input
+                                    type="text"
+                                    readOnly
+                                    value={registrationUrl}
+                                    className={`flex-1 text-xs bg-transparent border-none outline-none truncate ${
+                                      theme === 'dark' ? 'text-slate-300' : 'text-slate-600'
+                                    }`}
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(registrationUrl);
+                                      toastSuccess('Registration link copied!');
+                                    }}
+                                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                                      theme === 'dark' 
+                                        ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300' 
+                                        : 'bg-purple-100 hover:bg-purple-200 text-purple-700'
+                                    }`}
+                                  >
+                                    Copy Link
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })()
@@ -2740,7 +2960,7 @@ export const CommissionerDashboard: React.FC = () => {
                       onClick={(e) => {
                         e.stopPropagation();
                         if (season.status === 'active' || statusInfo.label === 'In Season') {
-                          navigate(`/commissioner/schedule-builder/${season.id}`);
+                          navigate(`/commissioner/schedule-studio/${season.id}`);
                         } else {
                           toastError('Start the season first before adding games');
                         }
@@ -2809,6 +3029,147 @@ export const CommissionerDashboard: React.FC = () => {
                       )}
                     </>
                   )}
+                  
+                  {/* Player Registration Section - For non-league programs with seasons */}
+                  <div className={`p-4`}>
+                    <div className={`p-4 rounded-xl border ${
+                      theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                            filteredRegistrations.length > 0
+                              ? filteredRegistrations.some(r => r.status === 'open')
+                                ? theme === 'dark' ? 'bg-green-500/20' : 'bg-green-100'
+                                : theme === 'dark' ? 'bg-purple-500/20' : 'bg-purple-100'
+                              : theme === 'dark' ? 'bg-amber-500/20' : 'bg-amber-100'
+                          }`}>
+                            <UserPlus className={`w-5 h-5 ${
+                              filteredRegistrations.length > 0 
+                                ? filteredRegistrations.some(r => r.status === 'open') ? 'text-green-500' : 'text-purple-500'
+                                : 'text-amber-500'
+                            }`} />
+                          </div>
+                          <div>
+                            <h4 className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                              Player Registration
+                            </h4>
+                            <p className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                              {loadingRegistrations 
+                                ? 'Loading...'
+                                : filteredRegistrations.length > 0 
+                                  ? filteredRegistrations.some(r => r.status === 'open') 
+                                    ? `${filteredRegistrations.filter(r => r.status === 'open').length} registration(s) open`
+                                    : `${filteredRegistrations.length} registration(s) created`
+                                  : 'No registration created yet - click to set one up'
+                              }
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setShowPromoCodesModal(true)}
+                            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${
+                              theme === 'dark'
+                                ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30'
+                                : 'bg-purple-100 hover:bg-purple-200 text-purple-700 border border-purple-200'
+                            }`}
+                          >
+                            <Tag className="w-4 h-4" />
+                            <span className="hidden sm:inline">Promo Codes</span>
+                          </button>
+                          {filteredRegistrations.length > 0 && (
+                            <Link
+                              to="/commissioner/registrations"
+                              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${
+                                theme === 'dark'
+                                  ? 'bg-white/10 hover:bg-white/15 text-white'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                              }`}
+                            >
+                              <Users className="w-4 h-4" />
+                              <span className="hidden sm:inline">Manage</span>
+                            </Link>
+                          )}
+                          <button
+                            onClick={() => setShowRegistrationModal(true)}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-medium"
+                          >
+                            <Plus className="w-4 h-4" />
+                            {filteredRegistrations.length > 0 ? 'New' : 'Create Registration'}
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* Show recent registrations summary */}
+                      {filteredRegistrations.length > 0 && (
+                        <div className="mt-4 space-y-3">
+                          {filteredRegistrations.slice(0, 3).map(reg => {
+                            const statusInfo = getRegistrationStatusInfo(reg.status);
+                            const registrationUrl = `${window.location.origin}/#/register/${programData?.id}/${reg.id}`;
+                            return (
+                              <div 
+                                key={reg.id}
+                                className={`p-4 rounded-lg border ${
+                                  theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                                      {reg.name}
+                                    </span>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                      reg.status === 'open' 
+                                        ? 'bg-green-500/20 text-green-400'
+                                        : reg.status === 'scheduled'
+                                          ? 'bg-blue-500/20 text-blue-400'
+                                          : reg.status === 'closed'
+                                            ? 'bg-amber-500/20 text-amber-400'
+                                            : 'bg-slate-500/20 text-slate-400'
+                                    }`}>
+                                      {statusInfo.label}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className={`text-xs mb-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                                  {reg.registrationCount || 0} registered • ${reg.registrationFee}
+                                </div>
+                                
+                                {/* Registration Link Section */}
+                                <div className={`flex items-center gap-2 p-2 rounded-lg ${
+                                  theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'
+                                }`}>
+                                  <Link2 className={`w-4 h-4 flex-shrink-0 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
+                                  <input
+                                    type="text"
+                                    readOnly
+                                    value={registrationUrl}
+                                    className={`flex-1 text-xs bg-transparent border-none outline-none truncate ${
+                                      theme === 'dark' ? 'text-slate-300' : 'text-slate-600'
+                                    }`}
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(registrationUrl);
+                                      toastSuccess('Registration link copied!');
+                                    }}
+                                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                                      theme === 'dark' 
+                                        ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300' 
+                                        : 'bg-purple-100 hover:bg-purple-200 text-purple-700'
+                                    }`}
+                                  >
+                                    Copy Link
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 );
               })()
@@ -3052,9 +3413,24 @@ export const CommissionerDashboard: React.FC = () => {
                 <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-gray-300' : 'text-slate-700'}`}>
                   Age Group <span className="text-red-400">*</span>
                 </label>
-                {/* Show dropdown with program's saved age groups */}
+                {/* Show dropdown with program's saved age groups - FILTERED BY TEAM'S SPORT */}
                 {(() => {
-                  const programAgeGroups = (programData as any)?.ageGroups || [];
+                  // Get sport-specific age groups from sportConfigs
+                  const teamSport = editingTeam?.sport?.toLowerCase() || '';
+                  const sportConfigs = (programData as any)?.sportConfigs || [];
+                  const sportConfig = sportConfigs.find((c: any) => 
+                    c.sport?.toLowerCase() === teamSport
+                  );
+                  
+                  // Extract age group labels from sportConfig
+                  let programAgeGroups: string[] = [];
+                  if (sportConfig?.ageGroups) {
+                    programAgeGroups = sportConfig.ageGroups.map((ag: any) => ag.label || ag.id || ag);
+                  } else {
+                    // Fallback to legacy ageGroups
+                    programAgeGroups = (programData as any)?.ageGroups || [];
+                  }
+                  
                   const currentAgeGroup = Array.isArray(editAgeGroup) ? editAgeGroup[0] : editAgeGroup;
                   return (
                     <div>
@@ -3085,7 +3461,7 @@ export const CommissionerDashboard: React.FC = () => {
                         </div>
                       ) : (
                         <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-slate-500'}`}>
-                          No age groups configured. Go to Age Groups to add some.
+                          No age groups configured for {editingTeam?.sport || 'this sport'}. Go to Age Groups to add some.
                         </p>
                       )}
                     </div>
@@ -4264,25 +4640,32 @@ export const CommissionerDashboard: React.FC = () => {
       )}
       
       {/* Season Creation Modal */}
-      {showSeasonModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className={`w-full max-w-2xl max-h-[90vh] rounded-xl shadow-xl overflow-hidden ${theme === 'dark' ? 'bg-zinc-900' : 'bg-white'}`}>
-            <div className="max-h-[90vh] overflow-y-auto">
-              <CommissionerSeasonSetup
-                programId={programData?.id}
-                selectedSport={selectedSport}
-                isLeagueMember={!!programData?.leagueId}
-                leagueName={programLeagueInfo?.name}
-                onComplete={(seasonId) => {
-                  setShowSeasonModal(false);
-                  toastSuccess(programData?.leagueId ? 'Registration created successfully!' : 'Season created successfully!');
-                }}
-                onCancel={() => setShowSeasonModal(false)}
-              />
+      {showSeasonModal && (() => {
+        // Check for sport-specific league membership
+        const sportKey = selectedSport.toLowerCase();
+        const sportLeagueId = (programData as any)?.leagueIds?.[sportKey] || programData?.leagueId;
+        const isInLeague = !!sportLeagueId;
+        
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className={`w-full max-w-2xl max-h-[90vh] rounded-xl shadow-xl overflow-hidden ${theme === 'dark' ? 'bg-zinc-900' : 'bg-white'}`}>
+              <div className="max-h-[90vh] overflow-y-auto">
+                <CommissionerSeasonSetup
+                  programId={programData?.id}
+                  selectedSport={selectedSport}
+                  isLeagueMember={isInLeague}
+                  leagueName={programLeagueInfo?.name}
+                  onComplete={(seasonId) => {
+                    setShowSeasonModal(false);
+                    toastSuccess(isInLeague ? 'Registration created successfully!' : 'Season created successfully!');
+                  }}
+                  onCancel={() => setShowSeasonModal(false)}
+                />
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
       
       {/* NEW: Independent Registration Creation Modal */}
       {showRegistrationModal && programData && (

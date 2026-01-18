@@ -185,9 +185,13 @@ export const CommissionerRegistrationSetup: React.FC<Props> = ({
   // FETCH ACTIVE SEASONS (League or Program)
   // ============================================
   
-  // Check if program is part of a league
-  const isInLeague = !!(program as any)?.leagueId;
-  const leagueId = (program as any)?.leagueId;
+  // Check if program is part of a league FOR THIS SPORT
+  // Use sport-specific leagueIds first, fall back to legacy leagueId
+  const sportKey = sportToUse?.toLowerCase() || 'football';
+  const sportLeagueId = (program as any)?.leagueIds?.[sportKey] || 
+    // Fall back to legacy leagueId only if it matches the current sport
+    ((program as any)?.sport?.toLowerCase() === sportKey ? (program as any)?.leagueId : null);
+  const isInLeague = !!sportLeagueId;
   
   useEffect(() => {
     const fetchSeasons = async () => {
@@ -201,11 +205,11 @@ export const CommissionerRegistrationSetup: React.FC<Props> = ({
         
         let seasonsData: (ProgramSeason | LeagueSeason)[] = [];
         
-        if (isInLeague && leagueId) {
-          // Fetch from top-level leagueSeasons collection
+        if (isInLeague && sportLeagueId) {
+          // Fetch from top-level leagueSeasons collection for this sport's league
           const leagueSeasonsQuery = query(
             collection(db, 'leagueSeasons'),
-            where('leagueId', '==', leagueId)
+            where('leagueId', '==', sportLeagueId)
           );
           
           const snapshot = await getDocs(leagueSeasonsQuery);
@@ -269,7 +273,7 @@ export const CommissionerRegistrationSetup: React.FC<Props> = ({
     };
     
     fetchSeasons();
-  }, [programId, registrationType, sportToUse, isInLeague, leagueId]);
+  }, [programId, registrationType, sportToUse, isInLeague, sportLeagueId]);
   
   // Handle season selection - auto-fill name
   const handleSeasonSelect = (season: ProgramSeason | LeagueSeason) => {

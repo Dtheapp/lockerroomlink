@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { collection, query, orderBy, limit, getDocs, getDoc, onSnapshot, where, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, deleteField, arrayUnion } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -24,7 +24,7 @@ import { DraftPool } from './draftpool';
 import GameDayHub from './GameDayHub';
 import StatLeadersWidget from './stats/StatLeadersWidget';
 import type { LiveStream, BulletinPost, UserProfile, ProgramSeason, TeamGame } from '../types';
-import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image, Copy, ExternalLink, Share2, Link2, Check, Palette, ChevronRight, ChevronDown, Trophy, AlertTriangle, Loader2, UserPlus, Users, Sword, Shield, Zap, Crown } from 'lucide-react';
+import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image, Copy, ExternalLink, Share2, Link2, Check, Palette, ChevronRight, ChevronDown, Trophy, AlertTriangle, Loader2, UserPlus, Users, Sword, Shield, Zap, Crown, MessageSquare } from 'lucide-react';
 
 // Extended event type with attachments
 interface EventWithAttachments {
@@ -140,6 +140,7 @@ const NewOSYSDashboard: React.FC = () => {
   const [copiedSeasonLink, setCopiedSeasonLink] = useState<string | null>(null);
   const [showCompletedSeasons, setShowCompletedSeasons] = useState(false);
   const [seasonManagerCollapsed, setSeasonManagerCollapsed] = useState(true); // Collapsed by default
+  const [registrationsCollapsed, setRegistrationsCollapsed] = useState(true); // Collapsed by default
   
   // Games from completed seasons (for historical display)
   const [completedSeasonGames, setCompletedSeasonGames] = useState<Record<string, TeamGame[]>>({});
@@ -174,6 +175,17 @@ const NewOSYSDashboard: React.FC = () => {
   const [declineModalPlayer, setDeclineModalPlayer] = useState<any | null>(null);
   const [declineReason, setDeclineReason] = useState('');
   const [decliningPlayer, setDecliningPlayer] = useState(false);
+  
+  // Kudos modal state
+  const [showKudosModal, setShowKudosModal] = useState(false);
+  const [kudosSearch, setKudosSearch] = useState('');
+  const [kudosSelectedPlayer, setKudosSelectedPlayer] = useState<any | null>(null);
+  const [kudosCategory, setKudosCategory] = useState<string>('great_play');
+  const [kudosMessage, setKudosMessage] = useState('');
+  const [sendingKudos, setSendingKudos] = useState(false);
+  const [kudosSentToday, setKudosSentToday] = useState<Set<string>>(new Set()); // Player IDs that received kudos from this user today
+  const [loadingKudosStatus, setLoadingKudosStatus] = useState(false);
+  const loadTodaysKudosRef = useRef(false);
 
   // Event management state
   const [showNewEventForm, setShowNewEventForm] = useState(false);
@@ -750,6 +762,54 @@ const NewOSYSDashboard: React.FC = () => {
     fetchCompletedSeasonGames();
   }, [showCompletedSeasons, programSeasons, teamData?.id, teamData?.programId]);
 
+  // Check today's kudos when modal opens
+  useEffect(() => {
+    const loadTodaysKudos = async () => {
+      if (!teamData?.id || !userData?.uid || roster.length === 0) return;
+      if (loadTodaysKudosRef.current) return; // Prevent duplicate calls
+      loadTodaysKudosRef.current = true;
+      setLoadingKudosStatus(true);
+      
+      try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayTimestamp = today.getTime();
+        
+        const sentToday = new Set<string>();
+        
+        // Check each player for kudos from this user today
+        for (const player of roster) {
+          const kudosQuery = query(
+            collection(db, 'teams', teamData.id, 'players', player.id, 'kudos'),
+            where('senderId', '==', userData.uid)
+          );
+          const kudosSnap = await getDocs(kudosQuery);
+          
+          for (const kudosDoc of kudosSnap.docs) {
+            const kudosData = kudosDoc.data();
+            const createdAt = kudosData.createdAt?.toMillis?.() || kudosData.createdAt?.seconds * 1000;
+            if (createdAt && createdAt >= todayTimestamp) {
+              sentToday.add(player.id);
+              break; // Already sent today, no need to check more
+            }
+          }
+        }
+        
+        setKudosSentToday(sentToday);
+      } catch (error) {
+        console.error('Error loading kudos status:', error);
+      } finally {
+        setLoadingKudosStatus(false);
+      }
+    };
+
+    if (showKudosModal && roster.length > 0) {
+      loadTodaysKudos();
+    } else {
+      loadTodaysKudosRef.current = false; // Reset when modal closes
+    }
+  }, [showKudosModal, teamData?.id, userData?.uid, roster.length]);
+
   // Fetch program data and league info for coaches
   useEffect(() => {
     const fetchProgramAndLeague = async () => {
@@ -863,16 +923,19 @@ const NewOSYSDashboard: React.FC = () => {
             registrationStatus: reg.status,
             registrationEndDate: reg.endDate,
             isRegistrationClosed, // Flag to know if drafting is allowed
+            seasonId: (reg as any).seasonId || null, // Include seasonId from registration
             ...d.data()
           }));
           allPlayers = [...allPlayers, ...players];
         }
         
-        // Filter to only available (not yet assigned to a team, not declined)
+        // Filter to only available (not yet assigned to a team, not drafted, not declined)
         // Include players with confirmationStatus 'confirmed' or 'pending' or undefined
         const availablePlayers = allPlayers.filter(p => 
           !p.assignedTeamId && 
-          p.confirmationStatus !== 'declined'
+          p.confirmationStatus !== 'declined' &&
+          p.confirmationStatus !== 'drafted' &&
+          p.status !== 'drafted'
         );
         console.log('📋 Dashboard draft pool players:', availablePlayers.length, 'from', allPlayers.length, 'total');
         console.log('📋 First player data:', availablePlayers[0]);
@@ -1211,35 +1274,74 @@ const NewOSYSDashboard: React.FC = () => {
       if (!programId) throw new Error('No program ID');
       
       const player = draftModalPlayer;
-      const seasonId = player.seasonId;
+      const seasonId = player.seasonId || null;
+      
+      // Handle both naming conventions (athleteFirstName vs firstName)
+      const firstName = player.athleteFirstName || player.firstName || '';
+      const lastName = player.athleteLastName || player.lastName || '';
+      const fullName = `${firstName} ${lastName}`.trim() || player.name || 'Unknown Player';
       
       console.log('🎯 Drafting player to team:', { 
         teamId: teamData.id, 
         teamName: teamData.name,
         playerId: player.id,
-        playerName: `${player.athleteFirstName} ${player.athleteLastName}`
+        playerName: fullName,
+        seasonId: seasonId
       });
+      
+      // 0. Check if player already exists on roster (prevent duplicates)
+      const existingQuery = query(
+        collection(db, 'teams', teamData.id, 'players'),
+        where('athleteId', '==', player.athleteId || null)
+      );
+      const existingSnap = await getDocs(existingQuery);
+      if (existingSnap.docs.length > 0) {
+        toastError(`${fullName} is already on the roster!`);
+        
+        // Also mark the registrant as drafted so they don't show in draft pool on refresh
+        if (player.registrationId) {
+          try {
+            await updateDoc(doc(db, 'programs', programId, 'registrations', player.registrationId, 'registrants', player.id), {
+              assignedTeamId: teamData.id,
+              assignedTeamName: teamData.name,
+              confirmationStatus: 'drafted',
+              status: 'drafted',
+              updatedAt: serverTimestamp()
+            });
+            console.log('✅ Marked duplicate registrant as drafted');
+          } catch (err) {
+            console.error('Could not update registrant:', err);
+          }
+        }
+        
+        setDraftingPlayer(false);
+        setDraftModalPlayer(null);
+        // Remove from draft pool UI
+        setDraftPoolPlayers(prev => prev.filter(p => p.id !== player.id));
+        setDashboardDraftPoolPlayers(prev => prev.filter(p => p.id !== player.id));
+        return;
+      }
       
       // 1. Add player to team roster (teams/{teamId}/players collection)
       const playerData = {
-        name: `${player.athleteFirstName} ${player.athleteLastName}`,
-        firstName: player.athleteFirstName,
-        lastName: player.athleteLastName,
-        number: player.jerseyNumber || null,
+        name: fullName,
+        firstName: firstName || null,
+        lastName: lastName || null,
+        number: player.jerseyNumber || player.number || null,
         position: player.position || null,
-        parentName: player.parentName,
-        parentEmail: player.parentEmail,
-        parentPhone: player.parentPhone,
-        parentId: player.parentUserId || null,
-        parentUserId: player.parentUserId || null,
+        parentName: player.parentName || null,
+        parentEmail: player.parentEmail || null,
+        parentPhone: player.parentPhone || null,
+        parentId: player.parentUserId || player.parentId || null,
+        parentUserId: player.parentUserId || player.parentId || null,
         athleteId: player.athleteId || null,
         dateOfBirth: player.dateOfBirth || player.athleteDateOfBirth || null,
-        ageGroup: player.ageGroup || teamData?.ageGroup || null,
+        ageGroup: player.ageGroup || player.ageGroupName || teamData?.ageGroup || null,
         status: 'active',
         draftedAt: serverTimestamp(),
-        draftedBy: userData?.uid,
+        draftedBy: userData?.uid || null,
         draftedByName: userData?.name || 'Coach',
-        seasonId: seasonId,
+        seasonId: seasonId || null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
@@ -1248,32 +1350,82 @@ const NewOSYSDashboard: React.FC = () => {
       try {
         rosterRef = await addDoc(collection(db, 'teams', teamData.id, 'players'), playerData);
         console.log('✅ Step 1: Added player to roster:', rosterRef.id);
+        
+        // 1b. Add parent to team's parentIds array for chat access
+        const parentId = player.parentUserId || player.parentId;
+        if (parentId) {
+          try {
+            await updateDoc(doc(db, 'teams', teamData.id), {
+              parentIds: arrayUnion(parentId),
+              updatedAt: serverTimestamp()
+            });
+            console.log('✅ Step 1b: Added parent to team parentIds for chat access');
+          } catch (parentErr) {
+            console.warn('⚠️ Could not add parent to team parentIds (non-fatal):', parentErr);
+          }
+        }
       } catch (rosterError: any) {
         console.error('❌ Step 1 FAILED - Could not add to team roster:', rosterError);
         throw new Error(`Failed to add player to roster: ${rosterError.message}`);
       }
       
-      // 2. Update draft pool entry status to 'drafted'
-      try {
-        await updateDoc(doc(db, 'programs', programId, 'seasons', seasonId, 'draftPool', player.id), {
-          status: 'drafted',
-          draftedAt: serverTimestamp(),
-          draftedBy: userData?.uid,
-          draftedToTeamId: teamData.id,
-          draftedToTeamName: teamData.name,
-          rosterPlayerId: rosterRef.id,
-          updatedAt: serverTimestamp()
-        });
-        console.log('✅ Step 2: Updated draft pool entry to drafted');
-      } catch (poolError: any) {
-        console.error('⚠️ Step 2 failed (non-fatal) - Could not update draft pool:', poolError);
-        // Continue anyway - roster was added successfully
+      // 2. Update source entry status to 'drafted' (could be draftPool OR registrant)
+      // Try both paths - one will succeed based on where the player came from
+      let step2Success = false;
+      
+      // 2a. Try updating draft pool entry (seasons/{seasonId}/draftPool/{playerId})
+      if (seasonId) {
+        try {
+          await updateDoc(doc(db, 'programs', programId, 'seasons', seasonId, 'draftPool', player.id), {
+            status: 'drafted',
+            draftedAt: serverTimestamp(),
+            draftedBy: userData?.uid,
+            draftedToTeamId: teamData.id,
+            draftedToTeamName: teamData.name,
+            rosterPlayerId: rosterRef.id,
+            updatedAt: serverTimestamp()
+          });
+          console.log('✅ Step 2a: Updated draft pool entry to drafted');
+          step2Success = true;
+        } catch (poolError: any) {
+          console.log('⚠️ Step 2a: Draft pool update failed, trying registrant path...');
+        }
+      }
+      
+      // 2b. ALWAYS update registrant entry if we have registrationId (this is where dashboard loads from!)
+      if (player.registrationId) {
+        const registrantPath = `programs/${programId}/registrations/${player.registrationId}/registrants/${player.id}`;
+        console.log('🔄 Step 2b: Updating registrant at path:', registrantPath);
+        try {
+          await updateDoc(doc(db, 'programs', programId, 'registrations', player.registrationId, 'registrants', player.id), {
+            assignedTeamId: teamData.id,
+            assignedTeamName: teamData.name,
+            draftedAt: serverTimestamp(),
+            draftedBy: userData?.uid,
+            rosterPlayerId: rosterRef.id,
+            confirmationStatus: 'drafted',
+            status: 'drafted',
+            updatedAt: serverTimestamp()
+          });
+          console.log('✅ Step 2b: Updated registrant entry to drafted');
+          step2Success = true;
+        } catch (regError: any) {
+          console.error('⚠️ Step 2b failed - Could not update registrant:', regError);
+          console.error('⚠️ Path attempted:', registrantPath);
+        }
+      } else {
+        console.log('⚠️ Step 2b: No registrationId on player object:', player);
+      }
+      
+      if (!step2Success) {
+        console.log('⏭️ Step 2: Could not update source - no seasonId or registrationId');
       }
       
       // 3. Update the top-level player document if athleteId exists
       if (player.athleteId) {
         try {
           // Create team history entry for tracking stats across teams/seasons
+          // NOTE: Can't use serverTimestamp() inside arrayUnion - use Date object
           const teamHistoryEntry = {
             teamId: teamData.id,
             teamName: teamData.name,
@@ -1283,7 +1435,7 @@ const NewOSYSDashboard: React.FC = () => {
             seasonId: seasonId,
             seasonYear: new Date().getFullYear(),
             ageGroup: player.ageGroup || teamData?.ageGroup || null,
-            joinedAt: serverTimestamp(),
+            joinedAt: new Date().toISOString(),
             leftAt: null,
             status: 'active' as const
           };
@@ -1313,13 +1465,13 @@ const NewOSYSDashboard: React.FC = () => {
           userId: player.parentUserId,
           type: 'player_drafted',
           title: '🎉 Player Drafted!',
-          message: `${player.athleteFirstName} ${player.athleteLastName} has been drafted to ${teamData.name}!`,
+          message: `${fullName} has been drafted to ${teamData.name}!`,
           category: 'team',
           priority: 'high',
           read: false,
           link: '/dashboard',
           metadata: {
-            athleteName: `${player.athleteFirstName} ${player.athleteLastName}`,
+            athleteName: fullName,
             teamId: teamData.id,
             teamName: teamData.name,
             draftedBy: userData?.name || 'Coach',
@@ -1344,8 +1496,8 @@ const NewOSYSDashboard: React.FC = () => {
           coachIdsToNotify,
           'roster_update',
           'New Player Drafted! 🎉',
-          `${player.athleteFirstName} ${player.athleteLastName} has been drafted to ${teamData.name}.`,
-          { link: '/roster', metadata: { teamId: teamData.id, playerName: `${player.athleteFirstName} ${player.athleteLastName}` } }
+          `${fullName} has been drafted to ${teamData.name}.`,
+          { link: '/roster', metadata: { teamId: teamData.id, playerName: fullName } }
         ).catch(err => console.error('Error notifying coaches:', err));
         console.log('✅ Step 4b: Sent notifications to coaches');
       }
@@ -1362,8 +1514,8 @@ const NewOSYSDashboard: React.FC = () => {
                 commissionerId,
                 'roster_update',
                 'Player Drafted to Team',
-                `${player.athleteFirstName} ${player.athleteLastName} was drafted to ${teamData.name}.`,
-                { link: '/commissioner', metadata: { teamId: teamData.id, playerName: `${player.athleteFirstName} ${player.athleteLastName}`, programId: teamData.programId } }
+                `${fullName} was drafted to ${teamData.name}.`,
+                { link: '/commissioner', metadata: { teamId: teamData.id, playerName: fullName, programId: teamData.programId } }
               ).catch(err => console.error('Error notifying commissioner:', err));
               console.log('✅ Step 4c: Sent notification to commissioner');
             }
@@ -1406,12 +1558,13 @@ const NewOSYSDashboard: React.FC = () => {
         console.error('⚠️ Step 5 failed (non-fatal) - Could not check remaining players:', err);
       }
       
-      // 6. Update local state to remove player from draft pool
+      // 6. Update local state to remove player from both draft pool arrays
       setDraftPoolPlayers(prev => prev.filter(p => p.id !== player.id));
+      setDashboardDraftPoolPlayers(prev => prev.filter(p => p.id !== player.id));
       
       // 7. Close modal and show success
       setDraftModalPlayer(null);
-      toastSuccess(`${player.athleteFirstName} ${player.athleteLastName} has been drafted to ${teamData.name}!`);
+      toastSuccess(`${fullName} has been drafted to ${teamData.name}!`);
       
     } catch (error) {
       console.error('Error drafting player:', error);
@@ -1535,7 +1688,7 @@ const NewOSYSDashboard: React.FC = () => {
   const quickActions = isParent ? [
     // Parent-specific quick actions
     { icon: '📢', label: 'Announce', link: '/chat' },
-    { icon: '💫', label: 'Send Kudos', link: '/chat' },
+    { icon: '💫', label: 'Send Kudos', action: () => setShowKudosModal(true) },
     { icon: '⚠️', label: 'File Grievance', link: '/grievance' },
   ] : [
     // Coach/Admin quick actions
@@ -1552,7 +1705,7 @@ const NewOSYSDashboard: React.FC = () => {
       ? [{ icon: '💰', label: 'Fundraise', link: '/fundraising' }]
       : []
     ),
-    { icon: '💫', label: 'Send Kudos', link: '/chat' },
+    { icon: '💫', label: 'Send Kudos', action: () => setShowKudosModal(true) },
     // Coach-only action for season management
     ...(isCoachOrAdmin ? [{ icon: '📆', label: 'Manage Season', action: () => setShowSeasonManager(true) }] : []),
   ];
@@ -2194,6 +2347,67 @@ const NewOSYSDashboard: React.FC = () => {
     );
   }
 
+  // Kudos Modal helper functions
+  const closeKudosModal = () => {
+    setShowKudosModal(false);
+    setKudosSearch('');
+    setKudosSelectedPlayer(null);
+    setKudosMessage('');
+    setKudosCategory('great_play');
+  };
+
+  const handleSendKudos = async () => {
+    if (!kudosSelectedPlayer || !teamData?.id || !userData) return;
+    setSendingKudos(true);
+    try {
+      // Save kudos to player's kudos subcollection
+      await addDoc(collection(db, 'teams', teamData.id, 'players', kudosSelectedPlayer.id, 'kudos'), {
+        senderId: userData.uid,
+        senderName: userData.name || 'Someone',
+        senderRole: userData.role,
+        category: kudosCategory,
+        message: kudosMessage.trim() || null,
+        createdAt: serverTimestamp()
+      });
+      
+      // Update player's kudos count
+      await updateDoc(doc(db, 'teams', teamData.id, 'players', kudosSelectedPlayer.id), {
+        kudosCount: (kudosSelectedPlayer.kudosCount || 0) + 1,
+        lastKudosAt: serverTimestamp()
+      });
+      
+      // Send notification to player's parent
+      if (kudosSelectedPlayer.parentId || kudosSelectedPlayer.parentUserId) {
+        const categoryLabels: Record<string, string> = {
+          'great_play': '🌟 Great Play',
+          'teamwork': '🤝 Teamwork',
+          'sportsmanship': '🏆 Sportsmanship',
+          'improvement': '📈 Improvement',
+          'leadership': '👑 Leadership',
+          'hustle': '🔥 Hustle'
+        };
+        await createNotification(
+          kudosSelectedPlayer.parentId || kudosSelectedPlayer.parentUserId,
+          'kudos_received',
+          'Kudos Received! 💫',
+          `${kudosSelectedPlayer.name || kudosSelectedPlayer.firstName} received kudos for ${categoryLabels[kudosCategory] || kudosCategory}${kudosMessage ? `: "${kudosMessage}"` : ''}`,
+          { link: '/dashboard', metadata: { playerId: kudosSelectedPlayer.id, category: kudosCategory } }
+        );
+      }
+      
+      // Mark as sent today
+      setKudosSentToday(prev => new Set([...prev, kudosSelectedPlayer.id]));
+      
+      toastSuccess(`Kudos sent to ${kudosSelectedPlayer.name || kudosSelectedPlayer.firstName}! 💫`);
+      closeKudosModal();
+    } catch (error) {
+      console.error('Error sending kudos:', error);
+      toastError('Failed to send kudos');
+    } finally {
+      setSendingKudos(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Public Page Link Banner */}
@@ -2776,97 +2990,109 @@ const NewOSYSDashboard: React.FC = () => {
       )}
 
       {/* PLAYER REGISTRATION - For coaches with a program */}
-      {userData?.role === 'Coach' && teamData?.programId && registrations.length > 0 && (
-        <GlassCard className={`${theme === 'light' ? 'bg-white border-slate-200 shadow-lg' : ''}`}>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <UserPlus className={`w-6 h-6 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
-              <div>
-                <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Player Registration</h2>
-                <p className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
-                  {registrations.filter(r => r.status === 'open').length} registration{registrations.filter(r => r.status === 'open').length !== 1 ? 's' : ''} open
-                </p>
+      {(() => {
+        // Filter registrations by team's sport and only show if there are any
+        const teamSport = (teamData?.sport || 'football').toLowerCase();
+        const sportFilteredRegistrations = registrations.filter(r => {
+          const regSport = (r.sport || 'football').toLowerCase();
+          return regSport === teamSport;
+        });
+        const openCount = sportFilteredRegistrations.filter(r => r.status === 'open').length;
+        
+        // Hide section completely if no registrations for this sport
+        if (userData?.role !== 'Coach' || !teamData?.programId || sportFilteredRegistrations.length === 0) {
+          return null;
+        }
+        
+        return (
+          <GlassCard className={`${theme === 'light' ? 'bg-white border-slate-200 shadow-lg' : ''}`}>
+            {/* Collapsible Header */}
+            <button 
+              onClick={() => setRegistrationsCollapsed(!registrationsCollapsed)}
+              className="w-full flex items-center justify-between"
+            >
+              <div className="flex items-center gap-3">
+                <UserPlus className={`w-6 h-6 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
+                <div className="text-left">
+                  <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Player Registration</h2>
+                  <p className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
+                    {openCount} registration{openCount !== 1 ? 's' : ''} open
+                  </p>
+                </div>
               </div>
-            </div>
-          </div>
-          
-          <div className="space-y-3">
-            {registrations.slice(0, 3).map(reg => {
-              const registrationUrl = `${window.location.origin}/#/register/${teamData.programId}/${reg.id}`;
-              return (
-                <div 
-                  key={reg.id}
-                  className={`p-4 rounded-lg border ${
-                    theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-                        {reg.name}
-                      </span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        reg.status === 'open' 
-                          ? 'bg-green-500/20 text-green-400'
-                          : reg.status === 'scheduled'
-                            ? 'bg-blue-500/20 text-blue-400'
-                            : 'bg-amber-500/20 text-amber-400'
-                      }`}>
-                        {reg.status === 'open' ? 'Open' : reg.status === 'scheduled' ? 'Scheduled' : 'Closed'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className={`text-xs mb-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-                    {reg.registrantCount || 0} registered • ${reg.registrationFee || 0}
-                  </div>
-                  
-                  {/* Registration Link */}
-                  <div className={`flex items-center gap-2 p-2 rounded-lg ${
-                    theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'
-                  }`}>
-                    <Link2 className={`w-4 h-4 flex-shrink-0 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
-                    <input
-                      type="text"
-                      readOnly
-                      value={registrationUrl}
-                      className={`flex-1 text-xs bg-transparent border-none outline-none truncate ${
-                        theme === 'dark' ? 'text-slate-300' : 'text-slate-600'
-                      }`}
-                    />
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(registrationUrl);
-                        toastSuccess('Registration link copied!');
-                      }}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                        theme === 'dark' 
-                          ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300' 
-                          : 'bg-purple-100 hover:bg-purple-200 text-purple-700'
+              <ChevronDown className={`w-5 h-5 transition-transform ${registrationsCollapsed ? '' : 'rotate-180'} ${
+                theme === 'dark' ? 'text-zinc-400' : 'text-slate-500'
+              }`} />
+            </button>
+            
+            {/* Collapsible Content */}
+            {!registrationsCollapsed && (
+              <div className="mt-4 space-y-3">
+                {sportFilteredRegistrations.slice(0, 5).map(reg => {
+                  const registrationUrl = `${window.location.origin}/#/register/${teamData.programId}/${reg.id}`;
+                  return (
+                    <div 
+                      key={reg.id}
+                      className={`p-4 rounded-lg border ${
+                        theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'
                       }`}
                     >
-                      Copy Link
-                    </button>
-                    {reg.status === 'open' && (
-                      <a
-                        href={registrationUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                          theme === 'dark' 
-                            ? 'bg-green-500/20 hover:bg-green-500/30 text-green-300' 
-                            : 'bg-green-100 hover:bg-green-200 text-green-700'
-                        }`}
-                      >
-                        Open
-                      </a>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </GlassCard>
-      )}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                            {reg.name}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            reg.status === 'open' 
+                              ? 'bg-green-500/20 text-green-400'
+                              : reg.status === 'scheduled'
+                                ? 'bg-blue-500/20 text-blue-400'
+                                : 'bg-amber-500/20 text-amber-400'
+                          }`}>
+                            {reg.status === 'open' ? 'Open' : reg.status === 'scheduled' ? 'Scheduled' : 'Closed'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className={`text-xs mb-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                        {reg.registrantCount || 0} registered • ${reg.registrationFee || 0}
+                      </div>
+                      
+                      {/* Registration Link */}
+                      <div className={`flex items-center gap-2 p-2 rounded-lg ${
+                        theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'
+                      }`}>
+                        <Link2 className={`w-4 h-4 flex-shrink-0 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
+                        <input
+                          type="text"
+                          readOnly
+                          value={registrationUrl}
+                          className={`flex-1 text-xs bg-transparent border-none outline-none truncate ${
+                            theme === 'dark' ? 'text-slate-300' : 'text-slate-600'
+                          }`}
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(registrationUrl);
+                            toastSuccess('Registration link copied!');
+                          }}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                            theme === 'dark' 
+                              ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300' 
+                              : 'bg-purple-100 hover:bg-purple-200 text-purple-700'
+                          }`}
+                        >
+                          Copy Link
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </GlassCard>
+        );
+      })()}
 
       {/* SEASON MANAGEMENT (Coaches & Parents) */}
       {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin' || userData?.role === 'Parent') && teamData?.id && (
@@ -3602,10 +3828,9 @@ const NewOSYSDashboard: React.FC = () => {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {coaches.map((coach) => (
-                <Link
+                <div
                   key={coach.uid}
-                  to={coach.username ? `/coach/${coach.username}` : '#'}
-                  className={`flex flex-col items-center gap-2 p-3 rounded-xl transition ${
+                  className={`relative flex flex-col items-center gap-2 p-3 rounded-xl transition ${
                     coach.isHeadCoach
                       ? theme === 'dark'
                         ? 'bg-amber-500/10 hover:bg-amber-500/20 ring-2 ring-amber-500/50 shadow-lg shadow-amber-500/20'
@@ -3613,65 +3838,85 @@ const NewOSYSDashboard: React.FC = () => {
                       : theme === 'dark' ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'
                   }`}
                 >
-                  {/* Coach Photo */}
-                  {coach.photoUrl ? (
-                    <img 
-                      src={coach.photoUrl} 
-                      alt={coach.name} 
-                      className="w-12 h-12 rounded-full object-cover border-2 border-purple-500/50"
-                    />
-                  ) : (
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold ${
-                      theme === 'dark' ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'
-                    }`}>
-                      {coach.name?.charAt(0) || '?'}
-                    </div>
+                  {/* Message Button (for parents only) */}
+                  {userData?.role === 'Parent' && (
+                    <button
+                      onClick={() => navigate(`/messenger?userId=${coach.uid}`)}
+                      className={`absolute top-2 right-2 p-1.5 rounded-lg transition-colors ${
+                        theme === 'dark' 
+                          ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-400' 
+                          : 'bg-purple-100 hover:bg-purple-200 text-purple-600'
+                      }`}
+                      title={`Message ${coach.name}`}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                    </button>
                   )}
-                  {/* Coach Name */}
-                  <span className={`text-sm font-medium text-center truncate w-full ${
-                    theme === 'dark' ? 'text-white' : 'text-zinc-900'
-                  }`}>
-                    {coach.name || 'Unknown'}
-                  </span>
-                  {/* Role Badges */}
-                  <div className="flex flex-wrap gap-1 justify-center">
-                    {coach.isHeadCoach && (
-                      <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded flex items-center gap-0.5 ${
-                        theme === 'dark' ? 'bg-orange-900/30 text-orange-400' : 'bg-orange-100 text-orange-700'
+                  
+                  <Link
+                    to={coach.username ? `/coach/${coach.username}` : '#'}
+                    className="flex flex-col items-center gap-2 w-full"
+                  >
+                    {/* Coach Photo */}
+                    {coach.photoUrl ? (
+                      <img 
+                        src={coach.photoUrl} 
+                        alt={coach.name} 
+                        className="w-12 h-12 rounded-full object-cover border-2 border-purple-500/50"
+                      />
+                    ) : (
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold ${
+                        theme === 'dark' ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'
                       }`}>
-                        <Crown className="w-2.5 h-2.5" /> HC
-                      </span>
+                        {coach.name?.charAt(0) || '?'}
+                      </div>
                     )}
-                    {coach.isOC && (
-                      <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded flex items-center gap-0.5 ${
-                        theme === 'dark' ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-700'
-                      }`}>
-                        <Sword className="w-2.5 h-2.5" /> OC
-                      </span>
-                    )}
-                    {coach.isDC && (
-                      <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded flex items-center gap-0.5 ${
-                        theme === 'dark' ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-100 text-blue-700'
-                      }`}>
-                        <Shield className="w-2.5 h-2.5" /> DC
-                      </span>
-                    )}
-                    {coach.isSTC && (
-                      <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded flex items-center gap-0.5 ${
-                        theme === 'dark' ? 'bg-yellow-900/30 text-yellow-400' : 'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        <Zap className="w-2.5 h-2.5" /> STC
-                      </span>
-                    )}
-                    {!coach.isHeadCoach && !coach.isOC && !coach.isDC && !coach.isSTC && (
-                      <span className={`px-2 py-0.5 text-[10px] rounded ${
-                        theme === 'dark' ? 'bg-slate-700 text-slate-400' : 'bg-slate-200 text-slate-600'
-                      }`}>
-                        Coach
-                      </span>
-                    )}
-                  </div>
-                </Link>
+                    {/* Coach Name */}
+                    <span className={`text-sm font-medium text-center truncate w-full ${
+                      theme === 'dark' ? 'text-white' : 'text-zinc-900'
+                    }`}>
+                      {coach.name || 'Unknown'}
+                    </span>
+                    {/* Role Badges */}
+                    <div className="flex flex-wrap gap-1 justify-center">
+                      {coach.isHeadCoach && (
+                        <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded flex items-center gap-0.5 ${
+                          theme === 'dark' ? 'bg-orange-900/30 text-orange-400' : 'bg-orange-100 text-orange-700'
+                        }`}>
+                          <Crown className="w-2.5 h-2.5" /> HC
+                        </span>
+                      )}
+                      {coach.isOC && (
+                        <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded flex items-center gap-0.5 ${
+                          theme === 'dark' ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-700'
+                        }`}>
+                          <Sword className="w-2.5 h-2.5" /> OC
+                        </span>
+                      )}
+                      {coach.isDC && (
+                        <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded flex items-center gap-0.5 ${
+                          theme === 'dark' ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          <Shield className="w-2.5 h-2.5" /> DC
+                        </span>
+                      )}
+                      {coach.isSTC && (
+                        <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded flex items-center gap-0.5 ${
+                          theme === 'dark' ? 'bg-yellow-900/30 text-yellow-400' : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          <Zap className="w-2.5 h-2.5" /> STC
+                        </span>
+                      )}
+                      {!coach.isHeadCoach && !coach.isOC && !coach.isDC && !coach.isSTC && (
+                        <span className={`px-2 py-0.5 text-[10px] rounded ${
+                          theme === 'dark' ? 'bg-slate-700 text-slate-400' : 'bg-slate-200 text-slate-600'
+                        }`}>
+                          Coach
+                        </span>
+                      )}
+                    </div>
+                  </Link>
+                </div>
               ))}
             </div>
           )}
@@ -4344,6 +4589,244 @@ const NewOSYSDashboard: React.FC = () => {
         />
       )}
 
+      {/* Send Kudos Modal */}
+      {showKudosModal && (
+        <div 
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={closeKudosModal}
+        >
+          <div 
+            className={`w-full max-w-md rounded-xl shadow-xl ${theme === 'dark' ? 'bg-zinc-900 border border-white/10' : 'bg-white'}`}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className={`p-4 border-b ${theme === 'dark' ? 'border-white/10' : 'border-gray-200'}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">💫</span>
+                  <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    Send Kudos
+                  </h3>
+                </div>
+                <button 
+                  onClick={closeKudosModal}
+                  className={`p-1 rounded-lg transition ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            
+            {/* Content */}
+            <div className="p-4 space-y-4">
+              {/* Player Search/Select */}
+              {!kudosSelectedPlayer ? (
+                <>
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}`}>
+                      Select Player
+                    </label>
+                    <input
+                      type="text"
+                      value={kudosSearch}
+                      onChange={(e) => setKudosSearch(e.target.value)}
+                      placeholder="Search players..."
+                      className={`w-full px-3 py-2 rounded-lg border ${
+                        theme === 'dark' 
+                          ? 'bg-white/5 border-white/10 text-white placeholder-slate-500' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    />
+                  </div>
+                  
+                  {loadingKudosStatus ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
+                    </div>
+                  ) : (
+                    <div className="max-h-60 overflow-y-auto space-y-2">
+                      {roster
+                        .filter(p => {
+                          const name = (p.name || `${p.firstName} ${p.lastName}`).toLowerCase();
+                          return name.includes(kudosSearch.toLowerCase());
+                        })
+                        .map(player => {
+                          const alreadySent = kudosSentToday.has(player.id);
+                          return (
+                            <button
+                              key={player.id}
+                              onClick={() => !alreadySent && setKudosSelectedPlayer(player)}
+                              disabled={alreadySent}
+                              className={`w-full flex items-center gap-3 p-3 rounded-lg transition ${
+                                alreadySent
+                                  ? theme === 'dark' 
+                                    ? 'bg-green-500/10 border border-green-500/30 cursor-default' 
+                                    : 'bg-green-50 border border-green-200 cursor-default'
+                                  : theme === 'dark' 
+                                    ? 'bg-white/5 hover:bg-white/10' 
+                                    : 'bg-gray-50 hover:bg-gray-100'
+                              }`}
+                            >
+                              {player.photoUrl ? (
+                                <img src={player.photoUrl} alt={player.name} className="w-10 h-10 rounded-full object-cover" />
+                              ) : (
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                  theme === 'dark' ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'
+                                }`}>
+                                  {(player.name || player.firstName || '?').charAt(0)}
+                                </div>
+                              )}
+                              <div className="text-left flex-1">
+                                <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                  {player.name || `${player.firstName} ${player.lastName}`}
+                                </div>
+                                <div className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                                  #{player.number || '--'} • {player.position || 'No position'}
+                                </div>
+                              </div>
+                              {alreadySent && (
+                                <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                                  theme === 'dark' ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-600'
+                                }`}>
+                                  <Check className="w-3 h-3" />
+                                  Sent today
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      {roster.length === 0 && (
+                        <p className={`text-center py-4 ${theme === 'dark' ? 'text-slate-500' : 'text-gray-400'}`}>
+                          No players on roster
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Selected Player */}
+                  <div className={`flex items-center gap-3 p-3 rounded-lg ${
+                    theme === 'dark' ? 'bg-purple-500/20 border border-purple-500/30' : 'bg-purple-50 border border-purple-200'
+                  }`}>
+                    {kudosSelectedPlayer.photoUrl ? (
+                      <img src={kudosSelectedPlayer.photoUrl} alt="" className="w-10 h-10 rounded-full object-cover" />
+                    ) : (
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        theme === 'dark' ? 'bg-purple-500/30 text-purple-300' : 'bg-purple-100 text-purple-600'
+                      }`}>
+                        {(kudosSelectedPlayer.name || kudosSelectedPlayer.firstName || '?').charAt(0)}
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                        {kudosSelectedPlayer.name || `${kudosSelectedPlayer.firstName} ${kudosSelectedPlayer.lastName}`}
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setKudosSelectedPlayer(null)}
+                      className={`p-1 rounded-lg transition ${theme === 'dark' ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-gray-200 text-gray-500'}`}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Kudos Category */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}`}>
+                      Category
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'great_play', emoji: '🌟', label: 'Great Play' },
+                        { id: 'teamwork', emoji: '🤝', label: 'Teamwork' },
+                        { id: 'sportsmanship', emoji: '🏆', label: 'Sportsmanship' },
+                        { id: 'improvement', emoji: '📈', label: 'Improvement' },
+                        { id: 'leadership', emoji: '👑', label: 'Leadership' },
+                        { id: 'hustle', emoji: '🔥', label: 'Hustle' },
+                      ].map(cat => (
+                        <button
+                          key={cat.id}
+                          onClick={() => setKudosCategory(cat.id)}
+                          className={`p-2 rounded-lg text-center transition ${
+                            kudosCategory === cat.id
+                              ? theme === 'dark' 
+                                ? 'bg-purple-500/30 border border-purple-500 text-purple-300' 
+                                : 'bg-purple-100 border border-purple-400 text-purple-700'
+                              : theme === 'dark'
+                                ? 'bg-white/5 border border-white/10 text-slate-400 hover:bg-white/10'
+                                : 'bg-gray-50 border border-gray-200 text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          <div className="text-xl mb-1">{cat.emoji}</div>
+                          <div className="text-xs">{cat.label}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Message */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}`}>
+                      Message (optional)
+                    </label>
+                    <textarea
+                      value={kudosMessage}
+                      onChange={(e) => setKudosMessage(e.target.value)}
+                      placeholder="Great job out there today!"
+                      rows={2}
+                      maxLength={200}
+                      className={`w-full px-3 py-2 rounded-lg border resize-none ${
+                        theme === 'dark' 
+                          ? 'bg-white/5 border-white/10 text-white placeholder-slate-500' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    />
+                    <p className={`text-xs mt-1 text-right ${theme === 'dark' ? 'text-slate-500' : 'text-gray-400'}`}>
+                      {kudosMessage.length}/200
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            {kudosSelectedPlayer && (
+              <div className={`p-4 border-t ${theme === 'dark' ? 'border-white/10' : 'border-gray-200'} flex gap-3`}>
+                <button
+                  onClick={closeKudosModal}
+                  className={`flex-1 py-2.5 rounded-lg font-medium transition ${
+                    theme === 'dark' ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSendKudos}
+                  disabled={sendingKudos}
+                  className={`flex-1 py-2.5 rounded-lg font-medium transition flex items-center justify-center gap-2 ${
+                    sendingKudos
+                      ? 'bg-purple-500/50 text-white/50 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-purple-600 to-purple-500 text-white hover:from-purple-500 hover:to-purple-400'
+                  }`}
+                >
+                  {sendingKudos ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      💫 Send Kudos
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Save Stream to Library Modal */}
       {endedStream && teamData?.id && (
         <SaveStreamToLibraryModal
@@ -4377,7 +4860,7 @@ const NewOSYSDashboard: React.FC = () => {
                     Draft Player to Team
                   </h3>
                   <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
-                    {draftModalPlayer.athleteFirstName} {draftModalPlayer.athleteLastName}
+                    {draftModalPlayer.athleteFirstName || draftModalPlayer.firstName || ''} {draftModalPlayer.athleteLastName || draftModalPlayer.lastName || draftModalPlayer.name || 'Unknown Player'}
                   </p>
                 </div>
               </div>

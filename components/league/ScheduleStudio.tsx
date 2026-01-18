@@ -101,6 +101,7 @@ interface StudioProps {
   teams: TeamWithProgram[];
   existingBookings?: ExistingBooking[]; // Bookings from other age groups
   existingGames?: ScheduledGame[];
+  existingWeeksCount?: number; // Number of weeks from saved schedule
   seasonStartDate: Date;
   onSave: (games: ScheduledGame[], weeks: WeekData[]) => Promise<void>;
   onClose: () => void;
@@ -830,6 +831,7 @@ export default function ScheduleStudio({
   teams,
   existingBookings = [],
   existingGames,
+  existingWeeksCount,
   seasonStartDate,
   onSave,
   onClose,
@@ -838,7 +840,7 @@ export default function ScheduleStudio({
   const { user } = useAuth();
   const { setIsFullscreenOpen, setHasUnsavedChanges } = useUnsavedChanges();
   const [weeks, setWeeks] = useState<WeekData[]>([]);
-  const [totalWeeks, setTotalWeeks] = useState(10);
+  const [totalWeeks, setTotalWeeks] = useState(existingWeeksCount || 10);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<'team' | 'time' | 'venue' | null>(null);
   const [activeData, setActiveData] = useState<any>(null);

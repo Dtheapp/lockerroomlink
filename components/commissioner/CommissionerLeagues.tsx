@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { collection, query, where, getDocs, orderBy, Timestamp, doc, updateDoc, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, Timestamp, doc, updateDoc, addDoc, serverTimestamp, writeBatch, limit } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import { ChevronLeft, Search, Inbox, Check, X, Clock, Filter, AlertCircle, Loader2, Building2, Calendar, Shield, Send, Users, Plus, Minus, LogOut, Tag, CheckCircle } from 'lucide-react';
+import { ChevronLeft, Search, Inbox, Check, X, Clock, Filter, AlertCircle, Loader2, Building2, Calendar, Shield, Send, Users, Plus, Minus, LogOut, Tag, CheckCircle, MapPin, Globe, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { toastSuccess, toastError } from '../../services/toast';
+import { toastSuccess, toastError, toastInfo } from '../../services/toast';
 
 interface TeamInfo {
   id: string;
@@ -42,6 +42,24 @@ interface LeagueInfo {
   ageGroups?: string[]; // Available age groups in the league
 }
 
+// Search result league interface
+interface SearchableLeague {
+  id: string;
+  name: string;
+  sport: string;
+  city?: string;
+  state?: string;
+  region?: string;
+  logoUrl?: string;
+  ageGroups?: string[];
+  teamCount?: number;
+  programCount?: number;
+  ownerId: string;
+  ownerName?: string;
+  description?: string;
+  hasPendingRequest?: boolean; // If we already requested to join
+}
+
 export default function CommissionerLeagues() {
   const { userData, programData } = useAuth();
   const { theme } = useTheme();
@@ -55,10 +73,39 @@ export default function CommissionerLeagues() {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
+  
+  // League Search states
+  const [leagueSearchQuery, setLeagueSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchableLeague[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [requestingLeagueId, setRequestingLeagueId] = useState<string | null>(null);
+  const [pendingRequestLeagueIds, setPendingRequestLeagueIds] = useState<string[]>([]);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Multi-sport: Get selected sport from localStorage with listener
+  const [selectedSport, setSelectedSport] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('commissioner_selected_sport')?.toLowerCase() || 'football';
+    }
+    return 'football';
+  });
+
+  // Listen for sport changes from sidebar selector
+  useEffect(() => {
+    const handleSportChange = (e: CustomEvent) => {
+      setSelectedSport(e.detail?.toLowerCase() || 'football');
+    };
+    window.addEventListener('commissioner-sport-changed', handleSportChange as EventListener);
+    return () => {
+      window.removeEventListener('commissioner-sport-changed', handleSportChange as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     loadData();
-  }, [programData]);
+  }, [programData, selectedSport]);
 
 
   const loadData = async () => {
@@ -71,8 +118,33 @@ export default function CommissionerLeagues() {
     }
 
     try {
-      // Load current league if program is in one
-      const leagueId = programData?.leagueId || (userData as any)?.leagueId;
+      // Multi-sport: Get league ID for selected sport
+      // Check leagueIds[sport] first, then fall back to leagueId if sport matches
+      let leagueId: string | null = null;
+      const sportLeagueId = (programData as any)?.leagueIds?.[selectedSport];
+      
+      if (sportLeagueId) {
+        leagueId = sportLeagueId;
+      } else if (programData?.leagueId) {
+        // Check if the legacy leagueId matches the selected sport
+        const legacyLeagueDoc = await getDocs(query(
+          collection(db, 'leagues'),
+          where('__name__', '==', programData.leagueId)
+        ));
+        if (!legacyLeagueDoc.empty) {
+          const legacySport = legacyLeagueDoc.docs[0].data().sport?.toLowerCase() || 'football';
+          if (legacySport === selectedSport) {
+            leagueId = programData.leagueId;
+          }
+        }
+      }
+      
+      // Reset league if no match for selected sport
+      if (!leagueId) {
+        setCurrentLeague(null);
+        setTeams([]);
+      }
+      
       if (leagueId) {
         const leagueDoc = await getDocs(query(
           collection(db, 'leagues'),
@@ -114,7 +186,7 @@ export default function CommissionerLeagues() {
       
       setInvitations(invitationsList);
       
-      // Load teams from the program (for adding to league)
+      // Load teams from the program (for adding to league) - filter by selected sport
       // Note: leagueId already declared above
       if (leagueId) {
         // First get league age groups for validation
@@ -129,7 +201,9 @@ export default function CommissionerLeagues() {
           where('programId', '==', programId)
         );
         const teamsSnap = await getDocs(teamsQuery);
-        const teamsList = teamsSnap.docs.map(d => {
+        const teamsList = teamsSnap.docs
+          .filter(d => d.data().sport?.toLowerCase() === selectedSport) // Filter by selected sport
+          .map(d => {
           const data = d.data();
           const teamAgeGroup = data.ageGroup || '';
           const noAgeGroup = !teamAgeGroup;
@@ -148,10 +222,188 @@ export default function CommissionerLeagues() {
         });
         setTeams(teamsList);
       }
+      
+      // Load pending join requests we've sent (to show status in search results)
+      const pendingRequestsQuery = query(
+        collection(db, 'leagueRequests'),
+        where('programId', '==', programId),
+        where('type', '==', 'join_request'),
+        where('status', '==', 'pending')
+      );
+      const pendingSnap = await getDocs(pendingRequestsQuery);
+      const pendingIds = pendingSnap.docs.map(d => d.data().leagueId);
+      setPendingRequestLeagueIds(pendingIds);
+      
     } catch (error) {
       console.error('Error loading league data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+  
+  // Search for leagues
+  const searchLeagues = async (searchQuery: string) => {
+    if (!searchQuery.trim() || searchQuery.length < 2) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+    
+    setSearchLoading(true);
+    setShowSearchResults(true);
+    
+    try {
+      // Get all leagues (Firestore doesn't support text search or case-insensitive queries)
+      // We'll filter client-side for sport and search term
+      // Note: Sports may be stored as 'basketball' or 'Basketball' depending on when created
+      const leaguesQuery = query(
+        collection(db, 'leagues'),
+        limit(100)
+      );
+      
+      const snapshot = await getDocs(leaguesQuery);
+      const searchLower = searchQuery.toLowerCase();
+      const sportLower = selectedSport.toLowerCase();
+      
+      const results: SearchableLeague[] = snapshot.docs
+        .map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.name || '',
+            sport: data.sport || '',
+            city: data.city,
+            state: data.state,
+            region: data.region,
+            logoUrl: data.logoUrl,
+            ageGroups: data.ageGroups || [],
+            teamCount: data.teamIds?.length || 0,
+            programCount: data.programIds?.length || 0,
+            ownerId: data.ownerId,
+            ownerName: data.ownerName,
+            description: data.description,
+            hasPendingRequest: pendingRequestLeagueIds.includes(doc.id)
+          };
+        })
+        .filter(league => {
+          // Don't show current league
+          if (currentLeague && league.id === currentLeague.id) return false;
+          
+          // Filter by sport (case-insensitive)
+          if (league.sport.toLowerCase() !== sportLower) return false;
+          
+          // Search in name, city, state, region, or league code (id)
+          return (
+            league.name.toLowerCase().includes(searchLower) ||
+            league.id.toLowerCase().includes(searchLower) ||
+            league.city?.toLowerCase().includes(searchLower) ||
+            league.state?.toLowerCase().includes(searchLower) ||
+            league.region?.toLowerCase().includes(searchLower)
+          );
+        })
+        .slice(0, 10); // Limit to 10 results
+      
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Error searching leagues:', error);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+  
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (leagueSearchQuery.trim()) {
+        searchLeagues(leagueSearchQuery);
+      }
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [leagueSearchQuery, selectedSport, pendingRequestLeagueIds]);
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        searchDropdownRef.current &&
+        !searchDropdownRef.current.contains(event.target as Node) &&
+        searchInputRef.current &&
+        !searchInputRef.current.contains(event.target as Node)
+      ) {
+        setShowSearchResults(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+  
+  // Request to join a league
+  const requestToJoinLeague = async (league: SearchableLeague) => {
+    if (!programData?.id) {
+      toastError('No program found');
+      return;
+    }
+    
+    // Check if already in a league for this sport
+    if (currentLeague) {
+      toastError(`Already in ${currentLeague.name}. Leave current league first.`);
+      return;
+    }
+    
+    setRequestingLeagueId(league.id);
+    
+    try {
+      // Create join request
+      await addDoc(collection(db, 'leagueRequests'), {
+        type: 'join_request',
+        leagueId: league.id,
+        leagueName: league.name,
+        programId: programData.id,
+        programName: programData.name,
+        sport: selectedSport,
+        status: 'pending',
+        createdBy: userData?.uid,
+        createdByName: userData?.displayName || userData?.firstName || 'Unknown',
+        createdAt: serverTimestamp(),
+        message: `${programData.name} would like to join ${league.name}`
+      });
+      
+      // Notify league owner
+      await addDoc(collection(db, 'notifications'), {
+        userId: league.ownerId,
+        type: 'join_request',
+        title: 'League Join Request',
+        message: `${programData.name} has requested to join ${league.name}`,
+        read: false,
+        createdAt: serverTimestamp(),
+        data: {
+          programId: programData.id,
+          programName: programData.name,
+          leagueId: league.id,
+          leagueName: league.name
+        }
+      });
+      
+      toastSuccess(`Request sent to ${league.name}!`);
+      
+      // Update local state
+      setPendingRequestLeagueIds(prev => [...prev, league.id]);
+      setSearchResults(prev => prev.map(l => 
+        l.id === league.id ? { ...l, hasPendingRequest: true } : l
+      ));
+      
+      // Clear search
+      setLeagueSearchQuery('');
+      setShowSearchResults(false);
+      
+    } catch (error) {
+      console.error('Error requesting to join league:', error);
+      toastError('Failed to send request');
+    } finally {
+      setRequestingLeagueId(null);
     }
   };
   
@@ -958,6 +1210,188 @@ export default function CommissionerLeagues() {
                   )}
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Find & Join a League Section */}
+        {!currentLeague && (
+          <div className={`rounded-2xl border mb-6 ${
+            theme === 'dark'
+              ? 'bg-white/5 border-white/10'
+              : 'bg-white border-slate-200 shadow-sm'
+          }`}>
+            <div className={`px-5 py-3 border-b rounded-t-2xl ${
+              theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-100'
+            }`}>
+              <h3 className={`text-sm font-medium flex items-center gap-2 ${
+                theme === 'dark' ? 'text-white' : 'text-slate-900'
+              }`}>
+                <Globe className="w-4 h-4 text-purple-500" />
+                Find & Join a League
+              </h3>
+            </div>
+            
+            <div className="p-5">
+              <p className={`text-sm mb-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                Search for {selectedSport.charAt(0).toUpperCase() + selectedSport.slice(1)} leagues in your area to request membership
+              </p>
+              
+              {/* Search Input */}
+              <div className="relative">
+                <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${
+                  theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                }`} />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={leagueSearchQuery}
+                  onChange={(e) => setLeagueSearchQuery(e.target.value)}
+                  onFocus={() => leagueSearchQuery.trim() && setShowSearchResults(true)}
+                  placeholder="Search by league name, city, or state..."
+                  className={`w-full pl-10 pr-4 py-3 rounded-xl border focus:ring-2 focus:ring-purple-500/50 focus:outline-none transition-all ${
+                    theme === 'dark'
+                      ? 'bg-white/5 border-white/10 text-white placeholder-slate-500'
+                      : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                  }`}
+                />
+                {searchLoading && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-500 animate-spin" />
+                )}
+                
+                {/* Search Results Dropdown */}
+                {showSearchResults && (
+                  <div 
+                    ref={searchDropdownRef}
+                    className={`absolute top-full left-0 right-0 mt-2 rounded-xl border shadow-xl z-50 max-h-80 overflow-y-auto ${
+                      theme === 'dark'
+                        ? 'bg-zinc-800 border-white/10'
+                        : 'bg-white border-slate-200'
+                    }`}
+                  >
+                    {searchLoading ? (
+                      <div className="p-4 text-center">
+                        <Loader2 className="w-6 h-6 text-purple-500 animate-spin mx-auto" />
+                      </div>
+                    ) : searchResults.length > 0 ? (
+                      <div className="divide-y divide-white/10">
+                        {searchResults.map(league => (
+                          <div 
+                            key={league.id}
+                            className={`p-4 transition-colors ${
+                              theme === 'dark' ? 'hover:bg-white/5' : 'hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              {/* League Logo */}
+                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                                theme === 'dark' ? 'bg-purple-500/20' : 'bg-purple-100'
+                              }`}>
+                                {league.logoUrl ? (
+                                  <img 
+                                    src={league.logoUrl} 
+                                    alt={league.name}
+                                    className="w-10 h-10 rounded-lg object-cover"
+                                  />
+                                ) : (
+                                  <Shield className="w-6 h-6 text-purple-500" />
+                                )}
+                              </div>
+                              
+                              {/* League Info */}
+                              <div className="flex-1 min-w-0">
+                                <h4 className={`font-semibold truncate ${
+                                  theme === 'dark' ? 'text-white' : 'text-slate-900'
+                                }`}>
+                                  {league.name}
+                                </h4>
+                                
+                                {(league.city || league.state) && (
+                                  <p className={`text-sm flex items-center gap-1 ${
+                                    theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                                  }`}>
+                                    <MapPin className="w-3 h-3" />
+                                    {[league.city, league.state].filter(Boolean).join(', ')}
+                                  </p>
+                                )}
+                                
+                                <div className={`flex items-center gap-3 mt-1 text-xs ${
+                                  theme === 'dark' ? 'text-slate-500' : 'text-slate-500'
+                                }`}>
+                                  <span>{league.teamCount} teams</span>
+                                  <span>•</span>
+                                  <span>{league.ageGroups?.length || 0} age groups</span>
+                                </div>
+                              </div>
+                              
+                              {/* Action Button */}
+                              <div className="flex-shrink-0">
+                                {league.hasPendingRequest ? (
+                                  <span className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium ${
+                                    theme === 'dark'
+                                      ? 'bg-yellow-500/20 text-yellow-400'
+                                      : 'bg-yellow-100 text-yellow-700'
+                                  }`}>
+                                    <Clock className="w-3 h-3" />
+                                    Pending
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => requestToJoinLeague(league)}
+                                    disabled={requestingLeagueId === league.id}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                      theme === 'dark'
+                                        ? 'bg-purple-500 hover:bg-purple-600 text-white'
+                                        : 'bg-purple-600 hover:bg-purple-700 text-white'
+                                    } disabled:opacity-50`}
+                                  >
+                                    {requestingLeagueId === league.id ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Send className="w-3 h-3" />
+                                        Request
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : leagueSearchQuery.length >= 2 ? (
+                      <div className="p-6 text-center">
+                        <Globe className={`w-10 h-10 mx-auto mb-2 ${
+                          theme === 'dark' ? 'text-slate-600' : 'text-slate-400'
+                        }`} />
+                        <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>
+                          No {selectedSport} leagues found
+                        </p>
+                        <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>
+                          Try a different search term
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="p-4 text-center text-sm text-slate-500">
+                        Type at least 2 characters to search
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              {/* Pending Requests Info */}
+              {pendingRequestLeagueIds.length > 0 && (
+                <div className={`mt-4 p-3 rounded-lg flex items-center gap-2 ${
+                  theme === 'dark' ? 'bg-yellow-500/10' : 'bg-yellow-50'
+                }`}>
+                  <Clock className="w-4 h-4 text-yellow-500" />
+                  <span className={`text-sm ${theme === 'dark' ? 'text-yellow-400' : 'text-yellow-700'}`}>
+                    You have {pendingRequestLeagueIds.length} pending join request{pendingRequestLeagueIds.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}

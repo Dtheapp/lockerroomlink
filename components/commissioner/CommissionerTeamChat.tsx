@@ -280,7 +280,7 @@ export const CommissionerTeamChat: React.FC = () => {
   }
 
   return (
-    <div className={`min-h-screen flex flex-col ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
+    <div className={`h-[calc(100vh-8rem)] lg:h-[calc(100vh-4rem)] flex flex-col rounded-xl overflow-hidden ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Header */}
       <div className={`border-b flex-shrink-0 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
         <div className="max-w-4xl mx-auto px-4 py-4">

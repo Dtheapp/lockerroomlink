@@ -39,8 +39,24 @@ export const CommissionerTeamList: React.FC = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
   
-  // Get selected sport from localStorage
-  const selectedSportFromDropdown = localStorage.getItem('commissioner_selected_sport')?.toLowerCase() || '';
+  // Get selected sport from localStorage (reactive with sport change listener)
+  const [selectedSportFromDropdown, setSelectedSportFromDropdown] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('commissioner_selected_sport')?.toLowerCase() || '';
+    }
+    return '';
+  });
+
+  // Listen for sport changes from sidebar selector
+  useEffect(() => {
+    const handleSportChange = (e: CustomEvent) => {
+      setSelectedSportFromDropdown(e.detail?.toLowerCase() || '');
+    };
+    window.addEventListener('commissioner-sport-changed', handleSportChange as EventListener);
+    return () => {
+      window.removeEventListener('commissioner-sport-changed', handleSportChange as EventListener);
+    };
+  }, []);
 
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,11 +146,19 @@ export const CommissionerTeamList: React.FC = () => {
     loadTeams();
   }, [programData?.id, user?.uid, selectedSportFromDropdown]);
 
-  // Group teams by sport
+  // Filter teams by selected sport ONLY (multi-sport support)
+  const filteredTeams = useMemo(() => {
+    if (!selectedSportFromDropdown) return teams;
+    return teams.filter(team => 
+      team.sport?.toLowerCase() === selectedSportFromDropdown.toLowerCase()
+    );
+  }, [teams, selectedSportFromDropdown]);
+
+  // Group teams by sport (now only contains selected sport)
   const teamsBySport = useMemo(() => {
     const grouped: Record<string, Team[]> = {};
     
-    teams.forEach(team => {
+    filteredTeams.forEach(team => {
       const sport = team.sport?.toLowerCase() || 'other';
       if (!grouped[sport]) {
         grouped[sport] = [];
@@ -150,7 +174,7 @@ export const CommissionerTeamList: React.FC = () => {
     });
     
     return { grouped, sortedSports };
-  }, [teams, selectedSportFromDropdown]);
+  }, [filteredTeams, selectedSportFromDropdown]);
 
   // Filter teams by search query
   const filterTeams = (teamList: Team[]) => {
@@ -200,6 +224,13 @@ export const CommissionerTeamList: React.FC = () => {
               <ChevronRight className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
               <h1 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Team Management</h1>
             </div>
+            <Link
+              to="/commissioner/teams/create"
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Add Team</span>
+            </Link>
           </div>
         </div>
       </div>
@@ -379,24 +410,24 @@ export const CommissionerTeamList: React.FC = () => {
           </div>
         )}
 
-        {/* Summary Stats */}
-        {teams.length > 0 && (
+        {/* Summary Stats - uses filteredTeams for sport-specific counts */}
+        {filteredTeams.length > 0 && (
           <div className={`rounded-xl p-4 flex flex-wrap items-center justify-center gap-8 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white border border-gray-200 shadow-sm'}`}>
             <div className="text-center">
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{teams.length}</p>
+              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{filteredTeams.length}</p>
               <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Teams</p>
             </div>
             <div className={`h-8 w-px ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}`} />
             <div className="text-center">
               <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                {Object.values(teamStats).reduce((sum, s) => sum + s.players, 0)}
+                {filteredTeams.reduce((sum, t) => sum + (teamStats[t.id!]?.players || 0), 0)}
               </p>
               <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Players</p>
             </div>
             <div className={`h-8 w-px ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}`} />
             <div className="text-center">
               <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                {Object.values(teamStats).reduce((sum, s) => sum + s.coaches, 0)}
+                {filteredTeams.reduce((sum, t) => sum + (teamStats[t.id!]?.coaches || 0), 0)}
               </p>
               <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Coaches</p>
             </div>

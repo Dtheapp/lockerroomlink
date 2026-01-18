@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc, limitToLast, deleteDoc, writeBatch, arrayUnion } from 'firebase/firestore';
+import { useSearchParams } from 'react-router-dom';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc, limitToLast, deleteDoc, writeBatch, arrayUnion, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
@@ -31,6 +32,7 @@ const Messenger: React.FC = () => {
   // ADDED: teamData to scope the search to teammates only
   const { user, userData, teamData } = useAuth();
   const { markAsRead } = useUnreadMessages();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   const [chats, setChats] = useState<ExtendedChat[]>([]);
   const [grievanceChats, setGrievanceChats] = useState<ExtendedChat[]>([]);
@@ -96,6 +98,108 @@ const Messenger: React.FC = () => {
     });
     return () => unsubscribe();
   }, [user]);
+
+  // 1a. AUTO-START CHAT from URL parameter (e.g., /messenger?userId=abc123)
+  const autoStartingChatRef = useRef<string | null>(null);
+  const [chatsLoaded, setChatsLoaded] = useState(false);
+  
+  // Mark chats as loaded after initial fetch
+  useEffect(() => {
+    if (chats !== undefined) {
+      // Small delay to ensure Firestore snapshot has completed
+      const timer = setTimeout(() => setChatsLoaded(true), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [chats]);
+  
+  useEffect(() => {
+    const targetUserId = searchParams.get('userId');
+    if (!targetUserId || !user || !userData) return;
+    
+    // Wait for chats to be loaded before checking for existing
+    if (!chatsLoaded) return;
+    
+    // Prevent duplicate executions for the same userId
+    if (autoStartingChatRef.current === targetUserId) return;
+    
+    const autoStartChat = async () => {
+      // Mark as in-progress to prevent duplicate calls
+      autoStartingChatRef.current = targetUserId;
+      
+      // Check if chat already exists with this user
+      const existingChat = chats.find(c => c.participants.includes(targetUserId));
+      if (existingChat) {
+        setActiveChat(existingChat);
+        setSearchParams({});
+        autoStartingChatRef.current = null;
+        return;
+      }
+      
+      // Also check Firestore directly in case local state is stale
+      try {
+        const existingChatsQuery = query(
+          collection(db, 'private_chats'),
+          where('participants', 'array-contains', user.uid)
+        );
+        const existingChatsSnap = await getDocs(existingChatsQuery);
+        const foundChat = existingChatsSnap.docs.find(d => 
+          (d.data().participants || []).includes(targetUserId)
+        );
+        
+        if (foundChat) {
+          const chatData = { id: foundChat.id, ...foundChat.data() } as ExtendedChat;
+          setActiveChat(chatData);
+          setSearchParams({});
+          autoStartingChatRef.current = null;
+          return;
+        }
+        
+        // No existing chat found - fetch target user and create new
+        const targetUserDoc = await getDoc(doc(db, 'users', targetUserId));
+        if (!targetUserDoc.exists()) {
+          console.error('Target user not found:', targetUserId);
+          setSearchParams({});
+          autoStartingChatRef.current = null;
+          return;
+        }
+        
+        const targetUser = { uid: targetUserId, ...targetUserDoc.data() } as UserProfile;
+        
+        // Create new chat
+        const participantData = {
+          [user.uid]: { username: userData.username || userData.name || 'Me', role: userData.role },
+          [targetUserId]: { username: targetUser.username || targetUser.name || 'User', role: targetUser.role }
+        };
+        
+        const newChatRef = await addDoc(collection(db, 'private_chats'), {
+          participants: [user.uid, targetUserId],
+          participantData,
+          lastMessage: 'Chat started',
+          updatedAt: serverTimestamp(),
+          lastMessageTime: serverTimestamp()
+        });
+        
+        setActiveChat({
+          id: newChatRef.id,
+          participants: [user.uid, targetUserId],
+          participantData,
+          lastMessage: 'Chat started',
+          lastMessageTime: {} as any,
+          updatedAt: {} as any
+        });
+        
+        // Clear the URL parameter
+        setSearchParams({});
+        autoStartingChatRef.current = null;
+      } catch (error) {
+        console.error('Error auto-starting chat:', error);
+        setSearchParams({});
+        autoStartingChatRef.current = null;
+      }
+    };
+    
+    autoStartChat();
+  }, [searchParams, user, userData, chats, chatsLoaded, setSearchParams]);
 
   // 1b. LOAD GRIEVANCE CHATS (For parents only)
   useEffect(() => {
@@ -188,24 +292,70 @@ const Messenger: React.FC = () => {
     return () => clearTimeout(timer);
   }, [activeChat?.id, messages.length, user?.uid]); // Use messages.length instead of messages to prevent infinite loops
 
-  // 3. LOAD USERS FOR SEARCH (Security Fix: Scope to Team)
+  // 3. LOAD USERS FOR SEARCH (Load team members: coaches, parents of players)
   useEffect(() => {
-    const loadUsers = async () => {
-      // SECURITY FIX: Only load users from the SAME TEAM.
-      // Prevents parents from seeing strangers from other teams and prevents downloading the whole DB.
+    const loadTeamMembers = async () => {
       if (!teamData?.id) return;
 
-      const usersQuery = query(collection(db, 'users'), where('teamId', '==', teamData.id));
-      
       try {
-        const snap = await getDocs(usersQuery);
-        const users = snap.docs.map(docSnap => ({ uid: docSnap.id, ...docSnap.data() } as UserProfile));
-        setAllUsers(users.filter(u => u.uid !== user?.uid));
+        const teamMemberIds = new Set<string>();
+        
+        // 1. Get team document to find coaches
+        const teamDoc = await getDoc(doc(db, 'teams', teamData.id));
+        if (teamDoc.exists()) {
+          const team = teamDoc.data();
+          // Add all coach IDs
+          if (team.ownerId) teamMemberIds.add(team.ownerId);
+          if (team.coachId) teamMemberIds.add(team.coachId);
+          if (team.headCoachId) teamMemberIds.add(team.headCoachId);
+          if (team.offensiveCoordinatorId) teamMemberIds.add(team.offensiveCoordinatorId);
+          if (team.defensiveCoordinatorId) teamMemberIds.add(team.defensiveCoordinatorId);
+          if (team.specialTeamsCoordinatorId) teamMemberIds.add(team.specialTeamsCoordinatorId);
+          if (team.coachIds) team.coachIds.forEach((id: string) => teamMemberIds.add(id));
+          // Add parent IDs from team's parentIds array
+          if (team.parentIds) team.parentIds.forEach((id: string) => teamMemberIds.add(id));
+        }
+        
+        // 2. Get roster to find parent IDs
+        const rosterSnap = await getDocs(collection(db, 'teams', teamData.id, 'players'));
+        rosterSnap.docs.forEach(playerDoc => {
+          const player = playerDoc.data();
+          if (player.parentId) teamMemberIds.add(player.parentId);
+          if (player.parentUserId) teamMemberIds.add(player.parentUserId);
+        });
+        
+        // Remove current user from the list
+        teamMemberIds.delete(user?.uid || '');
+        
+        // 3. Fetch user profiles for all team members
+        const memberIds = Array.from(teamMemberIds);
+        if (memberIds.length === 0) {
+          setAllUsers([]);
+          return;
+        }
+        
+        // Firestore 'in' query is limited to 30 items, so chunk if needed
+        const users: UserProfile[] = [];
+        const chunks = [];
+        for (let i = 0; i < memberIds.length; i += 30) {
+          chunks.push(memberIds.slice(i, i + 30));
+        }
+        
+        for (const chunk of chunks) {
+          const usersQuery = query(collection(db, 'users'), where('__name__', 'in', chunk));
+          const snap = await getDocs(usersQuery);
+          snap.docs.forEach(docSnap => {
+            users.push({ uid: docSnap.id, ...docSnap.data() } as UserProfile);
+          });
+        }
+        
+        console.log('📬 Loaded team members for messenger:', users.length);
+        setAllUsers(users);
       } catch (error) {
-        console.error("Error loading teammates:", error);
+        console.error("Error loading team members:", error);
       }
     };
-    loadUsers();
+    loadTeamMembers();
   }, [user?.uid, teamData?.id]);
 
   // Debounce search query to prevent excessive filtering

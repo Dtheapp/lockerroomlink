@@ -9,7 +9,7 @@ import { calculateAgeGroup } from '../services/ageValidator';
 import { createNotification, createBulkNotifications } from '../services/notificationService';
 import type { Player, UserProfile, Team, SportType } from '../types';
 import { getPositions } from '../config/sportConfig';
-import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link as LinkIcon, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera, UserPlus, ArrowRightLeft, BarChart3, Eye, AtSign, Copy, Check, ExternalLink, Zap } from 'lucide-react';
+import { Plus, Trash2, Shield, Sword, AlertCircle, Phone, Link as LinkIcon, User, X, Edit2, ChevronLeft, ChevronRight, Search, Users, Crown, UserMinus, Star, Camera, UserPlus, ArrowRightLeft, BarChart3, Eye, AtSign, Copy, Check, ExternalLink, Zap, MessageSquare } from 'lucide-react';
 import PlayerStatsModal from './stats/PlayerStatsModal';
 import PlayerStatsDisplay from './stats/PlayerStatsDisplay';
 import EmptyState from './ui/EmptyState';
@@ -2088,12 +2088,21 @@ const Roster: React.FC = () => {
                               <LinkIcon className="w-3 h-3" /> Link Parent
                             </button>
                           ) : (
-                            <button 
-                              onClick={() => openContact(player.parentId || player.parentUserId)}
-                              className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 hover:text-emerald-500 dark:hover:text-emerald-300 hover:underline cursor-pointer"
-                            >
-                              <User className="w-3 h-3"/> {parent?.name || player.parentName || 'Parent'}
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button 
+                                onClick={() => openContact(player.parentId || player.parentUserId)}
+                                className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 hover:text-emerald-500 dark:hover:text-emerald-300 hover:underline cursor-pointer"
+                              >
+                                <User className="w-3 h-3"/> {parent?.name || player.parentName || 'Mom'}
+                              </button>
+                              <button 
+                                onClick={() => navigate(`/messenger?userId=${player.parentId || player.parentUserId}`)}
+                                className="text-xs text-purple-500 dark:text-purple-400 flex items-center gap-1 hover:text-purple-400 dark:hover:text-purple-300 px-2 py-0.5 rounded bg-purple-500/10 hover:bg-purple-500/20 transition-colors"
+                                title="Message Parent"
+                              >
+                                <MessageSquare className="w-3 h-3" />
+                              </button>
+                            </div>
                           )}
                           <button 
                             onClick={() => setDeletePlayerConfirm({ id: player.id, name: player.name, number: String(player.number), athleteId: player.athleteId, parentId: player.parentId || player.parentUserId })} 

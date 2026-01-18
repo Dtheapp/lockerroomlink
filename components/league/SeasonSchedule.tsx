@@ -613,15 +613,15 @@ function GameCard({ game, teams, compact, theme }: GameCardProps) {
             {time}
           </div>
           <div className="text-sm flex items-center gap-2">
-            {homeTeam?.logoUrl ? (
-              <img src={homeTeam.logoUrl} alt="" className="w-5 h-5 rounded object-cover" />
+            {homeTeam?.logo ? (
+              <img src={homeTeam.logo} alt="" className="w-5 h-5 rounded object-cover" />
             ) : null}
             <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
               {homeTeam?.name || 'TBD'}
             </span>
             <span className={`mx-1 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>vs</span>
-            {awayTeam?.logoUrl ? (
-              <img src={awayTeam.logoUrl} alt="" className="w-5 h-5 rounded object-cover" />
+            {awayTeam?.logo ? (
+              <img src={awayTeam.logo} alt="" className="w-5 h-5 rounded object-cover" />
             ) : null}
             <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
               {awayTeam?.name || 'TBD'}
@@ -674,9 +674,9 @@ function GameCard({ game, teams, compact, theme }: GameCardProps) {
           <div className="flex items-center gap-6">
             {/* Home Team */}
             <div className="text-center min-w-[120px]">
-              {homeTeam?.logoUrl ? (
+              {homeTeam?.logo ? (
                 <img 
-                  src={homeTeam.logoUrl} 
+                  src={homeTeam.logo} 
                   alt={homeTeam.name}
                   className="w-10 h-10 rounded-xl object-cover mx-auto mb-1"
                 />
@@ -712,9 +712,9 @@ function GameCard({ game, teams, compact, theme }: GameCardProps) {
 
             {/* Away Team */}
             <div className="text-center min-w-[120px]">
-              {awayTeam?.logoUrl ? (
+              {awayTeam?.logo ? (
                 <img 
-                  src={awayTeam.logoUrl} 
+                  src={awayTeam.logo} 
                   alt={awayTeam.name}
                   className="w-10 h-10 rounded-xl object-cover mx-auto mb-1"
                 />

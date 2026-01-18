@@ -132,6 +132,43 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // League management for league owners
   const [leagueData, setLeagueData] = useState<League | null>(null);
   
+  // Listen for sport changes and reload league data for LeagueOwners
+  useEffect(() => {
+    const handleSportChange = async (event: CustomEvent) => {
+      const newSport = (event.detail as string)?.toLowerCase();
+      if (!user || !userData || (userData.role !== 'LeagueOwner' && userData.role !== 'LeagueCommissioner')) {
+        return;
+      }
+      
+      try {
+        const leaguesQuery = query(
+          collection(db, 'leagues'),
+          where('ownerId', '==', user.uid)
+        );
+        const leaguesSnap = await getDocs(leaguesQuery);
+        
+        const matchingLeague = leaguesSnap.docs.find(doc => {
+          const data = doc.data();
+          return data.sport?.toLowerCase() === newSport;
+        });
+        
+        if (matchingLeague) {
+          setLeagueData({ id: matchingLeague.id, ...matchingLeague.data() } as League);
+        } else {
+          setLeagueData(null);
+        }
+      } catch (error) {
+        console.error('Error loading league for sport:', error);
+        setLeagueData(null);
+      }
+    };
+    
+    window.addEventListener('commissioner-sport-changed', handleSportChange as EventListener);
+    return () => {
+      window.removeEventListener('commissioner-sport-changed', handleSportChange as EventListener);
+    };
+  }, [user, userData]);
+  
   // Program management for commissioners
   const [programData, setProgramData] = useState<Program | null>(null);
   
@@ -803,21 +840,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                         setLoading(false);
                     }
                 }
-                // LEAGUE OWNER/COMMISSIONER FLOW: Load their league
+                // LEAGUE OWNER/COMMISSIONER FLOW: Load their league based on selected sport
                 else if (profile.role === 'LeagueOwner' || profile.role === 'LeagueCommissioner') {
-                    if (profile.leagueId) {
-                        try {
-                            const leagueDocRef = doc(db, 'leagues', profile.leagueId);
-                            const leagueSnap = await getDoc(leagueDocRef);
-                            if (leagueSnap.exists()) {
-                                setLeagueData({ id: leagueSnap.id, ...leagueSnap.data() } as League);
-                            } else {
-                                setLeagueData(null);
-                            }
-                        } catch (error) {
-                            console.error('Error loading league data:', error);
+                    // Query all leagues owned by this user
+                    try {
+                        const leaguesQuery = query(
+                            collection(db, 'leagues'),
+                            where('ownerId', '==', user.uid)
+                        );
+                        const leaguesSnap = await getDocs(leaguesQuery);
+                        
+                        // Get selected sport from localStorage
+                        const selectedSport = localStorage.getItem('commissioner_selected_sport')?.toLowerCase() || 'football';
+                        
+                        // Find league matching selected sport
+                        const matchingLeague = leaguesSnap.docs.find(doc => {
+                            const data = doc.data();
+                            return data.sport?.toLowerCase() === selectedSport;
+                        });
+                        
+                        if (matchingLeague) {
+                            setLeagueData({ id: matchingLeague.id, ...matchingLeague.data() } as League);
+                        } else {
+                            // No league for this sport
                             setLeagueData(null);
                         }
+                    } catch (error) {
+                        console.error('Error loading leagues:', error);
+                        setLeagueData(null);
                     }
                     setTeamData(null);
                     setLoading(false);

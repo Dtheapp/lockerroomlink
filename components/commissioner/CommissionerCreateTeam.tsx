@@ -38,8 +38,23 @@ export const CommissionerCreateTeam: React.FC = () => {
   // Get sport from sidebar selection
   const selectedSport = localStorage.getItem('commissioner_selected_sport') || 'Football';
   
-  // Get age groups from program
-  const programAgeGroups = (programData as any)?.ageGroups || [];
+  // Get age groups from program - FILTERED BY SELECTED SPORT
+  const getSportAgeGroups = (): string[] => {
+    const sportConfigs = (programData as any)?.sportConfigs || [];
+    const sportConfig = sportConfigs.find((c: any) => 
+      c.sport?.toLowerCase() === selectedSport.toLowerCase()
+    );
+    
+    if (sportConfig?.ageGroups) {
+      // sportConfig.ageGroups is an array of AgeGroupDivision objects with 'label' property
+      return sportConfig.ageGroups.map((ag: any) => ag.label || ag.id || ag);
+    }
+    
+    // Fallback to legacy ageGroups if no sportConfigs
+    return (programData as any)?.ageGroups || [];
+  };
+  
+  const programAgeGroups = getSportAgeGroups();
   
   // Get city/state from program
   const programCity = programData?.city || '';

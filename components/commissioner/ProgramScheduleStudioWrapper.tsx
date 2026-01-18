@@ -1,3 +1,9 @@
+/**
+ * Program Schedule Studio Wrapper
+ * Adapts the awesome ScheduleStudio for Team Commissioners
+ * Works with program seasons instead of league seasons
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -6,8 +12,8 @@ import { collection, query, where, getDocs, doc, getDoc, addDoc, updateDoc, serv
 import { db } from '../../services/firebase';
 import { Loader2, AlertCircle, ChevronLeft, Users, Calendar } from 'lucide-react';
 import { toastSuccess, toastError, toastWarning } from '../../services/toast';
-import ScheduleStudio, { ExistingBooking } from './ScheduleStudio';
-import { LeagueSeason, Program, Team } from '../../types';
+import ScheduleStudio, { ExistingBooking } from '../league/ScheduleStudio';
+import { ProgramSeason, Program, Team } from '../../types';
 
 interface TeamWithProgram {
   id: string;
@@ -21,7 +27,7 @@ interface TeamWithProgram {
   logoUrl?: string;
 }
 
-interface LeagueGame {
+interface ProgramGame {
   id: string;
   homeTeamId: string;
   homeTeamName: string;
@@ -35,17 +41,20 @@ interface LeagueGame {
   ageGroup: string;
 }
 
-export default function ScheduleStudioWrapper() {
+export default function ProgramScheduleStudioWrapper() {
   const { seasonId } = useParams<{ seasonId: string }>();
   const [searchParams] = useSearchParams();
   const ageGroupParam = searchParams.get('ageGroup');
   
-  const { leagueData, user } = useAuth();
+  const { programData, user, userData } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
   
+  // Get selected sport from localStorage
+  const selectedSport = localStorage.getItem('commissioner_selected_sport') || 'football';
+  
   const [loading, setLoading] = useState(true);
-  const [season, setSeason] = useState<LeagueSeason | null>(null);
+  const [season, setSeason] = useState<ProgramSeason | null>(null);
   const [teams, setTeams] = useState<TeamWithProgram[]>([]);
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<string | null>(ageGroupParam);
   const [ageGroups, setAgeGroups] = useState<string[]>([]);
@@ -59,7 +68,7 @@ export default function ScheduleStudioWrapper() {
 
   useEffect(() => {
     loadData();
-  }, [seasonId, leagueData]);
+  }, [seasonId, programData, selectedSport]);
 
   // When navigating with URL param, load existing games after data is ready
   useEffect(() => {
@@ -72,19 +81,17 @@ export default function ScheduleStudioWrapper() {
       !hasLoadedForUrlParam
     ) {
       setHasLoadedForUrlParam(true);
-      // We need to load existing bookings for this age group
       loadExistingBookingsForUrlParam(selectedAgeGroup);
     }
   }, [ageGroupParam, showStudio, selectedAgeGroup, teams.length, loadingBookings, hasLoadedForUrlParam]);
 
-  // Separate function to load bookings when coming from URL (called from useEffect)
   const loadExistingBookingsForUrlParam = async (currentAgeGroup: string) => {
-    if (!seasonId) return;
+    if (!seasonId || !programData?.id) return;
     
     setLoadingBookings(true);
     try {
       const schedulesQuery = query(
-        collection(db, 'leagueSchedules'),
+        collection(db, 'programs', programData.id, 'schedules'),
         where('seasonId', '==', seasonId)
       );
       const schedulesSnap = await getDocs(schedulesQuery);
@@ -96,13 +103,11 @@ export default function ScheduleStudioWrapper() {
       schedulesSnap.docs.forEach(docSnap => {
         const data = docSnap.data();
         const ageGroup = data.ageGroup;
-        const games = data.games as LeagueGame[] || [];
+        const games = data.games as ProgramGame[] || [];
         
         if (ageGroup === currentAgeGroup) {
-          // Get the saved total weeks count
           currentAgeGroupWeeksCount = data.totalWeeks || (data.weeks?.length) || undefined;
           
-          // Convert games for editing
           const teamsInAg = teams.filter(t => t.ageGroup === currentAgeGroup);
           currentAgeGroupGames = games.map((game, idx) => {
             const gameDate = game.dateTime instanceof Timestamp 
@@ -133,7 +138,6 @@ export default function ScheduleStudioWrapper() {
               status: 'complete' as const,
             };
           });
-          console.log(`[URL Param] Loaded ${currentAgeGroupGames.length} existing games for ${currentAgeGroup}`);
           return;
         }
         
@@ -159,7 +163,6 @@ export default function ScheduleStudioWrapper() {
       setExistingBookings(bookings);
       setExistingGamesForEdit(currentAgeGroupGames);
       setExistingWeeksCount(currentAgeGroupWeeksCount);
-      console.log(`[URL Param] Loaded ${currentAgeGroupGames.length} games, ${currentAgeGroupWeeksCount || 'default'} weeks`);
     } catch (error) {
       console.error('Error loading bookings for URL param:', error);
     } finally {
@@ -168,77 +171,126 @@ export default function ScheduleStudioWrapper() {
   };
 
   const loadData = async () => {
-    if (!seasonId || !leagueData) return;
+    if (!seasonId || !programData?.id) return;
     
     try {
-      // Load season
-      const seasonDoc = await getDoc(doc(db, 'leagueSeasons', seasonId));
+      // Load season from program's seasons subcollection
+      const seasonDoc = await getDoc(doc(db, 'programs', programData.id, 'seasons', seasonId));
       if (!seasonDoc.exists()) {
-        navigate('/league/seasons');
+        toastError('Season not found');
+        navigate('/commissioner');
         return;
       }
-      const seasonData = { id: seasonDoc.id, ...seasonDoc.data() } as LeagueSeason;
+      const seasonData = { id: seasonDoc.id, ...seasonDoc.data() } as ProgramSeason;
       setSeason(seasonData);
-      setAgeGroups(seasonData.ageGroups || []);
 
-      // Load programs in league
-      const programsQuery = query(
-        collection(db, 'programs'),
-        where('leagueId', '==', leagueData.id)
+      // Load teams for this program - FILTER BY SELECTED SPORT
+      const teamsQuery = query(
+        collection(db, 'teams'),
+        where('programId', '==', programData.id)
       );
-      const programsSnap = await getDocs(programsQuery);
-      const programsMap: Record<string, Program> = {};
-      programsSnap.docs.forEach(doc => {
-        programsMap[doc.id] = { id: doc.id, ...doc.data() } as Program;
-      });
-      const programIds = Object.keys(programsMap);
-
-      // Load teams
-      if (programIds.length > 0) {
-        const allTeams: TeamWithProgram[] = [];
-        
-        // Batch by 10 (Firestore 'in' limit)
-        for (let i = 0; i < programIds.length; i += 10) {
-          const batch = programIds.slice(i, i + 10);
-          const teamsQuery = query(
-            collection(db, 'teams'),
-            where('programId', 'in', batch)
-          );
-          const teamsSnap = await getDocs(teamsQuery);
-          teamsSnap.docs.forEach(doc => {
-            const data = doc.data() as Team;
-            const program = programsMap[data.programId || ''];
-            allTeams.push({
-              id: doc.id,
-              name: data.name,
-              ageGroup: data.ageGroup || 'No Age Group',
-              programId: data.programId || '',
-              programName: program?.name || 'Unknown Program',
-              homeField: data.homeField?.name,
-              homeFieldAddress: data.homeField?.address,
-              color: data.primaryColor,
-              logoUrl: data.logo,
-            });
-          });
-        }
-        
-        setTeams(allTeams);
+      const teamsSnap = await getDocs(teamsQuery);
+      
+      // Filter teams by sport
+      const sportLower = selectedSport.toLowerCase();
+      const allTeams: TeamWithProgram[] = teamsSnap.docs
+        .map(doc => {
+          const data = doc.data() as Team;
+          return {
+            id: doc.id,
+            name: data.name,
+            ageGroup: data.ageGroup || 'No Age Group',
+            programId: data.programId || programData.id,
+            programName: programData.name || 'Unknown Program',
+            homeField: data.homeField?.name,
+            homeFieldAddress: data.homeField?.address,
+            color: data.primaryColor,
+            logoUrl: data.logo,
+            sport: data.sport, // Keep sport for filtering
+          };
+        })
+        .filter(team => {
+          // Filter by sport - check team.sport matches selectedSport
+          const teamSport = ((team as any).sport || '').toLowerCase();
+          return !teamSport || teamSport === sportLower;
+        });
+      
+      setTeams(allTeams);
+      console.log(`Loaded ${allTeams.length} teams for sport: ${selectedSport}`);
+      
+      // Extract age groups - FILTER BY SELECTED SPORT
+      // 1. From season's sportsOffered for this sport
+      // 2. From program's sportConfigs for this sport
+      // 3. From teams themselves (already filtered by sport)
+      const seasonAgeGroups: string[] = [];
+      
+      // Try season's sportsOffered first - only for matching sport
+      if (seasonData.sportsOffered) {
+        seasonData.sportsOffered.forEach((sportConfig: any) => {
+          const configSport = (sportConfig.sport || '').toLowerCase();
+          // Only include if sport matches or no sport specified
+          if (configSport === sportLower || !configSport) {
+            if (sportConfig.ageGroups && sportConfig.ageGroups.length > 0) {
+              sportConfig.ageGroups.forEach((ag: any) => {
+                const label = typeof ag === 'string' ? ag : ag.label;
+                if (label && !seasonAgeGroups.includes(label)) {
+                  seasonAgeGroups.push(label);
+                }
+              });
+            }
+          }
+        });
       }
+      
+      // If still empty, try program's sportConfigs - only for matching sport
+      if (seasonAgeGroups.length === 0 && (programData as any).sportConfigs) {
+        const sportConfigs = (programData as any).sportConfigs as any[];
+        sportConfigs.forEach((config: any) => {
+          const configSport = (config.sport || '').toLowerCase();
+          // Only include if sport matches
+          if (configSport === sportLower) {
+            if (config.ageGroups && config.ageGroups.length > 0) {
+              config.ageGroups.forEach((ag: string) => {
+                if (ag && !seasonAgeGroups.includes(ag)) {
+                  seasonAgeGroups.push(ag);
+                }
+              });
+            }
+          }
+        });
+      }
+      
+      // If still empty, extract from teams (already filtered by sport above)
+      if (seasonAgeGroups.length === 0) {
+        allTeams.forEach(team => {
+          if (team.ageGroup && team.ageGroup !== 'No Age Group' && !seasonAgeGroups.includes(team.ageGroup)) {
+            seasonAgeGroups.push(team.ageGroup);
+          }
+        });
+      }
+      
+      console.log(`Found age groups for ${selectedSport}:`, seasonAgeGroups);
+      setAgeGroups(seasonAgeGroups);
 
-      // Check which age groups already have schedules
-      const schedulesQuery = query(
-        collection(db, 'leagueSchedules'),
-        where('seasonId', '==', seasonId)
-      );
-      const schedulesSnap = await getDocs(schedulesQuery);
-      const scheduled: string[] = [];
-      schedulesSnap.docs.forEach(doc => {
-        const ag = doc.data().ageGroup;
-        if (ag && !scheduled.includes(ag)) {
-          scheduled.push(ag);
-        }
-      });
-      setScheduledAgeGroups(scheduled);
+      // Check which age groups already have schedules - wrapped in try/catch for permissions
+      try {
+        const schedulesQuery = query(
+          collection(db, 'programs', programData.id, 'schedules'),
+          where('seasonId', '==', seasonId)
+        );
+        const schedulesSnap = await getDocs(schedulesQuery);
+        const scheduled: string[] = [];
+        schedulesSnap.docs.forEach(doc => {
+          const ag = doc.data().ageGroup;
+          if (ag && !scheduled.includes(ag)) {
+            scheduled.push(ag);
+          }
+        });
+        setScheduledAgeGroups(scheduled);
+      } catch (err) {
+        console.log('Could not load existing schedules (may not exist yet):', err);
+        setScheduledAgeGroups([]);
+      }
 
       // If ageGroup was passed in URL, set it and show studio
       if (ageGroupParam) {
@@ -254,41 +306,33 @@ export default function ScheduleStudioWrapper() {
   };
 
   const handleSaveSchedule = async (games: any[], weeks: any[]) => {
-    if (!seasonId || !leagueData || !selectedAgeGroup) {
+    if (!seasonId || !programData?.id || !selectedAgeGroup) {
       throw new Error('Missing required data');
     }
 
+    console.log('Saving schedule to program:', programData.id);
+    console.log('Current user uid:', user?.uid);
+    console.log('User programId:', userData?.programId);
+    console.log('User role:', userData?.role);
+
     try {
-      // Convert studio games to LeagueGame format
-      const leagueGames = games
-        .filter(g => g.homeTeam && g.awayTeam) // Only complete games
+      // Convert studio games to ProgramGame format
+      const programGames = games
+        .filter(g => g.homeTeam && g.awayTeam)
         .map((game, idx) => {
-          // Combine date and time properly
           let gameDateTime: Date;
           
-          // Debug: Log the input values
-          console.log(`Game ${idx}: date =`, game.date, `time =`, game.time);
-          
           if (game.date && game.time?.time) {
-            // Parse the time (e.g., "18:00" or "14:30")
             const [hours, minutes] = game.time.time.split(':').map(Number);
-            
-            // game.date might be a Date object or a string
             const baseDate = game.date instanceof Date 
-              ? new Date(game.date.getTime()) // Clone the Date
-              : new Date(game.date);          // Parse the string
-            
-            // Important: Set the time on the date
+              ? new Date(game.date.getTime())
+              : new Date(game.date);
             baseDate.setHours(hours, minutes, 0, 0);
             gameDateTime = baseDate;
-            
-            console.log(`Game ${idx}: Parsed hours=${hours}, minutes=${minutes}, final dateTime =`, gameDateTime.toISOString());
           } else if (game.date) {
             gameDateTime = game.date instanceof Date ? new Date(game.date.getTime()) : new Date(game.date);
-            console.log(`Game ${idx}: No time, using date as-is:`, gameDateTime.toISOString());
           } else {
             gameDateTime = new Date();
-            console.log(`Game ${idx}: No date, using now:`, gameDateTime.toISOString());
           }
           
           return {
@@ -303,13 +347,13 @@ export default function ScheduleStudioWrapper() {
             week: game.weekNumber || 1,
             status: 'scheduled' as const,
             ageGroup: selectedAgeGroup,
-            timeLabel: game.time?.label || '', // Store time label for display
+            timeLabel: game.time?.label || '',
           };
         });
 
       // Check for existing schedule for this age group
       const existingQuery = query(
-        collection(db, 'leagueSchedules'),
+        collection(db, 'programs', programData.id, 'schedules'),
         where('seasonId', '==', seasonId),
         where('ageGroup', '==', selectedAgeGroup)
       );
@@ -321,18 +365,19 @@ export default function ScheduleStudioWrapper() {
         // Update existing schedule
         const existingDoc = existingSnap.docs[0];
         scheduleDocId = existingDoc.id;
-        await updateDoc(doc(db, 'leagueSchedules', existingDoc.id), {
-          games: leagueGames,
+        await updateDoc(doc(db, 'programs', programData.id, 'schedules', existingDoc.id), {
+          games: programGames,
+          totalWeeks: weeks.length,
           updatedAt: serverTimestamp(),
           updatedBy: user?.uid,
         });
       } else {
         // Create new schedule
-        const newDoc = await addDoc(collection(db, 'leagueSchedules'), {
-          leagueId: leagueData.id,
+        const newDoc = await addDoc(collection(db, 'programs', programData.id, 'schedules'), {
+          programId: programData.id,
           seasonId: seasonId,
           ageGroup: selectedAgeGroup,
-          games: leagueGames,
+          games: programGames,
           totalWeeks: weeks.length,
           byeWeeks: weeks.filter(w => w.isByeWeek).map(w => w.weekNumber),
           createdAt: serverTimestamp(),
@@ -344,33 +389,28 @@ export default function ScheduleStudioWrapper() {
 
       // =========================================================================
       // SYNC GAMES TO TEAM CALENDARS
-      // For each game, create entries in both teams' games subcollections
-      // This enables team views (calendar, upcoming, gameday) to see league games
-      // Games are marked as leagueManaged so teams can't edit them
       // =========================================================================
       
       const completeGames = games.filter(g => g.homeTeam && g.awayTeam);
       
-      // First, delete existing league-managed games for this schedule to avoid duplicates
+      // Delete existing program-managed games for this schedule
       for (const teamData of teams) {
         const teamGamesQuery = query(
           collection(db, 'teams', teamData.id, 'games'),
-          where('leagueScheduleId', '==', scheduleDocId)
+          where('programScheduleId', '==', scheduleDocId)
         );
         const existingTeamGames = await getDocs(teamGamesQuery);
         
         for (const gameDoc of existingTeamGames.docs) {
-          // Don't delete games that have scores (completed games with stats)
           const data = gameDoc.data();
           if (data.status === 'completed' && (data.ourScore !== undefined || data.statsEntered)) {
-            console.log(`Skipping deletion of completed game ${gameDoc.id} with stats`);
             continue;
           }
           await deleteDoc(gameDoc.ref);
         }
       }
       
-      // Now create fresh game entries for each team
+      // Create fresh game entries for each team
       const batch = writeBatch(db);
       let gameNumber = 1;
       
@@ -401,11 +441,11 @@ export default function ScheduleStudioWrapper() {
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
           createdBy: user?.uid || 'system',
-          // League management fields - teams cannot edit these games
-          leagueManaged: true,
-          leagueId: leagueData.id,
-          leagueScheduleId: scheduleDocId,
-          leagueGameId: leagueGames[gameNumber - 1]?.id || `lg-${Date.now()}-${gameNumber}`,
+          // Program management fields
+          programManaged: true,
+          programId: programData.id,
+          programScheduleId: scheduleDocId,
+          programGameId: programGames[gameNumber - 1]?.id || `pg-${Date.now()}-${gameNumber}`,
           ageGroup: selectedAgeGroup,
           week: game.weekNumber || 1,
         });
@@ -423,7 +463,7 @@ export default function ScheduleStudioWrapper() {
           time: timeStr,
           location: game.venue?.name || game.homeTeam.homeField || 'TBD',
           address: game.venue?.address || game.homeTeam.homeFieldAddress || '',
-          isHome: false, // Away team
+          isHome: false,
           isPlayoff: false,
           tags: [],
           status: 'scheduled',
@@ -432,11 +472,11 @@ export default function ScheduleStudioWrapper() {
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
           createdBy: user?.uid || 'system',
-          // League management fields - teams cannot edit these games
-          leagueManaged: true,
-          leagueId: leagueData.id,
-          leagueScheduleId: scheduleDocId,
-          leagueGameId: leagueGames[gameNumber - 1]?.id || `lg-${Date.now()}-${gameNumber}`,
+          // Program management fields
+          programManaged: true,
+          programId: programData.id,
+          programScheduleId: scheduleDocId,
+          programGameId: programGames[gameNumber - 1]?.id || `pg-${Date.now()}-${gameNumber}`,
           ageGroup: selectedAgeGroup,
           week: game.weekNumber || 1,
         });
@@ -444,15 +484,14 @@ export default function ScheduleStudioWrapper() {
         gameNumber++;
       }
       
-      // Commit all team game writes at once
       await batch.commit();
       
-      console.log(`Synced ${completeGames.length} games to ${teams.length * 2} team calendars`);
+      console.log(`Synced ${completeGames.length} games to team calendars`);
       
       toastSuccess(`Schedule saved! ${completeGames.length} games synced to team calendars`);
 
-      // Navigate back to season schedule
-      navigate(`/league/seasons/${seasonId}`);
+      // Navigate back to commissioner dashboard
+      navigate('/commissioner');
     } catch (error) {
       console.error('Error saving schedule:', error);
       throw error;
@@ -460,20 +499,16 @@ export default function ScheduleStudioWrapper() {
   };
 
   const handleClose = () => {
-    // Always navigate back to the Season Schedule page
-    navigate(`/league/seasons/${seasonId}`);
+    navigate('/commissioner');
   };
 
-  // Load existing bookings from OTHER age groups for conflict detection
-  // Also load existing games for the CURRENT age group for editing
   const loadExistingBookings = async (currentAgeGroup: string) => {
-    if (!seasonId) return;
+    if (!seasonId || !programData?.id) return;
     
     setLoadingBookings(true);
     try {
-      // Load all schedules for this season
       const schedulesQuery = query(
-        collection(db, 'leagueSchedules'),
+        collection(db, 'programs', programData.id, 'schedules'),
         where('seasonId', '==', seasonId)
       );
       const schedulesSnap = await getDocs(schedulesQuery);
@@ -482,16 +517,13 @@ export default function ScheduleStudioWrapper() {
       let currentAgeGroupGames: any[] = [];
       let currentAgeGroupWeeksCount: number | undefined = undefined;
       
-      schedulesSnap.docs.forEach(doc => {
-        const data = doc.data();
+      schedulesSnap.docs.forEach(docSnap => {
+        const data = docSnap.data();
         const ageGroup = data.ageGroup;
-        const games = data.games as LeagueGame[] || [];
+        const games = data.games as ProgramGame[] || [];
         
-        // If this is the current age group, save games for editing
         if (ageGroup === currentAgeGroup) {
-          // Get the saved total weeks count
           currentAgeGroupWeeksCount = data.totalWeeks || (data.weeks?.length) || undefined;
-          // Convert LeagueGame format to ScheduledGame format for the studio
           const teamsInAgeGroup = teams.filter(t => t.ageGroup === currentAgeGroup);
           currentAgeGroupGames = games.map((game, idx) => {
             const gameDate = game.dateTime instanceof Timestamp 
@@ -522,27 +554,24 @@ export default function ScheduleStudioWrapper() {
               status: 'complete' as const,
             };
           });
-          console.log(`Loaded ${currentAgeGroupGames.length} existing games for ${currentAgeGroup}`);
-          return; // Don't add to bookings
+          return;
         }
         
-        // For other age groups, add to bookings for conflict detection
+        // Other age groups for conflict detection
         games.forEach(game => {
           const gameDate = game.dateTime instanceof Timestamp 
             ? game.dateTime.toDate() 
             : new Date(game.dateTime as any);
           const hours = gameDate.getHours().toString().padStart(2, '0');
           const minutes = gameDate.getMinutes().toString().padStart(2, '0');
-          const time24 = `${hours}:${minutes}`;
-          
           bookings.push({
             date: gameDate,
-            time: time24,
-            venueId: game.location?.toLowerCase().trim() || '',
-            venueName: game.location || 'Unknown Venue',
+            time: `${hours}:${minutes}`,
+            venueId: game.location?.toLowerCase().replace(/\s+/g, '-') || '',
+            venueName: game.location || '',
             ageGroup: ageGroup,
-            homeTeam: game.homeTeamName,
-            awayTeam: game.awayTeamName,
+            homeTeam: game.homeTeamName || '',
+            awayTeam: game.awayTeamName || '',
           });
         });
       });
@@ -550,80 +579,109 @@ export default function ScheduleStudioWrapper() {
       setExistingBookings(bookings);
       setExistingGamesForEdit(currentAgeGroupGames);
       setExistingWeeksCount(currentAgeGroupWeeksCount);
-      console.log(`Loaded ${bookings.length} existing bookings, ${currentAgeGroupGames.length} games, ${currentAgeGroupWeeksCount || 'default'} weeks`);
     } catch (error) {
       console.error('Error loading existing bookings:', error);
-      // Non-fatal - continue without conflict detection for other age groups
     } finally {
       setLoadingBookings(false);
     }
   };
 
-  // Handle age group selection
-  const handleSelectAgeGroup = async (ag: string) => {
-    setSelectedAgeGroup(ag);
-    await loadExistingBookings(ag);
+  const handleSelectAgeGroup = async (ageGroup: string) => {
+    setSelectedAgeGroup(ageGroup);
+    await loadExistingBookings(ageGroup);
     setShowStudio(true);
   };
 
-  const teamsInAgeGroup = selectedAgeGroup 
-    ? teams.filter(t => t.ageGroup === selectedAgeGroup)
-    : [];
-
+  // Loading state
   if (loading) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${
         theme === 'dark' ? 'bg-zinc-900' : 'bg-slate-50'
       }`}>
-        <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
-      </div>
-    );
-  }
-
-  if (!leagueData || !season) {
-    return (
-      <div className={`min-h-screen flex items-center justify-center ${
-        theme === 'dark' ? 'bg-zinc-900' : 'bg-slate-50'
-      }`}>
         <div className="text-center">
-          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-            Season Not Found
-          </h2>
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-purple-500" />
+          <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>
+            Loading schedule studio...
+          </p>
         </div>
       </div>
     );
   }
 
-  // If we have a selected age group and showing studio
+  // Error state
+  if (!season || !programData) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${
+        theme === 'dark' ? 'bg-zinc-900' : 'bg-slate-50'
+      }`}>
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
+          <p className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+            Season not found
+          </p>
+          <button
+            onClick={() => navigate('/commissioner')}
+            className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Studio view
   if (showStudio && selectedAgeGroup) {
-    // Show loading while fetching existing bookings
     if (loadingBookings) {
       return (
         <div className={`min-h-screen flex items-center justify-center ${
           theme === 'dark' ? 'bg-zinc-900' : 'bg-slate-50'
         }`}>
           <div className="text-center">
-            <Loader2 className="w-10 h-10 animate-spin text-purple-500 mx-auto mb-4" />
-            <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-              Checking for Conflicts...
-            </h2>
-            <p className={`text-sm mt-2 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-              Loading schedules from other age groups
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-purple-500" />
+            <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>
+              Loading existing schedule...
             </p>
           </div>
         </div>
       );
     }
+
+    const teamsInAgeGroup = teams.filter(t => t.ageGroup === selectedAgeGroup);
     
-    const startDate = season.startDate instanceof Timestamp 
-      ? season.startDate.toDate() 
-      : new Date(season.startDate as any);
+    if (teamsInAgeGroup.length < 2) {
+      return (
+        <div className={`min-h-screen flex items-center justify-center ${
+          theme === 'dark' ? 'bg-zinc-900' : 'bg-slate-50'
+        }`}>
+          <div className="text-center max-w-md">
+            <AlertCircle className="w-12 h-12 mx-auto mb-4 text-amber-500" />
+            <p className={`text-lg font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+              Not Enough Teams
+            </p>
+            <p className={`mb-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+              You need at least 2 teams in the "{selectedAgeGroup}" age group to create a schedule.
+              Currently: {teamsInAgeGroup.length} team(s).
+            </p>
+            <button
+              onClick={() => setShowStudio(false)}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            >
+              Back to Age Groups
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    const startDate = season.seasonStartDate 
+      ? new Date(season.seasonStartDate)
+      : new Date();
       
     return (
       <ScheduleStudio
         seasonId={seasonId!}
-        leagueId={leagueData.id}
+        leagueId={programData.id} // Use programId as the "league" id
         ageGroup={selectedAgeGroup}
         teams={teamsInAgeGroup}
         seasonStartDate={startDate}
@@ -680,111 +738,66 @@ export default function ScheduleStudioWrapper() {
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {ageGroups.map(ag => {
-            const agTeams = teams.filter(t => t.ageGroup === ag);
-            const isScheduled = scheduledAgeGroups.includes(ag);
-            
-            return (
-              <button
-                key={ag}
-                onClick={() => handleSelectAgeGroup(ag)}
-                disabled={loadingBookings}
-                className={`
-                  p-5 rounded-2xl border text-left transition-all group
-                  ${loadingBookings ? 'opacity-50 cursor-wait' : ''}
-                  ${isScheduled
-                    ? theme === 'dark'
-                      ? 'bg-green-500/10 border-green-500/30 hover:border-green-500/50'
-                      : 'bg-green-50 border-green-200 hover:border-green-300'
-                    : theme === 'dark'
-                      ? 'bg-white/5 border-white/10 hover:border-purple-500/50 hover:bg-white/10'
-                      : 'bg-white border-slate-200 hover:border-purple-500 hover:shadow-lg'
-                  }
-                `}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <span className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-                    {ag}
-                  </span>
-                  {isScheduled && (
-                    <span className={`
-                      text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1
-                      ${theme === 'dark' 
-                        ? 'bg-green-500/20 text-green-400' 
-                        : 'bg-green-100 text-green-700'
-                      }
-                    `}>
-                      ✓ Scheduled
-                    </span>
-                  )}
-                </div>
-                
-                <div className="flex items-center gap-4 text-sm">
-                  <div className={`flex items-center gap-1 ${
-                    theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-                  }`}>
-                    <Users className="w-4 h-4" />
-                    {agTeams.length} teams
-                  </div>
-                </div>
-                
-                {agTeams.length < 2 && (
-                  <div className={`mt-3 text-xs ${
-                    theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'
-                  }`}>
-                    ⚠️ Need at least 2 teams to create schedule
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {ageGroups.length === 0 && (
-          <div className={`text-center py-12 rounded-2xl border-2 border-dashed ${
-            theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'
+        {ageGroups.length === 0 ? (
+          <div className={`text-center p-8 rounded-xl border ${
+            theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'
           }`}>
-            <Calendar className={`w-16 h-16 mx-auto mb-4 ${
-              theme === 'dark' ? 'text-slate-600' : 'text-slate-400'
-            }`} />
-            <h3 className={`text-lg font-medium ${
-              theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-            }`}>No Age Groups</h3>
-            <p className={`mt-2 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>
-              This season has no age groups configured
+            <Users className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`} />
+            <p className={`font-medium mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+              No Age Groups Found
+            </p>
+            <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+              This season doesn't have any age groups configured yet.
             </p>
           </div>
-        )}
-
-        {/* Summary */}
-        {scheduledAgeGroups.length > 0 && (
-          <div className={`mt-8 p-4 rounded-xl ${
-            theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-slate-50 border border-slate-200'
-          }`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-                  Schedule Progress
-                </span>
-                <span className={`text-sm ml-2 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-                  {scheduledAgeGroups.length} of {ageGroups.length} age groups scheduled
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-32 h-2 rounded-full bg-white/10 overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all"
-                    style={{ width: `${(scheduledAgeGroups.length / ageGroups.length) * 100}%` }}
-                  />
-                </div>
-                <span className={`text-sm font-medium ${
-                  scheduledAgeGroups.length === ageGroups.length ? 'text-green-400' : 'text-yellow-400'
-                }`}>
-                  {Math.round((scheduledAgeGroups.length / ageGroups.length) * 100)}%
-                </span>
-              </div>
-            </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {ageGroups.map(ageGroup => {
+              const teamsInGroup = teams.filter(t => t.ageGroup === ageGroup);
+              const hasSchedule = scheduledAgeGroups.includes(ageGroup);
+              const canSchedule = teamsInGroup.length >= 2;
+              
+              return (
+                <button
+                  key={ageGroup}
+                  onClick={() => canSchedule && handleSelectAgeGroup(ageGroup)}
+                  disabled={!canSchedule}
+                  className={`p-6 rounded-xl border text-left transition-all ${
+                    canSchedule
+                      ? theme === 'dark'
+                        ? 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-purple-500/50'
+                        : 'bg-white border-slate-200 hover:border-purple-500 hover:shadow-lg'
+                      : theme === 'dark'
+                        ? 'bg-white/5 border-white/5 opacity-50 cursor-not-allowed'
+                        : 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                      hasSchedule
+                        ? 'bg-green-500/20'
+                        : theme === 'dark' ? 'bg-purple-500/20' : 'bg-purple-100'
+                    }`}>
+                      <Calendar className={`w-6 h-6 ${
+                        hasSchedule ? 'text-green-400' : 'text-purple-500'
+                      }`} />
+                    </div>
+                    {hasSchedule && (
+                      <span className="text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400">
+                        ✓ Scheduled
+                      </span>
+                    )}
+                  </div>
+                  <h3 className={`font-semibold mb-1 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                    {ageGroup}
+                  </h3>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                    {teamsInGroup.length} team{teamsInGroup.length !== 1 ? 's' : ''}
+                    {!canSchedule && ' (need at least 2)'}
+                  </p>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
