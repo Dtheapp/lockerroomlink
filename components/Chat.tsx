@@ -830,7 +830,7 @@ const Chat: React.FC = () => {
           </div>
         )}
         
-        {messages.map(msg => {
+        {messages.map((msg, msgIndex) => {
           const isMe = msg.sender.uid === user?.uid;
           const isUserMuted = !!mutedUsers[msg.sender.uid];
           const senderRole = (msg.sender as any).role;
@@ -838,6 +838,8 @@ const Chat: React.FC = () => {
           const isEditing = editingMessageId === msg.id;
           const isEdited = msg.edited;
           const canSelectMessage = multiSelectMode && (canModerate || isMe);
+          // Check if message is in the last 3 messages (for dropdown positioning)
+          const isNearBottom = msgIndex >= messages.length - 3;
           const isSelected = selectedMessages.has(msg.id);
           
           // Read receipt: count how many people have read this message (excluding sender)
@@ -901,7 +903,7 @@ const Chat: React.FC = () => {
                     
                     {/* Moderation Menu - Only for moderators on other users' messages */}
                     {canModerate && !multiSelectMode && (
-                      <div className="relative">
+                      <div className="relative z-[100]">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -913,7 +915,7 @@ const Chat: React.FC = () => {
                         </button>
                         
                         {activeMessageMenu === msg.id && (
-                          <div className="absolute left-full top-0 ml-1 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-slate-200/50 dark:border-white/20 rounded-lg shadow-xl z-50 py-1 min-w-[160px]">
+                          <div className={`absolute left-full ${isNearBottom ? 'bottom-0' : 'top-0'} ml-1 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-slate-200/50 dark:border-white/20 rounded-lg shadow-xl z-[999] py-1 min-w-[160px]`}>
                             {/* Delete Message - Available for all messages from others */}
                             <button
                               onClick={() => {

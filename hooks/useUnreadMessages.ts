@@ -147,15 +147,21 @@ export const useUnreadMessages = () => {
         
         snapshot.docs.forEach(chatDoc => {
           const chatData = chatDoc.data();
+          
+          // Skip chats that user has "deleted" (hidden)
+          const hiddenFor = chatData.hiddenFor || [];
+          if (hiddenFor.includes(user.uid)) return;
+          
           const lastMsgTime = chatData.lastMessageTime as Timestamp;
           const lastRead = lastReadData[`messenger_${chatDoc.id}`] as Timestamp;
           const lastSenderId = chatData.lastSenderId;
           
           // Has unread if: newer message exists AND wasn't sent by current user
-          if (lastMsgTime && 
-              (!lastRead || lastMsgTime.seconds > lastRead.seconds) &&
-              lastSenderId && 
-              lastSenderId !== user.uid) {
+          // Use 2-second buffer to account for client/server clock differences
+          const lastReadSeconds = lastRead?.seconds || 0;
+          const hasNewerMessage = lastMsgTime && (lastMsgTime.seconds > lastReadSeconds + 2);
+          
+          if (hasNewerMessage && lastSenderId && lastSenderId !== user.uid) {
             hasUnreadMessages = true;
           }
         });

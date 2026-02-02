@@ -486,6 +486,8 @@ export interface TeamGame {
   // Legacy league references
   leagueGameId?: string;
   leagueScheduleId?: string;
+  leagueId?: string;
+  leagueManaged?: boolean;  // True if game is managed by league schedule
   
   // Game details
   opponent: string;
@@ -1793,6 +1795,12 @@ export interface BulletinPost {
   author: string;
   authorId?: string;
   timestamp: Timestamp;
+  attachments?: {
+    name: string;
+    url: string;
+    type: string;
+    size?: number;
+  }[];
 }
 
 // --- PLAYBOOK ENGINE ---

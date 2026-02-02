@@ -2001,24 +2001,24 @@ const Roster: React.FC = () => {
                       <div className={`mb-3 p-2 rounded border ${
                         theme === 'dark' ? 'bg-orange-900/10 border-orange-900/30' : 'bg-orange-50 border-orange-200'
                       }`}>
-                        <p className="text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider mb-1">Uniform</p>
-                        <div className="flex justify-around text-xs">
+                        <p className="text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider mb-2">Uniform</p>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
                           {player.helmetSize && (
-                            <div>
-                              <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}>Helmet:</span>
-                              <span className={`ml-1 font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{player.helmetSize}</span>
+                            <div className="text-center">
+                              <p className={`text-[10px] ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}`}>Helmet</p>
+                              <p className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{player.helmetSize}</p>
                             </div>
                           )}
                           {player.shirtSize && (
-                            <div>
-                              <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}>Shirt:</span>
-                              <span className={`ml-1 font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{player.shirtSize}</span>
+                            <div className="text-center">
+                              <p className={`text-[10px] ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}`}>Shirt</p>
+                              <p className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{player.shirtSize}</p>
                             </div>
                           )}
                           {player.pantSize && (
-                            <div>
-                              <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}>Pants:</span>
-                              <span className={`ml-1 font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{player.pantSize}</span>
+                            <div className="text-center">
+                              <p className={`text-[10px] ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}`}>Pants</p>
+                              <p className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{player.pantSize}</p>
                             </div>
                           )}
                         </div>

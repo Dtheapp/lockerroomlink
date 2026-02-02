@@ -121,8 +121,34 @@ const PlayerStatsDashboard: React.FC<PlayerStatsDashboardProps> = ({ player, tea
     const buildContexts = async () => {
       const contexts: ProgramContext[] = [];
       
-      // Add current team context if available
-      if (teamData?.programId) {
+      // First, check if team has league games (stored in teams/{teamId}/games)
+      // These take priority because that's where stats are actually stored
+      let hasLeagueGames = false;
+      if (teamData?.id) {
+        try {
+          const leagueGamesRef = collection(db, 'teams', teamData.id, 'games');
+          const leagueGamesSnap = await getDocs(leagueGamesRef);
+          hasLeagueGames = leagueGamesSnap.docs.length > 0;
+          
+          if (hasLeagueGames) {
+            // Add league context as the primary context for this team
+            contexts.push({
+              programId: `league_${teamData.id}`, // Special marker for league games
+              programName: teamData.name || 'League Games',
+              teamId: teamData.id,
+              teamName: teamData.name,
+              sport: (teamData.sport || 'football') as SportType,
+              isHistorical: false
+            });
+          }
+        } catch (err) {
+          console.error('Error checking for league games:', err);
+        }
+      }
+      
+      // ONLY add program context if team has programId AND no league games
+      // (If they have league games, stats are stored there, not in program path)
+      if (teamData?.programId && !hasLeagueGames) {
         contexts.push({
           programId: teamData.programId,
           programName: teamData.programName || 'Current Program',
@@ -192,12 +218,33 @@ const PlayerStatsDashboard: React.FC<PlayerStatsDashboardProps> = ({ player, tea
   const programId = activeContext?.programId;
   const teamId = activeContext?.teamId;
 
+  // Check if this is a league context (special programId format)
+  const isLeagueContext = programId?.startsWith('league_');
+  const actualTeamIdForLeague = isLeagueContext ? programId.replace('league_', '') : null;
+
   // Load all seasons for the selected program
   useEffect(() => {
     const loadSeasons = async () => {
       if (!programId) {
         setAllSeasons([]);
         setLoading(false);
+        return;
+      }
+      
+      // For league games, create a single "current season" based on the year
+      if (isLeagueContext && actualTeamIdForLeague) {
+        const currentYear = new Date().getFullYear();
+        const leagueSeason = {
+          id: `league_${currentYear}`,
+          name: `${currentYear} League Season`,
+          year: currentYear,
+          status: 'active',
+          programId: programId,
+          teamId: actualTeamIdForLeague
+        };
+        setAllSeasons([leagueSeason]);
+        setActiveSeasonId(leagueSeason.id);
+        setSelectedSeasonId(leagueSeason.id);
         return;
       }
       
@@ -238,22 +285,25 @@ const PlayerStatsDashboard: React.FC<PlayerStatsDashboardProps> = ({ player, tea
     };
     
     loadSeasons();
-  }, [programId, teamId]);
+  }, [programId, teamId, isLeagueContext, actualTeamIdForLeague]);
 
-  // Fetch player's game-by-game stats from v2.0 path
+  // Fetch player's game-by-game stats from v2.0 path OR league path
   useEffect(() => {
     const fetchStats = async () => {
-      if (!player?.id || !programId || !selectedSeasonId || !teamId) {
+      if (!player?.id || !selectedSeasonId) {
+        setLoading(false);
+        return;
+      }
+      
+      // Determine the teamId to use
+      const effectiveTeamId = isLeagueContext ? actualTeamIdForLeague : teamId;
+      if (!effectiveTeamId) {
         setLoading(false);
         return;
       }
       
       setLoading(true);
       try {
-        // Get all games where this team participated
-        const gamesRef = collection(db, 'programs', programId, 'seasons', selectedSeasonId, 'games');
-        const gamesSnap = await getDocs(gamesRef);
-        
         const playerGameStats: GameStat[] = [];
         const totals: Record<string, number> = {};
         let gamesPlayed = 0;
@@ -264,64 +314,143 @@ const PlayerStatsDashboard: React.FC<PlayerStatsDashboardProps> = ({ player, tea
           : player.name || '';
         const playerNumber = player.number;
         
-        for (const gameDoc of gamesSnap.docs) {
-          const gameData = gameDoc.data();
+        if (isLeagueContext) {
+          // LEAGUE GAMES: Fetch from teams/{teamId}/games
+          console.log('[PlayerStatsDashboard] Fetching league stats for team:', effectiveTeamId);
+          const gamesRef = collection(db, 'teams', effectiveTeamId, 'games');
+          const gamesSnap = await getDocs(gamesRef);
           
-          // Check if our team played
-          const isHome = gameData.homeTeamId === teamId;
-          const isAway = gameData.awayTeamId === teamId;
-          if (!isHome && !isAway) continue;
+          for (const gameDoc of gamesSnap.docs) {
+            const gameData = gameDoc.data();
+            
+            // Only process completed games
+            if (gameData.status !== 'completed') continue;
+            
+            // Get stats for this game
+            const statsRef = collection(db, 'teams', effectiveTeamId, 'games', gameDoc.id, 'stats');
+            const allStatsSnap = await getDocs(statsRef);
+            
+            // Try to find player's stats using multiple matching strategies:
+            // 1. Direct playerId match
+            // 2. Player has athleteId that matches stat's playerId (roster → global)
+            // 3. Stat has athleteId that matches player.id (reverse lookup)
+            // 4. Name + number fallback
+            let matchedStat = allStatsSnap.docs.find(d => {
+              const data = d.data();
+              // Direct ID match
+              if (data.playerId === player.id) return true;
+              // Player has athleteId pointing to global player
+              if ((player as any).athleteId && data.playerId === (player as any).athleteId) return true;
+              // Stat has athleteId that matches this player (saved with roster ID but linked to global)
+              if (data.athleteId && data.athleteId === player.id) return true;
+              // Name + number fallback
+              if (playerName && data.playerName === playerName && data.playerNumber === playerNumber) return true;
+              return false;
+            });
+            
+            if (!matchedStat) continue;
+            
+            const statDoc = matchedStat.data();
+            if (!statDoc.played) continue;
+            
+            gamesPlayed++;
+            
+            // Normalize scores (league games use ourScore/opponentScore)
+            const isHome = gameData.isHome ?? true;
+            const ourScore = gameData.ourScore ?? gameData.homeScore ?? 0;
+            const opponentScore = gameData.opponentScore ?? gameData.awayScore ?? 0;
+            
+            const gameStat: GameStat = {
+              gameId: gameDoc.id,
+              week: gameData.week || 0,
+              opponent: gameData.opponent || 'Unknown',
+              date: gameData.date || '',
+              isHome,
+              result: gameData.status === 'completed'
+                ? (ourScore > opponentScore ? 'W' : ourScore < opponentScore ? 'L' : 'T')
+                : '',
+              score: gameData.status === 'completed'
+                ? `${ourScore}-${opponentScore}`
+                : '',
+              stats: statDoc.stats || {}
+            };
+            
+            playerGameStats.push(gameStat);
+            
+            Object.entries(statDoc.stats || {}).forEach(([key, value]) => {
+              totals[key] = (totals[key] || 0) + (value as number || 0);
+            });
+          }
+        } else {
+          // PROGRAM GAMES: Fetch from programs/{programId}/seasons/{seasonId}/games
+          if (!programId) {
+            setLoading(false);
+            return;
+          }
           
-          // Get ALL stats for this game to find player by multiple means
-          const statsRef = collection(db, 'programs', programId, 'seasons', selectedSeasonId, 'games', gameDoc.id, 'stats');
-          const allStatsSnap = await getDocs(statsRef);
+          const gamesRef = collection(db, 'programs', programId, 'seasons', selectedSeasonId, 'games');
+          const gamesSnap = await getDocs(gamesRef);
           
-          // Try to find player by multiple means:
-          // 1. Direct playerId match
-          // 2. Match by athleteId (roster player pointing to global player)
-          // 3. Match by name + number
-          let matchedStat = allStatsSnap.docs.find(d => {
-            const data = d.data();
-            // Direct ID match
-            if (data.playerId === player.id) return true;
-            // Athlete ID match (if roster doc has athleteId pointing to this player)
-            if ((player as any).athleteId && data.playerId === (player as any).athleteId) return true;
-            // Name + number match (fallback)
-            if (playerName && data.playerName === playerName && data.playerNumber === playerNumber) return true;
-            return false;
-          });
-          
-          if (!matchedStat) continue;
-          
-          const statDoc = matchedStat.data();
-          if (!statDoc.played) continue;
-          
-          gamesPlayed++;
-          
-          // Build game stat object
-          const gameStat: GameStat = {
-            gameId: gameDoc.id,
-            week: gameData.week || 0,
-            opponent: isHome ? gameData.awayTeamName : gameData.homeTeamName,
-            date: gameData.weekDate || gameData.date || '',
-            isHome,
-            result: gameData.status === 'completed' 
-              ? (isHome 
-                ? (gameData.homeScore > gameData.awayScore ? 'W' : gameData.homeScore < gameData.awayScore ? 'L' : 'T')
-                : (gameData.awayScore > gameData.homeScore ? 'W' : gameData.awayScore < gameData.homeScore ? 'L' : 'T'))
-              : '',
-            score: gameData.status === 'completed'
-              ? `${isHome ? gameData.homeScore : gameData.awayScore}-${isHome ? gameData.awayScore : gameData.homeScore}`
-              : '',
-            stats: statDoc.stats || {}
-          };
-          
-          playerGameStats.push(gameStat);
-          
-          // Accumulate totals
-          Object.entries(statDoc.stats || {}).forEach(([key, value]) => {
-            totals[key] = (totals[key] || 0) + (value as number || 0);
-          });
+          for (const gameDoc of gamesSnap.docs) {
+            const gameData = gameDoc.data();
+            
+            // Check if our team played
+            const isHome = gameData.homeTeamId === effectiveTeamId;
+            const isAway = gameData.awayTeamId === effectiveTeamId;
+            if (!isHome && !isAway) continue;
+            
+            // Get ALL stats for this game to find player by multiple means
+            const statsRef = collection(db, 'programs', programId, 'seasons', selectedSeasonId, 'games', gameDoc.id, 'stats');
+            const allStatsSnap = await getDocs(statsRef);
+            
+            // Try to find player's stats using multiple matching strategies:
+            // 1. Direct playerId match
+            // 2. Player has athleteId that matches stat's playerId (roster → global)
+            // 3. Stat has athleteId that matches player.id (reverse lookup)
+            // 4. Name + number fallback
+            let matchedStat = allStatsSnap.docs.find(d => {
+              const data = d.data();
+              // Direct ID match
+              if (data.playerId === player.id) return true;
+              // Player has athleteId pointing to global player
+              if ((player as any).athleteId && data.playerId === (player as any).athleteId) return true;
+              // Stat has athleteId that matches this player (saved with roster ID but linked to global)
+              if (data.athleteId && data.athleteId === player.id) return true;
+              // Name + number fallback
+              if (playerName && data.playerName === playerName && data.playerNumber === playerNumber) return true;
+              return false;
+            });
+            
+            if (!matchedStat) continue;
+            
+            const statDoc = matchedStat.data();
+            if (!statDoc.played) continue;
+            
+            gamesPlayed++;
+            
+            const gameStat: GameStat = {
+              gameId: gameDoc.id,
+              week: gameData.week || 0,
+              opponent: isHome ? gameData.awayTeamName : gameData.homeTeamName,
+              date: gameData.weekDate || gameData.date || '',
+              isHome,
+              result: gameData.status === 'completed' 
+                ? (isHome 
+                  ? (gameData.homeScore > gameData.awayScore ? 'W' : gameData.homeScore < gameData.awayScore ? 'L' : 'T')
+                  : (gameData.awayScore > gameData.homeScore ? 'W' : gameData.awayScore < gameData.homeScore ? 'L' : 'T'))
+                : '',
+              score: gameData.status === 'completed'
+                ? `${isHome ? gameData.homeScore : gameData.awayScore}-${isHome ? gameData.awayScore : gameData.homeScore}`
+                : '',
+              stats: statDoc.stats || {}
+            };
+            
+            playerGameStats.push(gameStat);
+            
+            Object.entries(statDoc.stats || {}).forEach(([key, value]) => {
+              totals[key] = (totals[key] || 0) + (value as number || 0);
+            });
+          }
         }
         
         // Sort by week
@@ -344,7 +473,7 @@ const PlayerStatsDashboard: React.FC<PlayerStatsDashboardProps> = ({ player, tea
     };
     
     fetchStats();
-  }, [player?.id, programId, selectedSeasonId, teamId]);
+  }, [player?.id, programId, selectedSeasonId, teamId, isLeagueContext, actualTeamIdForLeague, allSeasons]);
 
   // Calculate trend data for charts
   const trendData = useMemo(() => {

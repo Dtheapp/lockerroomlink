@@ -342,16 +342,31 @@ export const addRegistrant = async (
   try {
     const registrantsRef = collection(db, 'programs', programId, 'registrations', registrationId, 'registrants');
     
-    // Check for duplicate registration (same player already registered)
-    if (registrantData.existingPlayerId) {
-      const duplicateQuery = query(
-        registrantsRef,
-        where('existingPlayerId', '==', registrantData.existingPlayerId)
-      );
-      const duplicateSnap = await getDocs(duplicateQuery);
-      if (!duplicateSnap.empty) {
-        toastError('This player is already registered');
-        throw new Error('Player already registered');
+    // Check for duplicate registration via player document (parents have read access to their own players)
+    if (registrantData.existingPlayerId && registrantData.parentId) {
+      try {
+        const playerRef = doc(db, 'players', registrantData.existingPlayerId);
+        const playerSnap = await getDoc(playerRef);
+        if (playerSnap.exists()) {
+          const playerData = playerSnap.data();
+          // Check if player is already in this registration's draft pool
+          if (playerData.draftPoolRegistrationId === registrationId) {
+            toastError('This player is already registered for this registration');
+            throw new Error('Player already registered');
+          }
+          // Also check if they have any active registration for the same program
+          if (playerData.draftPoolProgramId === programId && playerData.draftPoolStatus) {
+            toastError('This player is already registered for this program');
+            throw new Error('Player already registered for program');
+          }
+        }
+      } catch (dupErr: any) {
+        // Re-throw if it's our duplicate error
+        if (dupErr.message?.includes('already registered')) {
+          throw dupErr;
+        }
+        // Otherwise log and continue (player doc might not exist yet)
+        console.log('[Registration] Could not check for duplicates via player doc:', dupErr);
       }
     }
     

@@ -150,7 +150,7 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
   // REAL-TIME SYNC: Always keep local state in sync with Firestore data
   // This ensures ALL users (coaches, refs, scorekeepers) see the same live data
   // We track what we're currently writing to avoid overwriting our own pending update
-  const pendingUpdate = useRef<{ home?: number; away?: number } | null>(null);
+  const pendingUpdate = useRef<{ home?: number; away?: number; quarter?: number } | null>(null);
   const lastSyncedGameId = useRef<string | null>(null);
   
   useEffect(() => {
@@ -159,11 +159,13 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
     // Always sync from Firestore - this is the source of truth
     const firestoreHome = selectedGame.homeScore || 0;
     const firestoreAway = selectedGame.awayScore || 0;
+    const firestoreQuarter = (selectedGame as any).currentQuarter || 1;
     
     // Only skip sync if we have a pending write that matches
     // (prevents flickering when our own update comes back from Firestore)
     const skipHomeSync = pendingUpdate.current?.home === firestoreHome;
     const skipAwaySync = pendingUpdate.current?.away === firestoreAway;
+    const skipQuarterSync = pendingUpdate.current?.quarter === firestoreQuarter;
     
     if (!skipHomeSync) {
       setLocalHomeScore(firestoreHome);
@@ -172,13 +174,23 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
       setLocalAwayScore(firestoreAway);
     }
     
-    // Clear pending update once Firestore catches up
-    if (skipHomeSync || skipAwaySync) {
-      pendingUpdate.current = null;
+    // Only sync quarter if we don't have a pending quarter change
+    // This prevents the quarter from reverting during score updates
+    if (!skipQuarterSync && !pendingUpdate.current?.quarter) {
+      setCurrentQuarter(firestoreQuarter);
     }
     
-    // Sync quarter data
-    setCurrentQuarter((selectedGame as any).currentQuarter || 1);
+    // Clear pending update once Firestore catches up
+    if (skipHomeSync && skipAwaySync && skipQuarterSync) {
+      pendingUpdate.current = null;
+    } else if (skipHomeSync || skipAwaySync) {
+      // Clear only the score parts, keep quarter pending if still not synced
+      if (pendingUpdate.current) {
+        pendingUpdate.current = { quarter: pendingUpdate.current.quarter };
+      }
+    }
+    
+    // Sync quarter scores (these are always synced from Firestore)
     setQuarterScores({
       homeQ1: (selectedGame as any).homeQ1 || 0,
       homeQ2: (selectedGame as any).homeQ2 || 0,
@@ -484,7 +496,8 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
       return;
     }
     
-    // Prevent negative scores - check BOTH total score AND quarter score
+    // Prevent negative scores - check total score only
+    // (Quarter scores may be uninitialized for older games, so we don't block on those)
     const currentScore = team === 'home' ? localHomeScore : localAwayScore;
     const quarterKey = currentQuarter === 5 ? 'OT' : `Q${currentQuarter}`;
     const quarterField = `${team}${quarterKey}` as keyof typeof quarterScores;
@@ -493,12 +506,6 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
     // Block if total score would go negative
     if (currentScore + delta < 0) {
       console.log('[GameDayHub] updateScore blocked - total score would go negative');
-      return;
-    }
-    
-    // Block if quarter score would go negative (important for minus button!)
-    if (currentQuarterScore + delta < 0) {
-      console.log('[GameDayHub] updateScore blocked - quarter score would go negative');
       return;
     }
     
@@ -533,35 +540,61 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
     }, 2000);
     
     try {
-      // SINGLE SOURCE: Update program season game with ATOMIC INCREMENT
-      if (!selectedGame.programId || !selectedGame.seasonId) {
-        throw new Error('Game missing programId or seasonId');
-      }
-      
-      // Use Firestore increment() for atomic updates - no race conditions!
-      const scoreField = team === 'home' ? 'homeScore' : 'awayScore';
-      
-      console.log('[GameDayHub] Writing ATOMIC INCREMENT to Firestore:', {
-        path: `programs/${selectedGame.programId}/seasons/${selectedGame.seasonId}/games/${selectedGame.id}`,
-        [scoreField]: `increment(${delta})`,
-        [quarterField]: `increment(${delta})`,
-        currentQuarter
-      });
-      
-      await updateDoc(
-        doc(db, 'programs', selectedGame.programId, 'seasons', selectedGame.seasonId, 'games', selectedGame.id), 
-        {
+      // Determine which path to update based on game source
+      if (selectedGame.source === 'league' || selectedGame.leagueManaged) {
+        // League-managed game: stored in teams/{teamId}/games
+        // Write BOTH home/away format AND our/opponent format for compatibility
+        const isHome = selectedGame.isHome ?? true;
+        const ourOpponentField = (team === 'home' && isHome) || (team === 'away' && !isHome) ? 'ourScore' : 'opponentScore';
+        const homeAwayField = team === 'home' ? 'homeScore' : 'awayScore';
+        
+        console.log('[GameDayHub] Writing ATOMIC INCREMENT to league game:', {
+          path: `teams/${teamId}/games/${selectedGame.id}`,
+          [ourOpponentField]: `increment(${delta})`,
+          [homeAwayField]: `increment(${delta})`,
+          [quarterField]: `increment(${delta})`,
+          currentQuarter,
+          isHome
+        });
+        await updateDoc(
+          doc(db, 'teams', teamId, 'games', selectedGame.id), 
+          {
+            [ourOpponentField]: increment(delta),
+            [homeAwayField]: increment(delta),
+            [quarterField]: increment(delta),
+            currentQuarter,
+            updatedAt: serverTimestamp()
+          }
+        );
+      } else if (selectedGame.programId && selectedGame.seasonId) {
+        // Program game: stored in programs/{programId}/seasons/{seasonId}/games
+        const scoreField = team === 'home' ? 'homeScore' : 'awayScore';
+        const updateData = {
           [scoreField]: increment(delta),
           [quarterField]: increment(delta),
           currentQuarter,
           updatedAt: serverTimestamp()
-        }
-      );
+        };
+        
+        console.log('[GameDayHub] Writing ATOMIC INCREMENT to Firestore:', {
+          path: `programs/${selectedGame.programId}/seasons/${selectedGame.seasonId}/games/${selectedGame.id}`,
+          [scoreField]: `increment(${delta})`,
+          [quarterField]: `increment(${delta})`,
+          currentQuarter
+        });
+        await updateDoc(
+          doc(db, 'programs', selectedGame.programId, 'seasons', selectedGame.seasonId, 'games', selectedGame.id), 
+          updateData
+        );
+      } else {
+        throw new Error('Cannot determine game storage location');
+      }
       console.log('[GameDayHub] Firestore atomic increment SUCCESS');
     } catch (err) {
       console.error('[GameDayHub] Firestore write ERROR:', err);
-      // Clear pending update on error - will resync from Firestore
-      pendingUpdate.current = null;
+      // Clear pending score updates on error - but preserve pending quarter
+      const pendingQuarter = pendingUpdate.current?.quarter;
+      pendingUpdate.current = pendingQuarter ? { quarter: pendingQuarter } : null;
       toastError('Failed to update score');
     } finally {
       setIsUpdatingScore(false);
@@ -570,24 +603,46 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
   
   // Change quarter
   const changeQuarter = async (quarter: 1 | 2 | 3 | 4 | 5) => {
-    if (!selectedGame?.id || !selectedGame?.programId || !selectedGame?.seasonId) {
-      console.log('[GameDayHub] changeQuarter blocked - missing IDs');
+    if (!selectedGame?.id) {
+      console.log('[GameDayHub] changeQuarter blocked - no game selected');
       return;
     }
     
     console.log('[GameDayHub] changeQuarter called:', quarter);
+    
+    // Optimistic update + track pending to prevent sync reversion
     setCurrentQuarter(quarter);
+    pendingUpdate.current = { ...pendingUpdate.current, quarter };
     
     try {
-      await updateDoc(
-        doc(db, 'programs', selectedGame.programId, 'seasons', selectedGame.seasonId, 'games', selectedGame.id),
-        {
-          currentQuarter: quarter,
-          updatedAt: serverTimestamp()
-        }
-      );
+      // Determine which path to update based on game source
+      if (selectedGame.source === 'league' || selectedGame.leagueManaged) {
+        // League games - now supports quarter tracking with updated Firestore rules
+        console.log('[GameDayHub] League game - persisting quarter to Firestore');
+        await updateDoc(
+          doc(db, 'teams', teamId, 'games', selectedGame.id),
+          {
+            currentQuarter: quarter,
+            updatedAt: serverTimestamp()
+          }
+        );
+      } else if (selectedGame.programId && selectedGame.seasonId) {
+        // Program games - persist quarter to Firestore
+        await updateDoc(
+          doc(db, 'programs', selectedGame.programId, 'seasons', selectedGame.seasonId, 'games', selectedGame.id),
+          {
+            currentQuarter: quarter,
+            updatedAt: serverTimestamp()
+          }
+        );
+        console.log('[GameDayHub] Quarter persisted to Firestore:', quarter);
+      } else {
+        console.log('[GameDayHub] Unknown game source - quarter change is local only');
+      }
     } catch (err) {
       console.error('Error changing quarter:', err);
+      // Revert on error
+      pendingUpdate.current = null;
       setCurrentQuarter((selectedGame as any).currentQuarter || 1);
       toastError('Failed to change quarter');
     }
@@ -610,18 +665,57 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
   
   // Start game (mark as live)
   const startGame = async () => {
-    if (!isCoach || !selectedGame?.id || !selectedGame?.programId || !selectedGame?.seasonId) return;
+    console.log('[GameDayHub] startGame called', { 
+      isCoach, 
+      gameId: selectedGame?.id, 
+      programId: selectedGame?.programId, 
+      seasonId: selectedGame?.seasonId,
+      source: selectedGame?.source,
+      leagueManaged: selectedGame?.leagueManaged,
+      teamId
+    });
+    
+    if (!isCoach) {
+      toastError('You must be a coach to start the game');
+      return;
+    }
+    
+    if (!selectedGame?.id) {
+      toastError('No game selected');
+      return;
+    }
+    
     setIsUpdating(true);
     try {
-      // SINGLE SOURCE: Update program season game
-      await updateDoc(
-        doc(db, 'programs', selectedGame.programId, 'seasons', selectedGame.seasonId, 'games', selectedGame.id),
-        {
-          status: 'live',
-          startedAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        }
-      );
+      // Determine which path to update based on game source
+      if (selectedGame.source === 'league' || selectedGame.leagueManaged) {
+        // League-managed game: stored in teams/{teamId}/games
+        // Uses different field names: ourScore, opponentScore
+        console.log('[GameDayHub] Starting league game:', teamId, '/', selectedGame.id);
+        await updateDoc(
+          doc(db, 'teams', teamId, 'games', selectedGame.id),
+          {
+            status: 'live',
+            updatedAt: serverTimestamp()
+          }
+        );
+      } else if (selectedGame.programId && selectedGame.seasonId) {
+        // Program game: stored in programs/{programId}/seasons/{seasonId}/games
+        console.log('[GameDayHub] Starting program game:', selectedGame.programId, '/', selectedGame.seasonId, '/', selectedGame.id);
+        await updateDoc(
+          doc(db, 'programs', selectedGame.programId, 'seasons', selectedGame.seasonId, 'games', selectedGame.id),
+          {
+            status: 'live',
+            startedAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          }
+        );
+      } else {
+        console.error('[GameDayHub] Cannot determine game storage location:', selectedGame);
+        toastError('Unable to start game - unknown game source');
+        return;
+      }
+      
       toastSuccess('Game started! You can now update the score.');
     } catch (err: any) {
       console.error('Error starting game:', err);
@@ -633,20 +727,43 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
   
   // End game (mark as completed)
   const endGame = async () => {
-    if (!isCoach || !selectedGame?.id || !selectedGame?.programId || !selectedGame?.seasonId) return;
+    if (!isCoach || !selectedGame?.id) return;
     setIsUpdating(true);
     try {
-      // SINGLE SOURCE: Update program season game with final score
-      await updateDoc(
-        doc(db, 'programs', selectedGame.programId, 'seasons', selectedGame.seasonId, 'games', selectedGame.id),
-        {
-          status: 'completed',
-          homeScore: localHomeScore,
-          awayScore: localAwayScore,
-          endedAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        }
-      );
+      // Determine which path to update based on game source
+      if (selectedGame.source === 'league' || selectedGame.leagueManaged) {
+        // League-managed game: stored in teams/{teamId}/games
+        // Write BOTH our/opponent AND home/away format for compatibility
+        const isHome = selectedGame.isHome ?? true;
+        await updateDoc(
+          doc(db, 'teams', teamId, 'games', selectedGame.id),
+          {
+            status: 'completed',
+            ourScore: isHome ? localHomeScore : localAwayScore,
+            opponentScore: isHome ? localAwayScore : localHomeScore,
+            homeScore: localHomeScore,
+            awayScore: localAwayScore,
+            endedAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          }
+        );
+      } else if (selectedGame.programId && selectedGame.seasonId) {
+        // Program game: stored in programs/{programId}/seasons/{seasonId}/games
+        await updateDoc(
+          doc(db, 'programs', selectedGame.programId, 'seasons', selectedGame.seasonId, 'games', selectedGame.id),
+          {
+            status: 'completed',
+            homeScore: localHomeScore,
+            awayScore: localAwayScore,
+            endedAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          }
+        );
+      } else {
+        console.error('[GameDayHub] Cannot determine game storage location:', selectedGame);
+        toastError('Unable to end game - unknown game source');
+        return;
+      }
 
       toastSuccess('Game completed! Stats can be added from the game history.');
     } catch (err) {
@@ -970,8 +1087,8 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
                   </span>
                 )}
                 {homeScoreChange !== null && (
-                  <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-green-500 font-bold text-xl animate-bounce">
-                    +{homeScoreChange}
+                  <span className={`absolute -top-6 left-1/2 -translate-x-1/2 font-bold text-xl animate-bounce ${homeScoreChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {homeScoreChange >= 0 ? '+' : ''}{homeScoreChange}
                   </span>
                 )}
               </div>
@@ -1090,8 +1207,8 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
                   </span>
                 )}
                 {awayScoreChange !== null && (
-                  <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-green-500 font-bold text-xl animate-bounce">
-                    +{awayScoreChange}
+                  <span className={`absolute -top-6 left-1/2 -translate-x-1/2 font-bold text-xl animate-bounce ${awayScoreChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {awayScoreChange >= 0 ? '+' : ''}{awayScoreChange}
                   </span>
                 )}
               </div>

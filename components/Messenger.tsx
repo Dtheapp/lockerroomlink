@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc, limitToLast, deleteDoc, writeBatch, arrayUnion, getDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs, doc, updateDoc, limitToLast, deleteDoc, writeBatch, arrayUnion, getDoc, deleteField } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
@@ -94,7 +94,13 @@ const Messenger: React.FC = () => {
     if (!user) return;
     const chatsQuery = query(collection(db, 'private_chats'), where('participants', 'array-contains', user.uid), orderBy('updatedAt', 'desc'));
     const unsubscribe = onSnapshot(chatsQuery, (snapshot) => {
-        setChats(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as ExtendedChat)));
+        // Filter out chats where current user is in hiddenFor array
+        const allChats = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as ExtendedChat));
+        const visibleChats = allChats.filter(chat => {
+          const hiddenFor = (chat as any).hiddenFor || [];
+          return !hiddenFor.includes(user.uid);
+        });
+        setChats(visibleChats);
     });
     return () => unsubscribe();
   }, [user]);
@@ -494,7 +500,14 @@ const Messenger: React.FC = () => {
         const chatCollection = activeChat.isGrievance ? 'grievance_chats' : 'private_chats';
         
         await addDoc(collection(db, chatCollection, activeChat.id, 'messages'), messagePayload);
-        await updateDoc(doc(db, chatCollection, activeChat.id), { lastMessage: text, updatedAt: serverTimestamp(), lastMessageTime: serverTimestamp(), lastSenderId: user.uid });
+        // Clear hiddenFor so chat reappears for users who "deleted" it
+        await updateDoc(doc(db, chatCollection, activeChat.id), { 
+          lastMessage: text, 
+          updatedAt: serverTimestamp(), 
+          lastMessageTime: serverTimestamp(), 
+          lastSenderId: user.uid,
+          hiddenFor: deleteField() // Remove hiddenFor array so chat reappears for all participants
+        });
         
         // Clear reply state after sending
         setReplyingTo(null);

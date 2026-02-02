@@ -101,11 +101,15 @@ const NewOSYSDashboard: React.FC = () => {
   const [posts, setPosts] = useState<BulletinPost[]>([]);
   const [newPost, setNewPost] = useState('');
   const [addingPost, setAddingPost] = useState(false);
+  const [bulletinAttachments, setBulletinAttachments] = useState<File[]>([]);
+  const [uploadingBulletinAttachment, setUploadingBulletinAttachment] = useState(false);
+  const bulletinFileInputRef = useRef<HTMLInputElement>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editingPostText, setEditingPostText] = useState('');
   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
   const [deletePostConfirm, setDeletePostConfirm] = useState<string | null>(null);
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
+  const [previewAttachment, setPreviewAttachment] = useState<{ name: string; url: string; type: string } | null>(null);
 
   // Coaching staff state
   const [coaches, setCoaches] = useState<CoachDisplay[]>([]);
@@ -510,22 +514,42 @@ const NewOSYSDashboard: React.FC = () => {
           }
         }
         
+        // Normalize our/opponent scores to home/away based on isHome flag
+        // If we're home: ourScore = homeScore, opponentScore = awayScore
+        // If we're away: ourScore = awayScore, opponentScore = homeScore
+        const isHome = data.isHome ?? true;
+        const ourScore = data.ourScore ?? data.homeScore ?? 0;
+        const opponentScore = data.opponentScore ?? data.awayScore ?? 0;
+        
         games.push({
           id: docSnap.id,
           teamId: teamData.id,
           source: 'league',
           opponent: data.opponent || 'TBD',
-          isHome: data.isHome ?? true,
+          isHome,
           week: data.week || 1,
           scheduledDate: scheduledDate,
           scheduledTime: data.time || '',
           location: data.location || '',
-          homeScore: data.ourScore || 0,
-          awayScore: data.opponentScore || 0,
+          // Correctly map scores based on home/away perspective
+          homeScore: isHome ? ourScore : opponentScore,
+          awayScore: isHome ? opponentScore : ourScore,
           status: data.status || 'scheduled',
           leagueId: data.leagueId,
           leagueManaged: true,
           ageGroup: data.ageGroup,
+          // Include quarter scores and current quarter for live scoring
+          currentQuarter: data.currentQuarter || 1,
+          homeQ1: data.homeQ1 || 0,
+          homeQ2: data.homeQ2 || 0,
+          homeQ3: data.homeQ3 || 0,
+          homeQ4: data.homeQ4 || 0,
+          homeOT: data.homeOT || 0,
+          awayQ1: data.awayQ1 || 0,
+          awayQ2: data.awayQ2 || 0,
+          awayQ3: data.awayQ3 || 0,
+          awayQ4: data.awayQ4 || 0,
+          awayOT: data.awayOT || 0,
         } as TeamGame);
       });
       
@@ -1750,7 +1774,7 @@ const NewOSYSDashboard: React.FC = () => {
 
   // Bulletin: Add post
   const handleAddPost = async () => {
-    if (!newPost.trim() || !teamData?.id || !userData) return;
+    if ((!newPost.trim() && bulletinAttachments.length === 0) || !teamData?.id || !userData) return;
     
     // Rate limit check
     const rateLimitKey = `bulletin_${userData.uid}`;
@@ -1763,18 +1787,40 @@ const NewOSYSDashboard: React.FC = () => {
     setAddingPost(true);
     setRateLimitError(null);
     try {
+      // Upload attachments if any
+      let uploadedAttachments: { name: string; url: string; type: string; size: number }[] = [];
+      
+      if (bulletinAttachments.length > 0) {
+        setUploadingBulletinAttachment(true);
+        for (const file of bulletinAttachments) {
+          const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
+          const path = `bulletins/${teamData.id}/${safeName}`;
+          const uploaded = await uploadFile(file, path);
+          uploadedAttachments.push({
+            name: file.name,
+            url: uploaded.url,
+            type: file.type,
+            size: file.size
+          });
+        }
+        setUploadingBulletinAttachment(false);
+      }
+      
       const bulletinRef = collection(db, 'teams', teamData.id, 'bulletin');
       await addDoc(bulletinRef, {
         text: sanitizeText(newPost.trim()),
         author: userData.name || 'Unknown',
         authorId: userData.uid,
-        timestamp: serverTimestamp()
+        timestamp: serverTimestamp(),
+        ...(uploadedAttachments.length > 0 && { attachments: uploadedAttachments })
       });
       setNewPost('');
+      setBulletinAttachments([]);
     } catch (error) {
       console.error('Error adding bulletin post:', error);
     } finally {
       setAddingPost(false);
+      setUploadingBulletinAttachment(false);
     }
   };
 
@@ -3930,7 +3976,7 @@ const NewOSYSDashboard: React.FC = () => {
           
           {/* Add Post Form (Coach/SuperAdmin only) */}
           {(userData?.role === 'Coach' || userData?.role === 'SuperAdmin') && (
-            <div className="mb-4">
+            <div className="mb-4 space-y-2">
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -3944,22 +3990,73 @@ const NewOSYSDashboard: React.FC = () => {
                       : 'bg-slate-100 border border-slate-300 text-zinc-900 placeholder:text-slate-500'
                   } focus:outline-none focus:ring-2 focus:ring-purple-500`}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
+                    if (e.key === 'Enter' && !e.shiftKey && bulletinAttachments.length === 0) {
                       e.preventDefault();
                       handleAddPost();
                     }
                   }}
                 />
+                {/* Attachment button */}
+                <button
+                  type="button"
+                  onClick={() => bulletinFileInputRef.current?.click()}
+                  className={`px-3 py-2 rounded-lg text-sm transition ${
+                    theme === 'dark'
+                      ? 'bg-white/10 hover:bg-white/20 text-slate-300'
+                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                  }`}
+                  title="Add attachment"
+                >
+                  📎
+                </button>
+                <input
+                  ref={bulletinFileInputRef}
+                  type="file"
+                  className="hidden"
+                  multiple
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.txt"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (files.length > 0) {
+                      setBulletinAttachments(prev => [...prev, ...files].slice(0, 5)); // Max 5 files
+                    }
+                    e.target.value = '';
+                  }}
+                />
                 <button
                   onClick={handleAddPost}
-                  disabled={addingPost || !newPost.trim()}
+                  disabled={addingPost || uploadingBulletinAttachment || (!newPost.trim() && bulletinAttachments.length === 0)}
                   className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition"
                 >
-                  {addingPost ? '...' : 'Post'}
+                  {addingPost || uploadingBulletinAttachment ? '...' : 'Post'}
                 </button>
               </div>
+              
+              {/* Attachment previews */}
+              {bulletinAttachments.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {bulletinAttachments.map((file, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                        theme === 'dark' ? 'bg-white/10 text-slate-300' : 'bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <span className="max-w-[120px] truncate">{file.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setBulletinAttachments(prev => prev.filter((_, i) => i !== idx))}
+                        className="text-red-400 hover:text-red-300 ml-1"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
               {rateLimitError && (
-                <p className="text-red-400 text-xs mt-1">{rateLimitError}</p>
+                <p className="text-red-400 text-xs">{rateLimitError}</p>
               )}
             </div>
           )}
@@ -4043,6 +4140,27 @@ const NewOSYSDashboard: React.FC = () => {
                           ? post.text
                           : `${post.text.slice(0, 100)}...`}
                       </div>
+                      
+                      {/* Attachments */}
+                      {post.attachments && post.attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {post.attachments.map((att, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setPreviewAttachment(att)}
+                              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition ${
+                                theme === 'dark'
+                                  ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/30'
+                                  : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                              }`}
+                            >
+                              {att.type?.startsWith('image/') ? '🖼️' : '📎'}
+                              <span className="max-w-[100px] truncate">{att.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      
                       <div className="flex items-center justify-between mt-2">
                         <span className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
                           {post.author} • {formatBulletinDate(post.timestamp)}
@@ -4080,6 +4198,85 @@ const NewOSYSDashboard: React.FC = () => {
 
 
       {/* ====== MODALS ====== */}
+
+      {/* Attachment Preview Modal */}
+      {previewAttachment && (
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+          onClick={() => setPreviewAttachment(null)}
+        >
+          <div 
+            className={`relative w-full max-w-4xl max-h-[90vh] rounded-2xl overflow-hidden ${
+              theme === 'dark' ? 'bg-zinc-900 border border-white/10' : 'bg-white border border-slate-200'
+            }`}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className={`flex items-center justify-between p-4 border-b ${
+              theme === 'dark' ? 'border-white/10' : 'border-slate-200'
+            }`}>
+              <h3 className={`font-semibold truncate ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                {previewAttachment.name}
+              </h3>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewAttachment.url}
+                  download={previewAttachment.name}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition"
+                >
+                  Download
+                </a>
+                <button 
+                  onClick={() => setPreviewAttachment(null)}
+                  className={`p-1.5 rounded-lg transition ${
+                    theme === 'dark' ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            
+            {/* Content */}
+            <div className="p-4 overflow-auto max-h-[calc(90vh-80px)] flex items-center justify-center">
+              {previewAttachment.type?.startsWith('image/') ? (
+                <img 
+                  src={previewAttachment.url} 
+                  alt={previewAttachment.name}
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                />
+              ) : previewAttachment.type === 'application/pdf' ? (
+                <iframe
+                  src={previewAttachment.url}
+                  title={previewAttachment.name}
+                  className="w-full h-[70vh] rounded-lg"
+                />
+              ) : (
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">📎</div>
+                  <p className={`text-lg font-medium mb-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
+                    {previewAttachment.name}
+                  </p>
+                  <p className={`text-sm mb-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                    This file type cannot be previewed
+                  </p>
+                  <a
+                    href={previewAttachment.url}
+                    download={previewAttachment.name}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-medium transition"
+                  >
+                    Download File
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Record Modal */}
       {isEditingRecord && (

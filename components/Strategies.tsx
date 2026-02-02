@@ -15,6 +15,7 @@ const Strategies: React.FC = () => {
   const [sending, setSending] = useState(false);
   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Edit/Delete message state
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -25,6 +26,29 @@ const Strategies: React.FC = () => {
 
   // Only coaches can access this chat
   const isCoach = userData?.role === 'Coach';
+
+  // Track if initial load is complete using a ref (not state) to avoid re-renders
+  const isInitialLoadRef = useRef(true);
+  const prevMessagesLengthRef = useRef(0);
+
+  // Scroll to top of page when component mounts
+  useEffect(() => {
+    // Immediate scroll
+    window.scrollTo(0, 0);
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = 0;
+    }
+    
+    // Also scroll after a delay to catch any async renders
+    const timer = setTimeout(() => {
+      window.scrollTo(0, 0);
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.scrollTop = 0;
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!teamData?.id || !isCoach) return;
@@ -43,9 +67,24 @@ const Strategies: React.FC = () => {
     return () => unsubscribe();
   }, [teamData?.id, isCoach]);
   
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom only for NEW messages (after initial load)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Skip scroll on initial load - instead scroll to TOP
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+      prevMessagesLengthRef.current = messages.length;
+      // Scroll container to TOP on initial load
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.scrollTop = 0;
+      }
+      return;
+    }
+    
+    // Only scroll if new message was added (not just re-render)
+    if (messages.length > prevMessagesLengthRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    prevMessagesLengthRef.current = messages.length;
   }, [messages]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -170,7 +209,7 @@ const Strategies: React.FC = () => {
       </div>
       
       {/* MESSAGES AREA */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-50/50 dark:bg-black/20">
+      <div ref={messagesContainerRef} className="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-50/50 dark:bg-black/20">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-12">
             <div className="w-16 h-16 bg-purple-100/80 dark:bg-orange-900/20 rounded-full flex items-center justify-center mb-4">

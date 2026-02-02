@@ -20,16 +20,16 @@ interface NoAthleteBlockProps {
  * - If no context → Show registration browser
  */
 const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children, allowDraftPool = false }) => {
-  const { userData, players, teamData, selectedPlayer, selectedSportContext, sportContexts } = useAuth();
+  const { userData, players, teamData, selectedPlayer, selectedSportContext, sportContexts, loading: authLoading } = useAuth();
   const [draftPoolCount, setDraftPoolCount] = useState<number>(0);
   const [registrationCloseDate, setRegistrationCloseDate] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [localLoading, setLocalLoading] = useState(true);
   
   // Load additional draft pool info when in draft pool context
   useEffect(() => {
     const loadDraftPoolInfo = async () => {
       if (selectedSportContext?.status !== 'draft_pool') {
-        setLoading(false);
+        setLocalLoading(false);
         return;
       }
       
@@ -88,7 +88,7 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children, 
       } catch (err) {
         console.error('Error loading draft pool info:', err);
       } finally {
-        setLoading(false);
+        setLocalLoading(false);
       }
     };
     
@@ -103,8 +103,10 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children, 
     return <>{children}</>;
   }
   
-  // Show loading while sport contexts are being computed
-  if (loading && !selectedSportContext) {
+  // Show loading while auth is loading (sport contexts being computed)
+  // This is the KEY FIX: wait for AuthContext to finish computing sport contexts
+  // before deciding whether to show children or registration prompt
+  if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
@@ -118,6 +120,18 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children, 
   // ACTIVE SPORT CONTEXT - Player is on a team for this sport
   if (selectedSportContext?.status === 'active') {
     return <>{children}</>;
+  }
+  
+  // Show loading while draft pool info is loading (only relevant for draft_pool status)
+  if (localLoading && selectedSportContext?.status === 'draft_pool') {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-4" />
+          <p className="text-slate-600 dark:text-zinc-400">Loading draft pool...</p>
+        </div>
+      </div>
+    );
   }
   
   // DRAFT POOL CONTEXT - Player is waiting to be drafted for this sport

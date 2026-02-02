@@ -1579,10 +1579,14 @@ service cloud.firestore {
           isTeamCoach(teamId) && (
             // Non-league games: full edit access
             resource.data.leagueManaged != true ||
-            // League games: only allow score/status updates (not game details)
+            // League games: only allow score/status/quarter updates (not game details like date/time/opponent)
             request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'ourScore', 'opponentScore', 'status', 'result', 'statsEntered', 
-              'statsId', 'updatedAt', 'notes'
+              'statsId', 'updatedAt', 'notes',
+              // Quarter tracking for live game scoring
+              'currentQuarter', 'homeQ1', 'homeQ2', 'homeQ3', 'homeQ4', 'homeOT',
+              'awayQ1', 'awayQ2', 'awayQ3', 'awayQ4', 'awayOT',
+              'homeScore', 'awayScore', 'startedAt', 'endedAt'
             ])
           )
         );
@@ -1613,6 +1617,12 @@ service cloud.firestore {
         
         // Player stats for this game (public for athlete profiles)
         match /playerStats/{playerId} {
+          allow read: if true;
+          allow write: if isTeamCoach(teamId) || isAdmin();
+        }
+        
+        // Game stats v2 (for league games - stored under games/{gameId}/stats/{playerId})
+        match /stats/{playerId} {
           allow read: if true;
           allow write: if isTeamCoach(teamId) || isAdmin();
         }
@@ -2062,6 +2072,16 @@ service cloud.firestore {
     // COLLECTION GROUP RULES
     // These rules apply to collectionGroup queries across all subcollections
     // =============================================================================
+    
+    // Allow parents to query their own athletes across all team rosters
+    // Used by AuthContext to find all players linked to parent across all teams
+    // Query must filter by parentId == request.auth.uid
+    match /{path=**}/players/{playerId} {
+      allow read: if isAuthenticated() && 
+                    (resource.data.parentId == request.auth.uid || 
+                     isAdmin() || 
+                     isCoach());
+    }
     
     // Allow parents to query their own registrations across all programs
     // Allow coaches to query registrations for their program (draft pool)

@@ -146,6 +146,7 @@ export const CommissionerRegistrationSetup: React.FC<Props> = ({
   const [seasonsWithRegistrations, setSeasonsWithRegistrations] = useState<Map<string, string>>(new Map()); // seasonId -> registrationName
   const [linkedSeason, setLinkedSeason] = useState<ProgramSeason | LeagueSeason | null>(null);
   const [loadingSeasons, setLoadingSeasons] = useState(false);
+  const [hasValidSeasons, setHasValidSeasons] = useState<boolean | null>(null); // null = still loading, true/false = result
   const [registrationCloseDate, setRegistrationCloseDate] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventEndDate, setEventEndDate] = useState('');
@@ -193,20 +194,24 @@ export const CommissionerRegistrationSetup: React.FC<Props> = ({
     ((program as any)?.sport?.toLowerCase() === sportKey ? (program as any)?.leagueId : null);
   const isInLeague = !!sportLeagueId;
   
+  // Track if we've done the initial availability check
+  const [initialCheckDone, setInitialCheckDone] = useState(false);
+  
+  // Combined effect: Fetch seasons AND check if Season Registration should be allowed
+  // This runs on mount AND when registrationType changes to 'age_pool'
   useEffect(() => {
-    const fetchSeasons = async () => {
-      if (!programId || registrationType !== 'age_pool') return;
+    const fetchSeasonsAndCheckAvailability = async () => {
+      if (!programId) return;
+      
+      // Always do the availability check on first run, or when switching to age_pool
+      const shouldCheck = !initialCheckDone || registrationType === 'age_pool';
+      if (!shouldCheck) return;
       
       setLoadingSeasons(true);
       try {
-        // Determine where to fetch seasons from:
-        // - If program is in a league, fetch from top-level 'leagueSeasons' collection
-        // - Otherwise, fetch from programs/{programId}/seasons
-        
         let seasonsData: (ProgramSeason | LeagueSeason)[] = [];
         
         if (isInLeague && sportLeagueId) {
-          // Fetch from top-level leagueSeasons collection for this sport's league
           const leagueSeasonsQuery = query(
             collection(db, 'leagueSeasons'),
             where('leagueId', '==', sportLeagueId)
@@ -216,12 +221,8 @@ export const CommissionerRegistrationSetup: React.FC<Props> = ({
           
           seasonsData = snapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() } as LeagueSeason))
-            .filter(s => {
-              // Include upcoming, active, playoffs - exclude only completed
-              return s.status !== 'completed';
-            });
+            .filter(s => s.status === 'upcoming');
         } else {
-          // Fetch from program's seasons subcollection
           const programSeasonsQuery = query(collection(db, 'programs', programId, 'seasons'));
           
           const snapshot = await getDocs(programSeasonsQuery);
@@ -229,17 +230,13 @@ export const CommissionerRegistrationSetup: React.FC<Props> = ({
           seasonsData = snapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() } as ProgramSeason))
             .filter(s => {
-              // Exclude completed seasons
-              if (s.status === 'completed') return false;
-              
-              // Filter by sport if applicable
+              if (s.status !== 'setup') return false;
               const seasonSport = (s as any).sport?.toLowerCase();
               const currentSport = sportToUse?.toLowerCase();
               return !seasonSport || !currentSport || seasonSport === currentSport;
             });
         }
         
-        // Sort by createdAt descending
         seasonsData.sort((a, b) => {
           const aTime = (a as any).createdAt?.toMillis?.() || (a as any).startDate?.toMillis?.() || 0;
           const bTime = (b as any).createdAt?.toMillis?.() || (b as any).startDate?.toMillis?.() || 0;
@@ -260,19 +257,41 @@ export const CommissionerRegistrationSetup: React.FC<Props> = ({
         setSeasonsWithRegistrations(existingRegistrationsMap);
         setAvailableSeasons(seasonsData);
         
-        // Auto-select if there's exactly one available season (without existing registration)
-        const availableSeasonsForSelection = seasonsData.filter(s => !existingRegistrationsMap.has(s.id));
-        if (availableSeasonsForSelection.length === 1 && !linkedSeason) {
-          handleSeasonSelect(availableSeasonsForSelection[0]);
+        // KEY CHECK: Are there ANY seasons without registrations?
+        const seasonsWithoutRegistrations = seasonsData.filter(s => !existingRegistrationsMap.has(s.id));
+        const hasAvailableSeason = seasonsWithoutRegistrations.length > 0;
+        
+        console.log('[RegistrationSetup] Season availability check:', { 
+          totalSeasons: seasonsData.length,
+          withRegistrations: existingRegistrationsMap.size,
+          available: seasonsWithoutRegistrations.length,
+          hasAvailableSeason
+        });
+        
+        // If no seasons available for registration, disable Season Registration
+        setHasValidSeasons(hasAvailableSeason);
+        setInitialCheckDone(true);
+        
+        // Auto-switch away from age_pool if no seasons available
+        if (!hasAvailableSeason && registrationType === 'age_pool') {
+          setRegistrationType('camp');
+          setRegistrationOutcome('rsvp_list');
+        }
+        
+        // Auto-select if there's exactly one available season
+        if (seasonsWithoutRegistrations.length === 1 && !linkedSeason) {
+          handleSeasonSelect(seasonsWithoutRegistrations[0]);
         }
       } catch (error) {
         console.error('Error fetching seasons:', error);
+        setHasValidSeasons(true); // Allow on error
+        setInitialCheckDone(true);
       } finally {
         setLoadingSeasons(false);
       }
     };
     
-    fetchSeasons();
+    fetchSeasonsAndCheckAvailability();
   }, [programId, registrationType, sportToUse, isInLeague, sportLeagueId]);
   
   // Handle season selection - auto-fill name
@@ -593,30 +612,48 @@ export const CommissionerRegistrationSetup: React.FC<Props> = ({
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {REGISTRATION_TYPES.map(type => (
-          <button
-            key={type.value}
-            onClick={() => setRegistrationType(type.value)}
-            className={`p-6 rounded-xl border-2 transition-all text-left ${
-              registrationType === type.value
-                ? 'border-purple-500 bg-purple-500/10'
-                : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
-            }`}
-          >
-            <div className="flex items-start gap-4">
-              <span className="text-3xl">{type.icon}</span>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-white">{type.label}</h3>
-                  {registrationType === type.value && (
-                    <Check className="w-5 h-5 text-purple-500" />
-                  )}
+        {REGISTRATION_TYPES.map(type => {
+          // Disable Season Registration if no valid seasons exist
+          const isSeasonReg = type.value === 'age_pool';
+          const isDisabled = isSeasonReg && hasValidSeasons === false;
+          const isLoading = isSeasonReg && hasValidSeasons === null;
+          
+          return (
+            <button
+              key={type.value}
+              onClick={() => !isDisabled && setRegistrationType(type.value)}
+              disabled={isDisabled}
+              className={`p-6 rounded-xl border-2 transition-all text-left ${
+                isDisabled
+                  ? 'border-amber-500/30 bg-amber-500/5 cursor-not-allowed'
+                  : registrationType === type.value
+                    ? 'border-purple-500 bg-purple-500/10'
+                    : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
+              }`}
+            >
+              <div className="flex items-start gap-4">
+                <span className={`text-3xl ${isDisabled ? 'opacity-50' : ''}`}>{type.icon}</span>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className={`font-semibold ${isDisabled ? 'text-slate-300' : 'text-white'}`}>{type.label}</h3>
+                    {isLoading && (
+                      <div className="w-4 h-4 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
+                    )}
+                    {registrationType === type.value && !isDisabled && (
+                      <Check className="w-5 h-5 text-purple-500" />
+                    )}
+                  </div>
+                  <p className={`text-sm mt-1 ${isDisabled ? 'text-amber-400' : 'text-slate-400'}`}>
+                    {isDisabled 
+                      ? '⚠️ All seasons already have registrations - create a new season first'
+                      : type.description
+                    }
+                  </p>
                 </div>
-                <p className="text-sm text-slate-400 mt-1">{type.description}</p>
               </div>
-            </div>
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
       
       {/* Outcome Selection */}
@@ -670,7 +707,7 @@ export const CommissionerRegistrationSetup: React.FC<Props> = ({
               </div>
             ) : availableSeasons.length === 0 ? (
               <p className="text-slate-400 text-sm">
-                No active or upcoming seasons found. You can still create a standalone registration.
+                No upcoming seasons available. Seasons that are already active/open or completed cannot have new registrations created. Create a new season first, or create a standalone registration.
               </p>
             ) : (
               <div className="space-y-3">

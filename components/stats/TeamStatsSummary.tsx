@@ -72,21 +72,47 @@ const TeamStatsSummary: React.FC<TeamStatsSummaryProps> = ({
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['Passing', 'Rushing', 'Defense']));
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isSectionExpanded, setIsSectionExpanded] = useState(true); // For embedded mode collapse
+  const [isLeagueMode, setIsLeagueMode] = useState(false);
   
   // Drill-down state
   const [selectedStat, setSelectedStat] = useState<StatBreakdown | null>(null);
   const [breakdownView, setBreakdownView] = useState<'game' | 'player'>('player');
   
-  // Find active season if not provided
+  // Check for league games and find active season
   useEffect(() => {
-    const findActiveSeason = async () => {
-      if (!programId) return;
+    const initialize = async () => {
+      if (!teamId) return;
+      
       if (propSeasonId || teamData?.currentSeasonId) {
         setActiveSeasonId(propSeasonId || teamData?.currentSeasonId || null);
+        // Check if this team has league games
+        try {
+          const leagueGamesRef = collection(db, 'teams', teamId, 'games');
+          const leagueGamesSnap = await getDocs(leagueGamesRef);
+          if (leagueGamesSnap.docs.length > 0) {
+            setIsLeagueMode(true);
+            setActiveSeasonId('league');
+          }
+        } catch (err) {
+          console.error('Error checking for league games:', err);
+        }
         return;
       }
       
       try {
+        // First check for league games (takes priority)
+        const leagueGamesRef = collection(db, 'teams', teamId, 'games');
+        const leagueGamesSnap = await getDocs(leagueGamesRef);
+        
+        if (leagueGamesSnap.docs.length > 0) {
+          setIsLeagueMode(true);
+          setActiveSeasonId('league');
+          return;
+        }
+        
+        // Fall back to program mode
+        if (!programId) return;
+        
         const seasonsRef = collection(db, 'programs', programId, 'seasons');
         const seasonsSnap = await getDocs(seasonsRef);
         const seasons = seasonsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -95,20 +121,27 @@ const TeamStatsSummary: React.FC<TeamStatsSummaryProps> = ({
                              seasons[0];
         
         if (activeSeason) {
+          setIsLeagueMode(false);
           setActiveSeasonId(activeSeason.id);
         }
       } catch (err) {
-        console.error('Error finding active season:', err);
+        console.error('Error initializing:', err);
       }
     };
     
-    findActiveSeason();
-  }, [programId, propSeasonId, teamData?.currentSeasonId]);
+    initialize();
+  }, [programId, propSeasonId, teamData?.currentSeasonId, teamId]);
   
   // Fetch all game stats for this team's players
   useEffect(() => {
     const fetchTeamStats = async () => {
-      if (!programId || !activeSeasonId) {
+      if (!activeSeasonId || !teamId) {
+        setLoading(false);
+        return;
+      }
+      
+      // For program mode, we need programId
+      if (!isLeagueMode && !programId) {
         setLoading(false);
         return;
       }
@@ -117,40 +150,66 @@ const TeamStatsSummary: React.FC<TeamStatsSummaryProps> = ({
       setError(null);
       
       try {
-        // Get all games in this season
-        const gamesRef = collection(db, 'programs', programId, 'seasons', activeSeasonId, 'games');
-        const gamesSnap = await getDocs(gamesRef);
-        
         const allStats: GameStatV2[] = [];
         const gameInfos = new Map<string, GameInfo>();
         const playerIds = new Set<string>();
         
-        // For each game, get all player stats
-        for (const gameDoc of gamesSnap.docs) {
-          const gameData = gameDoc.data();
-          gameInfos.set(gameDoc.id, {
-            id: gameDoc.id,
-            opponent: gameData.opponent || gameData.awayTeam || 'Unknown',
-            date: gameData.date || gameData.scheduledAt,
-          });
+        if (isLeagueMode) {
+          // LEAGUE MODE: Load from teams/{teamId}/games
+          const leagueGamesRef = collection(db, 'teams', teamId, 'games');
+          const leagueGamesSnap = await getDocs(leagueGamesRef);
           
-          const statsRef = collection(db, 'programs', programId, 'seasons', activeSeasonId, 'games', gameDoc.id, 'stats');
-          
-          // If teamId specified, filter by it
-          let statsQuery;
-          if (teamId) {
-            statsQuery = query(statsRef, where('teamId', '==', teamId));
-          } else {
-            statsQuery = statsRef;
+          for (const gameDoc of leagueGamesSnap.docs) {
+            const gameData = gameDoc.data();
+            if (gameData.status !== 'completed') continue;
+            
+            gameInfos.set(gameDoc.id, {
+              id: gameDoc.id,
+              opponent: gameData.opponent || 'Unknown',
+              date: gameData.date,
+            });
+            
+            // Get stats from teams/{teamId}/games/{gameId}/stats
+            const statsRef = collection(db, 'teams', teamId, 'games', gameDoc.id, 'stats');
+            const statsSnap = await getDocs(statsRef);
+            
+            for (const statDoc of statsSnap.docs) {
+              const data = statDoc.data() as GameStatV2;
+              if (data.played) {
+                allStats.push({ ...data, gameId: gameDoc.id });
+                playerIds.add(data.playerId);
+              }
+            }
           }
+        } else {
+          // PROGRAM MODE: Load from programs/{programId}/seasons/{seasonId}/games
+          const gamesRef = collection(db, 'programs', programId!, 'seasons', activeSeasonId, 'games');
+          const gamesSnap = await getDocs(gamesRef);
           
-          const statsSnap = await getDocs(statsQuery);
-          
-          for (const statDoc of statsSnap.docs) {
-            const data = statDoc.data() as GameStatV2;
-            if (data.played) {
-              allStats.push(data);
-              playerIds.add(data.playerId);
+          for (const gameDoc of gamesSnap.docs) {
+            const gameData = gameDoc.data();
+            
+            // Only include games where this team plays
+            const isHome = gameData.homeTeamId === teamId;
+            const isAway = gameData.awayTeamId === teamId;
+            if (!isHome && !isAway) continue;
+            
+            gameInfos.set(gameDoc.id, {
+              id: gameDoc.id,
+              opponent: isHome ? gameData.awayTeamName : gameData.homeTeamName || 'Unknown',
+              date: gameData.date || gameData.scheduledAt,
+            });
+            
+            const statsRef = collection(db, 'programs', programId!, 'seasons', activeSeasonId, 'games', gameDoc.id, 'stats');
+            const statsQuery = query(statsRef, where('teamId', '==', teamId));
+            const statsSnap = await getDocs(statsQuery);
+            
+            for (const statDoc of statsSnap.docs) {
+              const data = statDoc.data() as GameStatV2;
+              if (data.played) {
+                allStats.push({ ...data, gameId: gameDoc.id });
+                playerIds.add(data.playerId);
+              }
             }
           }
         }
@@ -177,7 +236,7 @@ const TeamStatsSummary: React.FC<TeamStatsSummaryProps> = ({
     };
     
     fetchTeamStats();
-  }, [programId, activeSeasonId, teamId]);
+  }, [programId, activeSeasonId, teamId, isLeagueMode]);
   
   // Aggregate stats by category
   const { teamTotals, gamesPlayed, categoryStats } = useMemo(() => {
@@ -369,8 +428,8 @@ const TeamStatsSummary: React.FC<TeamStatsSummaryProps> = ({
     );
   }
   
-  // No data state
-  if (!programId || !activeSeasonId) {
+  // No data state - need either league mode or programId
+  if (!activeSeasonId || (!isLeagueMode && !programId)) {
     return (
       <GlassCard className={`${className} ${isDark ? '' : 'bg-white border-slate-200'}`}>
         <div className="flex flex-col items-center justify-center py-8 text-center">

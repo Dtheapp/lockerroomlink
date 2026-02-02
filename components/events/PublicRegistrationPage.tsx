@@ -4,7 +4,7 @@
  * Path: /register/:programId/:registrationId
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -84,8 +84,91 @@ export default function PublicRegistrationPage() {
   const [friendRequest, setFriendRequest] = useState('');
   const [additionalNotes, setAdditionalNotes] = useState('');
   
-  // Waiver
+  // Waiver - Advanced with scroll tracking and signature
   const [waiverAgreed, setWaiverAgreed] = useState(false);
+  const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
+  const [waiverSignature, setWaiverSignature] = useState('');
+  const waiverRef = useRef<HTMLDivElement>(null);
+  
+  // State-specific waiver templates
+  const STATE_WAIVERS: Record<string, string> = {
+    DEFAULT: `RELEASE AND WAIVER OF LIABILITY
+
+In consideration of being allowed to participate in any way in the athletic activities and events, the undersigned:
+
+1. ASSUMPTION OF RISK: I acknowledge that participation in sports and athletic activities involves inherent risks, including but not limited to physical injury, permanent disability, paralysis, and death. I knowingly and freely assume all such risks, both known and unknown, even if arising from the negligence of the releasees or others, and assume full responsibility for my child's participation.
+
+2. RELEASE OF LIABILITY: I, for myself, my child, and on behalf of my heirs, assigns, personal representatives, and next of kin, hereby release and hold harmless the team, its coaches, staff, volunteers, agents, and other participants (collectively "Releasees"), with respect to any and all injury, disability, death, or loss or damage to person or property, whether arising from the negligence of the releasees or otherwise.
+
+3. MEDICAL TREATMENT AUTHORIZATION: I hereby grant permission to the team staff and coaches to authorize emergency medical treatment for my child if I am not available to give consent. I agree to be financially responsible for any medical treatment provided to my child.
+
+4. PHOTO/VIDEO RELEASE: I grant permission for photos and videos of my child to be used for team purposes, including social media, promotional materials, and team records.
+
+5. CODE OF CONDUCT: I agree that my child will follow all team rules and code of conduct, and I will support the team's policies regarding sportsmanship and behavior.
+
+By signing below, I acknowledge that I have read this waiver, understand it, and sign it voluntarily.`,
+    TX: `TEXAS RELEASE AND WAIVER OF LIABILITY
+
+Pursuant to Texas Civil Practice and Remedies Code Chapter 87 and Texas Education Code Section 33.081, the undersigned agrees to the following:
+
+1. ASSUMPTION OF RISK: I acknowledge that participation in sports and recreational activities involves certain inherent risks that cannot be eliminated regardless of the care taken to avoid injuries. I knowingly and freely assume all such risks.
+
+2. RELEASE OF LIABILITY: To the fullest extent permitted by Texas law, I hereby release, discharge, and agree not to sue the organization, its coaches, staff, volunteers, agents, and other participants from any and all claims, actions, or losses for bodily injury, property damage, wrongful death, loss of services, or otherwise which may arise out of my child's participation.
+
+3. INDEMNIFICATION: I agree to indemnify and hold harmless the released parties from any claims, damages, losses, and expenses arising out of my child's participation.
+
+4. MEDICAL AUTHORIZATION: Pursuant to Texas Family Code Section 32.001, I authorize emergency medical treatment for my child in the event I cannot be reached.
+
+5. PHOTO/VIDEO CONSENT: I consent to the use of my child's image in accordance with Texas laws regarding publicity rights.
+
+This waiver shall be construed in accordance with the laws of the State of Texas.`
+  };
+  
+  // Get waiver text (custom or state-based)
+  const getWaiverText = (): string => {
+    if (registration?.requirements?.waiverText) {
+      return registration.requirements.waiverText;
+    }
+    const state = program?.state?.toUpperCase() || 'DEFAULT';
+    return STATE_WAIVERS[state] || STATE_WAIVERS.DEFAULT;
+  };
+  
+  // Track scroll position to enable signing
+  useEffect(() => {
+    if (!registration?.requirements?.requireWaiver) return;
+    
+    const handleScroll = () => {
+      if (waiverRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = waiverRef.current;
+        if (scrollTop + clientHeight >= scrollHeight - 50) {
+          setHasScrolledToBottom(true);
+        }
+      }
+    };
+
+    const waiverElement = waiverRef.current;
+    if (waiverElement) {
+      waiverElement.addEventListener('scroll', handleScroll);
+      // If content is short, no scroll needed
+      if (waiverElement.scrollHeight <= waiverElement.clientHeight) {
+        setHasScrolledToBottom(true);
+      }
+    }
+
+    return () => {
+      if (waiverElement) {
+        waiverElement.removeEventListener('scroll', handleScroll);
+      }
+    };
+  }, [registration?.requirements?.requireWaiver, formStep]);
+  
+  // Check if waiver is valid (scrolled + signature matches + agreed)
+  const isWaiverValid = useMemo(() => {
+    if (!registration?.requirements?.requireWaiver) return true;
+    return hasScrolledToBottom && 
+           waiverSignature.trim().toLowerCase() === parentName.trim().toLowerCase() &&
+           waiverAgreed;
+  }, [registration?.requirements?.requireWaiver, hasScrolledToBottom, waiverSignature, parentName, waiverAgreed]);
   
   // Auto-select the currently selected athlete from parent context
   useEffect(() => {
@@ -386,10 +469,10 @@ export default function PublicRegistrationPage() {
         amountPaid: 0,
         remainingBalance: (registration.registrationFee || 0) * 100,
         
-        // Waiver
-        waiverSigned: waiverAgreed,
-        ...(waiverAgreed && { waiverSignedAt: new Date() }),
-        ...(waiverAgreed && parentName && { waiverSignedBy: parentName }),
+        // Waiver - now includes electronic signature
+        waiverSigned: isWaiverValid,
+        ...(isWaiverValid && { waiverSignedAt: new Date() }),
+        ...(isWaiverValid && waiverSignature && { waiverSignedBy: waiverSignature }),
         
         // Status
         status: 'registered',
@@ -930,28 +1013,120 @@ export default function PublicRegistrationPage() {
                     </div>
                   </div>
                   
-                  {/* Waiver */}
+                  {/* Advanced Waiver with Scroll + Signature */}
                   {registration?.requirements?.requireWaiver && (
                     <div className={`p-4 rounded-xl border ${isDark ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50 border-amber-200'}`}>
-                      <h3 className={`font-semibold mb-3 ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
-                        Waiver & Release
+                      <h3 className={`font-semibold mb-2 ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
+                        Liability Waiver & Release
                       </h3>
-                      {registration.requirements.waiverText && (
-                        <div className={`text-sm mb-4 max-h-40 overflow-y-auto p-3 rounded-lg ${isDark ? 'bg-black/20 text-slate-300' : 'bg-white text-slate-600'}`}>
-                          {registration.requirements.waiverText}
+                      <p className={`text-sm mb-3 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                        Please read the entire waiver carefully before signing.
+                        {!hasScrolledToBottom && (
+                          <span className="text-amber-500 dark:text-amber-400 ml-2 font-medium">
+                            (Scroll to the bottom to enable signing)
+                          </span>
+                        )}
+                      </p>
+                      
+                      {/* Athlete being registered */}
+                      <div className={`mb-4 p-3 rounded-lg ${isDark ? 'bg-purple-500/10 border border-purple-500/30' : 'bg-blue-50 border border-blue-200'}`}>
+                        <p className={`text-sm font-medium ${isDark ? 'text-purple-300' : 'text-blue-800'}`}>
+                          You are signing this waiver on behalf of:
+                        </p>
+                        <p className={`text-sm mt-1 ${isDark ? 'text-purple-200' : 'text-blue-700'}`}>
+                          <span className="w-2 h-2 inline-block bg-purple-500 rounded-full mr-2" />
+                          {firstName || selectedExistingAthlete?.firstName || 'Athlete'} {lastName || selectedExistingAthlete?.lastName || ''}
+                        </p>
+                      </div>
+                      
+                      {/* Scrollable Waiver Text */}
+                      <div
+                        ref={waiverRef}
+                        className={`text-sm mb-4 h-48 overflow-y-auto p-4 rounded-lg whitespace-pre-wrap ${isDark ? 'bg-black/30 text-slate-300 border border-white/10' : 'bg-white text-slate-600 border border-slate-200'}`}
+                      >
+                        <h4 className={`font-bold mb-3 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                          {registration?.name} - Waiver Agreement
+                        </h4>
+                        {getWaiverText()}
+                        <div className={`mt-6 pt-4 border-t ${isDark ? 'border-white/10' : 'border-slate-300'}`}>
+                          <p className="font-semibold">Registration: {registration?.name}</p>
+                          <p>Program: {program?.name || 'Youth Sports Program'}</p>
+                        </div>
+                      </div>
+                      
+                      {/* Scroll indicator */}
+                      {!hasScrolledToBottom && (
+                        <div className={`flex items-center justify-center mb-4 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                          <svg className="w-5 h-5 mr-2 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                          </svg>
+                          <span className="text-sm">Scroll down to read the entire waiver</span>
                         </div>
                       )}
-                      <label className="flex items-start gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={waiverAgreed}
-                          onChange={(e) => setWaiverAgreed(e.target.checked)}
-                          className="mt-1 w-5 h-5 rounded border-amber-500 text-amber-500 focus:ring-amber-500"
-                        />
-                        <span className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                          I, <strong>{parentName || 'Parent/Guardian'}</strong>, agree to the terms of this waiver and release on behalf of <strong>{firstName || selectedExistingAthlete?.firstName || 'the athlete'} {lastName || selectedExistingAthlete?.lastName || ''}</strong>.
-                        </span>
-                      </label>
+                      
+                      {/* Signature Section - Faded until scrolled */}
+                      <div className={`space-y-4 transition-opacity ${hasScrolledToBottom ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+                        {/* Agreement Checkbox */}
+                        <label className="flex items-start gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={waiverAgreed}
+                            onChange={(e) => setWaiverAgreed(e.target.checked)}
+                            disabled={!hasScrolledToBottom}
+                            className="mt-1 w-5 h-5 rounded border-amber-500 text-amber-500 focus:ring-amber-500"
+                          />
+                          <span className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                            I have read and understand the above waiver and release of liability. I acknowledge the inherent risks 
+                            involved in athletic activities and voluntarily agree to assume those risks. I am the parent/legal guardian 
+                            and have the authority to sign this waiver on behalf of the athlete listed above.
+                          </span>
+                        </label>
+                        
+                        {/* Electronic Signature */}
+                        <div>
+                          <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                            Electronic Signature
+                          </label>
+                          <p className={`text-xs mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Type your full name exactly as it appears: <strong className={isDark ? 'text-white' : 'text-slate-900'}>{parentName || 'Parent Name'}</strong>
+                          </p>
+                          <input
+                            type="text"
+                            value={waiverSignature}
+                            onChange={(e) => setWaiverSignature(e.target.value)}
+                            disabled={!hasScrolledToBottom}
+                            placeholder="Type your full name to sign"
+                            className={`w-full px-4 py-3 rounded-lg border font-serif italic text-lg ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-300 text-slate-900'}`}
+                          />
+                          {waiverSignature && waiverSignature.trim().toLowerCase() !== parentName.trim().toLowerCase() && (
+                            <p className="text-xs text-red-500 mt-1">
+                              Signature must match: {parentName}
+                            </p>
+                          )}
+                        </div>
+                        
+                        {/* Signature confirmation */}
+                        {waiverSignature.trim().toLowerCase() === parentName.trim().toLowerCase() && waiverAgreed && (
+                          <div className={`p-3 rounded-lg ${isDark ? 'bg-emerald-500/10 border border-emerald-500/30' : 'bg-green-50 border border-green-200'}`}>
+                            <div className={`flex items-center ${isDark ? 'text-emerald-400' : 'text-green-700'}`}>
+                              <CheckCircle className="w-5 h-5 mr-2" />
+                              <span className="font-medium">Signature verified</span>
+                            </div>
+                            <p className={`text-sm mt-1 ${isDark ? 'text-emerald-300' : 'text-green-600'}`}>
+                              Signed electronically by <strong>{waiverSignature}</strong> on {new Date().toLocaleDateString()}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Legal notice */}
+                      <div className={`mt-4 text-xs p-3 rounded-lg ${isDark ? 'bg-black/20 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
+                        <p>
+                          <strong>Electronic Signature Disclosure:</strong> By typing your name above, you agree that your electronic 
+                          signature is the legal equivalent of your manual signature on this waiver. This electronic signature is 
+                          legally binding and enforceable under the Electronic Signatures in Global and National Commerce Act (E-SIGN).
+                        </p>
+                      </div>
                     </div>
                   )}
                   
@@ -981,7 +1156,7 @@ export default function PublicRegistrationPage() {
                     <Button
                       variant="primary"
                       onClick={handleSubmit}
-                      disabled={submitting || (registration?.requirements?.requireWaiver && !waiverAgreed)}
+                      disabled={submitting || !isWaiverValid}
                     >
                       {submitting ? (
                         <>

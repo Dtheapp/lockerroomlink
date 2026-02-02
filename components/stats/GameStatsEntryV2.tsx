@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { collection, query, onSnapshot, orderBy, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, getDocs, doc, getDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -274,8 +274,11 @@ const GameStatsEntryV2: React.FC<GameStatsEntryV2Props> = ({ readOnly = false })
   // Local edits (before save)
   const [localEdits, setLocalEdits] = useState<Map<string, GameStatV2>>(new Map());
   
-  // Active season/program context
+  // Active season/program context (null for league games)
   const [activeSeasonId, setActiveSeasonId] = useState<string | null>(null);
+  
+  // Track if we're in league mode (games stored in teams/{teamId}/games)
+  const [isLeagueMode, setIsLeagueMode] = useState(false);
   
   // Sport config
   const sport = (teamData?.sport || 'football') as SportType;
@@ -310,14 +313,92 @@ const GameStatsEntryV2: React.FC<GameStatsEntryV2Props> = ({ readOnly = false })
       setPlayers(playersData);
     });
 
-    // Load games from program/season
+    // Load games from program/season OR league (teams/{teamId}/games)
     const loadGames = async () => {
-      if (!teamData.programId) {
-        setLoading(false);
-        return;
-      }
-      
       try {
+        // First, try to load league games from teams/{teamId}/games
+        const leagueGamesRef = collection(db, 'teams', teamData.id, 'games');
+        const leagueGamesSnap = await getDocs(leagueGamesRef);
+        
+        // Check if team has league-managed games
+        const leagueGames = leagueGamesSnap.docs.filter(d => d.data().leagueManaged === true);
+        
+        if (leagueGames.length > 0) {
+          // Team has league games - use league mode
+          console.log('[GameStatsEntryV2] Loading league games for team', teamData.id);
+          setIsLeagueMode(true);
+          setActiveSeasonId(null); // No season for league games
+          
+          // Set up real-time listener for league games
+          const unsubLeagueGames = onSnapshot(leagueGamesRef, async (snapshot) => {
+            const gamesData: Game[] = [];
+            
+            // Check which games have stats entered
+            const statsPromises = snapshot.docs.map(async (d) => {
+              const statsRef = collection(db, 'teams', teamData.id, 'games', d.id, 'stats');
+              const statsSnap = await getDocs(statsRef);
+              return { gameId: d.id, hasStats: !statsSnap.empty };
+            });
+            const statsResults = await Promise.all(statsPromises);
+            const statsMap = new Map(statsResults.map(r => [r.gameId, r.hasStats]));
+            
+            snapshot.docs.forEach(d => {
+              const data = d.data();
+              if (!data.leagueManaged) return; // Only show league-managed games
+              
+              const isHome = data.isHome ?? true;
+              // Normalize scores from our/opponent to team perspective
+              const ourScore = data.ourScore ?? data.homeScore ?? 0;
+              const opponentScore = data.opponentScore ?? data.awayScore ?? 0;
+              
+              gamesData.push({
+                id: d.id,
+                teamId: teamData.id,
+                date: data.date || '',
+                week: data.week || 1,
+                opponent: data.opponent || 'TBD',
+                isHome,
+                teamScore: ourScore,
+                opponentScore: opponentScore,
+                location: data.location || '',
+                status: data.status || 'scheduled',
+                season: new Date().getFullYear(),
+                hasStats: statsMap.get(d.id) || false,
+                // Include league game marker
+                leagueManaged: true,
+                // Quarter scores
+                homeQ1: data.homeQ1,
+                homeQ2: data.homeQ2,
+                homeQ3: data.homeQ3,
+                homeQ4: data.homeQ4,
+                homeOT: data.homeOT,
+                awayQ1: data.awayQ1,
+                awayQ2: data.awayQ2,
+                awayQ3: data.awayQ3,
+                awayQ4: data.awayQ4,
+                awayOT: data.awayOT,
+              } as Game);
+            });
+            
+            // Sort by week (ascending) for clarity
+            gamesData.sort((a, b) => ((a as any).week || 0) - ((b as any).week || 0));
+            setGames(gamesData);
+            setLoading(false);
+          });
+          
+          return () => unsubLeagueGames();
+        }
+        
+        // No league games - try program games
+        if (!teamData.programId) {
+          console.log('[GameStatsEntryV2] No programId and no league games');
+          setGames([]);
+          setLoading(false);
+          return;
+        }
+        
+        setIsLeagueMode(false);
+        
         // Find active season
         const seasonsRef = collection(db, 'programs', teamData.programId, 'seasons');
         const seasonsSnap = await getDocs(seasonsRef);
@@ -404,16 +485,30 @@ const GameStatsEntryV2: React.FC<GameStatsEntryV2Props> = ({ readOnly = false })
 
   // Load stats when game is expanded
   useEffect(() => {
-    if (!expandedGameId || !teamData?.id || !teamData?.programId || !activeSeasonId) return;
+    if (!expandedGameId || !teamData?.id) return;
+    
+    // For league games, we don't need programId/activeSeasonId
+    // For program games, we need both
+    if (!isLeagueMode && (!teamData?.programId || !activeSeasonId)) return;
     
     const loadStats = async () => {
       try {
-        const stats = await getGameStatsByTeam(
-          teamData.programId!,
-          activeSeasonId,
-          expandedGameId,
-          teamData.id
-        );
+        let stats: GameStatV2[] = [];
+        
+        if (isLeagueMode) {
+          // Load stats from teams/{teamId}/games/{gameId}/stats
+          const statsRef = collection(db, 'teams', teamData.id, 'games', expandedGameId, 'stats');
+          const statsSnap = await getDocs(statsRef);
+          stats = statsSnap.docs.map(d => ({ ...d.data(), id: d.id } as GameStatV2));
+        } else {
+          // Load stats from program/season path
+          stats = await getGameStatsByTeam(
+            teamData.programId!,
+            activeSeasonId!,
+            expandedGameId,
+            teamData.id
+          );
+        }
         
         // Convert to map
         const statsMap = new Map<string, GameStatV2>();
@@ -436,7 +531,7 @@ const GameStatsEntryV2: React.FC<GameStatsEntryV2Props> = ({ readOnly = false })
     };
     
     loadStats();
-  }, [expandedGameId, teamData?.id, teamData?.programId, activeSeasonId]);
+  }, [expandedGameId, teamData?.id, teamData?.programId, activeSeasonId, isLeagueMode]);
 
   // =============================================================================
   // HANDLERS
@@ -458,21 +553,30 @@ const GameStatsEntryV2: React.FC<GameStatsEntryV2Props> = ({ readOnly = false })
       ? `${player.firstName} ${player.lastName}`
       : player.name || 'Unknown Player';
     
-    return createEmptyGameStat(
+    // For league games, programId and seasonId may be undefined
+    // We use teamId as a fallback identifier for the path
+    const baseStat = createEmptyGameStat(
       player.id,
       playerName,
       player.number || 0,
       teamData!.id,
       teamData!.name || '',
       gameId,
-      teamData!.programId!,
-      activeSeasonId!,
+      isLeagueMode ? teamData!.id : teamData!.programId!, // Use teamId as programId for league games
+      isLeagueMode ? 'league' : activeSeasonId!,          // Use 'league' as seasonId marker
       sport,
       game?.date || '',
       game?.opponent || '',
       game?.isHome ?? true
     );
-  }, [localEdits, games, teamData, activeSeasonId, sport]);
+    
+    // If player is linked to a global player (athleteId), include it for stat lookup
+    if ((player as any).athleteId) {
+      (baseStat as any).athleteId = (player as any).athleteId;
+    }
+    
+    return baseStat;
+  }, [localEdits, games, teamData, activeSeasonId, sport, isLeagueMode]);
 
   const handlePlayedChange = useCallback((gameId: string, player: Player, played: boolean) => {
     const key = getLocalEditKey(gameId, player.id);
@@ -502,7 +606,11 @@ const GameStatsEntryV2: React.FC<GameStatsEntryV2Props> = ({ readOnly = false })
   }, [getOrCreatePlayerStats, setHasUnsavedChanges]);
 
   const handleSave = async () => {
-    if (!expandedGameId || !userData?.uid || !teamData?.programId || !activeSeasonId) return;
+    if (!expandedGameId || !userData?.uid || !teamData?.id) return;
+    
+    // For program games, we need programId and activeSeasonId
+    // For league games, we don't need them
+    if (!isLeagueMode && (!teamData?.programId || !activeSeasonId)) return;
     
     setSaving(true);
     setError(null);
@@ -525,7 +633,30 @@ const GameStatsEntryV2: React.FC<GameStatsEntryV2Props> = ({ readOnly = false })
         return;
       }
       
-      await saveGameStatsBatch(toSave, userData.uid, userData.name || 'Coach');
+      if (isLeagueMode) {
+        // Save to teams/{teamId}/games/{gameId}/stats/{playerId}
+        const batch = writeBatch(db);
+        const timestamp = serverTimestamp();
+        
+        for (const stats of toSave) {
+          const docRef = doc(db, 'teams', teamData.id, 'games', expandedGameId, 'stats', stats.playerId);
+          const derivedStats = calculateDerivedStats(sport, stats.stats);
+          
+          batch.set(docRef, {
+            ...stats,
+            derivedStats,
+            enteredBy: userData.uid,
+            enteredByName: userData.name || 'Coach',
+            updatedAt: timestamp,
+            createdAt: timestamp,
+          }, { merge: true });
+        }
+        
+        await batch.commit();
+      } else {
+        // Save to program/season path
+        await saveGameStatsBatch(toSave, userData.uid, userData.name || 'Coach');
+      }
       
       setSuccessMessage(`Saved stats for ${toSave.length} players!`);
       setHasUnsavedChanges(false);
