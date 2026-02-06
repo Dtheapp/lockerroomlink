@@ -56,6 +56,8 @@ interface PoolOption {
   playerCount: number;
   seasonId: string;
   seasonName?: string;
+  sourceType: 'season_pool' | 'registration'; // Track where the pool data lives
+  registrationId?: string; // For registration-based pools
 }
 
 interface TeamOption {
@@ -104,64 +106,105 @@ const DraftSetup: React.FC = () => {
 
   // Load available pools
   useEffect(() => {
-    if (!programId) return;
+    if (!programId) {
+      console.log('[DraftSetup] No programId found on userData, skipping pool load');
+      setLoadingPools(false);
+      return;
+    }
     
     const loadPools = async () => {
       try {
-        // Get seasons for this program
-        const seasonsSnap = await getDocs(
-          query(collection(db, 'programs', programId, 'seasons'), orderBy('createdAt', 'desc'))
-        );
-        
         const poolOptions: PoolOption[] = [];
         
-        for (const seasonDoc of seasonsSnap.docs) {
-          const season = seasonDoc.data();
-          const poolsSnap = await getDocs(
-            collection(db, 'programs', programId, 'seasons', seasonDoc.id, 'pools')
+        // Source 1: Season-based pools (programs/{pid}/seasons/{sid}/pools)
+        try {
+          const seasonsSnap = await getDocs(
+            query(collection(db, 'programs', programId, 'seasons'), orderBy('createdAt', 'desc'))
           );
           
-          for (const poolDoc of poolsSnap.docs) {
-            const pool = poolDoc.data();
-            // Only show pools that have players and aren't already drafted
-            if (pool.playerCount > 0 && pool.status !== 'draft_complete') {
-              poolOptions.push({
-                id: poolDoc.id,
-                ageGroup: pool.ageGroupLabel || pool.ageGroup || 'Unknown',
-                sport: pool.sport || season.sport || 'football',
-                playerCount: pool.playerCount || 0,
-                seasonId: seasonDoc.id,
-                seasonName: season.name || season.seasonName,
-              });
+          for (const seasonDoc of seasonsSnap.docs) {
+            const season = seasonDoc.data();
+            const poolsSnap = await getDocs(
+              collection(db, 'programs', programId, 'seasons', seasonDoc.id, 'pools')
+            );
+            
+            for (const poolDoc of poolsSnap.docs) {
+              const pool = poolDoc.data();
+              // Only show pools that have players and aren't already drafted
+              if (pool.playerCount > 0 && pool.status !== 'draft_complete') {
+                poolOptions.push({
+                  id: poolDoc.id,
+                  ageGroup: pool.ageGroupLabel || pool.ageGroup || 'Unknown',
+                  sport: pool.sport || season.sport || 'football',
+                  playerCount: pool.playerCount || 0,
+                  seasonId: seasonDoc.id,
+                  seasonName: season.name || season.seasonName,
+                  sourceType: 'season_pool',
+                });
+              }
             }
           }
+        } catch (seasonErr) {
+          console.log('[DraftSetup] No seasons found or error:', seasonErr);
         }
         
-        // Also check registration-based pools
-        const regPoolsSnap = await getDocs(
-          query(
-            collection(db, 'programs', programId, 'registrationPools'),
-            where('status', 'in', ['open', 'closed', 'teams_created'])
-          )
-        );
-        
-        for (const poolDoc of regPoolsSnap.docs) {
-          const pool = poolDoc.data();
-          if ((pool.registrantCount || 0) > 0) {
-            // Don't add duplicates
-            if (!poolOptions.find(p => p.id === poolDoc.id)) {
-              poolOptions.push({
-                id: poolDoc.id,
-                ageGroup: pool.ageGroupLabel || pool.ageGroup || 'Unknown',
-                sport: pool.sport || 'football',
-                playerCount: pool.registrantCount || 0,
-                seasonId: pool.seasonId || '',
-                seasonName: pool.seasonName,
-              });
+        // Source 2: Registration-based pools (programs/{pid}/registrations)
+        // These are the primary registration system where parents sign up players
+        try {
+          const regSnap = await getDocs(
+            query(
+              collection(db, 'programs', programId, 'registrations'),
+              where('status', 'in', ['open', 'closed', 'completed'])
+            )
+          );
+          
+          for (const regDoc of regSnap.docs) {
+            const reg = regDoc.data();
+            const regCount = reg.registrationCount || 0;
+            
+            if (regCount > 0) {
+              // Check if this registration has age group configs (multiple pools per registration)
+              if (reg.ageGroupConfigs && reg.ageGroupConfigs.length > 0) {
+                for (const agConfig of reg.ageGroupConfigs) {
+                  const agCount = agConfig.registrationCount || 0;
+                  if (agCount > 0) {
+                    const poolId = `${regDoc.id}_${agConfig.id}`;
+                    if (!poolOptions.find(p => p.id === poolId)) {
+                      poolOptions.push({
+                        id: poolId,
+                        ageGroup: agConfig.label || agConfig.id || 'Unknown',
+                        sport: reg.sport || 'football',
+                        playerCount: agCount,
+                        seasonId: reg.linkedSeasonId || '',
+                        seasonName: reg.linkedSeasonName || reg.name,
+                        sourceType: 'registration',
+                        registrationId: regDoc.id,
+                      });
+                    }
+                  }
+                }
+              } else {
+                // Single pool for the whole registration
+                if (!poolOptions.find(p => p.id === regDoc.id)) {
+                  poolOptions.push({
+                    id: regDoc.id,
+                    ageGroup: reg.ageGroups?.[0] || 'All Ages',
+                    sport: reg.sport || 'football',
+                    playerCount: regCount,
+                    seasonId: reg.linkedSeasonId || '',
+                    seasonName: reg.linkedSeasonName || reg.name,
+                    sourceType: 'registration',
+                    registrationId: regDoc.id,
+                  });
+                }
+              }
             }
           }
+        } catch (regErr) {
+          console.log('[DraftSetup] Error loading registrations:', regErr);
         }
         
+        console.log('[DraftSetup] Found pools:', poolOptions.length, poolOptions);
         setPools(poolOptions);
         
         // Auto-select if preselected
