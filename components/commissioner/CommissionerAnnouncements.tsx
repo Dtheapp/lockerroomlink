@@ -83,7 +83,7 @@ export const CommissionerAnnouncements: React.FC = () => {
 
   // Load teams and bulletins
   useEffect(() => {
-    if (!user?.uid) {
+    if (!userData?.uid) {
       setLoading(false);
       return;
     }
@@ -92,7 +92,7 @@ export const CommissionerAnnouncements: React.FC = () => {
       try {
         const teamsQuery = query(
           collection(db, 'teams'),
-          where('ownerId', '==', user.uid)
+          where('ownerId', '==', userData.uid)
         );
         const teamsSnap = await getDocs(teamsQuery);
         setTeams(teamsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team)));

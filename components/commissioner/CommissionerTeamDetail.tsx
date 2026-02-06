@@ -22,7 +22,6 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import type { Team, Player, UserProfile } from '../../types';
-import TeamManagersPanel from './TeamManagersPanel';
 import { 
   Shield, 
   ChevronRight, 
@@ -134,10 +133,10 @@ export const CommissionerTeamDetail: React.FC = () => {
         }
         
         // Load available cheer teams for linking (only if this is NOT a cheer team)
-        if (!teamData.isCheerTeam && user?.uid) {
+        if (!teamData.isCheerTeam && userData?.uid) {
           const cheerQuery = query(
             collection(db, 'teams'),
-            where('ownerId', '==', user.uid),
+            where('ownerId', '==', userData.uid),
             where('isCheerTeam', '==', true)
           );
           const cheerSnap = await getDocs(cheerQuery);
@@ -736,11 +735,6 @@ export const CommissionerTeamDetail: React.FC = () => {
             )}
           </div>
         </div>
-
-        {/* Team Managers Section */}
-        {teamId && user?.uid && team && (
-          <TeamManagersPanel teamId={teamId} teamName={team.name} />
-        )}
       </div>
 
       {/* Edit Team Modal */}

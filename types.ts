@@ -1126,6 +1126,7 @@ export interface PoolPlayer {
 /**
  * Draft Event - Scheduled draft for a pool
  * Collection: programs/{programId}/drafts/{draftId}
+ * Picks stored as subcollection: programs/{programId}/drafts/{draftId}/picks/{pickId}
  */
 export interface DraftEvent {
   id: string;
@@ -1136,20 +1137,20 @@ export interface DraftEvent {
   // Pool info (denormalized for easy display)
   sport: SportType;
   ageGroupLabel: string;
+  programName?: string;
   
   // Schedule
   scheduledDate: Timestamp | Date;
   location?: string;                   // "Zoom" or physical address
   
   // Teams & Coaches
-  teamIds: string[];
-  teamNames: string[];
-  coachIds: string[];
-  coachNames: string[];
+  teams: DraftTeamInfo[];
   
   // Draft Config
   draftType: 'snake' | 'linear' | 'lottery';
   totalRounds: number;                 // Calculated from playerCount / teamCount
+  pickTimerSeconds: number;            // Time per pick (e.g., 120 = 2 minutes)
+  allowTrading: boolean;               // Whether coaches can trade picks
   
   // Lottery (if enabled)
   lotteryEnabled: boolean;
@@ -1165,10 +1166,11 @@ export interface DraftEvent {
   // Draft order (set by lottery or commissioner)
   draftOrder: string[];                // Team IDs in pick order
   
-  // Draft progress
+  // Draft progress (real-time updates)
   currentRound: number;
-  currentPick: number;
+  currentPick: number;                 // Overall pick number
   currentTeamId?: string;
+  currentPickDeadline?: Timestamp | Date;  // When timer expires for current pick
   
   // Pool info
   totalPlayers: number;
@@ -1178,8 +1180,20 @@ export interface DraftEvent {
   status: 'scheduled' | 'lottery_pending' | 'in_progress' | 'paused' | 'completed' | 'cancelled';
   startedAt?: Timestamp | Date;
   completedAt?: Timestamp | Date;
+  pausedAt?: Timestamp | Date;
+  pauseReason?: string;
   
-  // Pick history
+  // Commissioner Controls log
+  undoHistory?: {
+    action: 'undo_pick' | 'skip_team' | 'manual_assign' | 'extend_timer';
+    details: string;
+    performedBy: string;
+    performedAt: Timestamp | Date;
+  }[];
+  
+  // NOTE: Picks are stored in subcollection, NOT on this document
+  // Path: programs/{programId}/drafts/{draftId}/picks/{pickId}
+  // Legacy field kept for backwards compat
   picks: DraftPick[];
   
   // Metadata
@@ -1188,16 +1202,56 @@ export interface DraftEvent {
   updatedAt?: Timestamp | Date;
 }
 
+export interface DraftTeamInfo {
+  teamId: string;
+  teamName: string;
+  coachId: string;
+  coachName: string;
+  color?: string;                      // Team color for draft board display
+  logo?: string;                       // Team logo URL
+}
+
 export interface DraftPick {
+  id?: string;                         // Firestore doc ID (when from subcollection)
   round: number;
   pick: number;                        // Overall pick number
   pickInRound: number;                 // Pick number within round
   teamId: string;
   teamName: string;
   coachId: string;
-  playerId: string;
+  playerId: string;                    // draftPool entry ID
   playerName: string;
+  playerPosition?: string;             // Position if available
   pickedAt: Timestamp | Date;
+  isAutoPick?: boolean;                // True if auto-picked due to timer expiry
+  isUndone?: boolean;                  // True if commissioner undid this pick
+}
+
+/**
+ * Coach War Room - Pre-draft player rankings (private to each coach)
+ * Collection: programs/{programId}/drafts/{draftId}/warRoom/{coachId}
+ */
+export interface CoachWarRoom {
+  coachId: string;
+  coachName: string;
+  draftId: string;
+  
+  // Player rankings (ordered array of player IDs, index = rank)
+  playerRankings: string[];
+  
+  // Position needs
+  positionNeeds: {
+    position: string;
+    count: number;                     // How many of this position they want
+  }[];
+  
+  // Auto-draft settings
+  autoDraftEnabled: boolean;           // If timer expires, auto-pick from rankings
+  
+  // Notes per player
+  playerNotes?: Record<string, string>;  // playerId -> note
+  
+  updatedAt?: Timestamp | Date;
 }
 
 // =============================================================================

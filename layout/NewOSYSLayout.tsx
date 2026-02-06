@@ -175,15 +175,21 @@ const NewOSYSLayout: React.FC = () => {
     
     // Commissioner-specific navigation
     if (isCommissioner) {
+      // Check if user is acting as a manager (hide Managers tab from them)
+      const isActingAsManager = (userData as any)?.isActingAsManager;
+      
       return [
         { icon: '📊', label: 'Dashboard', path: '/commissioner', section: 'Main' },
         { icon: '👥', label: 'Roster', path: '/commissioner/roster', section: 'Main' },
         { icon: '🏟️', label: 'Manage Teams', path: '/commissioner/teams', section: 'Create' },
+        { icon: '🏈', label: 'Draft Day', path: '/commissioner/draft-day', section: 'Create' },
         { icon: '📅', label: 'Manage Schedules', path: '/commissioner/schedules', section: 'Create' },
         { icon: '🏆', label: 'Manage Leagues', path: '/commissioner/leagues', section: 'Create' },
         { icon: '💬', label: 'Messages', path: '/messenger', section: 'Engage', configKey: 'messengerEnabled', unreadKey: 'messenger' },
         { icon: '🗨️', label: 'Team Chat', path: '/commissioner/chat', section: 'Engage', configKey: 'chatEnabled', unreadKey: 'teamChat' },
         { icon: '📣', label: 'Announcements', path: '/commissioner/announcements', section: 'Engage' },
+        // Only show Managers tab to actual commissioners, not managers acting as them
+        ...(isActingAsManager ? [] : [{ icon: '👤', label: 'Managers', path: '/commissioner/managers', section: 'Admin' }]),
         { icon: '⚠️', label: 'Grievances', path: '/commissioner/grievances', section: 'Admin', unreadKey: 'grievances' },
         { icon: '🎫', label: 'Infractions', path: '/commissioner/infractions', section: 'Admin', unreadKey: 'infractions' },
       ].filter(item => {
@@ -206,6 +212,9 @@ const NewOSYSLayout: React.FC = () => {
       
       // === SPORT-SPECIFIC (Shown when sport is selected, doesn't require team) ===
       { icon: '📓', label: 'My Plays', path: '/coaching', section: 'Analyze', configKey: 'playbookEnabled', coachOnly: true, sportSpecific: true },
+      
+      // === DRAFT DAY (Coach only - always available) ===
+      { icon: '🏈', label: 'Draft Day', path: '/draft-day', section: 'Create', coachOnly: true },
       
       // === TEAM-SPECIFIC (Only shown when team is selected) ===
       { icon: '📋', label: 'Playbook', path: '/playbook', section: 'Main', configKey: 'playbookEnabled', hideForParent: true, teamRequired: true },
@@ -498,22 +507,25 @@ const NewOSYSLayout: React.FC = () => {
 
         {/* Bottom Actions */}
         <div className={`p-4 border-t space-y-2 ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'} ${isSidebarCollapsed ? 'lg:p-2' : ''}`}>
-          <NavLink
-            to="/profile"
-            onClick={(e) => handleNavClick(e, '/profile')}
-            title={isSidebarCollapsed ? 'Settings' : undefined}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all
-              ${isSidebarCollapsed ? 'lg:justify-center lg:px-2' : ''}
-              ${location.pathname === '/profile' 
-                ? theme === 'dark' ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-900'
-                : theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }
-            `}
-          >
-            <span className="text-lg">⚙️</span>
-            {!isSidebarCollapsed && <span className="lg:block">Settings</span>}
-            {isSidebarCollapsed && <span className="lg:hidden">Settings</span>}
-          </NavLink>
+          {/* Hide Settings from managers - they shouldn't change commissioner's settings */}
+          {!(userData as any)?.isActingAsManager && (
+            <NavLink
+              to="/profile"
+              onClick={(e) => handleNavClick(e, '/profile')}
+              title={isSidebarCollapsed ? 'Settings' : undefined}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all
+                ${isSidebarCollapsed ? 'lg:justify-center lg:px-2' : ''}
+                ${location.pathname === '/profile' 
+                  ? theme === 'dark' ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-900'
+                  : theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }
+              `}
+            >
+              <span className="text-lg">⚙️</span>
+              {!isSidebarCollapsed && <span className="lg:block">Settings</span>}
+              {isSidebarCollapsed && <span className="lg:hidden">Settings</span>}
+            </NavLink>
+          )}
           
           <button
             onClick={toggleTheme}

@@ -67,7 +67,7 @@ export const CommissionerTeamList: React.FC = () => {
   const [expandedSports, setExpandedSports] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!user?.uid) {
+    if (!userData?.uid) {
       setLoading(false);
       return;
     }
@@ -82,7 +82,7 @@ export const CommissionerTeamList: React.FC = () => {
         }
         
         // Also get teams by ownerId (for team commissioners who own teams directly)
-        const ownerQuery = query(collection(db, 'teams'), where('ownerId', '==', user.uid));
+        const ownerQuery = query(collection(db, 'teams'), where('ownerId', '==', userData.uid));
         const ownerSnap = await getDocs(ownerQuery);
         const ownerTeams = ownerSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
         

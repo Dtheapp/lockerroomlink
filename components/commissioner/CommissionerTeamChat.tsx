@@ -42,13 +42,27 @@ import {
 interface ChatMessage {
   id: string;
   text: string;
-  senderId: string;
-  senderName: string;
+  // New format (matches Coach Chat)
+  sender?: {
+    uid: string;
+    name: string;
+    role?: string;
+  };
+  // Legacy format (backwards compatibility)
+  senderId?: string;
+  senderName?: string;
   senderRole?: string;
   timestamp: Timestamp;
   isPinned?: boolean;
   isDeleted?: boolean;
+  readBy?: string[];
 }
+
+// Helper to get sender info from either format
+const getSenderId = (msg: ChatMessage): string => msg.sender?.uid || msg.senderId || '';
+const getSenderName = (msg: ChatMessage): string => msg.sender?.name || msg.senderName || 'Unknown';
+const getSenderRole = (msg: ChatMessage): string | undefined => msg.sender?.role || msg.senderRole;
+const getSenderPhoto = (msg: ChatMessage): string | null | undefined => (msg.sender as any)?.photoUrl;
 
 interface MutedUser {
   odI: string;
@@ -75,7 +89,7 @@ export const CommissionerTeamChat: React.FC = () => {
 
   // Load commissioner's teams
   useEffect(() => {
-    if (!user?.uid) {
+    if (!userData?.uid) {
       setLoading(false);
       return;
     }
@@ -84,7 +98,7 @@ export const CommissionerTeamChat: React.FC = () => {
       try {
         const teamsQuery = query(
           collection(db, 'teams'),
-          where('ownerId', '==', user.uid)
+          where('ownerId', '==', userData.uid)
         );
         const teamsSnap = await getDocs(teamsQuery);
         const teamsData = teamsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
@@ -109,7 +123,7 @@ export const CommissionerTeamChat: React.FC = () => {
   useEffect(() => {
     if (!selectedTeamId) return;
 
-    const messagesRef = collection(db, 'teams', selectedTeamId, 'chat');
+    const messagesRef = collection(db, 'teams', selectedTeamId, 'messages');
     const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(100));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -158,12 +172,16 @@ export const CommissionerTeamChat: React.FC = () => {
 
     setSending(true);
     try {
-      await addDoc(collection(db, 'teams', selectedTeamId, 'chat'), {
+      await addDoc(collection(db, 'teams', selectedTeamId, 'messages'), {
         text: newMessage.trim(),
-        senderId: user?.uid,
-        senderName: userData?.name || 'Commissioner',
-        senderRole: 'Commissioner',
+        sender: {
+          uid: user?.uid,
+          name: userData?.name || 'Commissioner',
+          role: userData?.role || 'Commissioner',
+          photoUrl: userData?.photoUrl || null
+        },
         timestamp: serverTimestamp(),
+        readBy: [user?.uid],
         isPinned: false
       });
       setNewMessage('');
@@ -178,7 +196,7 @@ export const CommissionerTeamChat: React.FC = () => {
     if (!selectedTeamId) return;
     
     try {
-      await deleteDoc(doc(db, 'teams', selectedTeamId, 'chat', messageId));
+      await deleteDoc(doc(db, 'teams', selectedTeamId, 'messages', messageId));
       setShowMenu(null);
     } catch (error) {
       console.error('Error deleting message:', error);
@@ -189,7 +207,7 @@ export const CommissionerTeamChat: React.FC = () => {
     if (!selectedTeamId) return;
     
     try {
-      await updateDoc(doc(db, 'teams', selectedTeamId, 'chat', messageId), {
+      await updateDoc(doc(db, 'teams', selectedTeamId, 'messages', messageId), {
         isPinned: !currentPinned
       });
       setShowMenu(null);
@@ -332,7 +350,7 @@ export const CommissionerTeamChat: React.FC = () => {
                 </p>
                 {pinnedMessages.slice(0, 2).map(msg => (
                   <p key={msg.id} className={`text-sm truncate ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                    <strong>{msg.senderName}:</strong> {msg.text}
+                    <strong>{getSenderName(msg)}:</strong> {msg.text}
                   </p>
                 ))}
               </div>
@@ -349,31 +367,56 @@ export const CommissionerTeamChat: React.FC = () => {
                 </div>
               ) : (
                 messages.map((msg) => {
-                  const isOwn = msg.senderId === user?.uid;
-                  const isMuted = mutedUsers.includes(msg.senderId);
+                  const senderId = getSenderId(msg);
+                  const senderName = getSenderName(msg);
+                  const senderRole = getSenderRole(msg);
+                  const senderPhoto = getSenderPhoto(msg);
+                  const isOwn = senderId === user?.uid;
+                  const isMuted = mutedUsers.includes(senderId);
                   
                   return (
                     <div
                       key={msg.id}
-                      className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                      className={`flex ${isOwn ? 'justify-end' : 'justify-start'} items-end gap-2`}
                     >
+                      {/* Avatar for received messages */}
+                      {!isOwn && (
+                        <div className="flex-shrink-0">
+                          {senderPhoto ? (
+                            <img 
+                              src={senderPhoto} 
+                              alt={senderName}
+                              className="w-8 h-8 rounded-full object-cover"
+                              style={{ border: '2px solid rgba(147, 51, 234, 0.5)' }}
+                            />
+                          ) : (
+                            <div 
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                              style={{ backgroundColor: '#9333ea', border: '2px solid rgba(255,255,255,0.2)' }}
+                            >
+                              {senderName?.charAt(0)?.toUpperCase() || '?'}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
                       <div className={`max-w-[80%] group relative ${msg.isPinned ? 'ring-2 ring-yellow-500/50' : ''}`}>
-                        <div className={`rounded-2xl px-4 py-2 ${
-                          isOwn
-                            ? 'bg-purple-600 text-white'
-                            : theme === 'dark'
-                              ? 'bg-gray-800 text-white'
-                              : 'bg-white text-gray-900 border border-gray-200'
-                        }`}>
+                        <div 
+                          className={`rounded-2xl px-4 py-2 ${isOwn ? 'rounded-br-none' : 'rounded-bl-none'}`}
+                          style={isOwn 
+                            ? { backgroundColor: '#9333ea' }
+                            : { backgroundColor: 'white', border: '1px solid #e2e8f0' }
+                          }
+                        >
                           {!isOwn && (
-                            <p className={`text-xs font-medium mb-1 ${isOwn ? 'text-purple-200' : 'text-purple-500'}`}>
-                              {msg.senderName}
-                              {msg.senderRole && <span className="ml-1 opacity-70">• {msg.senderRole}</span>}
+                            <p className="text-xs font-medium mb-1" style={{ color: '#9333ea' }}>
+                              {senderName}
+                              {senderRole && <span style={{ color: '#9333ea', opacity: 0.7 }} className="ml-1">• {senderRole}</span>}
                               {isMuted && <span className="ml-1 text-red-400">🔇</span>}
                             </p>
                           )}
-                          <p>{msg.text}</p>
-                          <p className={`text-xs mt-1 ${isOwn ? 'text-purple-200' : theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
+                          <p style={{ color: isOwn ? '#ffffff' : '#1e293b' }}>{msg.text}</p>
+                          <p className="text-xs mt-1" style={{ color: isOwn ? 'rgba(255,255,255,0.7)' : '#9ca3af' }}>
                             {msg.timestamp?.toDate?.()?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || ''}
                           </p>
                         </div>
@@ -413,8 +456,8 @@ export const CommissionerTeamChat: React.FC = () => {
                             {!isOwn && (
                               <button
                                 onClick={() => isMuted 
-                                  ? handleUnmuteUser(msg.senderId) 
-                                  : handleMuteUser(msg.senderId, msg.senderName)
+                                  ? handleUnmuteUser(senderId) 
+                                  : handleMuteUser(senderId, senderName)
                                 }
                                 className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
                                   theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-700'
@@ -427,6 +470,27 @@ export const CommissionerTeamChat: React.FC = () => {
                           </div>
                         )}
                       </div>
+                      
+                      {/* Avatar for own messages */}
+                      {isOwn && (
+                        <div className="flex-shrink-0">
+                          {userData?.photoUrl ? (
+                            <img 
+                              src={userData.photoUrl} 
+                              alt={userData.name}
+                              className="w-8 h-8 rounded-full object-cover"
+                              style={{ border: '2px solid rgba(147, 51, 234, 0.5)' }}
+                            />
+                          ) : (
+                            <div 
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                              style={{ backgroundColor: '#9333ea', border: '2px solid rgba(147, 51, 234, 0.5)' }}
+                            >
+                              {userData?.name?.charAt(0)?.toUpperCase() || '?'}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })

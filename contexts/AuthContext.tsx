@@ -850,12 +850,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     const managerSnap = await getDoc(managerDocRef);
                     
                     if (managerSnap.exists()) {
-                        // This is a team manager!
+                        // This is a team manager - they login AS the commissioner
                         const managerData = { id: managerSnap.id, ...managerSnap.data() } as TeamManager;
                         
-                        // Check if manager is active
+                        // Check if manager is active (block deleted, suspended, paused)
                         if (managerData.status !== 'active') {
                             console.warn('Team manager account is not active:', managerData.status);
+                            await auth.signOut();
                             setUserData(null);
                             setTeamData(null);
                             setIsTeamManager(false);
@@ -864,49 +865,104 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                             return;
                         }
                         
-                        setIsTeamManager(true);
-                        setTeamManagerData(managerData);
+                        console.log('🔑 [Manager Login] Logging in as commissioner:', managerData.commissionerId);
                         
-                        // Create a pseudo UserProfile for the manager to work with existing components
-                        const pseudoProfile: UserProfile = {
-                            uid: firebaseUser.uid,
-                            email: managerData.email,
-                            name: managerData.name,
-                            role: 'Coach', // Managers act as coaches
-                            teamId: managerData.teamId,
-                            teamIds: [managerData.teamId],
-                            isTeamManager: true, // Custom flag
-                            managerId: managerData.id,
-                            commissionerId: managerData.commissionerId,
-                        } as UserProfile;
-                        
-                        setUserData(pseudoProfile);
-                        
-                        // Set Sentry context
-                        setSentryUser({
-                            id: firebaseUser.uid,
-                            email: managerData.email,
-                            name: managerData.name,
-                            role: 'TeamManager',
-                            teamId: managerData.teamId,
-                        });
-                        
-                        // Update last login
-                        await updateDoc(managerDocRef, {
-                            lastLogin: new Date(),
-                            loginCount: (managerData.loginCount || 0) + 1,
-                        });
-                        
-                        // Load the team data
-                        if (managerData.teamId) {
-                            const teamDocRef = doc(db, 'teams', managerData.teamId);
-                            const teamSnap = await getDoc(teamDocRef);
-                            if (teamSnap.exists()) {
-                                setTeamData({ id: teamSnap.id, ...teamSnap.data() } as Team);
+                        // Load the FULL commissioner profile - manager becomes the commissioner
+                        try {
+                            const commissionerDocRef = doc(db, 'users', managerData.commissionerId);
+                            const commissionerSnap = await getDoc(commissionerDocRef);
+                            
+                            if (commissionerSnap.exists()) {
+                                // Use commissioner's FULL profile with one extra flag
+                                const commissionerProfile = { 
+                                    uid: commissionerSnap.id, // USE COMMISSIONER'S UID for all queries!
+                                    ...commissionerSnap.data(),
+                                    isActingAsManager: true, // Only flag to hide Managers tab
+                                    managerName: managerData.name, // Track who's logged in for display
+                                    managerEmail: managerData.email,
+                                } as UserProfile;
+                                
+                                console.log('🔑 [Manager Login] Acting as:', commissionerProfile.name);
+                                
+                                setIsTeamManager(true);
+                                setTeamManagerData(managerData);
+                                setUserData(commissionerProfile);
+                                
+                                // Now trigger the NORMAL commissioner loading flows
+                                // The profile.role check below will handle loading teams/programs/leagues
+                                // We need to re-trigger by setting user with commissioner's UID context
+                                
+                                // Load teams by ownerId (commissioner's UID)
+                                if (commissionerProfile.role === 'TeamCommissioner' || commissionerProfile.role === 'Coach') {
+                                    const teamsQuery = query(
+                                        collection(db, 'teams'),
+                                        where('ownerId', '==', commissionerProfile.uid)
+                                    );
+                                    const teamsSnap = await getDocs(teamsQuery);
+                                    const teams = teamsSnap.docs.map(teamDoc => ({
+                                        id: teamDoc.id,
+                                        ...teamDoc.data()
+                                    } as Team));
+                                    
+                                    console.log('🔑 [Manager] Loaded teams:', teams.map(t => t.name));
+                                    setCoachTeams(teams);
+                                    
+                                    if (teams.length > 0) {
+                                        setTeamData(teams[0]);
+                                    }
+                                }
+                                
+                                // Load program if commissioner has one
+                                if (commissionerProfile.programId) {
+                                    const programDocRef = doc(db, 'programs', commissionerProfile.programId);
+                                    const programSnap = await getDoc(programDocRef);
+                                    if (programSnap.exists()) {
+                                        setProgramData({ id: programSnap.id, ...programSnap.data() } as Program);
+                                        
+                                        // If program has leagueId, load league too
+                                        const programInfo = programSnap.data() as Program;
+                                        if (programInfo.leagueId) {
+                                            const leagueDocRef = doc(db, 'leagues', programInfo.leagueId);
+                                            const leagueSnap = await getDoc(leagueDocRef);
+                                            if (leagueSnap.exists()) {
+                                                setLeagueData({ id: leagueSnap.id, ...leagueSnap.data() } as League);
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Update manager's last login
+                                await updateDoc(managerDocRef, {
+                                    lastLogin: new Date(),
+                                    loginCount: (managerData.loginCount || 0) + 1,
+                                });
+                                
+                                // Set Sentry context
+                                setSentryUser({
+                                    id: commissionerProfile.uid, // Use commissioner's UID
+                                    email: managerData.email,
+                                    name: `${managerData.name} (Manager for ${commissionerProfile.name})`,
+                                    role: commissionerProfile.role || 'TeamCommissioner',
+                                    teamId: commissionerProfile.teamId,
+                                });
+                                
+                                setLoading(false);
+                            } else {
+                                console.error('Commissioner profile not found:', managerData.commissionerId);
+                                await auth.signOut();
+                                setUserData(null);
+                                setTeamData(null);
+                                setIsTeamManager(false);
+                                setTeamManagerData(null);
+                                setLoading(false);
                             }
+                        } catch (err) {
+                            console.error('Error loading commissioner profile for manager:', err);
+                            await auth.signOut();
+                            setUserData(null);
+                            setTeamData(null);
+                            setLoading(false);
                         }
-                        
-                        setLoading(false);
                     } else {
                         // No user profile and not a manager
                         setUserData(null);

@@ -378,7 +378,7 @@ export const CommissionerDashboard: React.FC = () => {
       // Real-time listener for teams owned by this commissioner
       const teamsQuery = query(
         collection(db, 'teams'),
-        where('ownerId', '==', user?.uid)
+        where('ownerId', '==', userData?.uid)
       );
       
       const unsubscribeTeams = onSnapshot(teamsQuery, async (snapshot) => {
@@ -408,7 +408,7 @@ export const CommissionerDashboard: React.FC = () => {
       // League commissioner - real-time listener for leagues
       const leaguesQuery = query(
         collection(db, 'leagues'),
-        where('ownerId', '==', user?.uid)
+        where('ownerId', '==', userData?.uid)
       );
       
       const unsubscribeLeagues = onSnapshot(leaguesQuery, async (snapshot) => {
@@ -455,7 +455,7 @@ export const CommissionerDashboard: React.FC = () => {
     return () => {
       unsubscribers.forEach(unsub => unsub());
     };
-  }, [userData, user?.uid, isTeamCommissioner]);
+  }, [userData, userData?.uid, isTeamCommissioner]);
 
   // Real-time listener for seasons
   useEffect(() => {
@@ -638,15 +638,26 @@ export const CommissionerDashboard: React.FC = () => {
         const draftPoolRef = collection(db, 'programs', programId, 'seasons', selectedPoolSeason.id, 'draftPool');
         const draftPoolSnap = await getDocs(draftPoolRef);
         
-        const allPlayers: any[] = draftPoolSnap.docs.map(doc => {
-          const data = doc.data();
-          console.log('📋 Draft pool player data:', data);
-          return {
-            id: doc.id,
-            ...data,
-            ageGroup: data.ageGroupName || 'Unknown'
-          };
-        });
+        const allPlayers: any[] = draftPoolSnap.docs
+          .filter(doc => {
+            const data = doc.data();
+            // Only show unassigned/available players
+            const isDrafted = data.status === 'drafted' || 
+                              data.draftedToTeamId ||
+                              data.rosterPlayerId ||
+                              data.draftedAt;
+            const isDeclined = data.status === 'declined';
+            return !isDrafted && !isDeclined;
+          })
+          .map(doc => {
+            const data = doc.data();
+            console.log('📋 Draft pool player data:', data);
+            return {
+              id: doc.id,
+              ...data,
+              ageGroup: data.ageGroupName || 'Unknown'
+            };
+          });
         
         console.log('✅ Loaded draft pool players:', allPlayers.length);
         setDraftPoolPlayers(allPlayers);
@@ -697,7 +708,17 @@ export const CommissionerDashboard: React.FC = () => {
           registrantsSnap.docs.forEach(doc => {
             const data = doc.data();
             // Only show unassigned/available players
-            if (data.assignmentStatus !== 'assigned' && data.confirmationStatus !== 'declined') {
+            // Check multiple fields to ensure player hasn't been drafted
+            const isDrafted = data.assignmentStatus === 'assigned' || 
+                              data.status === 'drafted' ||
+                              data.assignedTeamId ||
+                              data.rosterPlayerId ||
+                              data.draftedAt;
+            const isDeclined = data.confirmationStatus === 'declined' || 
+                               data.assignmentStatus === 'declined' ||
+                               data.status === 'declined';
+            
+            if (!isDrafted && !isDeclined) {
               allPlayers.push({
                 id: doc.id,
                 registrationId: reg.id,
@@ -1279,7 +1300,7 @@ export const CommissionerDashboard: React.FC = () => {
       const cheerQuery = query(
         collection(db, 'teams'),
         where('isCheerTeam', '==', true),
-        where('ownerId', '==', user?.uid)
+        where('ownerId', '==', userData?.uid)
       );
       const cheerSnap = await getDocs(cheerQuery);
       const cheerTeams = cheerSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
@@ -1293,14 +1314,14 @@ export const CommissionerDashboard: React.FC = () => {
 
   // Search for sport teams to link cheer team to (in edit modal)
   const handleEditSearchSportTeams = async () => {
-    if (!user?.uid || !editSportTeamSearch.trim()) return;
+    if (!userData?.uid || !editSportTeamSearch.trim()) return;
     
     setSearchingSportTeams(true);
     try {
       // Search teams owned by this user (filter out cheer teams client-side to avoid index)
       const teamsQuery = query(
         collection(db, 'teams'),
-        where('ownerId', '==', user.uid)
+        where('ownerId', '==', userData?.uid)
       );
       const snap = await getDocs(teamsQuery);
       
@@ -1631,7 +1652,15 @@ export const CommissionerDashboard: React.FC = () => {
                   {isLeagueCommissioner ? 'League Commissioner' : 'Team Commissioner'}
                 </h1>
                 <p className="text-white/80 text-sm">
-                  {userData?.name} • {isLeagueCommissioner ? 'Manage leagues and tournaments' : 'Manage teams and rosters'}
+                  {(userData as any)?.isActingAsManager ? (
+                    <>
+                      <span className="text-amber-300 font-medium">{(userData as any)?.managerName}</span>
+                      <span className="text-white/60"> • Managing for </span>
+                      <span>{userData?.name}</span>
+                    </>
+                  ) : (
+                    <>{userData?.name} • {isLeagueCommissioner ? 'Manage leagues and tournaments' : 'Manage teams and rosters'}</>
+                  )}
                 </p>
               </div>
             </div>

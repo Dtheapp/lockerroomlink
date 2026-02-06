@@ -932,9 +932,9 @@
     border-color: rgba(0, 0, 0, 0.1) !important;
 }
 
-:root:not(.dark) .osys-glass p,
+:root:not(.dark) .osys-glass p:not([style*="color"]),
 :root:not(.dark) .osys-glass li,
-:root:not(.dark) .osys-glass span:not(.osys-badge):not(.osys-badge-gold) {
+:root:not(.dark) .osys-glass span:not(.osys-badge):not(.osys-badge-gold):not([style*="color"]) {
     color: #334155 !important; /* slate-700 */
 }
 
@@ -959,4 +959,67 @@
 
 :root:not(.dark) .text-slate-500 {
     color: #4b5563 !important; /* gray-600 */
+}
+
+/* ============================================
+   CHAT MESSAGE BUBBLE OVERRIDES
+   Ensure white text is visible on purple chat bubbles
+   These must override the .osys-glass p rule above
+   ============================================ */
+
+/* OWN messages (purple background) - WHITE text */
+.chat-bubble-own {
+    color: #ffffff !important;
+}
+.chat-bubble-own p {
+    color: #ffffff !important;
+}
+.chat-bubble-own span {
+    color: rgba(216, 180, 254, 1) !important; /* purple-200 for timestamps */
+}
+
+/* OTHER users' messages (white background) - DARK text */
+.chat-bubble-other {
+    color: #1e293b !important;
+}
+.chat-bubble-other p {
+    color: #1e293b !important;
+}
+
+/* Sender name - PURPLE (solid color, not gradient to avoid breaking child spans) */
+.chat-sender-name {
+    color: #9333ea !important;
+    -webkit-text-fill-color: #9333ea !important;
+}
+
+/* Light mode specific - override the osys-glass rules */
+:root:not(.dark) .osys-glass .chat-bubble-own,
+:root:not(.dark) .osys-glass .chat-bubble-own p,
+:root:not(.dark) .osys-card .chat-bubble-own,
+:root:not(.dark) .osys-card .chat-bubble-own p {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}
+
+:root:not(.dark) .osys-glass .chat-bubble-own span,
+:root:not(.dark) .osys-card .chat-bubble-own span {
+    color: rgba(216, 180, 254, 1) !important;
+    -webkit-text-fill-color: rgba(216, 180, 254, 1) !important;
+}
+
+:root:not(.dark) .osys-glass .chat-bubble-other,
+:root:not(.dark) .osys-glass .chat-bubble-other p,
+:root:not(.dark) .osys-card .chat-bubble-other,
+:root:not(.dark) .osys-card .chat-bubble-other p {
+    color: #1e293b !important;
+    -webkit-text-fill-color: #1e293b !important;
+}
+
+:root:not(.dark) .chat-sender-name,
+:root:not(.dark) .osys-glass .chat-sender-name,
+:root:not(.dark) .osys-card .chat-sender-name {
+    color: #9333ea !important;
+    -webkit-text-fill-color: #9333ea !important;
+}
+    background-clip: text !important;
 }

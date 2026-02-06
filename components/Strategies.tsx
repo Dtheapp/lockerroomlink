@@ -31,25 +31,6 @@ const Strategies: React.FC = () => {
   const isInitialLoadRef = useRef(true);
   const prevMessagesLengthRef = useRef(0);
 
-  // Scroll to top of page when component mounts
-  useEffect(() => {
-    // Immediate scroll
-    window.scrollTo(0, 0);
-    if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = 0;
-    }
-    
-    // Also scroll after a delay to catch any async renders
-    const timer = setTimeout(() => {
-      window.scrollTo(0, 0);
-      if (messagesContainerRef.current) {
-        messagesContainerRef.current.scrollTop = 0;
-      }
-    }, 100);
-    
-    return () => clearTimeout(timer);
-  }, []);
-
   useEffect(() => {
     if (!teamData?.id || !isCoach) return;
     
@@ -67,20 +48,18 @@ const Strategies: React.FC = () => {
     return () => unsubscribe();
   }, [teamData?.id, isCoach]);
   
-  // Auto-scroll to bottom only for NEW messages (after initial load)
+  // Auto-scroll to bottom on new messages
   useEffect(() => {
-    // Skip scroll on initial load - instead scroll to TOP
+    // Skip scroll on initial load
     if (isInitialLoadRef.current) {
       isInitialLoadRef.current = false;
       prevMessagesLengthRef.current = messages.length;
-      // Scroll container to TOP on initial load
-      if (messagesContainerRef.current) {
-        messagesContainerRef.current.scrollTop = 0;
-      }
+      // Scroll to bottom on initial load to show latest messages
+      messagesEndRef.current?.scrollIntoView();
       return;
     }
     
-    // Only scroll if new message was added (not just re-render)
+    // Only scroll if new message was added
     if (messages.length > prevMessagesLengthRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
@@ -109,7 +88,8 @@ const Strategies: React.FC = () => {
         text: sanitizeText(newMessage, 2000),
         sender: {
           uid: user.uid,
-          name: sanitizeText(userData.name, 100)
+          name: sanitizeText(userData.name, 100),
+          photoUrl: userData.photoUrl || null
         },
         timestamp: serverTimestamp(),
       });
@@ -166,7 +146,7 @@ const Strategies: React.FC = () => {
   // If not a coach, show access denied
   if (!isCoach) {
     return (
-      <div className="relative h-full min-h-screen">
+      <div className="relative h-[calc(100vh-8rem)] lg:h-[calc(100vh-4rem)]">
         <AnimatedBackground />
         <div className="relative z-10 h-full flex items-center justify-center p-8">
           <GlassCard className="max-w-md text-center p-8">
@@ -184,13 +164,13 @@ const Strategies: React.FC = () => {
   }
 
   return (
-    <div className="relative h-full min-h-screen">
+    <div className="relative h-[calc(100vh-8rem)] lg:h-[calc(100vh-4rem)]">
       <AnimatedBackground />
       <div className="relative z-10 h-full flex flex-col">
         <GlassCard className="flex-1 flex flex-col overflow-hidden !p-0">
       
       {/* HEADER */}
-      <div className="sticky top-0 z-10 p-4 border-b border-slate-200/50 dark:border-white/10 bg-white/80 dark:bg-black/40 backdrop-blur-xl">
+      <div className="flex-shrink-0 z-10 p-4 border-b border-slate-200/50 dark:border-white/10 bg-white/80 dark:bg-black/40 backdrop-blur-xl">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-purple-500/20 dark:bg-orange-500/20 rounded-xl flex items-center justify-center">
@@ -229,14 +209,37 @@ const Strategies: React.FC = () => {
             const isEdited = (msg as any).edited;
             
             return (
-              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-xs lg:max-w-md p-3 rounded-2xl shadow-lg ${
-                  isMe 
-                    ? 'bg-gradient-to-br from-purple-600 to-purple-700 dark:from-orange-500 dark:to-orange-600 text-white rounded-br-none'
-                    : 'bg-white/80 dark:bg-white/10 backdrop-blur-sm text-slate-900 dark:text-slate-200 rounded-bl-none border border-slate-200/50 dark:border-white/10'
-                }`}>
+              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} items-end gap-2`}>
+                {/* Avatar for received messages */}
+                {!isMe && (
+                  <div className="flex-shrink-0">
+                    {(msg.sender as any).photoUrl ? (
+                      <img 
+                        src={(msg.sender as any).photoUrl} 
+                        alt={msg.sender.name}
+                        className="w-8 h-8 rounded-full object-cover"
+                        style={{ border: '2px solid rgba(147, 51, 234, 0.5)' }}
+                      />
+                    ) : (
+                      <div 
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                        style={{ backgroundColor: '#9333ea', border: '2px solid rgba(255,255,255,0.2)' }}
+                      >
+                        {msg.sender.name?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                <div 
+                  className={`max-w-xs lg:max-w-md p-3 rounded-2xl shadow-lg ${isMe ? 'rounded-br-none chat-bubble-own' : 'rounded-bl-none chat-bubble-other'}`}
+                  style={isMe 
+                    ? { backgroundColor: '#9333ea' }
+                    : { backgroundColor: 'white', border: '1px solid #e2e8f0' }
+                  }
+                >
                   {!isMe && (
-                    <p className="text-xs font-bold text-purple-600 dark:text-orange-400 mb-1 flex items-center gap-1">
+                    <p className="text-xs font-bold mb-1 flex items-center gap-1 chat-sender-name">
                       <Shield className="w-3 h-3" />
                       {msg.sender.name}
                     </p>
@@ -273,9 +276,9 @@ const Strategies: React.FC = () => {
                     </div>
                   ) : (
                     <>
-                      <p className="text-sm leading-relaxed">{msg.text}</p>
+                      <p className="leading-relaxed" style={{ color: isMe ? '#ffffff' : '#1e293b' }}>{msg.text}</p>
                       {/* Footer with timestamp and actions */}
-                      <div className={`text-[10px] mt-1 flex items-center justify-between gap-2 ${isMe ? 'text-purple-200 dark:text-orange-200' : 'text-slate-400 dark:text-slate-500'}`}>
+                      <div style={{ color: isMe ? 'rgba(216,180,254,1)' : '#94a3b8', fontSize: '10px' }} className="mt-1 flex items-center justify-between gap-2">
                         <span>{isEdited && '(edited)'}</span>
                         <div className="flex items-center gap-2">
                           {isMe && (
@@ -302,6 +305,27 @@ const Strategies: React.FC = () => {
                     </>
                   )}
                 </div>
+                
+                {/* Avatar for own messages */}
+                {isMe && (
+                  <div className="flex-shrink-0">
+                    {userData?.photoUrl ? (
+                      <img 
+                        src={userData.photoUrl} 
+                        alt={userData.name}
+                        className="w-8 h-8 rounded-full object-cover"
+                        style={{ border: '2px solid rgba(147, 51, 234, 0.5)' }}
+                      />
+                    ) : (
+                      <div 
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                        style={{ backgroundColor: '#9333ea', border: '2px solid rgba(147, 51, 234, 0.5)' }}
+                      >
+                        {userData?.name?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })
@@ -332,7 +356,7 @@ const Strategies: React.FC = () => {
       )}
 
       {/* INPUT AREA */}
-      <div className="p-4 border-t border-slate-200/50 dark:border-white/10 bg-white/80 dark:bg-black/40 backdrop-blur-xl">
+      <div className="flex-shrink-0 p-4 border-t border-slate-200/50 dark:border-white/10 bg-white/80 dark:bg-black/40 backdrop-blur-xl">
         {/* Rate limit warning */}
         {rateLimitError && (
           <div className="mb-3 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm bg-amber-50/80 dark:bg-amber-900/20 backdrop-blur-sm px-3 py-2 rounded-lg">
@@ -340,7 +364,7 @@ const Strategies: React.FC = () => {
             {rateLimitError}
           </div>
         )}
-        <form onSubmit={handleSendMessage} className="flex items-center gap-3">
+        <form onSubmit={handleSendMessage} className="flex items-center gap-3 mr-12">
           <input
             type="text"
             value={newMessage}
@@ -350,7 +374,7 @@ const Strategies: React.FC = () => {
           />
           <button 
             type="submit" 
-            className="p-3 rounded-full bg-gradient-to-br from-purple-600 to-purple-700 dark:from-orange-500 dark:to-orange-600 hover:from-purple-500 hover:to-purple-600 dark:hover:from-orange-400 dark:hover:to-orange-500 transition-colors shadow-lg shadow-purple-900/20 dark:shadow-orange-900/20 disabled:opacity-50 disabled:cursor-not-allowed" 
+            className="p-3 rounded-full bg-purple-600 hover:bg-purple-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed" 
             disabled={!newMessage.trim() || sending}
             aria-label="Send message"
           >

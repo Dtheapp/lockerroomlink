@@ -98,6 +98,12 @@ const AIBrainNetworkSymbiosis = lazyWithRetry(() => import('./components/aibrain
 // Draft Day Showcase
 const DraftDayShowcase = lazyWithRetry(() => import('./components/DraftDayShowcase'));
 
+// Draft Day System
+const DraftDayHub = lazyWithRetry(() => import('./components/commissioner/DraftDayHub'));
+const DraftSetup = lazyWithRetry(() => import('./components/commissioner/DraftSetup'));
+const DraftRoom = lazyWithRetry(() => import('./components/draft/DraftRoom'));
+const WarRoom = lazyWithRetry(() => import('./components/draft/WarRoom'));
+
 // Competitor Comparison Page
 const ComparisonPage = lazyWithRetry(() => import('./components/ComparisonPage'));
 
@@ -148,6 +154,7 @@ const CommissionerGrievances = lazyWithRetry(() => import('./components/commissi
 const CommissionerInfractions = lazyWithRetry(() => import('./components/commissioner/CommissionerInfractions'));
 const CommissionerSchedule = lazyWithRetry(() => import('./components/commissioner/CommissionerSchedule'));
 const CommissionerSchedules = lazyWithRetry(() => import('./components/commissioner/CommissionerSchedules'));
+const ManagersPage = lazyWithRetry(() => import('./components/commissioner/ManagersPage'));
 const ScheduleBuilder = lazyWithRetry(() => import('./components/commissioner/ScheduleBuilder'));
 const ProgramScheduleStudioWrapper = lazyWithRetry(() => import('./components/commissioner/ProgramScheduleStudioWrapper'));
 const TeamScheduleView = lazyWithRetry(() => import('./components/commissioner/TeamScheduleView'));
@@ -402,6 +409,12 @@ const AppContent: React.FC = () => {
                 <Route path="commissioner/chat" element={<CommissionerTeamChat />} />
                 <Route path="commissioner/grievances" element={<CommissionerGrievances />} />
                 <Route path="commissioner/infractions" element={<CommissionerInfractions />} />
+                <Route path="commissioner/managers" element={<ManagersPage />} />
+                <Route path="commissioner/draft-day" element={<DraftDayHub />} />
+                <Route path="commissioner/draft-day/setup" element={<DraftSetup />} />
+                <Route path="commissioner/draft-day/setup/:poolId" element={<DraftSetup />} />
+                <Route path="commissioner/draft-day/:draftId" element={<DraftRoom />} />
+                <Route path="commissioner/draft-day/:draftId/war-room" element={<WarRoom />} />
                 <Route path="commissioner/schedules" element={<CommissionerSchedules />} />
                 <Route path="commissioner/schedule/:seasonId" element={<CommissionerSchedule />} />
                 <Route path="commissioner/schedule-builder/:seasonId" element={<ScheduleBuilder />} />
@@ -446,6 +459,11 @@ const AppContent: React.FC = () => {
                 <Route path="my-registrations" element={<ParentRegistrations />} />
                 {config.statsEnabled && <Route path="stats" element={<Stats />} />}
                 {config.playbookEnabled && hasPlaybook && <Route path="coaching" element={<Coaching />} />}
+                {/* Draft Day */}
+                <Route path="draft-day" element={<DraftDayHub />} />
+                <Route path="draft-day/:draftId" element={<DraftRoom />} />
+                <Route path="draft-day/:draftId/watch" element={<DraftRoom />} />
+                <Route path="draft-day/:draftId/war-room" element={<WarRoom />} />
                 {/* Events System Routes */}
                 <Route path="events" element={<EventsPage />} />
                 <Route path="events/create" element={<EventCreatorPage />} />

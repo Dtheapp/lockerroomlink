@@ -15,7 +15,7 @@ import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-  getTeamManagers,
+  getManagersByCommissioner,
   createTeamManager,
   updateTeamManager,
   updateManagerStatus,
@@ -42,11 +42,10 @@ import {
 } from 'lucide-react';
 
 interface TeamManagersPanelProps {
-  teamId: string;
-  teamName: string;
+  // No longer requires teamId - managers have access to ALL commissioner's teams
 }
 
-const TeamManagersPanel: React.FC<TeamManagersPanelProps> = ({ teamId, teamName }) => {
+const TeamManagersPanel: React.FC<TeamManagersPanelProps> = () => {
   const { theme } = useTheme();
   const { userData } = useAuth();
   
@@ -77,12 +76,14 @@ const TeamManagersPanel: React.FC<TeamManagersPanelProps> = ({ teamId, teamName 
   });
   const [saving, setSaving] = useState(false);
   
-  // Load managers
+  // Load managers for this commissioner
   useEffect(() => {
     const loadManagers = async () => {
+      if (!userData?.uid) return;
+      
       setLoading(true);
       try {
-        const data = await getTeamManagers(teamId);
+        const data = await getManagersByCommissioner(userData.uid);
         setManagers(data);
       } catch (err) {
         console.error('Error loading managers:', err);
@@ -93,7 +94,7 @@ const TeamManagersPanel: React.FC<TeamManagersPanelProps> = ({ teamId, teamName 
     };
     
     loadManagers();
-  }, [teamId]);
+  }, [userData?.uid]);
   
   // Clear messages after 5 seconds
   useEffect(() => {
@@ -142,22 +143,21 @@ const TeamManagersPanel: React.FC<TeamManagersPanelProps> = ({ teamId, teamName 
         name: newManager.name.trim(),
         email: newManager.email.trim().toLowerCase(),
         password: newManager.password,
-        teamId,
-        teamName,
+        teamId: '', // No longer tied to a specific team - has access to all
+        teamName: 'All Teams',
         commissionerId: userData?.uid || '',
         commissionerName: userData?.name || '',
       };
       
       await createTeamManager(managerData);
       
-      // Reload managers
-      const data = await getTeamManagers(teamId);
-      setManagers(data);
+      // After creating a manager, the commissioner gets signed out
+      // Show success message - they'll need to log back in
+      alert(`Manager "${newManager.name}" created successfully!\n\nYou will now be signed out. Please log back in with your commissioner account.`);
       
-      // Reset form and close modal
-      setNewManager({ name: '', email: '', password: '', confirmPassword: '' });
-      setShowAddModal(false);
-      setSuccess(`Manager "${newManager.name}" created successfully!`);
+      // The signOut in createTeamManager will trigger AuthContext to redirect to login
+      window.location.reload();
+      return;
     } catch (err: any) {
       setError(err.message || 'Failed to create manager');
     } finally {
@@ -281,10 +281,10 @@ const TeamManagersPanel: React.FC<TeamManagersPanelProps> = ({ teamId, teamName 
           </div>
           <div>
             <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
-              Team Managers
+              Account Managers
             </h3>
             <p className={`text-xs ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
-              {managers.length} manager{managers.length !== 1 ? 's' : ''} • Sub-accounts to help manage your team
+              {managers.length} manager{managers.length !== 1 ? 's' : ''} • Full access to ALL your teams
             </p>
           </div>
         </div>
@@ -322,7 +322,7 @@ const TeamManagersPanel: React.FC<TeamManagersPanelProps> = ({ teamId, teamName 
             No Managers Yet
           </h4>
           <p className={`text-sm mb-4 ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}`}>
-            Add managers to help run your team. They'll have access to the dashboard using their own login.
+            Add managers to help run ALL your teams. They'll have full access using their own login.
           </p>
           <button
             onClick={() => setShowAddModal(true)}
@@ -372,7 +372,7 @@ const TeamManagersPanel: React.FC<TeamManagersPanelProps> = ({ teamId, teamName 
                   {manager.lastLogin && (
                     <span className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>
                       <Clock className="w-3 h-3 inline mr-1" />
-                      Last login: {new Date(manager.lastLogin.toDate?.() || manager.lastLogin).toLocaleDateString()}
+                      Last login: {(manager.lastLogin as any).toDate ? (manager.lastLogin as any).toDate().toLocaleDateString() : new Date(manager.lastLogin as any).toLocaleDateString()}
                     </span>
                   )}
                   

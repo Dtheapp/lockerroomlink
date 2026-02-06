@@ -243,6 +243,14 @@
         { "fieldPath": "linkedSeasonId", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "teamManagers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "commissionerId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

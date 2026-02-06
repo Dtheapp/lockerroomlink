@@ -49,7 +49,7 @@ export const CommissionerRoster: React.FC = () => {
   const [confirmRemove, setConfirmRemove] = useState<{ playerId: string; playerName: string; teamId: string; teamName: string } | null>(null);
 
   useEffect(() => {
-    if (!user?.uid) {
+    if (!userData?.uid) {
       setLoading(false);
       return;
     }
@@ -59,7 +59,7 @@ export const CommissionerRoster: React.FC = () => {
         // Get teams owned by this commissioner
         const teamsQuery = query(
           collection(db, 'teams'),
-          where('ownerId', '==', user.uid)
+          where('ownerId', '==', userData.uid)
         );
         const teamsSnap = await getDocs(teamsQuery);
         

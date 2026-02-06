@@ -265,11 +265,17 @@ const Chat: React.FC = () => {
     ensureParentAccess();
   }, [teamData?.id, user?.uid, userData?.role]);
   
-  // Auto-scroll to bottom when new messages arrive (but not on initial load)
+  // Auto-scroll to bottom on initial load and when new messages arrive
   const prevMessagesLengthRef = useRef<number>(0);
+  const hasInitialScrolled = useRef<boolean>(false);
   useEffect(() => {
-    // Only scroll if we have new messages (not on initial load when going from 0 to N)
-    if (prevMessagesLengthRef.current > 0 && messages.length > prevMessagesLengthRef.current) {
+    // Scroll on initial load (first time messages come in)
+    if (!hasInitialScrolled.current && messages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      hasInitialScrolled.current = true;
+    }
+    // Scroll when new messages arrive after initial load
+    else if (prevMessagesLengthRef.current > 0 && messages.length > prevMessagesLengthRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
     prevMessagesLengthRef.current = messages.length;
@@ -360,7 +366,8 @@ const Chat: React.FC = () => {
         sender: {
           uid: user.uid,
           name: sanitizeText(userData.name, 100),
-          role: userData.role
+          role: userData.role,
+          photoUrl: userData.photoUrl || null
         },
         timestamp: serverTimestamp(),
         readBy: [user.uid] // Sender has "read" their own message
@@ -636,13 +643,13 @@ const Chat: React.FC = () => {
 
   return (
     <NoAthleteBlock featureName="Team Chat">
-    <div className="relative h-full min-h-screen">
+    <div className="relative h-[calc(100vh-8rem)] lg:h-[calc(100vh-4rem)]">
       <AnimatedBackground />
       <div className="relative z-10 h-full flex flex-col">
         <GlassCard className="flex-1 flex flex-col overflow-hidden !p-0">
       
       {/* HEADER */}
-      <div className="sticky top-0 z-10 p-4 border-b border-slate-200/50 dark:border-white/10 bg-white/80 dark:bg-black/40 backdrop-blur-xl">
+      <div className="flex-shrink-0 z-10 p-4 border-b border-slate-200/50 dark:border-white/10 bg-white/80 dark:bg-black/40 backdrop-blur-xl">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-purple-500/20 dark:bg-orange-500/20 rounded-xl flex items-center justify-center">
@@ -867,6 +874,27 @@ const Chat: React.FC = () => {
                 </div>
               )}
               
+              {/* Avatar for received messages */}
+              {!isMe && !multiSelectMode && (
+                <div className="flex-shrink-0 mr-2 self-end">
+                  {(msg.sender as any).photoUrl ? (
+                    <img 
+                      src={(msg.sender as any).photoUrl} 
+                      alt={msg.sender.name}
+                      className="w-8 h-8 rounded-full object-cover"
+                      style={{ border: '2px solid rgba(147, 51, 234, 0.5)' }}
+                    />
+                  ) : (
+                    <div 
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                      style={{ backgroundColor: '#9333ea', border: '2px solid rgba(255,255,255,0.2)' }}
+                    >
+                      {msg.sender.name?.charAt(0)?.toUpperCase() || '?'}
+                    </div>
+                  )}
+                </div>
+              )}
+              
               {/* Reply button for received messages */}
               {!isMe && !isMuted && !multiSelectMode && (
                 <button
@@ -877,11 +905,13 @@ const Chat: React.FC = () => {
                   <Reply className="w-4 h-4" />
                 </button>
               )}
-              <div className={`max-w-xs lg:max-w-md p-3 rounded-2xl shadow-lg relative ${
-                isMe 
-                  ? 'bg-gradient-to-r from-purple-600 to-purple-500 dark:from-orange-600 dark:to-orange-500 text-white rounded-br-none'
-                  : 'bg-white/80 dark:bg-white/10 backdrop-blur-sm text-slate-900 dark:text-white rounded-bl-none border border-slate-200/50 dark:border-white/10'
-              } ${msg.isPinned ? 'ring-2 ring-amber-400' : ''} ${isSelected ? 'ring-2 ring-purple-500 dark:ring-orange-500' : ''}`}>
+              <div 
+                className={`max-w-xs lg:max-w-md p-3 rounded-2xl shadow-lg relative ${isMe ? 'rounded-br-none chat-bubble-own' : 'rounded-bl-none chat-bubble-other'} ${msg.isPinned ? 'ring-2 ring-amber-400' : ''} ${isSelected ? 'ring-2 ring-purple-500' : ''}`}
+                style={isMe 
+                  ? { backgroundColor: '#9333ea' }
+                  : { backgroundColor: 'white', border: '1px solid #e2e8f0' }
+                }
+              >
                 {/* Pinned indicator */}
                 {msg.isPinned && (
                   <div className={`absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center ${isMe ? 'bg-amber-400' : 'bg-amber-500'}`}>
@@ -892,8 +922,9 @@ const Chat: React.FC = () => {
                 {/* Header for OTHER users' messages */}
                 {!isMe && (
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <p className="text-xs font-bold text-purple-600 dark:text-orange-400 flex items-center gap-1">
+                    <p className="text-xs font-medium flex items-center gap-1" style={{ color: '#9333ea' }}>
                       {msg.sender.name}
+                      {(msg.sender as any).role && <span style={{ color: '#9333ea', opacity: 0.7 }}>• {(msg.sender as any).role}</span>}
                       {isUserMuted && (
                         <span className="text-red-500" title="This user is muted">
                           <VolumeX className="w-3 h-3" />
@@ -1087,14 +1118,14 @@ const Chat: React.FC = () => {
                         />
                       </div>
                     )}
-                    {msg.text && <p className="text-sm leading-relaxed">{msg.text}</p>}
+                    {msg.text && <p style={{ color: isMe ? '#ffffff' : '#1e293b' }}>{msg.text}</p>}
                   </>
                 )}
                 
                 {/* Footer - timestamp, read receipts, and actions */}
                 {!isEditing && (
                   <div className="flex items-center justify-between mt-1 gap-2">
-                    <p className={`text-[10px] ${isMe ? 'text-purple-200' : 'text-slate-500'}`}>
+                    <p className="text-xs" style={{ color: isMe ? 'rgba(255,255,255,0.7)' : '#9ca3af' }}>
                       {formatDate(msg.timestamp)}
                       {isEdited && <span className="ml-1 italic">(edited)</span>}
                     </p>
@@ -1139,6 +1170,27 @@ const Chat: React.FC = () => {
                   <Reply className="w-4 h-4" />
                 </button>
               )}
+              
+              {/* Avatar for own messages */}
+              {isMe && !multiSelectMode && (
+                <div className="flex-shrink-0 ml-2 self-end">
+                  {userData?.photoUrl ? (
+                    <img 
+                      src={userData.photoUrl} 
+                      alt={userData.name}
+                      className="w-8 h-8 rounded-full object-cover"
+                      style={{ border: '2px solid rgba(147, 51, 234, 0.5)' }}
+                    />
+                  ) : (
+                    <div 
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                      style={{ backgroundColor: '#9333ea', border: '2px solid rgba(147, 51, 234, 0.5)' }}
+                    >
+                      {userData?.name?.charAt(0)?.toUpperCase() || '?'}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -1146,7 +1198,7 @@ const Chat: React.FC = () => {
       </div>
 
       {/* INPUT AREA */}
-      <div className="p-4 border-t border-slate-200/50 dark:border-white/10 bg-white/80 dark:bg-black/40 backdrop-blur-xl">
+      <div className="flex-shrink-0 p-4 border-t border-slate-200/50 dark:border-white/10 bg-white/80 dark:bg-black/40 backdrop-blur-xl">
         {/* Reply preview bar */}
         {replyingTo && (
           <div className="mb-3 p-2 bg-purple-100/80 dark:bg-purple-500/20 backdrop-blur-sm border-l-4 border-purple-500 dark:border-orange-500 rounded flex items-center justify-between">
@@ -1252,22 +1304,31 @@ const Chat: React.FC = () => {
             </>
           )}
           
-          <input
-            type="text"
+          <textarea
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if ((newMessage.trim() || selectedImage) && !sending && !isMuted && !uploadingImage) {
+                  (e.target as HTMLTextAreaElement).form?.requestSubmit();
+                }
+              }
+            }}
             placeholder={isMuted ? "You are muted..." : replyingTo ? "Type your reply..." : selectedImage ? "Add a caption..." : "Type your message..."}
             disabled={isMuted}
-            className={`flex-1 bg-white/80 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 rounded-full py-3 px-5 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 dark:focus:ring-orange-500/50 transition-all ${
+            rows={1}
+            className={`flex-1 bg-white/80 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 rounded-2xl py-3 px-5 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 dark:focus:ring-orange-500/50 transition-all resize-none max-h-32 ${
               isMuted ? 'opacity-50 cursor-not-allowed' : ''
             }`}
+            style={{ minHeight: '48px' }}
           />
           <button 
             type="submit" 
-            className={`p-3 rounded-full transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`p-3 rounded-full transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed mr-10 ${
               isMuted 
-                ? 'bg-slate-400 dark:bg-zinc-600 cursor-not-allowed' 
-                : 'bg-gradient-to-r from-purple-600 to-purple-500 dark:from-orange-600 dark:to-orange-500 hover:from-purple-500 hover:to-purple-400 dark:hover:from-orange-500 dark:hover:to-orange-400'
+                ? 'bg-slate-400 cursor-not-allowed' 
+                : 'bg-purple-600 hover:bg-purple-700'
             }`}
             disabled={(!newMessage.trim() && !selectedImage) || sending || isMuted || uploadingImage}
             aria-label="Send message"

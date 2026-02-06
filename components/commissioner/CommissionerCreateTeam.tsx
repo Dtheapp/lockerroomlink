@@ -8,7 +8,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { serverTimestamp, doc, setDoc, getDoc, writeBatch } from 'firebase/firestore';
+import { serverTimestamp, doc, getDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { 
   Shield, 

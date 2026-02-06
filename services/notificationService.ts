@@ -88,7 +88,11 @@ export type NotificationType =
   | 'nil_deal_update'
   | 'player_stats_update'
   | 'highlight_ready'
-  | 'kudos_received';
+  | 'kudos_received'
+  // Draft Day
+  | 'player_drafted'
+  | 'draft_complete'
+  | 'draft_starting';
 
 export type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
 

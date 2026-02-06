@@ -35,7 +35,6 @@ import {
   updatePassword,
   updateEmail,
   deleteUser,
-  getAuth,
   EmailAuthProvider,
   reauthenticateWithCredential
 } from 'firebase/auth';
@@ -65,28 +64,29 @@ const DEFAULT_PERMISSIONS: TeamManagerPermissions = {
 /**
  * Create a new team manager
  * Creates both Firebase Auth user and Firestore document
+ * 
+ * IMPORTANT: This creates a new Firebase Auth account which temporarily signs in as the new user.
+ * The Firestore document is created while signed in as the new manager.
+ * After creation, we sign out to allow the commissioner to continue.
  */
 export const createTeamManager = async (
   managerData: NewTeamManager
 ): Promise<{ managerId: string; authUid: string }> => {
-  // Create Firebase Auth account for the manager
-  // We need to use a secondary auth instance to avoid logging out the current user
-  const tempAuth = getAuth();
-  
-  // Store current user
-  const currentUser = auth.currentUser;
+  // Store reference to current auth state
+  const currentUserEmail = auth.currentUser?.email;
   
   try {
-    // Create the auth account
+    // Create the auth account (this signs in as the new user)
     const userCredential = await createUserWithEmailAndPassword(
-      tempAuth,
+      auth,
       managerData.email,
       managerData.password
     );
     
     const authUid = userCredential.user.uid;
     
-    // Create Firestore document
+    // Create Firestore document - now signed in as the new manager
+    // Rules allow this because request.auth.uid == managerId
     const managerDoc: Omit<TeamManager, 'id'> = {
       name: managerData.name,
       email: managerData.email.toLowerCase(),
@@ -106,9 +106,17 @@ export const createTeamManager = async (
     // Use the auth UID as the document ID for easy lookup during login
     await setDoc(doc(db, COLLECTION, authUid), managerDoc);
     
+    // Sign out the newly created manager so the page can reload with commissioner
+    // The commissioner will need to sign back in
+    await auth.signOut();
+    
     return { managerId: authUid, authUid };
   } catch (error: any) {
     console.error('Error creating team manager:', error);
+    // If we're signed in as the new manager but failed, sign out
+    if (auth.currentUser?.email === managerData.email) {
+      await auth.signOut();
+    }
     throw new Error(error.message || 'Failed to create manager');
   }
 };
@@ -175,13 +183,14 @@ export const getTeamManagers = async (teamId: string): Promise<TeamManager[]> =>
 };
 
 /**
- * Get all managers created by a commissioner
+ * Get all managers created by a commissioner (excludes deleted)
  */
 export const getManagersByCommissioner = async (commissionerId: string): Promise<TeamManager[]> => {
   try {
     const q = query(
       collection(db, COLLECTION),
-      where('commissionerId', '==', commissionerId)
+      where('commissionerId', '==', commissionerId),
+      where('status', '!=', 'deleted')
     );
     const snapshot = await getDocs(q);
     
@@ -307,16 +316,22 @@ export const updateManagerEmail = async (
 
 /**
  * Delete a team manager
- * Removes both Firestore document and Firebase Auth user
+ * Soft-deletes by setting status to 'deleted' (Auth account remains but is blocked at login)
+ * Full auth deletion requires Admin SDK Cloud Function
  */
 export const deleteTeamManager = async (managerId: string): Promise<void> => {
   try {
-    // Delete Firestore document
-    await deleteDoc(doc(db, COLLECTION, managerId));
+    // Soft delete - set status to 'deleted' so login is blocked
+    // This is safer than hard delete and allows recovery if needed
+    await updateDoc(doc(db, COLLECTION, managerId), {
+      status: 'deleted',
+      deletedAt: serverTimestamp(),
+    });
     
-    // Note: Deleting the Firebase Auth user requires admin SDK
-    // For now, we mark as deleted in Firestore
-    // The auth account will remain but can't access anything
+    console.log('Manager soft-deleted:', managerId);
+    
+    // Note: To fully delete the Firebase Auth user, you need a Cloud Function
+    // with Admin SDK. For now, soft-delete blocks all access.
   } catch (error: any) {
     console.error('Error deleting team manager:', error);
     throw new Error(error.message || 'Failed to delete manager');

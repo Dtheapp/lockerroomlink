@@ -81,6 +81,10 @@ service cloud.firestore {
              (isTeamCommissioner() && getUserData().programId == programId) ||
              // Also check if commissionerPrograms array contains this programId
              (isAuthenticated() && getUserData().commissionerPrograms != null && programId in getUserData().commissionerPrograms) ||
+             // Allow managers acting for the program's commissioner
+             (isAuthenticated() && 
+              exists(/databases/$(database)/documents/programs/$(programId)) &&
+              isManagerForCommissioner(get(/databases/$(database)/documents/programs/$(programId)).data.commissionerId)) ||
              isAdmin();
     }
     
@@ -104,6 +108,32 @@ service cloud.firestore {
     function isTeamOwner(teamId) {
       return isCommissioner() && 
              get(/databases/$(database)/documents/teams/$(teamId)).data.ownerId == request.auth.uid;
+    }
+    
+    // Check if user is a manager acting for a specific commissioner
+    // Managers can perform actions on behalf of their commissioner
+    function isManagerForCommissioner(commissionerId) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/teamManagers/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/teamManagers/$(request.auth.uid)).data.commissionerId == commissionerId &&
+             get(/databases/$(database)/documents/teamManagers/$(request.auth.uid)).data.status == 'active';
+    }
+    
+    // Check if user is the owner of a team OR a manager acting for the owner
+    function isTeamOwnerOrManager(teamId) {
+      let ownerId = get(/databases/$(database)/documents/teams/$(teamId)).data.ownerId;
+      return isAuthenticated() && (
+        request.auth.uid == ownerId ||  // Direct owner
+        isManagerForCommissioner(ownerId)  // Manager for owner
+      );
+    }
+    
+    // Check if user is a commissioner OR a manager acting for them
+    function isUserOrTheirManager(userId) {
+      return isAuthenticated() && (
+        request.auth.uid == userId ||  // Is the user
+        isManagerForCommissioner(userId)  // Is a manager for that user
+      );
     }
     
     // Check if user is the commissioner of the program the team belongs to
@@ -581,18 +611,27 @@ service cloud.firestore {
     // LEAGUE REQUESTS COLLECTION (top-level for querying)
     // =============================================================================
     match /leagueRequests/{requestId} {
+      // Helper to get the commissioner ID for this request's program
+      function getRequestProgramCommissioner() {
+        return get(/databases/$(database)/documents/programs/$(resource.data.programId)).data.commissionerId;
+      }
+      
       allow read: if isAuthenticated() && (
         isAdmin() ||
         isLeagueOwnerOf(resource.data.leagueId) ||
         resource.data.requestedBy == request.auth.uid ||
         // Allow commissioners to read invitations for their program
-        (isCommissioner() && resource.data.programId == getUserData().programId)
+        (isCommissioner() && resource.data.programId == getUserData().programId) ||
+        // Allow managers acting for the program's commissioner
+        (resource.data.programId != null && isManagerForCommissioner(getRequestProgramCommissioner()))
       );
       allow create: if isLeagueCommissioner() || isAdmin();
       allow update: if isAdmin() || 
                       isLeagueOwnerOf(resource.data.leagueId) ||
                       // Allow commissioners to respond to invitations for their program
-                      (isCommissioner() && resource.data.programId == getUserData().programId);
+                      (isCommissioner() && resource.data.programId == getUserData().programId) ||
+                      // Allow managers acting for the program's commissioner
+                      (resource.data.programId != null && isManagerForCommissioner(getRequestProgramCommissioner()));
       allow delete: if isAdmin();
     }
     
@@ -1277,6 +1316,11 @@ service cloud.firestore {
         return request.resource.data.commissionerId == request.auth.uid;
       }
       
+      // Check if the creator is listed as commissionerId in the document
+      function isCreatorCommissioner() {
+        return request.resource.data.createdBy == request.resource.data.commissionerId;
+      }
+      
       // Managers can read their own record
       // Commissioners can read managers they created
       // Admins can read all
@@ -1286,9 +1330,14 @@ service cloud.firestore {
         isAdmin()
       );
       
-      // Only commissioners can create managers (for their own teams)
-      // The commissionerId must match the authenticated user
-      allow create: if isAuthenticated() && isCreatingManager();
+      // Allow creation if:
+      // 1. The authenticated user is the commissioner being listed OR
+      // 2. The document ID matches the authenticated user (manager creating their own doc after auth)
+      // AND the createdBy matches the commissionerId
+      allow create: if isAuthenticated() && isCreatorCommissioner() && (
+        isCreatingManager() ||  // Commissioner creating
+        request.auth.uid == managerId  // Manager's own doc (after auth account created)
+      );
       
       // Commissioner who created can update, manager can update limited fields (lastLogin, loginCount)
       // Admin has full access
@@ -1376,6 +1425,7 @@ service cloud.firestore {
       // Parents can add themselves to parentIds for chat access
       allow update: if isAuthenticated() && (
         resource.data.ownerId == request.auth.uid ||
+        isManagerForCommissioner(resource.data.ownerId) ||  // Manager for team owner
         isTeamCoach(teamId) || 
         isCommissioner() || 
         isAdmin() ||
@@ -1386,6 +1436,7 @@ service cloud.firestore {
       // Team owner or admin can delete
       allow delete: if isAuthenticated() && (
         resource.data.ownerId == request.auth.uid ||
+        isManagerForCommissioner(resource.data.ownerId) ||  // Manager for team owner
         isAdmin()
       );
       
@@ -1398,6 +1449,7 @@ service cloud.firestore {
         allow write: if isCommissioner() || 
                        isAdmin() ||
                        isTeamOwner(teamId) ||
+                       isTeamOwnerOrManager(teamId) ||  // Manager for team owner
                        // Parent can update their own child's record (parentId or parentUserId match on player doc)
                        resource.data.parentId == request.auth.uid ||
                        resource.data.parentUserId == request.auth.uid ||
@@ -1414,6 +1466,8 @@ service cloud.firestore {
                         request.resource.data.parentUserId == request.auth.uid) ||
                        // Team owner (coach who created the team)
                        get(/databases/$(database)/documents/teams/$(teamId)).data.ownerId == request.auth.uid ||
+                       // Manager for team owner
+                       isManagerForCommissioner(get(/databases/$(database)/documents/teams/$(teamId)).data.ownerId) ||
                        // Check if coach is assigned to this team (via team document fields)
                        (isCoach() && (
                          get(/databases/$(database)/documents/teams/$(teamId)).data.coachId == request.auth.uid ||
