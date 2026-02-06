@@ -73,7 +73,7 @@ interface TeamOption {
 }
 
 const DraftSetup: React.FC = () => {
-  const { user, userData } = useAuth();
+  const { user, userData, programData } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
   const { poolId: preselectedPoolId } = useParams();
@@ -102,12 +102,13 @@ const DraftSetup: React.FC = () => {
   const [location, setLocation] = useState('');
   
   const dark = theme === 'dark';
-  const programId = userData?.programId;
+  // Get programId from programData (loaded by AuthContext) or fallback to userData.programId
+  const programId = programData?.id || userData?.programId;
 
   // Load available pools
   useEffect(() => {
     if (!programId) {
-      console.log('[DraftSetup] No programId found on userData, skipping pool load');
+      console.log('[DraftSetup] No programId found. programData:', programData?.id, 'userData.programId:', userData?.programId, 'role:', userData?.role);
       setLoadingPools(false);
       return;
     }
