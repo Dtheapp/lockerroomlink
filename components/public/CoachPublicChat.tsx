@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, limitToLast, doc, getDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -556,9 +557,9 @@ const CoachPublicChat: React.FC<CoachPublicChatProps> = ({ coachId, coachName })
             </div>
           ) : (
             <div className="p-4 border-t border-zinc-800 text-center">
-              <a href="#/auth" className="text-blue-400 hover:text-blue-300 text-sm">
+              <Link to="/auth" className="text-blue-400 hover:text-blue-300 text-sm">
                 Sign in to join the conversation →
-              </a>
+              </Link>
             </div>
           )}
         </>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, limit } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -403,7 +404,7 @@ const CoachAnnouncements: React.FC<CoachAnnouncementsProps> = ({ coachId, coachN
                         </div>
                       ) : (
                         <p className="text-sm text-zinc-500 text-center">
-                          <a href="#/auth" className="text-blue-400 hover:text-blue-300">Sign in</a> to comment
+                          <Link to="/auth" className="text-blue-400 hover:text-blue-300">Sign in</Link> to comment
                         </p>
                       )}
                     </div>

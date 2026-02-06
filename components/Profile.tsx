@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import { doc, updateDoc, collection, addDoc, query, where, onSnapshot, getDocs, deleteDoc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { db, auth } from '../services/firebase';
@@ -1518,7 +1518,7 @@ const Profile: React.FC = () => {
                                                   <Users className="w-3 h-3 text-orange-500" />
                                                   <span className="text-xs text-orange-600 dark:text-orange-400 font-medium flex items-center gap-1">
                                                     ⚠️ No {selectedSport.charAt(0).toUpperCase() + selectedSport.slice(1)} Team - 
-                                                    <a href="#/events" className="underline hover:text-orange-700">Register!</a>
+                                                    <Link to="/events" className="underline hover:text-orange-700">Register!</Link>
                                                   </span>
                                                 </>
                                               );
@@ -1599,13 +1599,13 @@ const Profile: React.FC = () => {
                                             return (
                                               <>
                                                 <Users className="w-3 h-3 text-orange-500" />
-                                                <a
-                                                  href="#/events"
+                                                <Link
+                                                  to="/events"
                                                   onClick={(e) => e.stopPropagation()}
                                                   className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded font-bold hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors"
                                                 >
                                                   ⚠️ No {noTeamSportName}Team - Join Now!
-                                                </a>
+                                                </Link>
                                               </>
                                             );
                                           })()}

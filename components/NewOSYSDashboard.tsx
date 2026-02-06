@@ -2239,12 +2239,12 @@ const NewOSYSDashboard: React.FC = () => {
             </div>
           </div>
           
-          <a 
-            href="#/events" 
+          <Link 
+            to="/events" 
             className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-8 py-4 rounded-xl font-bold transition-all shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50"
           >
             <Calendar className="w-5 h-5" /> Browse Events & Register
-          </a>
+          </Link>
           
           <p className={`text-xs mt-4 ${theme === 'dark' ? 'text-zinc-500' : 'text-slate-500'}`}>
             Dashboard will be available once your athlete joins a team
@@ -2297,13 +2297,13 @@ const NewOSYSDashboard: React.FC = () => {
             </ol>
           </div>
           
-          <a 
-            href="#/profile" 
+          <Link 
+            to="/profile" 
             className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-purple-500/30"
           >
             <span className="text-xl">➕</span>
             Add Your First Athlete
-          </a>
+          </Link>
         </GlassCard>
       </div>
     );
@@ -2369,15 +2369,15 @@ const NewOSYSDashboard: React.FC = () => {
           </div>
           
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <a 
-              href="#/events" 
+            <Link 
+              to="/events" 
               className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-orange-500/30"
             >
               <span className="text-xl">🔍</span>
               Find Open Registrations
-            </a>
-            <a 
-              href="#/profile" 
+            </Link>
+            <Link 
+              to="/profile" 
               className={`inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${
                 theme === 'dark' 
                   ? 'bg-white/10 hover:bg-white/20 text-white' 
@@ -2386,7 +2386,7 @@ const NewOSYSDashboard: React.FC = () => {
             >
               <span className="text-xl">👤</span>
               Edit Profile
-            </a>
+            </Link>
           </div>
         </GlassCard>
       </div>

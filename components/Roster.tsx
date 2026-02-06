@@ -1810,12 +1810,12 @@ const Roster: React.FC = () => {
           <Users className="w-12 h-12 text-zinc-400 mx-auto mb-3" />
           <h3 className={`text-lg font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>No Team Yet</h3>
           <p className={`mb-4 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>Add your athlete in your profile to join a team and view the roster.</p>
-          <a 
-            href="#/profile" 
+          <Link 
+            to="/profile" 
             className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-6 py-3 rounded-lg transition-all shadow-lg shadow-orange-500/25"
           >
             <Plus className="w-5 h-5" /> Go to My Profile
-          </a>
+          </Link>
         </GlassCard>
       ) : loading ? (
         <div className="flex items-center justify-center py-12">

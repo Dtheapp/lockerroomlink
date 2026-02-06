@@ -668,13 +668,13 @@ const Dashboard: React.FC = () => {
             </ol>
           </div>
           
-          <a 
-            href="#/profile" 
+          <Link 
+            to="/profile" 
             className="inline-flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white px-8 py-3 rounded-lg font-bold transition-colors"
           >
             <Users className="w-5 h-5" />
             Go to Profile to Join Team
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -1593,7 +1593,7 @@ const Dashboard: React.FC = () => {
 
                </div>
              ) : <p className="text-zinc-500 italic text-sm text-center py-8">No stats recorded yet.</p>}
-             <a href="#/stats" className="inline-block text-cyan-500 hover:text-cyan-400 font-bold text-xs mt-4 uppercase tracking-wider">View Full Stat Sheet →</a>
+             <Link to="/stats" className="inline-block text-cyan-500 hover:text-cyan-400 font-bold text-xs mt-4 uppercase tracking-wider">View Full Stat Sheet →</Link>
            </div>
         </div>
 

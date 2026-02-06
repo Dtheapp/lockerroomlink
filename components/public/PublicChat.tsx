@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, limitToLast, doc, getDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, Timestamp, setDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -571,9 +572,9 @@ const PublicChat: React.FC<PublicChatProps> = ({ teamId, playerId, playerName, p
           ) : (
             <div className="p-4 border-t border-zinc-800 text-center">
               {!user ? (
-                <a href="#/auth" className="text-purple-400 hover:text-purple-300 text-sm">
+                <Link to="/auth" className="text-purple-400 hover:text-purple-300 text-sm">
                   Sign in to join the chat →
-                </a>
+                </Link>
               ) : !chatSettings.chatEnabled ? (
                 <p className="text-zinc-500 text-sm">Chat is currently disabled</p>
               ) : !chatSettings.allowFanChat && isFan ? (

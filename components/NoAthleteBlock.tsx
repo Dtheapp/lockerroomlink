@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Users, Plus, AlertCircle, UserPlus, Calendar, Clock, Trophy, Loader2, ExternalLink } from 'lucide-react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -311,12 +312,12 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children, 
             </div>
           )}
           
-          <a 
-            href="#/events" 
+          <Link 
+            to="/events" 
             className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white px-8 py-4 rounded-xl font-bold transition-all shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50"
           >
             <Calendar className="w-5 h-5" /> Find {sportName} Events
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -339,12 +340,12 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children, 
             Use the <span className="font-semibold text-purple-600 dark:text-purple-400">sport selector</span> above to switch to one of your active teams, or browse events to register for a new sport.
           </p>
           
-          <a 
-            href="#/events" 
+          <Link 
+            to="/events" 
             className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-8 py-4 rounded-xl font-bold transition-all shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50"
           >
             <Calendar className="w-5 h-5" /> Browse Events & Register
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -382,12 +383,12 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children, 
             </div>
           </div>
           
-          <a 
-            href="#/events" 
+          <Link 
+            to="/events" 
             className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-8 py-4 rounded-xl font-bold transition-all shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50"
           >
             <Calendar className="w-5 h-5" /> Browse Events & Register
-          </a>
+          </Link>
           
           <p className="text-xs text-slate-500 dark:text-zinc-500 mt-4">
             {featureName} will be available once {isParent ? 'your athlete joins' : 'you join'} a team
@@ -420,12 +421,12 @@ const NoAthleteBlock: React.FC<NoAthleteBlockProps> = ({ featureName, children, 
           </div>
         </div>
         
-        <a 
-          href="#/profile" 
+        <Link 
+          to="/profile" 
           className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 text-white px-6 py-3 rounded-lg font-bold transition-colors shadow-lg shadow-orange-900/20"
         >
           <Plus className="w-5 h-5" /> Add Your Athlete
-        </a>
+        </Link>
         
         <p className="text-xs text-slate-500 mt-4">
           Go to your profile to add your athlete and join a team

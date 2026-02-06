@@ -479,6 +479,29 @@ service cloud.firestore {
       }
       
       // =============================================================================
+      // REGISTRATION POOLS - Registration-based pools (per program)
+      // =============================================================================
+      match /registrationPools/{poolId} {
+        // Commissioner and admin can read registration pools
+        allow read: if canManageProgram(programId) || isAdmin();
+        
+        // Commissioner or admin can create/update/delete
+        allow create: if canManageProgram(programId) || isAdmin();
+        allow update: if canManageProgram(programId) || isAdmin();
+        allow delete: if canManageProgram(programId) || isAdmin();
+        
+        // Registrants within registration pools
+        match /registrants/{registrantId} {
+          allow read: if canManageProgram(programId) || 
+                        isAdmin() ||
+                        resource.data.parentId == request.auth.uid;
+          allow create: if isAuthenticated();
+          allow update: if canManageProgram(programId) || isAdmin();
+          allow delete: if canManageProgram(programId) || isAdmin();
+        }
+      }
+      
+      // =============================================================================
       // DRAFT EVENTS - Scheduled drafts for pools
       // =============================================================================
       match /drafts/{draftId} {

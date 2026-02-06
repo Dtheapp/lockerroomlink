@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { doc, updateDoc, arrayUnion, arrayRemove, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit, deleteDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -409,9 +410,9 @@ const AthletePostCard: React.FC<AthletePostCardProps> = ({
 
           {!canComment && !user && (
             <div className="p-3 border-t border-zinc-800 text-center">
-              <a href="#/auth" className="text-purple-400 hover:text-purple-300 text-sm">
+              <Link to="/auth" className="text-purple-400 hover:text-purple-300 text-sm">
                 Sign in to comment →
-              </a>
+              </Link>
             </div>
           )}
         </div>

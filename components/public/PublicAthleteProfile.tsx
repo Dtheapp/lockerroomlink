@@ -571,13 +571,13 @@ const PublicAthleteProfile: React.FC = () => {
                 
                 {/* Prompt non-logged-in users to sign up */}
                 {!user && (
-                  <a
-                    href="#/auth"
+                  <Link
+                    to="/auth"
                     className="px-4 py-2 bg-purple-600/20 text-purple-400 rounded-lg font-medium text-sm flex items-center gap-2 hover:bg-purple-600/30 transition-colors border border-purple-500/30"
                   >
                     <UserPlus className="w-4 h-4" />
                     <span className="hidden sm:inline">Sign up to Follow</span>
-                  </a>
+                  </Link>
                 )}
                 
                 {/* NIL Deal Button - For logged-in users (sponsors/fans) */}
@@ -593,13 +593,13 @@ const PublicAthleteProfile: React.FC = () => {
                 
                 {/* NIL prompt for non-logged-in users */}
                 {!user && (
-                  <a
-                    href="#/auth"
+                  <Link
+                    to="/auth"
                     className="px-4 py-2 bg-amber-500/20 text-amber-400 rounded-lg font-medium text-sm flex items-center gap-2 hover:bg-amber-500/30 transition-colors border border-amber-500/30"
                   >
                     <DollarSign className="w-4 h-4" />
                     <span className="hidden sm:inline">Sign in for NIL</span>
-                  </a>
+                  </Link>
                 )}
               </div>
             </div>

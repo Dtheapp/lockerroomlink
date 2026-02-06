@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { collection, getDocs, query, onSnapshot, where, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -281,12 +282,12 @@ const Stats: React.FC = () => {
               <BarChart3 className="w-16 h-16 text-zinc-300 dark:text-zinc-700 mx-auto mb-4" />
               <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">No Athletes Added</h3>
               <p className="text-zinc-600 dark:text-zinc-400 mb-4">Add an athlete to view their statistics</p>
-              <a 
-                href="#/profile" 
+              <Link 
+                to="/profile" 
                 className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-bold transition-colors"
               >
                 Add Athlete
-              </a>
+              </Link>
             </div>
           ) : (
             <div className="space-y-6">
