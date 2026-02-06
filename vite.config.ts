@@ -1,30 +1,7 @@
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
-
-// Custom plugin to redirect non-hash routes to hash routes for HashRouter
-const hashRouterRedirect = () => ({
-  name: 'hash-router-redirect',
-  configureServer(server: any) {
-    server.middlewares.use((req: any, res: any, next: any) => {
-      const url = req.url || '';
-      // List of routes that should be redirected to hash routes
-      const hashRoutes = ['/register/', '/event/', '/league/', '/team/', '/athlete/', '/dashboard', '/login'];
-      
-      // Check if URL starts with any hash route (but isn't already a hash route or asset)
-      if (!url.includes('#') && !url.startsWith('/@') && !url.startsWith('/node_modules') && !url.includes('.')) {
-        const matchedRoute = hashRoutes.find(route => url.startsWith(route));
-        if (matchedRoute) {
-          // Redirect to hash URL
-          res.writeHead(302, { Location: `/#${url}` });
-          res.end();
-          return;
-        }
-      }
-      next();
-    });
-  }
-});
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
@@ -35,7 +12,7 @@ export default defineConfig(({ mode }) => {
         port: 3000,
         host: '0.0.0.0',
       },
-      plugins: [hashRouterRedirect(), react()],
+      plugins: [tailwindcss(), react()],
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
@@ -68,6 +45,13 @@ export default defineConfig(({ mode }) => {
             chunkFileNames: isProd ? 'assets/[hash].js' : 'assets/[name]-[hash].js',
             entryFileNames: isProd ? 'assets/[hash].js' : 'assets/[name]-[hash].js',
             assetFileNames: isProd ? 'assets/[hash].[ext]' : 'assets/[name]-[hash].[ext]',
+            // Split heavy vendor libs into separate cacheable chunks
+            manualChunks: {
+              'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage', 'firebase/analytics'],
+              'vendor-router': ['react-router-dom'],
+              'vendor-charts': ['recharts'],
+              'vendor-icons': ['lucide-react'],
+            },
           },
         },
       },

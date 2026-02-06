@@ -2713,7 +2713,7 @@ const NewOSYSDashboard: React.FC = () => {
                       <div className="flex items-center gap-2 flex-wrap mt-1.5">
                         {player.athleteUsername && (
                           <a
-                            href={`/#/athlete/${player.athleteUsername}`}
+                            href={`/athlete/${player.athleteUsername}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className={`text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -3075,7 +3075,7 @@ const NewOSYSDashboard: React.FC = () => {
             {!registrationsCollapsed && (
               <div className="mt-4 space-y-3">
                 {sportFilteredRegistrations.slice(0, 5).map(reg => {
-                  const registrationUrl = `${window.location.origin}/#/register/${teamData.programId}/${reg.id}`;
+                  const registrationUrl = `${window.location.origin}/register/${teamData.programId}/${reg.id}`;
                   return (
                     <div 
                       key={reg.id}
@@ -3513,14 +3513,14 @@ const NewOSYSDashboard: React.FC = () => {
                         <input 
                           type="text"
                           readOnly
-                          value={`${window.location.origin}/#/register/${season.id}`}
+                          value={`${window.location.origin}/register/${season.id}`}
                           className={`flex-1 text-xs truncate bg-transparent border-none outline-none ${
                             theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'
                           }`}
                         />
                         <button
                           onClick={() => {
-                            const link = `${window.location.origin}/#/register/${season.id}`;
+                            const link = `${window.location.origin}/register/${season.id}`;
                             navigator.clipboard.writeText(link);
                             setCopiedSeasonLink(season.id);
                             setTimeout(() => setCopiedSeasonLink(null), 2000);
@@ -3553,7 +3553,7 @@ const NewOSYSDashboard: React.FC = () => {
                   {(season.status === 'setup' || season.status === 'registration_open') && (
                     <button
                       onClick={() => {
-                        const registrationLink = `${window.location.origin}/#/register/${season.id}`;
+                        const registrationLink = `${window.location.origin}/register/${season.id}`;
                         navigate('/design', { 
                           state: { 
                             registrationData: {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { X, Search, AlertCircle, CheckCircle, AlertTriangle, Info } from 'lucide-react';
 
 // ============================================
@@ -11,18 +11,20 @@ interface OSYSInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   wrapperClassName?: string;
 }
 
-export const OSYSInput: React.FC<OSYSInputProps> = ({
+export const OSYSInput = React.forwardRef<HTMLInputElement, OSYSInputProps>(({
   label,
   error,
   icon,
   className = '',
   wrapperClassName = '',
+  id,
   ...props
-}) => {
+}, ref) => {
+  const inputId = id || (label ? `osys-input-${label.toLowerCase().replace(/\s+/g, '-')}` : undefined);
   return (
     <div className={wrapperClassName}>
       {label && (
-        <label className="block text-sm font-medium text-slate-300 mb-1.5">{label}</label>
+        <label htmlFor={inputId} className="block text-sm font-medium text-slate-300 mb-1.5">{label}</label>
       )}
       <div className="relative">
         {icon && (
@@ -31,6 +33,8 @@ export const OSYSInput: React.FC<OSYSInputProps> = ({
           </div>
         )}
         <input
+          ref={ref}
+          id={inputId}
           className={`
             w-full bg-white/5 border border-white/10 rounded-lg 
             px-4 py-2.5 text-white placeholder-slate-500
@@ -40,18 +44,21 @@ export const OSYSInput: React.FC<OSYSInputProps> = ({
             ${error ? 'border-red-500/50 focus:ring-red-500/50' : ''}
             ${className}
           `}
+          aria-invalid={error ? 'true' : undefined}
+          aria-describedby={error && inputId ? `${inputId}-error` : undefined}
           {...props}
         />
       </div>
       {error && (
-        <p className="mt-1 text-sm text-red-400 flex items-center gap-1">
+        <p id={inputId ? `${inputId}-error` : undefined} role="alert" className="mt-1 text-sm text-red-400 flex items-center gap-1">
           <AlertCircle className="w-3 h-3" />
           {error}
         </p>
       )}
     </div>
   );
-};
+});
+OSYSInput.displayName = 'OSYSInput';
 
 // ============================================
 // OSYS TEXTAREA
@@ -196,6 +203,45 @@ export const OSYSModal: React.FC<OSYSModalProps> = ({
   size = 'md',
   showCloseButton = true
 }) => {
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  // Handle Escape key
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onClose();
+    }
+    // Focus trap
+    if (e.key === 'Tab' && modalRef.current) {
+      const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, [onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      previousFocusRef.current = document.activeElement as HTMLElement;
+      document.addEventListener('keydown', handleKeyDown);
+      // Focus the modal on open
+      setTimeout(() => modalRef.current?.focus(), 0);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    } else {
+      // Restore focus when closing
+      previousFocusRef.current?.focus();
+    }
+  }, [isOpen, handleKeyDown]);
+
   if (!isOpen) return null;
 
   const sizeClasses = {
@@ -212,24 +258,33 @@ export const OSYSModal: React.FC<OSYSModalProps> = ({
       <div 
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
+        aria-hidden="true"
       />
       
       {/* Modal */}
-      <div className={`
+      <div 
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title || 'Dialog'}
+        tabIndex={-1}
+        className={`
         relative w-full ${sizeClasses[size]}
         bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950
         border border-white/10 rounded-2xl shadow-2xl
         max-h-[90vh] overflow-hidden flex flex-col
+        outline-none
       `}>
         {/* Header */}
         {(title || showCloseButton) && (
           <div className="flex items-center justify-between p-4 border-b border-white/10">
             {title && (
-              <h3 className="text-lg font-semibold text-white">{title}</h3>
+              <h3 className="text-lg font-semibold text-white" id="modal-title">{title}</h3>
             )}
             {showCloseButton && (
               <button
                 onClick={onClose}
+                aria-label="Close dialog"
                 className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors ml-auto"
               >
                 <X className="w-5 h-5" />

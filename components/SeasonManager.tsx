@@ -280,8 +280,8 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
   const handleCopyRegistrationLink = async (season: Season) => {
     // Use the public event ID if available, otherwise use season ID
     const registrationUrl = season.publicEventId 
-      ? `${window.location.origin}/#/event/${season.publicEventId}`
-      : `${window.location.origin}/#/register/${season.id}`;
+      ? `${window.location.origin}/event/${season.publicEventId}`
+      : `${window.location.origin}/register/${season.id}`;
     
     try {
       await navigator.clipboard.writeText(registrationUrl);
@@ -967,7 +967,7 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                         {/* Username - clickable to profile */}
                         {player.athleteUsername && (
                           <a
-                            href={`/#/athlete/${player.athleteUsername}`}
+                            href={`/athlete/${player.athleteUsername}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className={`ml-2 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full transition-colors ${
@@ -1287,8 +1287,8 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                   type="text"
                   readOnly
                   value={currentSeason.publicEventId 
-                    ? `${window.location.origin}/#/event/${currentSeason.publicEventId}`
-                    : `${window.location.origin}/#/register/${currentSeason.id}`}
+                    ? `${window.location.origin}/event/${currentSeason.publicEventId}`
+                    : `${window.location.origin}/register/${currentSeason.id}`}
                   className={`flex-1 text-sm truncate bg-transparent border-none outline-none ${
                     theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'
                   }`}
@@ -1326,8 +1326,8 @@ const SeasonManager: React.FC<SeasonManagerProps> = ({
                 // Build registration link
                 const baseUrl = window.location.origin;
                 const registrationLink = currentSeason.registrationEventId 
-                  ? `${baseUrl}/#/events/${currentSeason.registrationEventId}/register`
-                  : `${baseUrl}/#/register/${teamId}/${currentSeason.id}`;
+                  ? `${baseUrl}/events/${currentSeason.registrationEventId}/register`
+                  : `${baseUrl}/register/${teamId}/${currentSeason.id}`;
                 
                 onNavigateToDesignStudio?.({
                   seasonId: currentSeason.id,

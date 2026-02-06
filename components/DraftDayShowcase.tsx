@@ -1281,7 +1281,7 @@ export const DraftDayShowcase: React.FC = () => {
                 </p>
                 <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
                   <a 
-                    href="/#/progress"
+                    href="/progress"
                     className="inline-flex items-center justify-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-400 hover:to-pink-400 rounded-xl text-white font-bold text-base sm:text-lg transition-all hover:scale-105 shadow-xl shadow-orange-500/30"
                   >
                     View Development Progress
@@ -1289,7 +1289,7 @@ export const DraftDayShowcase: React.FC = () => {
                     <ArrowRight size={20} className="hidden sm:block" />
                   </a>
                   <a 
-                    href="/#/"
+                    href="/"
                     className="inline-flex items-center justify-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-xl text-white font-bold text-base sm:text-lg transition-all"
                   >
                     Back to OSYS Home

@@ -612,26 +612,38 @@ export async function useFeature(
       };
     }
     
-    // If free period or pilot user, just track usage
+    // If free period or pilot user, just track usage (in transaction for safety)
     if (canUseResult.isFreePeriod || canUseResult.isPilotUser) {
-      const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, {
-        [`featureUsage.${feature}.totalUses`]: increment(1),
-        [`featureUsage.${feature}.lastUsedAt`]: serverTimestamp(),
+      await runTransaction(db, async (transaction) => {
+        const userRef = doc(db, 'users', userId);
+        transaction.update(userRef, {
+          [`featureUsage.${feature}.totalUses`]: increment(1),
+          [`featureUsage.${feature}.lastUsedAt`]: serverTimestamp(),
+        });
       });
       return { success: true, creditsUsed: 0 };
     }
     
-    // If has free uses remaining
+    // If has free uses remaining (transaction to prevent double-spend)
     if (canUseResult.freeUsesRemaining && canUseResult.freeUsesRemaining > 0) {
-      const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, {
-        [`featureUsage.${feature}.totalUses`]: increment(1),
-        [`featureUsage.${feature}.freeUsesRemaining`]: increment(-1),
-        [`featureUsage.${feature}.lastUsedAt`]: serverTimestamp(),
-        [`featureUsage.${feature}.lastFreeResetAt`]: serverTimestamp(),
+      return await runTransaction(db, async (transaction) => {
+        const userRef = doc(db, 'users', userId);
+        const snap = await transaction.get(userRef);
+        const data = snap.data();
+        const remaining = data?.featureUsage?.[feature]?.freeUsesRemaining ?? canUseResult.freeUsesRemaining!;
+        
+        if (remaining <= 0) {
+          throw new Error('No free uses remaining');
+        }
+        
+        transaction.update(userRef, {
+          [`featureUsage.${feature}.totalUses`]: increment(1),
+          [`featureUsage.${feature}.freeUsesRemaining`]: increment(-1),
+          [`featureUsage.${feature}.lastUsedAt`]: serverTimestamp(),
+          [`featureUsage.${feature}.lastFreeResetAt`]: serverTimestamp(),
+        });
+        return { success: true, creditsUsed: 0 };
       });
-      return { success: true, creditsUsed: 0 };
     }
     
     // Deduct credits

@@ -159,7 +159,7 @@ export const LeagueSignup: React.FC = () => {
         // Dispatch sport change event to trigger league reload in AuthContext
         window.dispatchEvent(new CustomEvent('commissioner-sport-changed', { detail: selectedSport.charAt(0).toUpperCase() + selectedSport.slice(1) }));
         // Force page reload to update user context
-        window.location.href = '/#/league';
+        window.location.href = '/league';
       }, 2000);
       
     } catch (err: any) {

@@ -2482,8 +2482,7 @@ export const CommissionerDashboard: React.FC = () => {
                     <div className="mt-4 space-y-3">
                       {filteredRegistrations.slice(0, 3).map(reg => {
                         const statusInfo = getRegistrationStatusInfo(reg.status);
-                        // Use hash for HashRouter compatibility
-                        const registrationUrl = `${window.location.origin}/#/register/${programData?.id}/${reg.id}`;
+                        const registrationUrl = `${window.location.origin}/register/${programData?.id}/${reg.id}`;
                         return (
                           <div 
                             key={reg.id}
@@ -2755,7 +2754,7 @@ export const CommissionerDashboard: React.FC = () => {
                         <div className="mt-4 space-y-3">
                           {filteredRegistrations.slice(0, 3).map(reg => {
                             const statusInfo = getRegistrationStatusInfo(reg.status);
-                            const registrationUrl = `${window.location.origin}/#/register/${programData?.id}/${reg.id}`;
+                            const registrationUrl = `/register/${programData?.id}/${reg.id}`;
                             return (
                               <div 
                                 key={reg.id}
@@ -3135,7 +3134,7 @@ export const CommissionerDashboard: React.FC = () => {
                         <div className="mt-4 space-y-3">
                           {filteredRegistrations.slice(0, 3).map(reg => {
                             const statusInfo = getRegistrationStatusInfo(reg.status);
-                            const registrationUrl = `${window.location.origin}/#/register/${programData?.id}/${reg.id}`;
+                            const registrationUrl = `/register/${programData?.id}/${reg.id}`;
                             return (
                               <div 
                                 key={reg.id}

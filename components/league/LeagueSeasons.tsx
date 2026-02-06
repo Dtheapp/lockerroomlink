@@ -764,7 +764,7 @@ function CreateSeasonModal({ leagueId, leagueAgeGroups, onClose, onCreated, them
                 Cancel
               </button>
               <a
-                href="/#/league/settings"
+                href="/league/settings"
                 className="px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white rounded-xl font-medium"
               >
                 Go to Settings

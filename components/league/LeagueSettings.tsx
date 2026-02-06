@@ -236,7 +236,7 @@ export default function LeagueSettings() {
 
   // Use username for pretty URL if set, otherwise use league ID
   const publicUrl = leagueData 
-    ? `${window.location.origin}/#/league/${username || leagueData.id}` 
+    ? `${window.location.origin}/league/${username || leagueData.id}` 
     : '';
 
   const copyPublicUrl = () => {
@@ -499,7 +499,7 @@ export default function LeagueSettings() {
                   <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-sm ${
                     theme === 'dark' ? 'text-slate-500' : 'text-slate-400'
                   }`}>
-                    {window.location.origin}/#/league/
+                    {window.location.origin}/league/
                   </span>
                   <input
                     type="text"

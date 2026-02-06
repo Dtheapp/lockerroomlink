@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useState, useEffect, ComponentType } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { UnsavedChangesProvider } from './contexts/UnsavedChangesContext';
@@ -248,13 +248,6 @@ const AppContent: React.FC = () => {
     }
   }, [userData, passwordChangeComplete]);
 
-  // Debug logging for SuperAdmin issues
-  console.log('AppContent Debug:', { 
-    user: user?.email, 
-    userData: userData ? { role: userData.role, name: userData.name, uid: userData.uid, mustChangePassword: (userData as any).mustChangePassword } : null, 
-    loading 
-  });
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-white dark:bg-black">
@@ -289,7 +282,7 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <HashRouter>
+    <BrowserRouter>
       <UnsavedChangesProvider>
       <Suspense fallback={<PageLoader />}>
         <Routes>
@@ -494,7 +487,7 @@ const AppContent: React.FC = () => {
         </Routes>
       </Suspense>
       </UnsavedChangesProvider>
-    </HashRouter>
+    </BrowserRouter>
   );
 };
 

@@ -2450,7 +2450,7 @@ export const ProgressPage: React.FC = () => {
           <p>Last Updated: {new Date().toLocaleDateString()}</p>
           <p className="mt-1">Data sourced from PROGRESS.md, FEATURE_ROADMAP.md, PRODUCTION_CHECKLIST.md, REVENUE_PROJECTIONS.md</p>
           <a 
-            href="/#/compare" 
+            href="/compare" 
             className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-500 hover:to-pink-500 transition-all"
           >
             <BarChart3 size={16} />

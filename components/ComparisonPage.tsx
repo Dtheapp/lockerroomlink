@@ -935,7 +935,7 @@ const ComparisonPage: React.FC = () => {
             Stop juggling 6+ apps. Join the platform that does it all.
           </p>
           <a
-            href="/#/auth?signup=true"
+            href="/auth?signup=true"
             className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-xl transition-all transform hover:scale-105"
           >
             <Zap className="w-5 h-5" />

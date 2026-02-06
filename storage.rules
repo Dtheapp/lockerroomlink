@@ -98,6 +98,12 @@ service firebase.storage {
       allow write: if isAuthenticated();
     }
     
+    // Program assets (logos, banners, etc)
+    match /programs/{programId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
     // Default: deny all other paths
     match /{allPaths=**} {
       allow read: if false;

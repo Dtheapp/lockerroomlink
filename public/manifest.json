@@ -32,17 +32,17 @@
   "shortcuts": [
     {
       "name": "Dashboard",
-      "url": "/#/dashboard",
+      "url": "/dashboard",
       "description": "Go to Dashboard"
     },
     {
       "name": "Team Chat",
-      "url": "/#/chat",
+      "url": "/chat",
       "description": "Open Team Chat"
     },
     {
       "name": "Roster",
-      "url": "/#/roster",
+      "url": "/roster",
       "description": "View Team Roster"
     }
   ]

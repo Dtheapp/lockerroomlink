@@ -352,14 +352,16 @@ service cloud.firestore {
           // Anyone authenticated can read draft pool entries
           allow read: if isAuthenticated();
           
-          // Anyone authenticated can create entries (parent registering child)
-          allow create: if isAuthenticated();
+          // Authenticated users can create entries (parent registering child)
+          // Verify the registering user matches the auth uid
+          allow create: if isAuthenticated() && 
+            request.resource.data.registeredByUserId == request.auth.uid;
           
-          // Commissioners, coaches or admin can update entries (draft operations)
-          allow update: if isAuthenticated();
+          // Only commissioners or admin can update entries (draft operations, payment status)
+          allow update: if canManageProgram(programId) || isAdmin();
           
-          // Commissioners, coaches or admin can delete entries (decline players)
-          allow delete: if isAuthenticated();
+          // Only commissioners or admin can delete entries (decline players)
+          allow delete: if canManageProgram(programId) || isAdmin();
         }
         
         // =============================================================================
@@ -2100,13 +2102,14 @@ service cloud.firestore {
         allow read: if isAuthenticated();
         
         // System creates entries via registration (authenticated users)
-        allow create: if isAuthenticated();
+        allow create: if isAuthenticated() && 
+          request.resource.data.registeredByUserId == request.auth.uid;
         
-        // Commissioners, coaches and admins can update (for draft operations)
-        allow update: if isAuthenticated();
+        // Only event owner or admin can update (for draft operations)
+        allow update: if isUser(resource.data.ownerId) || isAdmin();
         
-        // Commissioners, coaches and admins can delete (decline players)
-        allow delete: if isAuthenticated();
+        // Only event owner or admin can delete (decline players)
+        allow delete: if isUser(resource.data.ownerId) || isAdmin();
       }
     }
     

@@ -1226,7 +1226,7 @@ const Dashboard: React.FC = () => {
                       <LinkIcon className="w-3 h-3 text-purple-400" />
                       <span className="text-xs text-purple-300 font-medium">Public Page:</span>
                       <span className="text-xs text-purple-400 font-mono truncate max-w-[200px]">
-                        osys.team/#/team/{teamData.id}
+                        osys.team/team/{teamData.id}
                       </span>
                     </div>
                     <button
@@ -1269,7 +1269,7 @@ const Dashboard: React.FC = () => {
                       <LinkIcon className="w-3 h-3 text-purple-400" />
                       <span className="text-xs text-purple-300 font-medium">Share Team Page:</span>
                       <span className="text-xs text-purple-400 font-mono truncate max-w-[200px]">
-                        osys.team/#/team/{teamData.id}
+                        osys.team/team/{teamData.id}
                       </span>
                     </div>
                     <button

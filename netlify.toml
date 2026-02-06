@@ -36,51 +36,7 @@
 [context.branch-deploy]
   command = "npm run build"
 
-# SPA fallback redirect (Netlify functions are automatically excluded)
-# Redirect non-hash URLs to hash URLs for HashRouter compatibility
-# This prevents double-URL issues when users access /register/... directly
-[[redirects]]
-  from = "/register/*"
-  to = "/#/register/:splat"
-  status = 301
-  force = true
-
-[[redirects]]
-  from = "/event/*"
-  to = "/#/event/:splat"
-  status = 301
-  force = true
-
-[[redirects]]
-  from = "/league/*"
-  to = "/#/league/:splat"
-  status = 301
-  force = true
-
-[[redirects]]
-  from = "/team/*"
-  to = "/#/team/:splat"
-  status = 301
-  force = true
-
-[[redirects]]
-  from = "/athlete/*"
-  to = "/#/athlete/:splat"
-  status = 301
-  force = true
-
-[[redirects]]
-  from = "/dashboard"
-  to = "/#/dashboard"
-  status = 301
-  force = true
-
-[[redirects]]
-  from = "/login"
-  to = "/#/login"
-  status = 301
-  force = true
-
+# SPA fallback — BrowserRouter serves all routes from index.html
 [[redirects]]
   from = "/*"
   to = "/index.html"

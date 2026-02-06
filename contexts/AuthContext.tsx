@@ -660,16 +660,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                         
                         try {
                             if (teamIdsList.length > 0) {
-                                // Fetch all teams at once
-                                const teamsSnapshot = await getDocs(collection(db, 'teams'));
+                                // Fetch only the specific teams this coach owns (not ALL teams)
+                                const teamPromises = teamIdsList.map(tid => getDoc(doc(db, 'teams', tid)));
+                                const teamSnapshots = await Promise.all(teamPromises);
                                 const allTeams: Team[] = [];
-                                teamsSnapshot.docs.forEach(teamDoc => {
-                                    if (teamIdsList.includes(teamDoc.id)) {
-                                        allTeams.push({ id: teamDoc.id, ...teamDoc.data() } as Team);
+                                teamSnapshots.forEach(teamSnap => {
+                                    if (teamSnap.exists()) {
+                                        allTeams.push({ id: teamSnap.id, ...teamSnap.data() } as Team);
                                     }
                                 });
-                                
-                                console.log('Loaded coach teams:', allTeams.map(t => t.name)); // Debug log
                                 
                                 // Set coach teams
                                 setCoachTeams(allTeams);

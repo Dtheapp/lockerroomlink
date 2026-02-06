@@ -514,7 +514,7 @@ export const TicketManager: React.FC<TicketManagerProps> = ({
             color: '#fbbf24',
             wordBreak: 'break-all'
           }}>
-            https://osys.team/#/event/{eventId}/tickets
+            https://osys.team/event/{eventId}/tickets
           </code>
         </div>
       )}

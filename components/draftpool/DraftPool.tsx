@@ -287,7 +287,7 @@ const DraftPool: React.FC<DraftPoolProps> = ({ teamId, teamOwnerId, sport, ageGr
                       {/* Username - clickable to public profile */}
                       {(entry as any).playerUsername && (
                         <a
-                          href={`/#/athlete/${(entry as any).playerUsername}`}
+                          href={`/athlete/${(entry as any).playerUsername}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full transition-colors ${

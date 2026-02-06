@@ -1762,7 +1762,7 @@ const Roster: React.FC = () => {
               <div className={`flex-1 sm:flex-none rounded px-3 py-2 text-xs truncate max-w-[220px] ${
                 theme === 'dark' ? 'bg-black/30 text-zinc-300 border border-white/10' : 'bg-zinc-100 text-zinc-600 border border-zinc-200'
               }`}>
-                osys.team/#/team/{teamData.id}
+                osys.team/team/{teamData.id}
               </div>
               <button
                 onClick={copyTeamLink}

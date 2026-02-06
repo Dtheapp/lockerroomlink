@@ -38,6 +38,13 @@ export const showToast = (
   
   const toast: Toast = { id, message, type, options };
   toasts.push(toast);
+  
+  // Cap at 5 toasts max — remove oldest when exceeded
+  const MAX_TOASTS = 5;
+  while (toasts.length > MAX_TOASTS) {
+    toasts.shift();
+  }
+  
   notifyListeners();
   
   // Auto-remove after duration

@@ -1,4 +1,4 @@
-import { Timestamp } from 'firebase/firestore';
+﻿import { Timestamp } from 'firebase/firestore';
 
 export type UserRole = 'Coach' | 'Parent' | 'Fan' | 'SuperAdmin' | 'LeagueOwner' | 'ProgramCommissioner' | 'Referee' | 'Commissioner' | 'Ref' | 'TeamCommissioner' | 'LeagueCommissioner' | 'Athlete';
 
@@ -586,9 +586,9 @@ export interface TeamEvent {
   type: 'Practice' | 'Game' | 'Other';
   location: string;
   description: string;
-  createdAt?: any;
+  createdAt?: Timestamp | Date;
   createdBy?: string;
-  updatedAt?: any;
+  updatedAt?: Timestamp | Date;
 }
 
 
@@ -729,10 +729,10 @@ export interface Season {
   gamesPlayed: number; // Games played this season
   
   // Metadata
-  createdAt: any;
+  createdAt: Timestamp | Date;
   createdBy: string;
-  updatedAt?: any;
-  endedAt?: any; // When season was ended (manual)
+  updatedAt?: Timestamp | Date;
+  endedAt?: Timestamp | Date; // When season was ended (manual)
   endedBy?: string;
 }
 
@@ -762,7 +762,7 @@ export interface SeasonRegistration {
   feePaid: boolean;
   feeAmount: number;
   paymentId?: string; // Reference to payment transaction
-  paidAt?: any;
+  paidAt?: Timestamp | Date;
   
   // Payment Plan fields
   isPaymentPlan?: boolean;             // True if using payment plan
@@ -771,25 +771,25 @@ export interface SeasonRegistration {
   paymentHistory?: {                   // History of all payments
     id: string;
     amount: number;
-    paidAt: any;
+    paidAt: Timestamp | Date;
     method: string;
     note?: string;
     recordedBy: string;
   }[];
-  lastPaymentAt?: any;                 // When last payment was made
-  lastPaymentReminderAt?: any;         // When last reminder was sent
+  lastPaymentAt?: Timestamp | Date;                 // When last payment was made
+  lastPaymentReminderAt?: Timestamp | Date;         // When last reminder was sent
   
   // Waiver
   waiverSigned: boolean;
-  waiverSignedAt?: any;
+  waiverSignedAt?: Timestamp | Date;
   waiverSignedBy?: string; // Parent name who signed
   
   // Custom field responses
   customFieldResponses?: { [fieldId: string]: string | boolean };
   
   // Metadata
-  registeredAt: any;
-  approvedAt?: any;
+  registeredAt: Timestamp | Date;
+  approvedAt?: Timestamp | Date;
   approvedBy?: string;
 }
 
@@ -840,7 +840,7 @@ export interface DraftPoolEntry {
   
   // Waiver
   waiverSigned: boolean;
-  waiverSignedAt?: any;
+  waiverSignedAt?: Timestamp | Date;
   waiverSignedBy?: string;
   
   // Emergency contact (required for youth)
@@ -868,7 +868,7 @@ export interface DraftPoolEntry {
   
   // Draft status
   status: 'waiting' | 'drafted' | 'declined' | 'expired';
-  draftedAt?: any;
+  draftedAt?: Timestamp | Date;
   draftedBy?: string;             // Coach/Commissioner who drafted
   draftedToTeamId?: string;       // Team they were drafted to
   draftedToTeamName?: string;
@@ -882,9 +882,9 @@ export interface DraftPoolEntry {
   notes?: string;                 // Parent/athlete notes
   
   // Timestamps
-  createdAt: any;
-  updatedAt?: any;
-  expiresAt?: any;                // Optional expiration
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
+  expiresAt?: Timestamp | Date;                // Optional expiration
 }
 
 // Summary view for draft pool display
@@ -1711,8 +1711,8 @@ export interface LiveStream {
   cameraAngle: CameraAngle | string; // Allow preset or custom
   visibility: 'public' | 'team';
   isLive: boolean;
-  startedAt: any; // Timestamp
-  endedAt?: any; // Timestamp | null
+  startedAt: Timestamp | Date; // Timestamp
+  endedAt?: Timestamp | Date; // Timestamp | null
   // For saving to video library after stream ends
   savedToLibrary?: boolean;
   videoId?: string; // Reference to saved video if applicable
@@ -1729,8 +1729,8 @@ export interface TeamHistoryEntry {
   seasonId?: string;
   seasonYear?: number;
   ageGroup?: string;
-  joinedAt: any; // Timestamp
-  leftAt?: any; // Timestamp (null if still active)
+  joinedAt: Timestamp | Date; // Timestamp
+  leftAt?: Timestamp | Date; // Timestamp (null if still active)
   status: 'active' | 'released' | 'transferred' | 'season_ended';
 }
 
@@ -1773,7 +1773,7 @@ export interface Player {
   
   // Released Player (independent account)
   released?: boolean; // True when parent releases player to their own account
-  releasedAt?: any; // Timestamp when released
+  releasedAt?: Timestamp | Date; // Timestamp when released
   releasedUid?: string; // Firebase Auth UID for the released player's account
   forceAccountSetup?: boolean; // True until player sets their own email/password
   
@@ -1822,7 +1822,7 @@ export interface AthleteKudos {
   category: KudosCategory;
   amount: number; // Kudos points given (1-5)
   message?: string; // Optional message with kudos
-  createdAt: any;
+  createdAt: Timestamp | Date;
 }
 
 export interface KudosCategoryInfo {
@@ -1927,8 +1927,8 @@ export interface Formation {
   coachName?: string;
   systemFormationId?: string; // If imported from system playbook
   isSystemFormation?: boolean; // True if imported from system
-  createdAt: any;
-  updatedAt?: any;
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
 }
 
 // Coach's personal play (stored in users/{coachId}/plays)
@@ -1948,8 +1948,8 @@ export interface CoachPlay {
   thumbnailUrl?: string;
   systemPlayId?: string; // If imported from system playbook (for auto-sync)
   isSystemPlay?: boolean; // True if imported from system (read-only)
-  createdAt: any;
-  updatedAt?: any;
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
   coachId: string; // Owner coach ID
   coachName?: string; // For display
 }
@@ -1961,7 +1961,7 @@ export interface TeamPlayAssignment {
   playId: string; // Reference to coach's play ID
   coachId: string; // Which coach's play this references
   category: 'Offense' | 'Defense' | 'Special Teams';
-  assignedAt: any;
+  assignedAt: Timestamp | Date;
   assignedBy: string; // Coach UID who assigned it
   assignedByName?: string;
 }
@@ -1977,7 +1977,7 @@ export interface PositionAssignment {
   secondaryPlayerId?: string; // Second string player (backup)
   secondaryPlayerName?: string;
   secondaryPlayerNumber?: number;
-  updatedAt?: any;
+  updatedAt?: Timestamp | Date;
   updatedBy?: string;
 }
 
@@ -1990,7 +1990,7 @@ export interface Play {
   routes: PlayRoute[]; 
   notes?: string;
   thumbnailUrl?: string;
-  createdAt: any;
+  createdAt: Timestamp | Date;
 }
 
 // ============================================
@@ -2007,8 +2007,8 @@ export interface SystemFormation {
   notes?: string;
   createdBy: string; // Admin UID
   createdByName?: string;
-  createdAt: any;
-  updatedAt?: any;
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
 }
 
 // System Play - admin-created play template
@@ -2028,8 +2028,8 @@ export interface SystemPlay {
   notes?: string;
   createdBy: string; // Admin UID
   createdByName?: string;
-  createdAt: any;
-  updatedAt?: any;
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
 }
 
 // System Playbook - collection of plays that coaches can import
@@ -2045,8 +2045,8 @@ export interface SystemPlaybook {
   playCount: number; // Denormalized count
   createdBy: string; // Admin UID
   createdByName?: string;
-  createdAt: any;
-  updatedAt?: any;
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
   isPublished: boolean; // Only published playbooks are visible to coaches
 }
 
@@ -2057,7 +2057,7 @@ export interface ImportedPlaybook {
   playbookId: string; // Reference to SystemPlaybook
   playbookName: string; // Denormalized
   category: 'Offense' | 'Defense' | 'Special Teams';
-  importedAt: any;
+  importedAt: Timestamp | Date;
   // Track which plays from this playbook the coach has removed from their view
   removedPlayIds?: string[];
 }
@@ -2088,7 +2088,7 @@ export interface Video {
   // For live stream videos
   isLive?: boolean;
   // Metadata
-  createdAt?: any;
+  createdAt?: Timestamp | Date;
   createdBy?: string;
   description?: string;
 }
@@ -2102,7 +2102,7 @@ export interface PlayerFilmEntry {
   youtubeId: string;
   category: VideoCategory;
   description?: string;
-  taggedAt: any; // When the player was tagged in this video
+  taggedAt: Timestamp | Date; // When the player was tagged in this video
   taggedBy?: string; // User ID who tagged this player
   teamName?: string; // Store team name for display
   sport?: SportType; // Sport this film is for (football, basketball, etc.)
@@ -2120,7 +2120,7 @@ export interface PrivateChat {
   };
   lastMessage: string;
   lastMessageTime: Timestamp;
-  updatedAt: any; 
+  updatedAt: Timestamp | Date; 
 }
 
 export interface PrivateMessage {
@@ -2180,8 +2180,8 @@ export interface Game {
   awayTeamId?: string;
   homeScore?: number;
   awayScore?: number;
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
   createdBy?: string;
 }
 
@@ -2229,8 +2229,8 @@ export interface GamePlayerStats {
   spts: number;
   
   // Metadata
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
   updatedBy?: string;
 }
 
@@ -2277,8 +2277,8 @@ export interface PlayerSeasonStats {
   spts: number;      // Sportsmanship Points
   
   // Metadata
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
   updatedBy?: string;
 }
 
@@ -2292,8 +2292,8 @@ export interface PlayerCareerStats {
   totalTds: number;
   totalYards: number;
   totalTackles: number;
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
 }
 
 export interface PlayerSeasonSummary {
@@ -2320,7 +2320,7 @@ export interface CoachKudos {
   teamId: string;
   teamName: string;
   message?: string; // Optional short thank you message
-  createdAt: any;
+  createdAt: Timestamp | Date;
 }
 
 // Private feedback to admins (concerns)
@@ -2338,8 +2338,8 @@ export interface CoachFeedback {
   message: string;
   status: 'new' | 'reviewed' | 'resolved';
   adminNotes?: string;
-  createdAt: any;
-  reviewedAt?: any;
+  createdAt: Timestamp | Date;
+  reviewedAt?: Timestamp | Date;
   reviewedBy?: string;
 }
 
@@ -2359,7 +2359,7 @@ export interface PlayerStats {
   int: number;
   ff: number;
   spts: number;
-  updatedAt: any;
+  updatedAt: Timestamp | Date;
   updatedBy?: string;
 }
 
@@ -2432,7 +2432,7 @@ export interface PublicChatMessage {
   senderUsername: string;
   senderRole: 'Fan' | 'Parent' | 'Athlete'; // Who sent the message
   senderPhotoUrl?: string;
-  timestamp: any; // Timestamp
+  timestamp: Timestamp | Date; // Timestamp
   // For "Chat As Athlete" feature - parent chatting as their child
   isAthletePost?: boolean;
   athleteId?: string;
@@ -2440,7 +2440,7 @@ export interface PublicChatMessage {
   // Moderation
   isDeleted?: boolean;
   deletedBy?: string;
-  deletedAt?: any;
+  deletedAt?: Timestamp | Date;
   // Reply support
   replyTo?: {
     id: string;
@@ -2465,9 +2465,9 @@ export interface PublicChatMutedUser {
   odusername: string;
   mutedBy: string;
   mutedByName: string;
-  mutedAt: any; // Timestamp
+  mutedAt: Timestamp | Date; // Timestamp
   reason?: string;
-  expiresAt?: any; // Timestamp, null = permanent
+  expiresAt?: Timestamp | Date; // Timestamp, null = permanent
 }
 
 // --- ATHLETE POSTS (Fan Feature Phase 3) ---
@@ -2485,8 +2485,8 @@ export interface AthletePost {
   athleteName: string;
   athletePhotoUrl?: string;
   // Metadata
-  createdAt: any; // Timestamp
-  updatedAt?: any;
+  createdAt: Timestamp | Date; // Timestamp
+  updatedAt?: Timestamp | Date;
   // Engagement
   likes: string[]; // Array of user IDs who liked
   likeCount: number;
@@ -2511,7 +2511,7 @@ export interface PostComment {
   athleteId?: string;
   athleteName?: string;
   // Metadata
-  createdAt: any; // Timestamp
+  createdAt: Timestamp | Date; // Timestamp
   // Engagement
   likes: string[];
   likeCount: number;
@@ -2543,7 +2543,7 @@ export interface FanClip {
   athleteId: string;
   athleteName: string;
   // Metadata
-  createdAt: any;
+  createdAt: Timestamp | Date;
   // Engagement
   likes: string[];
   likeCount: number;
@@ -2575,7 +2575,7 @@ export interface CoachChatMessage {
   senderUsername?: string;
   senderRole: string;
   senderPhotoUrl?: string;
-  timestamp: any;
+  timestamp: Timestamp | Date;
   // Moderation
   isDeleted?: boolean;
   // Reply
@@ -2606,8 +2606,8 @@ export interface CoachAnnouncement {
   content: string;
   authorId: string;
   authorName: string;
-  createdAt: any;
-  updatedAt?: any;
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
   isPinned?: boolean;
   // Engagement
   likes: string[];
@@ -2624,9 +2624,9 @@ export interface CoachMutedUser {
   odusername: string;
   mutedBy: string;
   mutedByName: string;
-  mutedAt: any;
+  mutedAt: Timestamp | Date;
   reason?: string;
-  expiresAt?: any;
+  expiresAt?: Timestamp | Date;
 }
 
 // ============================================

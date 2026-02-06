@@ -77,7 +77,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   };
 
   handleGoHome = () => {
-    window.location.href = '/#/dashboard';
+    window.location.href = '/dashboard';
     window.location.reload();
   };
 

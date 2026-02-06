@@ -231,8 +231,7 @@ export const CommissionerRegistrations: React.FC = () => {
   };
   
   const copyRegistrationLink = (reg: ProgramRegistration) => {
-    // Use hash for HashRouter compatibility
-    const link = `${window.location.origin}/#/register/${programData?.id}/${reg.id}`;
+    const link = `${window.location.origin}/register/${programData?.id}/${reg.id}`;
     navigator.clipboard.writeText(link);
     toastSuccess('Registration link copied!');
   };

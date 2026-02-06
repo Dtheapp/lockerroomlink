@@ -1297,7 +1297,7 @@ const Profile: React.FC = () => {
                       <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Share this link with parents and loved ones so they can view your public coach profile.</p>
                       <div className="flex items-center gap-2">
                         <div className="flex-1 bg-white dark:bg-zinc-800 rounded px-3 py-2 text-sm text-slate-600 dark:text-slate-300 truncate border border-purple-200 dark:border-purple-800">
-                          osys.team/#/coach/{userData.username}
+                          osys.team/coach/{userData.username}
                         </div>
                         <button
                           onClick={copyCoachPublicLink}
@@ -1643,7 +1643,7 @@ const Profile: React.FC = () => {
                                     </p>
                                     <div className="flex items-center gap-2">
                                       <div className="flex-1 bg-white dark:bg-zinc-800 rounded px-2 py-1.5 text-xs text-slate-600 dark:text-slate-300 truncate border border-purple-200 dark:border-purple-800">
-                                        osys.team/#/athlete/{player.username}
+                                        osys.team/athlete/{player.username}
                                       </div>
                                       <button
                                         onClick={(e) => { e.stopPropagation(); copyPublicLink(player); }}
@@ -2133,7 +2133,7 @@ const Profile: React.FC = () => {
                                   Contact the league commissioner for more information or to re-apply.
                                 </p>
                                 <a
-                                  href="/#/events"
+                                  href="/events"
                                   className="inline-flex items-center gap-2 px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium"
                                 >
                                   <Plus className="w-4 h-4" />
@@ -2163,7 +2163,7 @@ const Profile: React.FC = () => {
                                 {notRegisteredMessage}
                               </p>
                               <a
-                                href="/#/events"
+                                href="/events"
                                 className="inline-flex items-center gap-2 px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
                               >
                                 <Plus className="w-4 h-4" />
