@@ -483,7 +483,7 @@ const Profile: React.FC = () => {
         videoId: `parent-upload-${Date.now()}`, // Parent-uploaded film, no video document reference
         youtubeId,
         title: newFilmForm.title.trim(),
-        description: newFilmForm.description.trim() || undefined,
+        description: newFilmForm.description.trim() || '',
         category: newFilmForm.category,
         teamId: athlete.teamId,
         teamName,
@@ -827,13 +827,11 @@ const Profile: React.FC = () => {
       // Calculate age group from DOB using Sept 10 cutoff
       const calculatedAgeGroup = calculateAgeGroup(newAthleteForm.dob);
       
-      const playerData = {
+      const playerData: Record<string, any> = {
         firstName: newAthleteForm.firstName.trim(),
         lastName: newAthleteForm.lastName.trim(),
-        nickname: newAthleteForm.nickname?.trim() || undefined,
         name: `${newAthleteForm.firstName.trim()} ${newAthleteForm.lastName.trim()}`,
         gender: newAthleteForm.gender,
-        ageGroup: calculatedAgeGroup || undefined, // e.g., "9U", "10U"
         username: formatUsername(newAthleteForm.username),
         dob: newAthleteForm.dob,
         teamId: null, // Players start unassigned - they register to teams separately
@@ -850,6 +848,10 @@ const Profile: React.FC = () => {
         status: 'unassigned', // Mark as unassigned - ready to register to a team
         createdAt: new Date().toISOString()
       };
+      
+      // Only include optional fields if they have values (Firestore rejects undefined)
+      if (newAthleteForm.nickname?.trim()) playerData.nickname = newAthleteForm.nickname.trim();
+      if (calculatedAgeGroup) playerData.ageGroup = calculatedAgeGroup;
       
       // Save to top-level players collection (not under a team)
       await addDoc(collection(db, 'players'), playerData);

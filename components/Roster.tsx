@@ -399,15 +399,18 @@ const Roster: React.FC = () => {
       const playerData: any = {
         firstName: sanitizeText(newPlayer.firstName, 50),
         lastName: sanitizeText(newPlayer.lastName, 50),
-        nickname: sanitizeText(newPlayer.nickname, 30) || undefined,
-        gender: newPlayer.gender || undefined,
-        ageGroup: calculatedAgeGroup || undefined, // e.g., "9U", "10U"
         name: sanitizeText(`${newPlayer.firstName} ${newPlayer.lastName}`.trim(), 100),
         dob: sanitizeDate(newPlayer.dob),
         teamId: targetTeamId,
-        parentId: isParent ? userData?.uid : undefined,
         medical: { allergies: 'None', conditions: 'None', medications: 'None', bloodType: '' }
       };
+      
+      // Only include optional fields if they have values (Firestore rejects undefined)
+      const nicknameSanitized = sanitizeText(newPlayer.nickname, 30);
+      if (nicknameSanitized) playerData.nickname = nicknameSanitized;
+      if (newPlayer.gender) playerData.gender = newPlayer.gender;
+      if (calculatedAgeGroup) playerData.ageGroup = calculatedAgeGroup;
+      if (isParent && userData?.uid) playerData.parentId = userData.uid;
       
       // Combine height ft/in into formatted string
       const heightStr = newPlayer.heightFt || newPlayer.heightIn 
@@ -751,7 +754,6 @@ const Roster: React.FC = () => {
         name: selectedPlayerToAdd.name,
         username: selectedPlayerToAdd.username,
         dob: selectedPlayerToAdd.dob,
-        ageGroup: ageGroup || undefined, // e.g., "9U", "10U"
         teamId: teamData.id,
         parentId: selectedPlayerToAdd.parentId,
         parentUserId: selectedPlayerToAdd.parentId, // Alias for compatibility
@@ -768,6 +770,9 @@ const Roster: React.FC = () => {
         position: 'TBD',
         stats: { td: 0, tkl: 0 }
       };
+      
+      // Only include ageGroup if it has a value (Firestore rejects undefined)
+      if (ageGroup) playerData.ageGroup = ageGroup;
       
       await addDoc(collection(db, 'teams', teamData.id, 'players'), playerData);
       
