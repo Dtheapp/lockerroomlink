@@ -45,7 +45,8 @@ import {
   StopCircle,
   List,
   Radio,
-  ExternalLink
+  ExternalLink,
+  X
 } from 'lucide-react';
 
 // Opponent team data cache type
@@ -932,7 +933,22 @@ const GameDayHub: React.FC<GameDayHubProps> = ({
                   >
                     <div className="flex items-center gap-3">
                       {game.status === 'live' && <Radio className="w-4 h-4 text-red-500 animate-pulse" />}
-                      {game.status === 'completed' && <Trophy className="w-4 h-4 text-green-500" />}
+                      {game.status === 'completed' && (() => {
+                        // Determine win/loss/tie for icon
+                        let isHome = false;
+                        if (game.homeTeamId && teamData?.id) {
+                          isHome = game.homeTeamId === teamData.id;
+                        } else if (game.awayTeamId && teamData?.id) {
+                          isHome = game.awayTeamId !== teamData.id;
+                        } else {
+                          isHome = game.isHome ?? false;
+                        }
+                        const teamScore = isHome ? (game.homeScore ?? 0) : (game.awayScore ?? 0);
+                        const oppScore = isHome ? (game.awayScore ?? 0) : (game.homeScore ?? 0);
+                        if (teamScore > oppScore) return <Trophy className="w-4 h-4 text-green-500" />;
+                        if (teamScore < oppScore) return <X className="w-4 h-4 text-red-500" />;
+                        return <Minus className="w-4 h-4 text-yellow-500" />;
+                      })()}
                       {game.status !== 'live' && game.status !== 'completed' && <Calendar className="w-4 h-4 text-slate-400" />}
                       <div className="text-left">
                         <div className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
