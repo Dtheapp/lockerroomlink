@@ -237,15 +237,45 @@ export default function CommissionerLeagues() {
       setPendingRequestLeagueIds(pendingIds);
       
       // Check for active/open seasons (block league join if season is running)
+      // Must check dates client-side because "In Season" is determined by date range,
+      // not just the status field (which may still be 'setup' or 'registration_open')
       try {
         const seasonsQuery = query(
-          collection(db, 'programs', programId, 'seasons'),
-          where('status', 'in', ['active', 'upcoming', 'open'])
+          collection(db, 'programs', programId, 'seasons')
         );
         const seasonsSnap = await getDocs(seasonsQuery);
-        if (!seasonsSnap.empty) {
+        const now = new Date();
+        
+        const activeSeason = seasonsSnap.docs.find(d => {
+          const data = d.data();
+          // Skip explicitly completed seasons
+          if (data.status === 'completed') return false;
+          
+          // Check if season end date has passed
+          const seasonEnd = data.seasonEndDate ? new Date(data.seasonEndDate) : null;
+          if (seasonEnd && now > seasonEnd) return false;
+          
+          // Check if status is explicitly active
+          if (data.status === 'active') return true;
+          
+          // Check if current date is within season date range (date-based "In Season")
+          const seasonStart = data.seasonStartDate ? new Date(data.seasonStartDate) : null;
+          if (seasonStart && now >= seasonStart && (!seasonEnd || now <= seasonEnd)) return true;
+          
+          // Check if registration is still open (season hasn't completed)
+          const regOpen = data.registrationOpenDate ? new Date(data.registrationOpenDate) : null;
+          const regClose = data.registrationCloseDate ? new Date(data.registrationCloseDate) : null;
+          if (regOpen && now >= regOpen && (!regClose || now <= regClose)) return true;
+          
+          // Any non-completed season with a status that implies it's in progress
+          if (['setup', 'registration_open', 'registration', 'drafting', 'closed'].includes(data.status)) return true;
+          
+          return false;
+        });
+        
+        if (activeSeason) {
           setHasActiveSeason(true);
-          const seasonData = seasonsSnap.docs[0].data();
+          const seasonData = activeSeason.data();
           setActiveSeasonName(seasonData.name || seasonData.seasonName || 'Current Season');
         } else {
           setHasActiveSeason(false);
