@@ -480,14 +480,14 @@ const NewOSYSDashboard: React.FC = () => {
     };
   }, [teamData?.id, teamData?.programId, programSeasons]);
 
-  // Fetch LEAGUE-MANAGED games from teams/{teamId}/games
+  // Fetch ALL games from teams/{teamId}/games (league-managed AND coach-created)
   useEffect(() => {
     if (!teamData?.id) {
       setLeagueGames([]);
       return;
     }
 
-    console.log('[NewOSYSDashboard] Loading league games from teams/', teamData.id, '/games');
+    console.log('[NewOSYSDashboard] Loading all team games from teams/', teamData.id, '/games');
 
     const gamesRef = collection(db, 'teams', teamData.id, 'games');
     const unsubscribeLeagueGames = onSnapshot(gamesRef, (snapshot) => {
@@ -495,11 +495,6 @@ const NewOSYSDashboard: React.FC = () => {
       
       snapshot.forEach(docSnap => {
         const data = docSnap.data();
-        
-        // Only include league-managed games (skip if already loaded from program)
-        if (!data.leagueManaged) {
-          return;
-        }
         
         // Parse game date
         let scheduledDate: Date | undefined;
@@ -524,7 +519,7 @@ const NewOSYSDashboard: React.FC = () => {
         games.push({
           id: docSnap.id,
           teamId: teamData.id,
-          source: 'league',
+          source: data.leagueManaged ? 'league' : 'team',
           opponent: data.opponent || 'TBD',
           isHome,
           week: data.week || 1,
@@ -536,7 +531,7 @@ const NewOSYSDashboard: React.FC = () => {
           awayScore: isHome ? opponentScore : ourScore,
           status: data.status || 'scheduled',
           leagueId: data.leagueId,
-          leagueManaged: true,
+          leagueManaged: data.leagueManaged || false,
           ageGroup: data.ageGroup,
           // Include quarter scores and current quarter for live scoring
           currentQuarter: data.currentQuarter || 1,
@@ -553,7 +548,7 @@ const NewOSYSDashboard: React.FC = () => {
         } as TeamGame);
       });
       
-      console.log('[NewOSYSDashboard] Loaded', games.length, 'league games for team', teamData.id);
+      console.log('[NewOSYSDashboard] Loaded', games.length, 'team games for team', teamData.id);
       setLeagueGames(games);
     }, (error) => {
       console.error('Error fetching league games:', error);
@@ -1660,9 +1655,24 @@ const NewOSYSDashboard: React.FC = () => {
     return 'Good evening';
   };
 
-  // Combine program games and league-managed games
+  // Combine program games and team games (dedup: skip team games that match a program game by opponent+date)
   const combinedGames = useMemo(() => {
-    return [...allGames, ...leagueGames];
+    if (allGames.length === 0) return [...leagueGames];
+    if (leagueGames.length === 0) return [...allGames];
+    
+    // Start with program games, then add non-duplicate team games
+    const combined = [...allGames];
+    leagueGames.forEach(tg => {
+      const isDuplicate = allGames.some(pg => {
+        // Same opponent on same date = likely the same game
+        const tgDate = tg.scheduledDate instanceof Date ? tg.scheduledDate.toISOString().split('T')[0] : '';
+        const pgDate = pg.scheduledDate instanceof Date ? pg.scheduledDate.toISOString().split('T')[0] : '';
+        return tgDate && pgDate && tgDate === pgDate && 
+               (tg.opponent?.toLowerCase() === pg.opponent?.toLowerCase());
+      });
+      if (!isDuplicate) combined.push(tg);
+    });
+    return combined;
   }, [allGames, leagueGames]);
 
   // Calculate team record from COMPLETED games only
