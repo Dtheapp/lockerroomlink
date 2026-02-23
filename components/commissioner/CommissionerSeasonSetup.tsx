@@ -523,7 +523,7 @@ export const CommissionerSeasonSetup: React.FC<Props> = ({ programId: propProgra
                       : 'bg-white border-gray-300 text-gray-900'
                   } focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
                 >
-                  {[2024, 2025, 2026, 2027].map(year => (
+                  {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() + i).map(year => (
                     <option key={year} value={year} className="bg-white text-black">{year}</option>
                   ))}
                 </select>
