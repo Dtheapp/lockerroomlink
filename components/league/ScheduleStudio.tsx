@@ -821,6 +821,36 @@ function WeekLane({
 }
 
 // ============================================================================
+// TIMEZONE-SAFE DATE HELPERS
+// ============================================================================
+
+/** Parse a YYYY-MM-DD string or Date as LOCAL midnight (avoids UTC shift) */
+const parseLocalDate = (value: string | Date | undefined): Date => {
+  if (!value) return new Date();
+  if (value instanceof Date) {
+    // If already a Date, ensure it's treated as local by reconstructing
+    // This handles cases where a Date was created from UTC parsing
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+  if (typeof value === 'string') {
+    // YYYY-MM-DD strings: split and create local date (not UTC)
+    const parts = value.split('-');
+    if (parts.length === 3) {
+      return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    }
+  }
+  return new Date(value);
+};
+
+/** Format a Date as YYYY-MM-DD in LOCAL timezone (for <input type="date"> value) */
+const formatDateInput = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+// ============================================================================
 // MAIN SCHEDULE STUDIO COMPONENT
 // ============================================================================
 
@@ -1053,10 +1083,10 @@ export default function ScheduleStudio({
           date: g.date,
         }));
         
-        // Parse custom date from first game in week if exists
+        // Parse custom date from first game in week if exists (use local timezone)
         let customDate: Date | undefined;
         if (weekGames.length > 0 && weekGames[0].date) {
-          customDate = new Date(weekGames[0].date);
+          customDate = parseLocalDate(weekGames[0].date);
         }
         
         initialWeeks.push({
@@ -1114,12 +1144,12 @@ export default function ScheduleStudio({
 
   // Get game date for a week (uses custom date if set, otherwise calculates from season start)
   const getGameDate = useCallback((weekNumber: number, customDate?: Date): Date => {
-    // If custom date is provided, use it
+    // If custom date is provided, use it (ensure local timezone)
     if (customDate) {
-      return new Date(customDate);
+      return parseLocalDate(customDate);
     }
-    // Otherwise calculate from season start date
-    const date = new Date(seasonStartDate);
+    // Otherwise calculate from season start date (ensure local timezone)
+    const date = parseLocalDate(seasonStartDate);
     date.setDate(date.getDate() + ((weekNumber - 1) * 7));
     // Default to Saturday
     while (date.getDay() !== 6) {
@@ -1611,14 +1641,14 @@ export default function ScheduleStudio({
     const week = weeks.find(w => w.weekNumber === weekNumber);
     const currentDate = getGameDate(weekNumber, week?.customDate);
     setEditingWeekNumber(weekNumber);
-    setEditingDate(currentDate.toISOString().split('T')[0]); // Format as YYYY-MM-DD
+    setEditingDate(formatDateInput(currentDate)); // Format as YYYY-MM-DD in local timezone
     setShowEditDateModal(true);
   };
 
   const handleSaveDate = () => {
     if (!editingWeekNumber || !editingDate) return;
     
-    const newDate = new Date(editingDate);
+    const newDate = parseLocalDate(editingDate);
     setWeeks(prev => prev.map(week => 
       week.weekNumber === editingWeekNumber
         ? { ...week, customDate: newDate }
