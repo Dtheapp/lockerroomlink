@@ -1560,6 +1560,112 @@ export const CommissionerDashboard: React.FC = () => {
     }
   };
 
+  /**
+   * Cleanup all registrations linked to a season when it's deleted or ended.
+   * - Cancels all open/scheduled registrations linked to this season
+   * - Cancels all registrants and frees them to register elsewhere
+   * - Can optionally use an existing WriteBatch (for delete flow) or create its own
+   */
+  const cleanupSeasonRegistrations = async (
+    programId: string, 
+    seasonId: string, 
+    existingBatch?: ReturnType<typeof writeBatch>
+  ) => {
+    // Find all registrations linked to this season
+    const registrationsRef = collection(db, 'programs', programId, 'registrations');
+    const linkedQuery = query(
+      registrationsRef,
+      where('linkedSeasonId', '==', seasonId)
+    );
+    const linkedSnap = await getDocs(linkedQuery);
+    
+    if (linkedSnap.empty) {
+      console.log('[cleanupSeasonRegistrations] No linked registrations found for season:', seasonId);
+      return;
+    }
+    
+    console.log(`[cleanupSeasonRegistrations] Found ${linkedSnap.docs.length} linked registrations to cancel`);
+    
+    let totalRegistrantsReset = 0;
+    
+    for (const regDoc of linkedSnap.docs) {
+      const regData = regDoc.data();
+      const regStatus = regData.status;
+      
+      // Skip already cancelled/completed registrations
+      if (regStatus === 'cancelled' || regStatus === 'completed') {
+        continue;
+      }
+      
+      // Cancel the registration itself
+      const regRef = doc(db, 'programs', programId, 'registrations', regDoc.id);
+      if (existingBatch) {
+        existingBatch.update(regRef, {
+          status: 'cancelled',
+          closedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          cancelReason: 'Season deleted/ended'
+        });
+      } else {
+        await updateDoc(regRef, {
+          status: 'cancelled',
+          closedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          cancelReason: 'Season deleted/ended'
+        });
+      }
+      
+      // Cancel all active registrants and free them up
+      const registrantsRef = collection(db, 'programs', programId, 'registrations', regDoc.id, 'registrants');
+      const registrantsSnap = await getDocs(registrantsRef);
+      
+      for (const registrantDoc of registrantsSnap.docs) {
+        const registrantData = registrantDoc.data();
+        
+        // Skip already cancelled registrants
+        if (registrantData.status === 'cancelled' || registrantData.status === 'declined') {
+          continue;
+        }
+        
+        const updates: Record<string, any> = {
+          status: 'cancelled',
+          cancelledAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          cancelReason: 'Season deleted/ended by commissioner'
+        };
+        
+        // If they were assigned to a team, clear the assignment
+        if (registrantData.assignedTeamId) {
+          updates.assignedTeamId = null;
+          updates.assignedTeamName = null;
+          updates.assignedAt = null;
+          updates.assignmentStatus = null;
+        }
+        
+        // If they were drafted, clear draft info
+        if (registrantData.draftedAt || registrantData.draftRound) {
+          updates.draftRound = null;
+          updates.draftPick = null;
+          updates.draftedBy = null;
+          updates.draftedAt = null;
+          updates.rosterPlayerId = null;
+        }
+        
+        const registrantRef = doc(db, 'programs', programId, 'registrations', regDoc.id, 'registrants', registrantDoc.id);
+        if (existingBatch) {
+          existingBatch.update(registrantRef, updates);
+        } else {
+          await updateDoc(registrantRef, updates);
+        }
+        
+        totalRegistrantsReset++;
+      }
+    }
+    
+    console.log(`[cleanupSeasonRegistrations] Cancelled ${linkedSnap.docs.length} registrations, reset ${totalRegistrantsReset} registrants`);
+    return { registrationsCancelled: linkedSnap.docs.length, registrantsReset: totalRegistrantsReset };
+  };
+
   // Handle delete season
   const handleDeleteSeason = async () => {
     if (!deleteSeasonConfirm) return;
@@ -1572,6 +1678,11 @@ export const CommissionerDashboard: React.FC = () => {
     try {
       const batch = writeBatch(db);
       const seasonId = deleteSeasonConfirm.id;
+      
+      // ============================================================
+      // CLEANUP LINKED REGISTRATIONS + REGISTRANTS
+      // ============================================================
+      await cleanupSeasonRegistrations(programId, seasonId, batch);
       
       // Delete all pools under this season
       const poolsSnap = await getDocs(collection(db, 'programs', programId, 'seasons', seasonId, 'pools'));
@@ -3839,6 +3950,12 @@ export const CommissionerDashboard: React.FC = () => {
                         completedAt: serverTimestamp(),
                         updatedAt: serverTimestamp()
                       });
+                      
+                      // Cleanup linked registrations - cancel them and free registrants
+                      const cleanupResult = await cleanupSeasonRegistrations(programData.id, selectedSeasonForEdit.id);
+                      if (cleanupResult) {
+                        console.log(`[EndSeason] Cleaned up ${cleanupResult.registrationsCancelled} registrations, ${cleanupResult.registrantsReset} registrants`);
+                      }
                       
                       // Release all players if checkbox is checked
                       if (releasePlayersOnEnd) {
