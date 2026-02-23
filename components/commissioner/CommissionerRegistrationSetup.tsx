@@ -147,6 +147,7 @@ export const CommissionerRegistrationSetup: React.FC<Props> = ({
   const [linkedSeason, setLinkedSeason] = useState<ProgramSeason | LeagueSeason | null>(null);
   const [loadingSeasons, setLoadingSeasons] = useState(false);
   const [hasValidSeasons, setHasValidSeasons] = useState<boolean | null>(null); // null = still loading, true/false = result
+  const [noSeasonsExist, setNoSeasonsExist] = useState(false); // true when there are literally zero seasons
   const [registrationCloseDate, setRegistrationCloseDate] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventEndDate, setEventEndDate] = useState('');
@@ -260,6 +261,7 @@ export const CommissionerRegistrationSetup: React.FC<Props> = ({
         // KEY CHECK: Are there ANY seasons without registrations?
         const seasonsWithoutRegistrations = seasonsData.filter(s => !existingRegistrationsMap.has(s.id));
         const hasAvailableSeason = seasonsWithoutRegistrations.length > 0;
+        setNoSeasonsExist(seasonsData.length === 0);
         
         console.log('[RegistrationSetup] Season availability check:', { 
           totalSeasons: seasonsData.length,
@@ -645,7 +647,9 @@ export const CommissionerRegistrationSetup: React.FC<Props> = ({
                   </div>
                   <p className={`text-sm mt-1 ${isDisabled ? 'text-amber-400' : 'text-slate-400'}`}>
                     {isDisabled 
-                      ? '⚠️ All seasons already have registrations - create a new season first'
+                      ? noSeasonsExist
+                        ? '⚠️ No active season found - create a season first'
+                        : '⚠️ All seasons already have registrations - create a new season first'
                       : type.description
                     }
                   </p>
