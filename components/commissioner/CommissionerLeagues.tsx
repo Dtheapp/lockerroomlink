@@ -81,6 +81,8 @@ export default function CommissionerLeagues() {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [requestingLeagueId, setRequestingLeagueId] = useState<string | null>(null);
   const [pendingRequestLeagueIds, setPendingRequestLeagueIds] = useState<string[]>([]);
+  const [hasActiveSeason, setHasActiveSeason] = useState(false);
+  const [activeSeasonName, setActiveSeasonName] = useState<string>('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchDropdownRef = useRef<HTMLDivElement>(null);
   
@@ -234,6 +236,25 @@ export default function CommissionerLeagues() {
       const pendingIds = pendingSnap.docs.map(d => d.data().leagueId);
       setPendingRequestLeagueIds(pendingIds);
       
+      // Check for active/open seasons (block league join if season is running)
+      try {
+        const seasonsQuery = query(
+          collection(db, 'programs', programId, 'seasons'),
+          where('status', 'in', ['active', 'upcoming', 'open'])
+        );
+        const seasonsSnap = await getDocs(seasonsQuery);
+        if (!seasonsSnap.empty) {
+          setHasActiveSeason(true);
+          const seasonData = seasonsSnap.docs[0].data();
+          setActiveSeasonName(seasonData.name || seasonData.seasonName || 'Current Season');
+        } else {
+          setHasActiveSeason(false);
+          setActiveSeasonName('');
+        }
+      } catch (err) {
+        console.error('Error checking active seasons:', err);
+      }
+      
     } catch (error) {
       console.error('Error loading league data:', error);
     } finally {
@@ -344,6 +365,12 @@ export default function CommissionerLeagues() {
   const requestToJoinLeague = async (league: SearchableLeague) => {
     if (!programData?.id) {
       toastError('No program found');
+      return;
+    }
+    
+    // Block if there's an active season
+    if (hasActiveSeason) {
+      toastError(`You must complete or cancel your current season (${activeSeasonName}) before joining a league.`);
       return;
     }
     
@@ -1237,6 +1264,27 @@ export default function CommissionerLeagues() {
                 Search for {selectedSport.charAt(0).toUpperCase() + selectedSport.slice(1)} leagues in your area to request membership
               </p>
               
+              {/* Active Season Warning */}
+              {hasActiveSeason && (
+                <div className={`flex items-start gap-3 p-3 rounded-xl mb-4 ${
+                  theme === 'dark'
+                    ? 'bg-amber-500/10 border border-amber-500/20'
+                    : 'bg-amber-50 border border-amber-200'
+                }`}>
+                  <AlertCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                    theme === 'dark' ? 'text-amber-400' : 'text-amber-600'
+                  }`} />
+                  <div>
+                    <p className={`text-sm font-semibold ${theme === 'dark' ? 'text-amber-300' : 'text-amber-800'}`}>
+                      Season in progress
+                    </p>
+                    <p className={`text-xs mt-0.5 ${theme === 'dark' ? 'text-amber-400/80' : 'text-amber-700'}`}>
+                      You must complete or cancel <strong>{activeSeasonName}</strong> before requesting to join a league. The league needs all teams available from the start to build schedules.
+                    </p>
+                  </div>
+                </div>
+              )}
+              
               {/* Search Input */}
               <div className="relative">
                 <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${
@@ -1334,6 +1382,17 @@ export default function CommissionerLeagues() {
                                   }`}>
                                     <Clock className="w-3 h-3" />
                                     Pending
+                                  </span>
+                                ) : hasActiveSeason ? (
+                                  <span className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium cursor-not-allowed ${
+                                    theme === 'dark'
+                                      ? 'bg-red-500/20 text-red-400'
+                                      : 'bg-red-100 text-red-700'
+                                  }`}
+                                    title="Complete or cancel your current season first"
+                                  >
+                                    <AlertCircle className="w-3 h-3" />
+                                    Season Active
                                   </span>
                                 ) : (
                                   <button
