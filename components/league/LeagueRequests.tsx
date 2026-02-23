@@ -16,6 +16,8 @@ export default function LeagueRequests() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
+  const [rejectModal, setRejectModal] = useState<{ requestId: string; teamName: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
     loadRequests();
@@ -309,8 +311,8 @@ export default function LeagueRequests() {
                       </button>
                       <button
                         onClick={() => {
-                          const reason = prompt('Reason for rejection (optional):');
-                          handleReject(request.id, reason || 'Request declined');
+                          setRejectReason('');
+                          setRejectModal({ requestId: request.id, teamName: request.teamName || 'this team' });
                         }}
                         disabled={processingId === request.id}
                         className="flex items-center gap-1 px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 border border-red-500/50 rounded-xl text-sm font-medium text-red-400 transition-colors"
@@ -335,6 +337,83 @@ export default function LeagueRequests() {
           </div>
         )}
       </div>
+
+      {/* Rejection Modal */}
+      {rejectModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setRejectModal(null)}>
+          <div 
+            className={`w-full max-w-md rounded-2xl p-6 border shadow-2xl ${
+              theme === 'dark'
+                ? 'bg-zinc-900 border-white/10'
+                : 'bg-white border-slate-200'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
+                <X className="w-5 h-5 text-red-400" />
+              </div>
+              <div>
+                <h3 className={`font-bold text-lg ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  Reject Request
+                </h3>
+                <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                  Decline {rejectModal.teamName}'s request to join
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-5">
+              <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
+                Reason for rejection <span className={theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}>(optional)</span>
+              </label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="e.g. League roster is currently full"
+                rows={3}
+                autoFocus
+                className={`w-full rounded-xl px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-red-500/50 ${
+                  theme === 'dark'
+                    ? 'bg-white/5 border border-white/10 text-white placeholder-slate-500'
+                    : 'bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400'
+                }`}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setRejectModal(null);
+                }}
+              />
+            </div>
+
+            <div className="flex items-center gap-3 justify-end">
+              <button
+                onClick={() => setRejectModal(null)}
+                className={`px-5 py-2.5 rounded-xl font-medium transition-colors ${
+                  theme === 'dark'
+                    ? 'bg-white/5 hover:bg-white/10 text-slate-300'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  handleReject(rejectModal.requestId, rejectReason || 'Request declined');
+                  setRejectModal(null);
+                }}
+                disabled={processingId === rejectModal.requestId}
+                className="px-5 py-2.5 rounded-xl font-medium bg-red-600 hover:bg-red-700 text-white transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {processingId === rejectModal.requestId ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <X className="w-4 h-4" />
+                )}
+                Reject Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
