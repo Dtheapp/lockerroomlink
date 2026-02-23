@@ -750,27 +750,57 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 }
                 // LEAGUE OWNER/COMMISSIONER FLOW: Load their league based on selected sport
                 else if (profile.role === 'LeagueOwner' || profile.role === 'LeagueCommissioner') {
-                    // Query all leagues owned by this user
                     try {
-                        const leaguesQuery = query(
-                            collection(db, 'leagues'),
-                            where('ownerId', '==', user.uid)
-                        );
-                        const leaguesSnap = await getDocs(leaguesQuery);
+                        let foundLeague = false;
                         
-                        // Get selected sport from localStorage
-                        const selectedSport = localStorage.getItem('commissioner_selected_sport')?.toLowerCase() || 'football';
+                        // Method 1: Direct lookup via profile.leagueId (fastest, most reliable)
+                        if (profile.leagueId) {
+                            const leagueDocRef = doc(db, 'leagues', profile.leagueId);
+                            const leagueSnap = await getDoc(leagueDocRef);
+                            if (leagueSnap.exists()) {
+                                setLeagueData({ id: leagueSnap.id, ...leagueSnap.data() } as League);
+                                foundLeague = true;
+                            }
+                        }
                         
-                        // Find league matching selected sport
-                        const matchingLeague = leaguesSnap.docs.find(doc => {
-                            const data = doc.data();
-                            return data.sport?.toLowerCase() === selectedSport;
-                        });
+                        // Method 2: Multi-sport leagueIds map
+                        if (!foundLeague && profile.leagueIds) {
+                            const selectedSport = localStorage.getItem('commissioner_selected_sport')?.toLowerCase() || 'football';
+                            const sportLeagueId = (profile.leagueIds as Record<string, string>)[selectedSport];
+                            if (sportLeagueId) {
+                                const leagueDocRef = doc(db, 'leagues', sportLeagueId);
+                                const leagueSnap = await getDoc(leagueDocRef);
+                                if (leagueSnap.exists()) {
+                                    setLeagueData({ id: leagueSnap.id, ...leagueSnap.data() } as League);
+                                    foundLeague = true;
+                                }
+                            }
+                        }
                         
-                        if (matchingLeague) {
-                            setLeagueData({ id: matchingLeague.id, ...matchingLeague.data() } as League);
-                        } else {
-                            // No league for this sport
+                        // Method 3: Fallback - query leagues where this user is owner
+                        if (!foundLeague) {
+                            const leaguesQuery = query(
+                                collection(db, 'leagues'),
+                                where('ownerId', '==', firebaseUser.uid)
+                            );
+                            const leaguesSnap = await getDocs(leaguesQuery);
+                            
+                            const selectedSport = localStorage.getItem('commissioner_selected_sport')?.toLowerCase() || 'football';
+                            
+                            // Find league matching selected sport, or just take the first one
+                            const matchingLeague = leaguesSnap.docs.find(d => {
+                                const data = d.data();
+                                return data.sport?.toLowerCase() === selectedSport;
+                            }) || leaguesSnap.docs[0];
+                            
+                            if (matchingLeague) {
+                                setLeagueData({ id: matchingLeague.id, ...matchingLeague.data() } as League);
+                                foundLeague = true;
+                            }
+                        }
+                        
+                        if (!foundLeague) {
+                            console.warn('[AuthContext] No league found for user:', firebaseUser.uid, 'role:', profile.role, 'leagueId:', profile.leagueId);
                             setLeagueData(null);
                         }
                     } catch (error) {
