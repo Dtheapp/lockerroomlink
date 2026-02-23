@@ -101,24 +101,58 @@ export default function LeagueStandings() {
         setSelectedSeasonId(activeSeason.id);
       }
 
-      // Load teams that are IN this league (have leagueId set)
+      // Load teams that are IN this league
+      // Method 1: Direct leagueId on team documents
       const teamsQuery = query(
         collection(db, 'teams'),
         where('leagueId', '==', leagueData.id)
       );
       const teamsSnap = await getDocs(teamsQuery);
-      const teamsList = teamsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Team));
+      const directTeams = teamsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Team));
+      
+      // Method 2: Find teams through programs linked to this league
+      // (join request approval sets leagueId on program but NOT on individual team docs)
+      const programsWithLeagueQuery = query(
+        collection(db, 'programs'),
+        where('leagueId', '==', leagueData.id)
+      );
+      const programsSnap = await getDocs(programsWithLeagueQuery);
+      let programsList: Program[] = programsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Program));
+      
+      // Get teams from linked programs
+      const linkedProgramIds = programsList.map(p => p.id).filter(Boolean);
+      let programTeams: Team[] = [];
+      
+      if (linkedProgramIds.length > 0) {
+        const chunks = [];
+        for (let i = 0; i < linkedProgramIds.length; i += 10) {
+          chunks.push(linkedProgramIds.slice(i, i + 10));
+        }
+        for (const chunk of chunks) {
+          const programTeamsQuery = query(
+            collection(db, 'teams'),
+            where('programId', 'in', chunk)
+          );
+          const programTeamsSnap = await getDocs(programTeamsQuery);
+          programTeams.push(...programTeamsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Team)));
+        }
+      }
+      
+      // Merge and deduplicate teams
+      const teamMap = new Map<string, Team>();
+      directTeams.forEach(t => teamMap.set(t.id, t));
+      programTeams.forEach(t => { if (!teamMap.has(t.id)) teamMap.set(t.id, t); });
+      const teamsList = Array.from(teamMap.values());
       setTeams(teamsList);
 
-      // Load programs for these teams (get unique programIds)
+      // Load programs for these teams (get any we haven't loaded yet)
       const programIds = [...new Set(teamsList.map(t => t.programId).filter(Boolean))];
-      let programsList: Program[] = [];
+      const missingProgramIds = programIds.filter(id => !programsList.find(p => p.id === id));
       
-      if (programIds.length > 0) {
-        // Firestore 'in' queries are limited to 10 items, so chunk if needed
+      if (missingProgramIds.length > 0) {
         const chunks = [];
-        for (let i = 0; i < programIds.length; i += 10) {
-          chunks.push(programIds.slice(i, i + 10));
+        for (let i = 0; i < missingProgramIds.length; i += 10) {
+          chunks.push(missingProgramIds.slice(i, i + 10));
         }
         
         for (const chunk of chunks) {
@@ -126,8 +160,8 @@ export default function LeagueStandings() {
             collection(db, 'programs'),
             where(documentId(), 'in', chunk)
           );
-          const programsSnap = await getDocs(programsQuery);
-          programsList.push(...programsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Program)));
+          const programsSnap2 = await getDocs(programsQuery);
+          programsList.push(...programsSnap2.docs.map(d => ({ id: d.id, ...d.data() } as Program)));
         }
       }
       setPrograms(programsList);
