@@ -18,6 +18,14 @@ dist-ssr
 .env.production
 .env.*.local
 
+# Firebase
+.firebase/
+.firebaserc
+firebase.json
+
+# Build artifacts
+dist.zip
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
