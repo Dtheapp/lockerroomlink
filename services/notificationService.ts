@@ -21,7 +21,42 @@ import {
   onSnapshot,
   type Unsubscribe,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
+
+// ============================================================================
+// PUSH DELIVERY (fire-and-forget)
+// ============================================================================
+
+/**
+ * Ask the backend to deliver a Web Push to the given users' devices.
+ * Best-effort: never throws, never blocks in-app notification creation.
+ * Only runs in the browser with an authenticated user.
+ */
+const triggerPush = async (
+  userIds: string[],
+  title: string,
+  message: string,
+  link?: string
+): Promise<void> => {
+  try {
+    if (typeof window === 'undefined') return;
+    const currentUser = auth.currentUser;
+    if (!currentUser || userIds.length === 0) return;
+
+    const idToken = await currentUser.getIdToken();
+    // Don't await the network round-trip beyond firing it.
+    void fetch('/.netlify/functions/send-push', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ userIds, title, message, link }),
+    }).catch(() => {});
+  } catch {
+    // Swallow — push is a best-effort enhancement.
+  }
+};
 
 // ============================================================================
 // NOTIFICATION TYPES - Comprehensive for all user types
@@ -180,6 +215,10 @@ export const createNotification = async (
     createdAt: serverTimestamp(),
     expiresAt: options?.expiresAt ? Timestamp.fromDate(options.expiresAt) : null,
   });
+
+  // Best-effort push to the user's devices (opt-in).
+  void triggerPush([userId], title, message, options?.link);
+
   return docRef.id;
 };
 
@@ -228,6 +267,10 @@ export const createBulkNotifications = async (
   }
 
   await batch.commit();
+
+  // Best-effort push to all recipients' devices (opt-in).
+  void triggerPush(userIds, title, message, options?.link);
+
   return count;
 };
 

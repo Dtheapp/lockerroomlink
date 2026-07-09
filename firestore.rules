@@ -1222,6 +1222,12 @@ service cloud.firestore {
         allow update, delete: if isUser(userId) || isAdmin();
       }
       
+      // User's push notification device tokens (Web Push / FCM)
+      // Only the owner can manage their own device tokens.
+      match /pushTokens/{tokenId} {
+        allow read, write: if isUser(userId) || isAdmin();
+      }
+      
       // User's plays subcollection (Coach Playbook)
       match /plays/{playId} {
         allow read: if isAuthenticated();

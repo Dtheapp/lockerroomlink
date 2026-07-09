@@ -9,6 +9,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import InstallPrompt from './components/InstallPrompt';
 import ForcePasswordChange from './components/ForcePasswordChange';
 import ReleasedPlayerSetup from './components/ReleasedPlayerSetup';
+import { enablePush, initForegroundPush, getPushPermission } from './services/pushService';
 
 // Import backfill utilities (makes them available in browser console)
 import './services/backfillService';
@@ -247,6 +248,18 @@ const AppContent: React.FC = () => {
       }
     }
   }, [userData, passwordChangeComplete]);
+
+  // Keep the FCM push token fresh for users who opted in. Tokens can rotate,
+  // so silently re-register on load and wire up foreground notifications.
+  useEffect(() => {
+    if (!user?.uid || (userData as any)?.pushEnabled !== true) return;
+    if (getPushPermission() !== 'granted') return;
+
+    let cleanup: (() => void) | void;
+    enablePush(user.uid).catch(() => {});
+    initForegroundPush().then((unsub) => { cleanup = unsub; });
+    return () => { if (typeof cleanup === 'function') cleanup(); };
+  }, [user?.uid, (userData as any)?.pushEnabled]);
 
   if (loading) {
     return (

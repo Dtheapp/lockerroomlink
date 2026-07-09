@@ -75,6 +75,9 @@ export interface Event {
   title: string;                       // "2025 Spring Soccer Registration"
   description: string;                 // Rich text description
   
+  // Practice itinerary (timed schedule blocks for practice events)
+  itinerary?: { id: string; startTime: string; endTime: string; activity: string }[];
+  
   // Dates
   eventStartDate: Timestamp;           // When the event/season starts
   eventEndDate: Timestamp;             // When the event/season ends

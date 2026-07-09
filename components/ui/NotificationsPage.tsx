@@ -25,6 +25,14 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import {
+  enablePush,
+  disablePush,
+  initForegroundPush,
+  isPushSupported,
+  getPushPermission,
+} from '../../services/pushService';
+import { toastError, toastSuccess } from '../../services/toast';
+import {
   Bell,
   Check,
   CheckCheck,
@@ -232,6 +240,50 @@ export const NotificationsPage: React.FC = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [respondingToInvite, setRespondingToInvite] = useState<string | null>(null);
+  const [pushSupported] = useState(isPushSupported());
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+
+  // Reflect current push state: enabled only if OS permission granted AND profile flag on.
+  useEffect(() => {
+    const granted = getPushPermission() === 'granted';
+    setPushOn(granted && (userData as any)?.pushEnabled === true);
+  }, [userData]);
+
+  // Listen for foreground pushes while this page (app) is open.
+  useEffect(() => {
+    let cleanup: (() => void) | void;
+    initForegroundPush().then((unsub) => { cleanup = unsub; });
+    return () => { if (typeof cleanup === 'function') cleanup(); };
+  }, []);
+
+  const handleTogglePush = async () => {
+    if (!user?.uid || pushBusy) return;
+    setPushBusy(true);
+    try {
+      if (!pushOn) {
+        const token = await enablePush(user.uid);
+        if (token) {
+          setPushOn(true);
+          await initForegroundPush();
+          toastSuccess('Push notifications enabled on this device');
+        } else {
+          const denied = getPushPermission() === 'denied';
+          toastError(
+            denied
+              ? 'Notifications are blocked. Enable them in your browser/app settings.'
+              : 'Could not enable push notifications on this device.'
+          );
+        }
+      } else {
+        await disablePush(user.uid);
+        setPushOn(false);
+        toastSuccess('Push notifications turned off');
+      }
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (user?.uid) {
@@ -415,6 +467,39 @@ export const NotificationsPage: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Push Notifications Toggle */}
+        {pushSupported && (
+          <div className="mb-4 flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-lg bg-purple-100 dark:bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                <Bell className="w-4 h-4 text-purple-600 dark:text-purple-300" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Push Notifications</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                  Get alerts on this device even when the app is closed
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={pushOn}
+              onClick={handleTogglePush}
+              disabled={pushBusy}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+                pushOn ? 'bg-purple-600' : 'bg-slate-300 dark:bg-white/20'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  pushOn ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        )}
 
         {/* Actions Row - Stack on mobile */}
         <div className="flex flex-wrap items-center gap-2">

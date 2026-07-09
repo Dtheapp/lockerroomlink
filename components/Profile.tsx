@@ -1060,20 +1060,38 @@ const Profile: React.FC = () => {
   };
   
   const handleRemovePhoto = async () => {
-    if (!selectedAthlete || !selectedAthlete.teamId) return;
+    if (!selectedAthlete) return;
     
     setUploadingPhoto(true);
     try {
-      const playerRef = doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id);
-      try {
-        const currentPath = (selectedAthlete as any)?.photoPath;
-        if (currentPath) {
+      // Delete the stored file if we have its path (best-effort)
+      const currentPath = (selectedAthlete as any)?.photoPath;
+      if (currentPath) {
+        try {
           await deleteFile(currentPath);
+        } catch (err) {
+          console.warn('Failed to delete player photo from storage:', err);
         }
-      } catch (err) {
-        console.warn('Failed to delete player photo from storage:', err);
       }
+      
+      // Mirror the upload: the photo lives on the top-level athlete profile
+      // (players/{id}), which the parent owns — works whether or not the
+      // athlete is on a team.
+      const playerRef = doc(db, 'players', selectedAthlete.id);
       await updateDoc(playerRef, { photoUrl: null, photoPath: null });
+      
+      // If the athlete is also on a team roster, clear the copy there too.
+      if (selectedAthlete.teamId) {
+        try {
+          await updateDoc(doc(db, 'teams', selectedAthlete.teamId, 'players', selectedAthlete.id), {
+            photoUrl: null,
+            photoPath: null,
+          });
+        } catch (err) {
+          console.warn('Failed to clear roster photo copy:', err);
+        }
+      }
+      
       setSelectedAthlete({ ...selectedAthlete, photoUrl: undefined, photoPath: undefined });
     } catch (error) {
       console.error('Error removing photo:', error);

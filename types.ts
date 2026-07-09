@@ -586,9 +586,18 @@ export interface TeamEvent {
   type: 'Practice' | 'Game' | 'Other';
   location: string;
   description: string;
+  itinerary?: PracticeTimeBlock[];
   createdAt?: Timestamp | Date;
   createdBy?: string;
   updatedAt?: Timestamp | Date;
+}
+
+// A single timed segment of a practice itinerary (warmup, drills, scrimmage...)
+export interface PracticeTimeBlock {
+  id: string;
+  startTime: string; // HH:MM (24h)
+  endTime: string;   // HH:MM (24h)
+  activity: string;
 }
 
 
@@ -605,6 +614,7 @@ export interface UserProfile {
   username?: string;
   isRootAdmin?: boolean; // God Mode - only Root Admin can manage other SuperAdmins
   mustChangePassword?: boolean; // Force password change on first login
+  pushEnabled?: boolean; // User has opted in to Web Push (FCM) notifications
   
   // Contact Details
   phone?: string;          

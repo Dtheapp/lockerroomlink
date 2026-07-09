@@ -14,7 +14,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { db } from '../../services/firebase';
-import { collection, query, where, orderBy, onSnapshot, Timestamp, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, Timestamp, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import {
   ChevronLeft,
   ChevronRight,
@@ -29,6 +29,7 @@ import {
   Eye,
   Edit2,
   Trash2,
+  Copy,
   Lock
 } from 'lucide-react';
 import { GlassCard, Button, Badge } from '../ui/OSYSComponents';
@@ -742,6 +743,45 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     setSelectedDay(null);
   };
 
+  // Duplicate an existing (non-game) event to a new date — lets coaches quickly
+  // create the next practice from an existing one. Writes to the top-level
+  // events collection; the live listener refreshes the calendar automatically.
+  const handleDuplicateEvent = async (eventId: string, newDate: string) => {
+    const src: any = allEvents.find(e => e.id === eventId);
+    if (!src || !newDate) return;
+
+    const time: string = src.eventStartTime || '';
+    const startDate = new Date(`${newDate}T${time || '00:00'}`);
+    const eventTypeValue = src.type || src.eventType || 'practice';
+
+    const newEvent: any = {
+      teamId: src.teamId || teamId,
+      title: src.title || '',
+      // Store both field names for compatibility across readers.
+      type: eventTypeValue,
+      eventType: eventTypeValue,
+      eventStartDate: Timestamp.fromDate(startDate),
+      eventStartTime: src.eventStartTime || '',
+      eventEndTime: src.eventEndTime || '',
+      location: src.location ?? '',
+      description: src.description || '',
+      status: 'active',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+    if (src.importance) newEvent.importance = src.importance;
+    if (Array.isArray(src.itinerary) && src.itinerary.length > 0) newEvent.itinerary = src.itinerary;
+
+    // Firestore rejects undefined at any depth.
+    Object.keys(newEvent).forEach(k => newEvent[k] === undefined && delete newEvent[k]);
+
+    try {
+      await addDoc(collection(db, 'events'), newEvent);
+    } catch (error) {
+      console.error('[CalendarView] Failed to duplicate event:', error);
+    }
+  };
+
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   // Display title for header
@@ -1096,6 +1136,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           onCreateEvent={onCreateEvent}
           onEditEvent={onEditEvent}
           onDeleteEvent={onDeleteEvent}
+          onDuplicateEvent={handleDuplicateEvent}
         />
       )}
 
@@ -1721,6 +1762,7 @@ interface DayPanelProps {
   onCreateEvent?: (date?: Date) => void;
   onEditEvent?: (eventId: string) => void;
   onDeleteEvent?: (eventId: string) => void;
+  onDuplicateEvent?: (eventId: string, newDate: string) => void;
 }
 
 const DayPanel: React.FC<DayPanelProps> = ({ 
@@ -1732,8 +1774,43 @@ const DayPanel: React.FC<DayPanelProps> = ({
   isCoach,
   onCreateEvent,
   onEditEvent,
-  onDeleteEvent
+  onDeleteEvent,
+  onDuplicateEvent
 }) => {
+  // Inline "duplicate to a new date" state.
+  const [dupId, setDupId] = useState<string | null>(null);
+  const [dupDate, setDupDate] = useState('');
+  const [dupSaving, setDupSaving] = useState(false);
+
+  // Format a Date as YYYY-MM-DD for the date input.
+  const toDateInput = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const startDuplicate = (eventId: string) => {
+    // Default the new date to one week later (typical "next practice").
+    const nextWeek = new Date(date);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    setDupId(eventId);
+    setDupDate(toDateInput(nextWeek));
+  };
+
+  const confirmDuplicate = async () => {
+    if (!dupId || !dupDate || !onDuplicateEvent) return;
+    setDupSaving(true);
+    try {
+      await onDuplicateEvent(dupId, dupDate);
+      setDupId(null);
+      setDupDate('');
+      onClose();
+    } finally {
+      setDupSaving(false);
+    }
+  };
+
   const dateString = date.toLocaleDateString('en-US', { 
     weekday: 'long', 
     month: 'long', 
@@ -1808,24 +1885,62 @@ const DayPanel: React.FC<DayPanelProps> = ({
           ) : (
             <div className="space-y-3">
               {events.map(event => (
-                <EventCard 
-                  key={event.id} 
-                  event={event} 
-                  theme={theme} 
-                  onClick={() => {
-                    onClose();
-                    onEventClick?.(event);
-                  }}
-                  isCoach={isCoach}
-                  onEdit={() => {
-                    onClose();
-                    onEditEvent?.(event.id);
-                  }}
-                  onDelete={() => {
-                    onClose();
-                    onDeleteEvent?.(event.id);
-                  }}
-                />
+                <div key={event.id}>
+                  <EventCard 
+                    event={event} 
+                    theme={theme} 
+                    onClick={() => {
+                      onClose();
+                      onEventClick?.(event);
+                    }}
+                    isCoach={isCoach}
+                    onEdit={() => {
+                      onClose();
+                      onEditEvent?.(event.id);
+                    }}
+                    onDelete={() => {
+                      onClose();
+                      onDeleteEvent?.(event.id);
+                    }}
+                    onDuplicate={onDuplicateEvent ? () => startDuplicate(event.id) : undefined}
+                  />
+
+                  {/* Inline duplicate-to-date picker */}
+                  {dupId === event.id && (
+                    <div className={`mt-2 p-3 rounded-xl border ${
+                      theme === 'dark' ? 'bg-purple-500/10 border-purple-500/30' : 'bg-purple-50 border-purple-200'
+                    }`}>
+                      <label className={`block text-xs font-semibold mb-1.5 ${theme === 'dark' ? 'text-purple-300' : 'text-purple-700'}`}>
+                        Copy this event to a new date
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="date"
+                          value={dupDate}
+                          onChange={(e) => setDupDate(e.target.value)}
+                          className={`flex-1 px-3 py-2 rounded-lg text-sm ${
+                            theme === 'dark'
+                              ? 'bg-white/10 border border-white/20 text-white'
+                              : 'bg-white border border-slate-300 text-slate-900'
+                          }`}
+                        />
+                        <button
+                          onClick={confirmDuplicate}
+                          disabled={!dupDate || dupSaving}
+                          className="px-3 py-2 rounded-lg text-sm font-semibold bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50"
+                        >
+                          {dupSaving ? 'Creating…' : 'Create'}
+                        </button>
+                        <button
+                          onClick={() => { setDupId(null); setDupDate(''); }}
+                          className={`px-3 py-2 rounded-lg text-sm ${theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-800'}`}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}
@@ -1845,9 +1960,10 @@ interface EventCardProps {
   isCoach: boolean;
   onEdit?: () => void;
   onDelete?: () => void;
+  onDuplicate?: () => void;
 }
 
-const EventCard: React.FC<EventCardProps> = ({ event, theme, onClick, isCoach, onEdit, onDelete }) => {
+const EventCard: React.FC<EventCardProps> = ({ event, theme, onClick, isCoach, onEdit, onDelete, onDuplicate }) => {
   const colors = EVENT_COLORS[event.type] || EVENT_COLORS.practice;
   const isGame = event.type === 'game';
   const isPast = isEventPast(event);
@@ -1945,6 +2061,22 @@ const EventCard: React.FC<EventCardProps> = ({ event, theme, onClick, isCoach, o
             >
               <Edit2 className="w-4 h-4" />
             </button>
+            {onDuplicate && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDuplicate();
+                }}
+                className={`p-2 rounded-lg transition-colors ${
+                  theme === 'dark' 
+                    ? 'hover:bg-white/10 text-gray-400 hover:text-emerald-400' 
+                    : 'hover:bg-gray-200 text-gray-500 hover:text-emerald-600'
+                }`}
+                title="Duplicate to another date"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={(e) => {
                 e.stopPropagation();

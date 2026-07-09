@@ -99,6 +99,17 @@ const Roster: React.FC = () => {
   const [searchingPlayers, setSearchingPlayers] = useState(false);
   const [selectedPlayerToAdd, setSelectedPlayerToAdd] = useState<(Player & { teamName?: string }) | null>(null);
   const [searchDebounceTimer, setSearchDebounceTimer] = useState<NodeJS.Timeout | null>(null);
+  // Cached, pre-enriched list of all searchable players (built once when the
+  // Add Player modal opens). Typing then filters this locally = instant results.
+  const [playerIndex, setPlayerIndex] = useState<(Player & {
+    teamName?: string;
+    calculatedAgeGroup?: string | null;
+    isInDraftPool?: boolean;
+    draftPoolTeamName?: string;
+    conflictWarning?: string;
+  })[]>([]);
+  const [indexLoading, setIndexLoading] = useState(false);
+  const [indexLoaded, setIndexLoaded] = useState(false);
   
   // Transfer Head Coach state
   const [transferHeadCoachTo, setTransferHeadCoachTo] = useState<{ id: string; name: string } | null>(null);
@@ -454,26 +465,13 @@ const Roster: React.FC = () => {
     }
   };
 
-  // Search for players by username across all teams (Coach only)
-  // Now includes: age group filtering, debounce, draft pool/team conflict warnings
-  const handleSearchPlayers = async (searchTerm: string) => {
-    setPlayerSearchQuery(searchTerm);
-    
-    // Clear previous debounce timer
-    if (searchDebounceTimer) {
-      clearTimeout(searchDebounceTimer);
-    }
-    
-    if (searchTerm.length < 2) {
-      setPlayerSearchResults([]);
-      return;
-    }
-    
-    // Debounce: wait 300ms before searching
-    const timer = setTimeout(async () => {
-      setSearchingPlayers(true);
+  // Build the searchable player index ONCE. Heavy (scans teams, draft pools,
+  // seasons, and player docs), so we run it a single time when the Add Player
+  // modal opens, then filter locally on each keystroke for instant results.
+  const buildPlayerIndex = async () => {
+    setIndexLoading(true);
       try {
-        const normalizedSearch = searchTerm.toLowerCase().replace(/^@/, '');
+        const normalizedSearch = ''; // include everyone; typing filters locally
         const foundPlayers: (Player & { 
           teamName?: string;
           calculatedAgeGroup?: string | null;
@@ -708,16 +706,44 @@ const Roster: React.FC = () => {
           return (a.name || '').localeCompare(b.name || '');
         });
         
-        setPlayerSearchResults(foundPlayers);
+        setPlayerIndex(foundPlayers);
       } catch (error) {
-        console.error('Error searching players:', error);
+        console.error('Error building player index:', error);
       } finally {
-        setSearchingPlayers(false);
+        setIndexLoading(false);
+        setIndexLoaded(true);
       }
-    }, 300); // 300ms debounce
-    
-    setSearchDebounceTimer(timer);
   };
+
+  // Instant local search: filter the pre-built index by username or name.
+  const handleSearchPlayers = (searchTerm: string) => {
+    setPlayerSearchQuery(searchTerm);
+    const term = searchTerm.trim().toLowerCase().replace(/^@/, '');
+    if (term.length < 2) {
+      setPlayerSearchResults([]);
+      return;
+    }
+    setPlayerSearchResults(
+      playerIndex.filter(p => {
+        const username = (p.username || '').toLowerCase();
+        const name = (p.name || '').toLowerCase();
+        return username.includes(term) || name.includes(term);
+      })
+    );
+  };
+
+  // Load the player index once when the Add Player modal opens; reset on close.
+  useEffect(() => {
+    if (isAddModalOpen && isStaff && !indexLoaded && !indexLoading) {
+      buildPlayerIndex();
+    } else if (!isAddModalOpen) {
+      setIndexLoaded(false);
+      setPlayerIndex([]);
+      setPlayerSearchResults([]);
+      setPlayerSearchQuery('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAddModalOpen, isStaff]);
 
   // Add selected player to coach's team
   const handleAddPlayerToTeam = async () => {
@@ -774,7 +800,24 @@ const Roster: React.FC = () => {
       // Only include ageGroup if it has a value (Firestore rejects undefined)
       if (ageGroup) playerData.ageGroup = ageGroup;
       
-      await addDoc(collection(db, 'teams', teamData.id, 'players'), playerData);
+      // Recursively strip undefined values at any depth — Firestore rejects
+      // undefined, so players missing optional fields (photo, height, etc.)
+      // still add cleanly.
+      const stripUndefined = (val: any): any => {
+        if (Array.isArray(val)) return val.map(stripUndefined);
+        if (val && typeof val === 'object') {
+          const out: any = {};
+          for (const [k, v] of Object.entries(val)) {
+            if (v === undefined) continue;
+            out[k] = stripUndefined(v);
+          }
+          return out;
+        }
+        return val;
+      };
+      const cleanPlayerData = stripUndefined(playerData);
+      
+      await addDoc(collection(db, 'teams', teamData.id, 'players'), cleanPlayerData);
       
       // Update top-level player document with teamId so parent sees assignment
       if (selectedPlayerToAdd.id) {
@@ -2739,13 +2782,14 @@ const Roster: React.FC = () => {
                 </div>
                 
                 {/* Search Results */}
-                {searchingPlayers && (
-                  <div className="flex items-center justify-center py-8">
+                {indexLoading && (
+                  <div className="flex flex-col items-center justify-center py-8 gap-3">
                     <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                    <p className={`text-xs ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>Loading players…</p>
                   </div>
                 )}
                 
-                {!searchingPlayers && playerSearchQuery.length >= 2 && playerSearchResults.length === 0 && (
+                {!indexLoading && playerSearchQuery.trim().length >= 2 && playerSearchResults.length === 0 && (
                   <div className={`text-center py-8 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
                     <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
                     <p>No players found</p>
@@ -2753,7 +2797,7 @@ const Roster: React.FC = () => {
                   </div>
                 )}
                 
-                {!searchingPlayers && playerSearchResults.length > 0 && (
+                {!indexLoading && playerSearchResults.length > 0 && (
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     {playerSearchResults.map(player => {
                       const isOnAnotherTeam = player.teamId && player.teamId !== teamData?.id;

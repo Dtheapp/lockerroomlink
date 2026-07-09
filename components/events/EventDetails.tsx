@@ -33,6 +33,17 @@ const formatPrice = (cents: number): string => {
   return `$${(cents / 100).toFixed(2)}`;
 };
 
+// Format an HH:MM (24h) time string to a 12h label
+const formatTime12 = (time24?: string): string => {
+  if (!time24) return '';
+  const [hStr, mStr] = time24.split(':');
+  const h = parseInt(hStr, 10);
+  if (Number.isNaN(h)) return time24;
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${mStr ?? '00'} ${period}`;
+};
+
 // Format date for display
 const formatDate = (timestamp: any): string => {
   if (!timestamp) return '';
@@ -375,6 +386,32 @@ const EventDetails: React.FC<EventDetailsProps> = ({
               <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
                 {event.description}
               </p>
+            </div>
+          )}
+          
+          {/* Practice Itinerary */}
+          {Array.isArray((event as any).itinerary) && (event as any).itinerary.length > 0 && (
+            <div className="mb-6">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                <Clock className="w-4 h-4" />
+                Practice Itinerary
+              </h3>
+              <div className="rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-700/50">
+                {(event as any).itinerary
+                  .filter((b: any) => b.startTime || b.activity)
+                  .map((block: any, index: number, arr: any[]) => (
+                    <div
+                      key={block.id || index}
+                      className={`flex items-start gap-3 p-3 ${index !== arr.length - 1 ? 'border-b border-gray-200 dark:border-gray-600' : ''}`}
+                    >
+                      <div className="shrink-0 text-xs font-semibold tabular-nums pt-0.5 text-purple-700 dark:text-purple-300">
+                        {formatTime12(block.startTime)}
+                        {block.endTime ? <span className="text-gray-400"> – {formatTime12(block.endTime)}</span> : null}
+                      </div>
+                      <p className="flex-1 min-w-0 text-sm text-gray-800 dark:text-gray-200">{block.activity}</p>
+                    </div>
+                  ))}
+              </div>
             </div>
           )}
           

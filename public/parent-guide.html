@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OSYS Parent Guide — Getting Started</title>
+  <style>
+    :root {
+      --purple: #7c3aed;
+      --purple-dark: #5b21b6;
+      --purple-light: #ede9fe;
+      --ink: #1e1b2e;
+      --slate: #475569;
+      --slate-light: #64748b;
+      --line: #e2e8f0;
+      --bg-soft: #f8fafc;
+      --gold: #d97706;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      background: #eef2f7;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .page {
+      width: 8.5in;
+      min-height: 11in;
+      margin: 24px auto;
+      background: #ffffff;
+      box-shadow: 0 10px 40px rgba(15, 23, 42, 0.15);
+      padding: 0.7in 0.75in;
+      position: relative;
+    }
+
+    /* --- Save button (screen only) --- */
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      padding: 14px;
+      background: rgba(30, 27, 46, 0.92);
+      backdrop-filter: blur(6px);
+    }
+    .btn {
+      appearance: none;
+      border: none;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 12px 26px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--purple), #a855f7);
+      color: #fff;
+      box-shadow: 0 6px 18px rgba(124, 58, 237, 0.45);
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(124, 58, 237, 0.55); }
+    .btn-hint { color: #cbd5e1; font-size: 13px; align-self: center; }
+
+    /* --- Cover --- */
+    .cover {
+      background: linear-gradient(150deg, #2e1065 0%, #5b21b6 55%, #7c3aed 100%);
+      color: #fff;
+      border-radius: 16px;
+      padding: 56px 44px;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .brand-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      letter-spacing: 3px;
+      font-size: 14px;
+      text-transform: uppercase;
+      background: rgba(255,255,255,0.15);
+      padding: 8px 18px;
+      border-radius: 999px;
+      margin-bottom: 26px;
+    }
+    .cover h1 {
+      font-size: 40px;
+      margin: 0 0 14px;
+      line-height: 1.1;
+      font-weight: 800;
+    }
+    .cover p {
+      font-size: 17px;
+      color: #e9d5ff;
+      max-width: 30rem;
+      margin: 0 auto;
+      line-height: 1.55;
+    }
+
+    h2.section-title {
+      font-size: 24px;
+      color: var(--purple-dark);
+      margin: 38px 0 6px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .section-kicker {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--purple);
+      margin-top: 34px;
+    }
+    .section-sub {
+      color: var(--slate);
+      font-size: 15px;
+      margin: 4px 0 18px;
+      line-height: 1.55;
+    }
+
+    .intro {
+      background: var(--bg-soft);
+      border-left: 4px solid var(--purple);
+      border-radius: 10px;
+      padding: 18px 22px;
+      margin: 20px 0 6px;
+      color: var(--slate);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* --- Steps --- */
+    .steps { margin: 8px 0 4px; }
+    .step {
+      display: flex;
+      gap: 18px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--line);
+      break-inside: avoid;
+    }
+    .step:last-child { border-bottom: none; }
+    .step-num {
+      flex: 0 0 auto;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--purple), #a855f7);
+      color: #fff;
+      font-weight: 800;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 10px rgba(124,58,237,0.3);
+    }
+    .step-body h3 {
+      margin: 4px 0 6px;
+      font-size: 17px;
+      color: var(--ink);
+    }
+    .step-body p {
+      margin: 0;
+      color: var(--slate);
+      font-size: 14.5px;
+      line-height: 1.6;
+    }
+    .step-body .tip {
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--purple-dark);
+      background: var(--purple-light);
+      display: inline-block;
+      padding: 5px 12px;
+      border-radius: 8px;
+      font-weight: 600;
+    }
+
+    /* --- Feature grid --- */
+    .features {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 18px;
+    }
+    .feature {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 18px;
+      background: #fff;
+      break-inside: avoid;
+    }
+    .feature .icon {
+      font-size: 26px;
+      display: inline-flex;
+      width: 46px;
+      height: 46px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      background: var(--purple-light);
+      margin-bottom: 10px;
+    }
+    .feature h3 {
+      margin: 4px 0 6px;
+      font-size: 16px;
+      color: var(--purple-dark);
+    }
+    .feature p {
+      margin: 0;
+      color: var(--slate);
+      font-size: 13.5px;
+      line-height: 1.55;
+    }
+
+    /* --- Callout --- */
+    .callout {
+      margin-top: 26px;
+      background: linear-gradient(135deg, #fffbeb, #fef3c7);
+      border: 1px solid #fde68a;
+      border-radius: 12px;
+      padding: 20px 24px;
+      break-inside: avoid;
+    }
+    .callout h3 { margin: 0 0 8px; color: var(--gold); font-size: 16px; }
+    .callout ul { margin: 0; padding-left: 18px; color: #7c2d12; font-size: 14px; line-height: 1.7; }
+
+    .divider { height: 1px; background: var(--line); margin: 34px 0; }
+
+    footer {
+      margin-top: 40px;
+      padding-top: 18px;
+      border-top: 2px solid var(--purple-light);
+      text-align: center;
+      color: var(--slate-light);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    footer strong { color: var(--purple-dark); }
+
+    /* --- Print rules --- */
+    @page { size: letter; margin: 0.5in; }
+    @media print {
+      body { background: #fff; }
+      .toolbar { display: none !important; }
+      .page {
+        width: auto;
+        min-height: auto;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+      }
+      .cover { border-radius: 0; }
+      .page-break { page-break-before: always; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn" onclick="window.print()">🖨️ Save as PDF</button>
+    <span class="btn-hint">Tip: In the print dialog, choose “Save as PDF” as the destination.</span>
+  </div>
+
+  <div class="page">
+    <!-- COVER -->
+    <div class="cover">
+      <div class="brand-badge">⚡ OSYS</div>
+      <h1>Welcome to Your Team</h1>
+      <p>A simple, step-by-step guide for parents — from creating your account to adding your athlete and unlocking everything your team has to offer.</p>
+    </div>
+
+    <div class="intro">
+      <strong>New here? You’re in the right place.</strong> This short guide walks you through joining OSYS,
+      creating your athlete’s profile, and getting connected with your team. It takes about 5 minutes.
+    </div>
+
+    <!-- PART 1 -->
+    <div class="part">
+      <div class="section-kicker">Part 1</div>
+      <h2 class="section-title">🚀 Create Your Account</h2>
+      <p class="section-sub">Get signed up as a parent so you can manage your athlete and stay connected.</p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Open OSYS &amp; tap “Get Started”</h3>
+            <p>Visit the OSYS app in your web browser. On the welcome screen, tap <strong>Get Started</strong> to begin creating a new account.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Choose “Parent” as your role</h3>
+            <p>Select <strong>Parent</strong> so your account is set up to add and manage your child’s athlete profile.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>Enter your details</h3>
+            <p>Provide your name, email, and a secure password. This is <em>your</em> account — your athlete will have their own profile that you manage.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h3>Install the app to your phone (recommended)</h3>
+            <p>When prompted, tap <strong>Add to Home Screen</strong> so OSYS behaves like a real app — faster access and push notifications.</p>
+            <span class="tip">📱 iPhone: Share → “Add to Home Screen”. Android: tap “Install”.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- PART 2 -->
+    <div class="part">
+      <div class="section-kicker">Part 2</div>
+      <h2 class="section-title">🏈 Add Your Athlete</h2>
+      <p class="section-sub">Create your child’s profile so a coach can add them to the team roster.</p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Go to “My Athletes”</h3>
+            <p>From your dashboard or profile, find the <strong>My Athletes</strong> section and tap <strong>+ Add Athlete</strong>.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Fill in the basics</h3>
+            <p>Enter your athlete’s first and last name, date of birth, and gender. A nickname is optional and shows on their player card.</p>
+            <span class="tip">🎂 Date of birth sets the correct age group automatically.</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>Add a photo (recommended)</h3>
+            <p>Tap the camera icon to upload a profile picture (max 2MB). You can change or remove it anytime from the athlete’s edit screen.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h3>Share the username with your coach</h3>
+            <p>Each athlete gets a unique <strong>@username</strong>. Your coach searches this to add your athlete to the team roster — so send it their way!</p>
+            <span class="tip">🔎 Coaches search by @username or name to add players.</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-body">
+            <h3>You’re on the team!</h3>
+            <p>Once your coach adds your athlete, you’ll get a notification and instantly unlock your team’s tools below.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-break"></div>
+
+    <!-- PART 3 -->
+    <div class="part">
+      <div class="section-kicker">Part 3</div>
+      <h2 class="section-title">✨ What Your Team Offers</h2>
+      <p class="section-sub">Once your athlete is on a roster, here’s everything you can do inside OSYS.</p>
+
+      <div class="features">
+        <div class="feature">
+          <div class="icon">💬</div>
+          <h3>Team Chat</h3>
+          <p>Message coaches and other parents in one place. Get quick answers, coordinate rides, and never miss an update.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">📅</div>
+          <h3>Schedule &amp; Calendar</h3>
+          <p>See practices, games, and events with dates, times, and locations. Practices even include a full time-block itinerary.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">🔔</div>
+          <h3>Push Notifications</h3>
+          <p>Turn on alerts for game days, schedule changes, and announcements — delivered right to your phone.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">👥</div>
+          <h3>Team Roster</h3>
+          <p>View your team’s players and coaching staff so you always know who’s who.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">📝</div>
+          <h3>Registrations</h3>
+          <p>Sign up for seasons, camps, and events, and handle any required forms or payments securely.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">📊</div>
+          <h3>Stats &amp; Highlights</h3>
+          <p>Follow your athlete’s stats and celebrate their progress throughout the season.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">🎬</div>
+          <h3>Film Room</h3>
+          <p>Watch game and practice film shared by coaches to help your athlete improve.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">❤️</div>
+          <h3>Fan Hub &amp; Profile</h3>
+          <p>Share your athlete’s public profile with family and fans who want to cheer them on.</p>
+        </div>
+      </div>
+
+      <div class="callout">
+        <h3>⭐ Quick Tips to Get the Most Out of OSYS</h3>
+        <ul>
+          <li>Install the app to your home screen and turn on notifications.</li>
+          <li>Keep your athlete’s date of birth accurate — it drives age-group placement.</li>
+          <li>Check the schedule before each week so you never miss a practice or game.</li>
+          <li>Say hi in Team Chat — it’s the fastest way to reach your coach.</li>
+        </ul>
+      </div>
+    </div>
+
+    <footer>
+      <strong>Welcome to the team!</strong><br />
+      Questions? Reach out to your coach or team commissioner directly in <strong>Team Chat</strong>.<br />
+      Powered by OSYS ⚡
+    </footer>
+  </div>
+</body>
+</html>

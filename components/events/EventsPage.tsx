@@ -1167,7 +1167,7 @@ const EventsPage: React.FC = () => {
     if (!confirmed) return;
     
     try {
-      await deleteDoc(doc(db, 'teams', teamId, 'events', eventId));
+      await deleteDoc(doc(db, 'events', eventId));
       toastSuccess('Event deleted successfully');
     } catch (error) {
       console.error('Error deleting event:', error);

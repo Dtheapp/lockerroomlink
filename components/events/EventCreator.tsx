@@ -3,6 +3,8 @@ import { collection, addDoc, updateDoc, doc, Timestamp } from 'firebase/firestor
 import { db } from '../../services/firebase';
 import { Event, EventType, PricingTier, NewEvent, CustomField, EventLocation } from '../../types/events';
 import { US_STATES } from '../../types/events';
+import { useTheme } from '../../contexts/ThemeContext';
+import { PracticeItineraryEditor } from './PracticeItinerary';
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -560,6 +562,7 @@ const StepDetails: React.FC<{
   event: Partial<NewEvent>;
   updateEvent: (updates: Partial<NewEvent>) => void;
 }> = ({ event, updateEvent }) => {
+  const { theme } = useTheme();
   return (
     <div className="space-y-6">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
@@ -619,6 +622,17 @@ const StepDetails: React.FC<{
           />
         </div>
       </div>
+      
+      {/* Practice Itinerary - time-block schedule */}
+      {event.type === 'practice' && (
+        <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/40">
+          <PracticeItineraryEditor
+            value={(event.itinerary as any) || []}
+            onChange={(blocks) => updateEvent({ itinerary: blocks } as any)}
+            theme={theme}
+          />
+        </div>
+      )}
       
       {/* Registration dates (for registration type) */}
       {event.type === 'registration' && (

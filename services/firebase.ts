@@ -3,6 +3,7 @@ import { getAuth } from 'firebase/auth';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAnalytics, isSupported } from 'firebase/analytics';
+import { getMessaging, isSupported as isMessagingSupported, type Messaging } from 'firebase/messaging';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_API_KEY,
@@ -31,6 +32,20 @@ isSupported().then((supported) => {
     analytics = getAnalytics(app);
   }
 });
+
+// Firebase Cloud Messaging (push notifications) - only where supported (browser + SW).
+// Returns null on unsupported platforms (e.g. iOS < 16.4, some in-app browsers, SSR).
+export const getMessagingIfSupported = async (): Promise<Messaging | null> => {
+  try {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return null;
+    const supported = await isMessagingSupported();
+    if (!supported) return null;
+    return getMessaging(app);
+  } catch (error) {
+    console.warn('[FCM] Messaging not supported:', error);
+    return null;
+  }
+};
 
 // Utility to clear Firestore cache if corrupted
 export const clearFirestoreCache = async () => {

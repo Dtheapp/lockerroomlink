@@ -23,6 +23,7 @@ import SeasonManager, { type RegistrationFlyerData } from './SeasonManager';
 import { DraftPool } from './draftpool';
 import GameDayHub from './GameDayHub';
 import StatLeadersWidget from './stats/StatLeadersWidget';
+import { PracticeItineraryEditor, PracticeItineraryTimeline, type PracticeTimeBlock } from './events/PracticeItinerary';
 import type { LiveStream, BulletinPost, UserProfile, ProgramSeason, TeamGame } from '../types';
 import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image, Copy, ExternalLink, Share2, Link2, Check, Palette, ChevronRight, ChevronDown, Trophy, AlertTriangle, Loader2, UserPlus, Users, Sword, Shield, Zap, Crown, MessageSquare } from 'lucide-react';
 
@@ -38,6 +39,7 @@ interface EventWithAttachments {
   eventType?: string;
   location?: string;
   description?: string;
+  itinerary?: PracticeTimeBlock[];
   attachments?: { name: string; url: string; type: string }[];
   createdBy?: string;
   createdAt?: any;
@@ -1920,14 +1922,23 @@ const NewOSYSDashboard: React.FC = () => {
         setUploadingEventFiles(false);
       }
       
-      const eventsRef = collection(db, 'teams', teamData.id, 'events');
+      const eventsRef = collection(db, 'events');
       await addDoc(eventsRef, {
+        teamId: teamData.id,
         title: sanitizeText(newEvent.title),
         eventStartDate: newEvent.date,
         eventStartTime: newEvent.time || '',
         location: sanitizeText(newEvent.location || ''),
         description: sanitizeText(newEvent.description || ''),
         eventType: newEvent.type || 'Practice',
+        itinerary: (newEvent.itinerary || [])
+          .filter(b => b.startTime || b.activity)
+          .map(b => ({
+            id: b.id,
+            startTime: b.startTime || '',
+            endTime: b.endTime || '',
+            activity: sanitizeText(b.activity || ''),
+          })),
         attachments,
         createdBy: userData.uid,
         createdAt: serverTimestamp()
@@ -1960,7 +1971,7 @@ const NewOSYSDashboard: React.FC = () => {
         setUploadingEventFiles(false);
       }
       
-      const eventRef = doc(db, 'teams', teamData.id, 'events', eventId);
+      const eventRef = doc(db, 'events', eventId);
       await updateDoc(eventRef, {
         title: sanitizeText(editingEvent.title || ''),
         eventStartDate: editingEvent.date || selectedEvent?.date,
@@ -1968,6 +1979,14 @@ const NewOSYSDashboard: React.FC = () => {
         location: sanitizeText(editingEvent.location || ''),
         description: sanitizeText(editingEvent.description || ''),
         eventType: editingEvent.type || 'Practice',
+        itinerary: ((editingEvent.itinerary ?? selectedEvent?.itinerary) || [])
+          .filter(b => b.startTime || b.activity)
+          .map(b => ({
+            id: b.id,
+            startTime: b.startTime || '',
+            endTime: b.endTime || '',
+            activity: sanitizeText(b.activity || ''),
+          })),
         attachments
       });
       
@@ -1997,7 +2016,7 @@ const NewOSYSDashboard: React.FC = () => {
         }
       }
       
-      const eventRef = doc(db, 'teams', teamData.id, 'events', deleteEventConfirm.id);
+      const eventRef = doc(db, 'events', deleteEventConfirm.id);
       await deleteDoc(eventRef);
       setDeleteEventConfirm(null);
       setSelectedEvent(null);
@@ -2029,7 +2048,7 @@ const NewOSYSDashboard: React.FC = () => {
     }
     
     const newAttachments = selectedEvent.attachments?.filter((_, i) => i !== attIndex) || [];
-    const eventRef = doc(db, 'teams', teamData.id, 'events', eventId);
+    const eventRef = doc(db, 'events', eventId);
     await updateDoc(eventRef, { attachments: newAttachments });
     setSelectedEvent({ ...selectedEvent, attachments: newAttachments });
   };
@@ -4439,6 +4458,15 @@ const NewOSYSDashboard: React.FC = () => {
                   className={`w-full px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 border border-white/20 text-white' : 'bg-slate-100 border border-slate-300 text-zinc-900'}`}
                 />
               </div>
+
+              {/* Practice Itinerary - time-block schedule */}
+              {(newEvent.type || 'Practice') === 'Practice' && (
+                <PracticeItineraryEditor
+                  value={newEvent.itinerary || []}
+                  onChange={blocks => setNewEvent(prev => ({ ...prev, itinerary: blocks }))}
+                  theme={theme}
+                />
+              )}
               
               {/* Attachments */}
               <div>
@@ -4571,6 +4599,15 @@ const NewOSYSDashboard: React.FC = () => {
                     className={`w-full px-3 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/10 border border-white/20 text-white' : 'bg-slate-100 border border-slate-300 text-zinc-900'}`}
                   />
                 </div>
+
+                {/* Practice Itinerary - time-block schedule */}
+                {(editingEvent.type ?? selectedEvent.type ?? selectedEvent.eventType ?? 'Practice') === 'Practice' && (
+                  <PracticeItineraryEditor
+                    value={editingEvent.itinerary ?? selectedEvent.itinerary ?? []}
+                    onChange={blocks => setEditingEvent(prev => ({ ...prev, itinerary: blocks }))}
+                    theme={theme}
+                  />
+                )}
                 
                 {/* Existing Attachments */}
                 {selectedEvent.attachments && selectedEvent.attachments.length > 0 && (
@@ -4672,6 +4709,11 @@ const NewOSYSDashboard: React.FC = () => {
                   <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-white/5' : 'bg-slate-100'}`}>
                     <p className={theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}>{selectedEvent.description}</p>
                   </div>
+                )}
+                
+                {/* Practice Itinerary timeline */}
+                {selectedEvent.itinerary && selectedEvent.itinerary.length > 0 && (
+                  <PracticeItineraryTimeline blocks={selectedEvent.itinerary} theme={theme} />
                 )}
                 
                 {/* Attachments */}
