@@ -33,6 +33,7 @@ interface SendPushRequest {
   message: string;
   link?: string;
   tag?: string;
+  category?: string;
 }
 
 const handler: Handler = async (event) => {
@@ -71,7 +72,7 @@ const handler: Handler = async (event) => {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) };
   }
 
-  const { userIds, title, message, link, tag } = body;
+  const { userIds, title, message, link, tag, category } = body;
   if (!Array.isArray(userIds) || userIds.length === 0 || !title) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'userIds and title required' }) };
   }
@@ -81,13 +82,17 @@ const handler: Handler = async (event) => {
 
   try {
     // Collect every device token across the target users, respecting the
-    // per-user pushEnabled flag.
+    // per-user pushEnabled flag and category preference.
     const tokenToUser = new Map<string, string>();
 
     await Promise.all(
       targets.map(async (uid) => {
         const userSnap = await db.collection('users').doc(uid).get();
-        if (userSnap.exists && userSnap.data()?.pushEnabled === false) return;
+        const userData = userSnap.exists ? userSnap.data() : null;
+        // Global opt-out
+        if (userData?.pushEnabled === false) return;
+        // Category-level opt-out (default on unless explicitly disabled)
+        if (category && userData?.pushPrefs && userData.pushPrefs[category] === false) return;
 
         const tokensSnap = await db.collection('users').doc(uid).collection('pushTokens').get();
         tokensSnap.forEach((d) => {

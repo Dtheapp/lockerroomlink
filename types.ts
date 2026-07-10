@@ -615,6 +615,7 @@ export interface UserProfile {
   isRootAdmin?: boolean; // God Mode - only Root Admin can manage other SuperAdmins
   mustChangePassword?: boolean; // Force password change on first login
   pushEnabled?: boolean; // User has opted in to Web Push (FCM) notifications
+  pushPrefs?: Record<string, boolean>; // Per-category push toggles (teamChat, coachChat, general)
   
   // Contact Details
   phone?: string;          

@@ -6,6 +6,7 @@ import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { moderateText, getModerationWarning } from '../services/moderation';
 import { trackModeration } from '../services/analytics';
+import { pushToUsers } from '../services/notificationService';
 import type { Message } from '../types';
 import { Send, AlertCircle, VolumeX, Volume2, MoreVertical, X, Trash2, Edit2, Check, CheckCheck, Reply, Pin, PinOff, Clock, Image, ChevronDown, ChevronUp, Flag, MessageSquare } from 'lucide-react';
 import NoAthleteBlock from './NoAthleteBlock';
@@ -390,6 +391,26 @@ const Chat: React.FC = () => {
       }
       
       await addDoc(collection(db, 'teams', teamData.id, 'messages'), messagePayload);
+
+      // Push-notify other team members (best-effort, respects their prefs)
+      try {
+        const t = teamData as any;
+        const recipients = [
+          ...(Array.isArray(t.coachIds) ? t.coachIds : []),
+          ...(Array.isArray(t.parentIds) ? t.parentIds : []),
+          t.coachId,
+          t.headCoachId,
+          t.ownerId,
+        ].filter(Boolean) as string[];
+        const preview = imageUrl ? '\uD83D\uDCF7 Photo' : (messagePayload.text || '').slice(0, 120);
+        pushToUsers(
+          recipients,
+          `${teamData.name || 'Team'} \u2022 Team Chat`,
+          `${userData.name}: ${preview}`,
+          { link: '/chat', category: 'teamChat' }
+        );
+      } catch { /* non-fatal */ }
+
       setNewMessage('');
       setReplyingTo(null);
       setSelectedImage(null);

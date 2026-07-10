@@ -30,18 +30,23 @@ import { db, auth } from './firebase';
 /**
  * Ask the backend to deliver a Web Push to the given users' devices.
  * Best-effort: never throws, never blocks in-app notification creation.
- * Only runs in the browser with an authenticated user.
+ * Only runs in the browser with an authenticated user. The sender is always
+ * excluded so you never push to yourself.
  */
 const triggerPush = async (
   userIds: string[],
   title: string,
   message: string,
-  link?: string
+  link?: string,
+  category?: string
 ): Promise<void> => {
   try {
     if (typeof window === 'undefined') return;
     const currentUser = auth.currentUser;
-    if (!currentUser || userIds.length === 0) return;
+    if (!currentUser) return;
+
+    const recipients = Array.from(new Set(userIds.filter(id => id && id !== currentUser.uid)));
+    if (recipients.length === 0) return;
 
     const idToken = await currentUser.getIdToken();
     // Don't await the network round-trip beyond firing it.
@@ -51,11 +56,26 @@ const triggerPush = async (
         'Content-Type': 'application/json',
         Authorization: `Bearer ${idToken}`,
       },
-      body: JSON.stringify({ userIds, title, message, link }),
+      body: JSON.stringify({ userIds: recipients, title, message, link, category }),
     }).catch(() => {});
   } catch {
     // Swallow — push is a best-effort enhancement.
   }
+};
+
+/**
+ * Public push-only helper (does NOT create an in-app notification). Use this
+ * for high-frequency events like chat messages where a persistent bell entry
+ * for every message would be noise. Respects the recipient's push category
+ * preference (see `category`).
+ */
+export const pushToUsers = (
+  userIds: string[],
+  title: string,
+  message: string,
+  options?: { link?: string; category?: string }
+): void => {
+  void triggerPush(userIds, title, message, options?.link, options?.category);
 };
 
 // ============================================================================
@@ -217,7 +237,7 @@ export const createNotification = async (
   });
 
   // Best-effort push to the user's devices (opt-in).
-  void triggerPush([userId], title, message, options?.link);
+  void triggerPush([userId], title, message, options?.link, 'general');
 
   return docRef.id;
 };
@@ -269,7 +289,7 @@ export const createBulkNotifications = async (
   await batch.commit();
 
   // Best-effort push to all recipients' devices (opt-in).
-  void triggerPush(userIds, title, message, options?.link);
+  void triggerPush(userIds, title, message, options?.link, 'general');
 
   return count;
 };

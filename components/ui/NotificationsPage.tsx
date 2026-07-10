@@ -243,12 +243,28 @@ export const NotificationsPage: React.FC = () => {
   const [pushSupported] = useState(isPushSupported());
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [pushPrefs, setPushPrefs] = useState<Record<string, boolean>>({});
 
   // Reflect current push state: enabled only if OS permission granted AND profile flag on.
   useEffect(() => {
     const granted = getPushPermission() === 'granted';
     setPushOn(granted && (userData as any)?.pushEnabled === true);
+    setPushPrefs(((userData as any)?.pushPrefs) || {});
   }, [userData]);
+
+  // A push category is ON unless the user explicitly turned it off.
+  const togglePushPref = async (key: string) => {
+    if (!user?.uid) return;
+    const nextValue = pushPrefs[key] === false; // was off -> turn on; was on -> turn off
+    const prev = pushPrefs;
+    setPushPrefs({ ...pushPrefs, [key]: nextValue });
+    try {
+      await updateDoc(doc(db, 'users', user.uid), { [`pushPrefs.${key}`]: nextValue });
+    } catch {
+      setPushPrefs(prev);
+      toastError('Could not update preference');
+    }
+  };
 
   // Listen for foreground pushes while this page (app) is open.
   useEffect(() => {
@@ -498,6 +514,47 @@ export const NotificationsPage: React.FC = () => {
                 }`}
               />
             </button>
+          </div>
+        )}
+
+        {/* Push category preferences - choose what pushes to your phone */}
+        {pushSupported && pushOn && (
+          <div className="mb-4 p-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+              What to notify me about
+            </p>
+            <div className="space-y-2">
+              {[
+                { key: 'teamChat', label: 'Team Chat', desc: 'New messages in your team chat' },
+                { key: 'coachChat', label: 'Coach Chat', desc: 'New messages in the Strategy Room' },
+                { key: 'general', label: 'Announcements & Updates', desc: 'Games, events, roster, payments' },
+              ].map(cat => {
+                const isOn = pushPrefs[cat.key] !== false; // on unless explicitly off
+                return (
+                  <div key={cat.key} className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">{cat.label}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{cat.desc}</p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isOn}
+                      onClick={() => togglePushPref(cat.key)}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                        isOn ? 'bg-purple-600' : 'bg-slate-300 dark:bg-white/20'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          isOn ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 

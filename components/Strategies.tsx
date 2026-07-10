@@ -4,6 +4,7 @@ import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timest
 import { db } from '../services/firebase';
 import { sanitizeText } from '../services/sanitize';
 import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
+import { pushToUsers } from '../services/notificationService';
 import type { Message } from '../types';
 import { Send, AlertCircle, Shield, Lock, Edit2, Trash2, X, Check } from 'lucide-react';
 import { AnimatedBackground, GlassCard } from './ui/OSYSComponents';
@@ -84,8 +85,9 @@ const Strategies: React.FC = () => {
     setSending(true);
     setRateLimitError(null);
     try {
+      const messageText = sanitizeText(newMessage, 2000);
       await addDoc(collection(db, 'teams', teamData.id, 'strategies'), {
-        text: sanitizeText(newMessage, 2000),
+        text: messageText,
         sender: {
           uid: user.uid,
           name: sanitizeText(userData.name, 100),
@@ -93,6 +95,24 @@ const Strategies: React.FC = () => {
         },
         timestamp: serverTimestamp(),
       });
+
+      // Push-notify the other coaches (best-effort, respects their prefs)
+      try {
+        const t = teamData as any;
+        const recipients = [
+          ...(Array.isArray(t.coachIds) ? t.coachIds : []),
+          t.coachId,
+          t.headCoachId,
+          t.ownerId,
+        ].filter(Boolean) as string[];
+        pushToUsers(
+          recipients,
+          'Strategy Room \u2022 Coaches',
+          `${userData.name}: ${messageText.slice(0, 120)}`,
+          { link: '/strategies', category: 'coachChat' }
+        );
+      } catch { /* non-fatal */ }
+
       setNewMessage('');
     } catch (error) {
       console.error("Error sending strategy message:", error);
