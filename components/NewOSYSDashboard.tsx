@@ -3701,9 +3701,9 @@ const NewOSYSDashboard: React.FC = () => {
       )}
 
       {/* Main Grid */}
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Upcoming Events */}
-        <GlassCard className={`lg:col-span-1 ${theme === 'light' ? 'bg-white border-slate-200 shadow-lg' : ''}`}>
+        <GlassCard className={`lg:col-span-1 min-w-0 ${theme === 'light' ? 'bg-white border-slate-200 shadow-lg' : ''}`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className={`text-lg font-bold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
               <span>📅</span> Upcoming
@@ -3777,7 +3777,7 @@ const NewOSYSDashboard: React.FC = () => {
         </GlassCard>
 
         {/* Quick Actions */}
-        <GlassCard className={`lg:col-span-1 ${theme === 'light' ? 'bg-white border-slate-200 shadow-lg' : ''}`}>
+        <GlassCard className={`lg:col-span-1 min-w-0 ${theme === 'light' ? 'bg-white border-slate-200 shadow-lg' : ''}`}>
           <h2 className={`text-lg font-bold mb-4 flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
             <span>⚡</span> Quick Actions
           </h2>
@@ -3790,12 +3790,12 @@ const NewOSYSDashboard: React.FC = () => {
                     key={i}
                     onClick={action.action}
                     className={`
-                      flex flex-col items-center gap-2 p-4 rounded-xl transition
+                      flex flex-col items-center gap-2 p-3 rounded-xl transition min-w-0
                       ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'} hover:scale-105
                     `}
                   >
                     <span className="text-2xl">{action.icon}</span>
-                    <span className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{action.label}</span>
+                    <span className={`text-xs w-full text-center truncate ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{action.label}</span>
                   </button>
                 );
               }
@@ -3805,12 +3805,12 @@ const NewOSYSDashboard: React.FC = () => {
                   key={i}
                   to={action.link || '#'}
                   className={`
-                    flex flex-col items-center gap-2 p-4 rounded-xl transition
+                    flex flex-col items-center gap-2 p-3 rounded-xl transition min-w-0
                     ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'} hover:scale-105
                   `}
                 >
                   <span className="text-2xl">{action.icon}</span>
-                  <span className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{action.label}</span>
+                  <span className={`text-xs w-full text-center truncate ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{action.label}</span>
                 </Link>
               );
             })}
@@ -3818,7 +3818,7 @@ const NewOSYSDashboard: React.FC = () => {
         </GlassCard>
 
         {/* Roster Preview */}
-        <GlassCard className={`lg:col-span-1 ${theme === 'light' ? 'bg-white border-slate-200 shadow-lg' : ''}`}>
+        <GlassCard className={`lg:col-span-1 min-w-0 ${theme === 'light' ? 'bg-white border-slate-200 shadow-lg' : ''}`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className={`text-lg font-bold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
               <span>👥</span> Roster
@@ -3890,7 +3890,7 @@ const NewOSYSDashboard: React.FC = () => {
       )}
 
       {/* Coaching Staff & Bulletin Board Row */}
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Coaching Staff */}
         <GlassCard className={theme === 'light' ? 'bg-white border-slate-200 shadow-lg' : ''}>
           <h2 className={`text-lg font-bold mb-4 flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
