@@ -1996,12 +1996,13 @@ const Roster: React.FC = () => {
                         </p>
                         <div className={`flex items-center justify-center gap-2 mt-1 flex-wrap`}>
                           <span className={`text-xs ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500'}`}>DOB: {player.dob || player.dateOfBirth || '--'}</span>
-                          {(player.dob || player.dateOfBirth) && calculateAgeGroup(player.dob || player.dateOfBirth) && (
+                          {/* Prefer the stored ageGroup (manual override) over the auto-calculated one */}
+                          {(player.ageGroup || ((player.dob || player.dateOfBirth) && calculateAgeGroup(player.dob || player.dateOfBirth))) && (
                             <span className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs px-2 py-0.5 rounded font-bold">
-                              {calculateAgeGroup(player.dob || player.dateOfBirth)}
+                              {player.ageGroup || calculateAgeGroup(player.dob || player.dateOfBirth)}
                             </span>
                           )}
-                          {(player.dob || player.dateOfBirth) && !calculateAgeGroup(player.dob || player.dateOfBirth) && (
+                          {!player.ageGroup && (player.dob || player.dateOfBirth) && !calculateAgeGroup(player.dob || player.dateOfBirth) && (
                             <span className="bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs px-2 py-0.5 rounded">
                               18+
                             </span>

@@ -189,24 +189,24 @@ export const getAgeLabel = (birthDateString: string | undefined): string => {
 };
 
 /**
- * Calculate the youth sports age group (e.g., "5U", "8U", "14U") based on birthday
- * Youth sports typically use September 10th as the age cutoff date.
- * 
- * Rule: Age group = seasonYear - birthYear
- * EXCEPTION: If born AFTER Sept 10, add 1 (they play "up" with the next birth year cohort)
- * 
- * Examples for 2026 season:
- * - Born Aug 3, 2015 (BEFORE Sept 10): 2026 - 2015 = 11 → 11U
- * - Born Sept 23, 2015 (AFTER Sept 10): 2026 - 2015 + 1 = 12 → 12U
- * 
- * Since we're typically registering for the NEXT season, we calculate based on next year.
- * After Sept 10, we assume registration is for next year's season.
- * Before Sept 10, we assume registration is for current year's season.
- * 
+ * Calculate the youth sports age group (e.g., "5U", "8U", "14U") based on birthday.
+ *
+ * Uses the standard birth-year method: age group = seasonYear - birthYear
+ * (the age the child turns during the season year). No month adjustment —
+ * every child born in the same year is in the same age group.
+ *
+ * Examples for the 2026 season:
+ * - Born anytime in 2015: 2026 - 2015 = 11 → 11U
+ * - Born anytime in 2014: 2026 - 2014 = 12 → 12U
+ * - Born anytime in 2016: 2026 - 2016 = 10 → 10U
+ *
+ * The Sept 10 cutoff is only used to decide which season we're registering for:
+ * after Sept 10 we roll to next year's season; before, the current year.
+ *
  * @param birthDateString - Birth date string (YYYY-MM-DD or MM/DD/YYYY format)
- * @param cutoffMonth - Month for cutoff (0-11, default 8 = September)
- * @param cutoffDay - Day for cutoff (default 10 = Sept 10th)
- * @param forYear - Optional specific year to calculate for (overrides auto-detection)
+ * @param cutoffMonth - Season-rollover cutoff month (0-11, default 8 = September)
+ * @param cutoffDay - Season-rollover cutoff day (default 10 = Sept 10th)
+ * @param forYear - Optional specific season year (overrides auto-detection)
  * @returns Age group string like "5U", "8U", "14U" or null if invalid/adult
  */
 export const calculateAgeGroup = (
@@ -252,19 +252,12 @@ export const calculateAgeGroup = (
       seasonYear = today >= cutoffThisYear ? currentYear + 1 : currentYear;
     }
     
-    // Base age group = season year - birth year
+    // Base age group = season year - birth year (birth-year method).
+    // This is the standard youth-sports convention: a child's age group is the
+    // age they turn during the season year. e.g. season 2026:
+    //   born 2014 -> 12U, born 2015 -> 11U, born 2016 -> 10U.
     const birthYear = birthDate.getFullYear();
     let ageGroup = seasonYear - birthYear;
-    
-    // Check if athlete was born AFTER the cutoff date (Sept 10)
-    // If so, they play "up" with the next cohort - add 1 to age group
-    const birthMonth = birthDate.getMonth(); // 0-indexed
-    const birthDay = birthDate.getDate();
-    
-    if (birthMonth > cutoffMonth || (birthMonth === cutoffMonth && birthDay > cutoffDay)) {
-      // Born AFTER Sept 10 - they play up one age group
-      ageGroup += 1;
-    }
     
     // Return null for adults (18+) - they should select manually
     if (ageGroup >= 18) return null;

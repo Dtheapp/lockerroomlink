@@ -54,7 +54,8 @@ const Profile: React.FC = () => {
     weight: '',
     helmetSize: '',
     shirtSize: '',
-    pantSize: ''
+    pantSize: '',
+    ageGroup: ''
   });
   
   // Username validation state
@@ -824,8 +825,10 @@ const Profile: React.FC = () => {
         ? `${newAthleteForm.heightFt || 0} ft ${newAthleteForm.heightIn || 0} in`
         : '';
       
-      // Calculate age group from DOB using Sept 10 cutoff
+      // Calculate age group from DOB using Sept 10 cutoff.
+      // A parent-entered override takes priority if provided.
       const calculatedAgeGroup = calculateAgeGroup(newAthleteForm.dob);
+      const finalAgeGroup = newAthleteForm.ageGroup?.trim() || calculatedAgeGroup;
       
       const playerData: Record<string, any> = {
         firstName: newAthleteForm.firstName.trim(),
@@ -851,13 +854,13 @@ const Profile: React.FC = () => {
       
       // Only include optional fields if they have values (Firestore rejects undefined)
       if (newAthleteForm.nickname?.trim()) playerData.nickname = newAthleteForm.nickname.trim();
-      if (calculatedAgeGroup) playerData.ageGroup = calculatedAgeGroup;
+      if (finalAgeGroup) playerData.ageGroup = finalAgeGroup;
       
       // Save to top-level players collection (not under a team)
       await addDoc(collection(db, 'players'), playerData);
       
       // Reset form and close modal
-      setNewAthleteForm({ firstName: '', lastName: '', nickname: '', gender: '', username: '', dob: '', heightFt: '', heightIn: '', weight: '', helmetSize: '', shirtSize: '', pantSize: '' });
+      setNewAthleteForm({ firstName: '', lastName: '', nickname: '', gender: '', username: '', dob: '', heightFt: '', heightIn: '', weight: '', helmetSize: '', shirtSize: '', pantSize: '', ageGroup: '' });
       setUsernameError(null);
       setIsAddAthleteModalOpen(false);
       
@@ -2465,19 +2468,26 @@ const Profile: React.FC = () => {
                   <input 
                     type="date"
                     value={newAthleteForm.dob} 
-                    onChange={e => setNewAthleteForm({...newAthleteForm, dob: e.target.value})} 
+                    onChange={e => {
+                      const dob = e.target.value;
+                      const auto = calculateAgeGroup(dob);
+                      setNewAthleteForm({...newAthleteForm, dob, ageGroup: auto || ''});
+                    }} 
                     className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white" 
                     required
                   />
-                  {/* Show calculated age group */}
-                  {newAthleteForm.dob && calculateAgeGroup(newAthleteForm.dob) && (
-                    <div className="mt-1 flex items-center gap-2">
-                      <span className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs px-2 py-0.5 rounded font-bold">
-                        {calculateAgeGroup(newAthleteForm.dob)}
-                      </span>
-                      <span className="text-[10px] text-slate-500">Age Group</span>
-                    </div>
-                  )}
+                  {/* Age group - auto-filled from DOB, editable in case it's wrong */}
+                  <label className="block text-[10px] text-slate-500 mt-2 mb-1">Age Group (auto-calculated — change if needed)</label>
+                  <select
+                    value={newAthleteForm.ageGroup}
+                    onChange={e => setNewAthleteForm({...newAthleteForm, ageGroup: e.target.value})}
+                    className="w-full bg-white dark:bg-black border border-slate-300 dark:border-slate-700 rounded-lg p-2 text-sm text-slate-900 dark:text-white"
+                  >
+                    <option value="">Select…</option>
+                    {['4U','5U','6U','7U','8U','9U','10U','11U','12U','13U','14U','15U','16U','17U','18U'].map(g => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Gender *</label>
