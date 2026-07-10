@@ -1141,6 +1141,26 @@ const Chat: React.FC = () => {
                             <Check className="w-3 h-3 text-purple-200" />
                           )}
                         </span>
+                        {/* Pin/Unpin - moderators (Coach/Admin) can pin their own messages too */}
+                        {canModerate && (
+                          msg.isPinned ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleUnpinMessage(msg); }}
+                              className="text-purple-200 hover:text-white p-0.5 transition-colors"
+                              title="Unpin message"
+                            >
+                              <PinOff className="w-3 h-3" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handlePinMessage(msg); }}
+                              className="text-purple-200 hover:text-white p-0.5 transition-colors"
+                              title="Pin message"
+                            >
+                              <Pin className="w-3 h-3" />
+                            </button>
+                          )
+                        )}
                         <button
                           onClick={(e) => { e.stopPropagation(); startEditing(msg); }}
                           className="text-purple-200 hover:text-white p-0.5 transition-colors"
