@@ -562,8 +562,8 @@ const NewOSYSLayout: React.FC = () => {
       </aside>
 
       {/* Main Content Area */}
-      <main ref={mainContentRef} className={`${isSidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'} min-h-screen pt-16 lg:pt-0 overflow-y-auto transition-all`}>
-        <div className="p-4 lg:p-8">
+      <main ref={mainContentRef} className={`${isSidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'} min-h-screen pt-16 lg:pt-0 overflow-y-auto overflow-x-hidden transition-all`}>
+        <div className="p-4 lg:p-8 max-w-full overflow-x-hidden">
           <Outlet />
         </div>
       </main>
@@ -627,8 +627,8 @@ const NewOSYSLayout: React.FC = () => {
         </div>
       )}
 
-      {/* Floating Feedback Button */}
-      <FeedbackButton />
+      {/* Floating Feedback Button - hidden on chat pages so it doesn't cover the composer */}
+      {!location.pathname.includes('/chat') && <FeedbackButton />}
       
       {/* Global Toast Notifications */}
       <ToastContainer />

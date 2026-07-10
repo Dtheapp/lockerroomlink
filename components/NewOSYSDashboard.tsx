@@ -3753,9 +3753,9 @@ const NewOSYSDashboard: React.FC = () => {
                   <div 
                     key={event.id} 
                     onClick={() => setSelectedEvent(event as EventWithAttachments)}
-                    className={`flex items-center gap-4 p-3 rounded-xl transition cursor-pointer ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'}`}
+                    className={`flex items-center gap-3 p-3 rounded-xl transition cursor-pointer ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'}`}
                   >
-                    <div className="text-center min-w-[50px]">
+                    <div className="text-center min-w-[44px] shrink-0">
                       <div className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{date.day}</div>
                       <div className={`text-xs ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>{date.month}</div>
                     </div>
@@ -3766,7 +3766,9 @@ const NewOSYSDashboard: React.FC = () => {
                         {event.eventStartTime && ` • ${formatTime12Hour(event.eventStartTime)}`}
                       </div>
                     </div>
-                    <Badge variant={badge.variant}>{badge.label}</Badge>
+                    <div className="shrink-0">
+                      <Badge variant={badge.variant}>{badge.label}</Badge>
+                    </div>
                   </div>
                 );
               })

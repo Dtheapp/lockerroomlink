@@ -1265,45 +1265,8 @@ const Chat: React.FC = () => {
           </div>
         )}
         
-        <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-          {/* Multi-select button */}
-          {!isMuted && (
-            <button
-              type="button"
-              onClick={() => setMultiSelectMode(!multiSelectMode)}
-              className={`p-2.5 rounded-full transition-colors ${
-                multiSelectMode 
-                  ? 'bg-purple-500 dark:bg-orange-500 text-white' 
-                  : 'bg-slate-100/80 dark:bg-white/5 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10 hover:text-slate-700 dark:hover:text-white'
-              }`}
-              title="Select multiple messages to delete"
-            >
-              <Check className="w-5 h-5" />
-            </button>
-          )}
-          
-          {/* Image upload button */}
-          {!isMuted && (
-            <>
-              <input
-                ref={imageInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleImageSelect}
-                className="hidden"
-              />
-              <button
-                type="button"
-                onClick={() => imageInputRef.current?.click()}
-                disabled={uploadingImage}
-                className="p-2.5 bg-slate-100/80 dark:bg-white/5 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10 hover:text-slate-700 dark:hover:text-white transition-colors disabled:opacity-50"
-                title="Attach image"
-              >
-                <Image className="w-5 h-5" />
-              </button>
-            </>
-          )}
-          
+        <form onSubmit={handleSendMessage} className="flex flex-col gap-2">
+          {/* Big message text box */}
           <textarea
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
@@ -1317,30 +1280,75 @@ const Chat: React.FC = () => {
             }}
             placeholder={isMuted ? "You are muted..." : replyingTo ? "Type your reply..." : selectedImage ? "Add a caption..." : "Type your message..."}
             disabled={isMuted}
-            rows={1}
-            className={`flex-1 bg-white/80 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 rounded-2xl py-3 px-5 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 dark:focus:ring-orange-500/50 transition-all resize-none max-h-32 ${
+            rows={2}
+            className={`w-full bg-white/80 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 rounded-2xl py-3 px-4 text-base text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 dark:focus:ring-orange-500/50 transition-all resize-none max-h-40 ${
               isMuted ? 'opacity-50 cursor-not-allowed' : ''
             }`}
-            style={{ minHeight: '48px' }}
+            style={{ minHeight: '64px' }}
           />
-          <button 
-            type="submit" 
-            className={`p-3 rounded-full transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed mr-10 ${
-              isMuted 
-                ? 'bg-slate-400 cursor-not-allowed' 
-                : 'bg-purple-600 hover:bg-purple-700'
-            }`}
-            disabled={(!newMessage.trim() && !selectedImage) || sending || isMuted || uploadingImage}
-            aria-label="Send message"
-          >
-            {sending || uploadingImage ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : isMuted ? (
-              <VolumeX className="w-5 h-5 text-white" />
-            ) : (
-              <Send className="w-5 h-5 text-white" />
-            )}
-          </button>
+
+          {/* Action row: tools on the left, send on the right */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {/* Multi-select button */}
+              {!isMuted && (
+                <button
+                  type="button"
+                  onClick={() => setMultiSelectMode(!multiSelectMode)}
+                  className={`p-2.5 rounded-full transition-colors ${
+                    multiSelectMode 
+                      ? 'bg-purple-500 dark:bg-orange-500 text-white' 
+                      : 'bg-slate-100/80 dark:bg-white/5 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10 hover:text-slate-700 dark:hover:text-white'
+                  }`}
+                  title="Select multiple messages to delete"
+                >
+                  <Check className="w-5 h-5" />
+                </button>
+              )}
+              
+              {/* Image upload button */}
+              {!isMuted && (
+                <>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    disabled={uploadingImage}
+                    className="p-2.5 bg-slate-100/80 dark:bg-white/5 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10 hover:text-slate-700 dark:hover:text-white transition-colors disabled:opacity-50"
+                    title="Attach image"
+                  >
+                    <Image className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+            </div>
+
+            <button 
+              type="submit" 
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${
+                isMuted 
+                  ? 'bg-slate-400 cursor-not-allowed text-white' 
+                  : 'bg-purple-600 hover:bg-purple-700 text-white'
+              }`}
+              disabled={(!newMessage.trim() && !selectedImage) || sending || isMuted || uploadingImage}
+              aria-label="Send message"
+            >
+              {sending || uploadingImage ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : isMuted ? (
+                <VolumeX className="w-5 h-5 text-white" />
+              ) : (
+                <Send className="w-5 h-5 text-white" />
+              )}
+              <span className="text-sm">{isMuted ? 'Muted' : 'Send'}</span>
+            </button>
+          </div>
         </form>
       </div>
 
