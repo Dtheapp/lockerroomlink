@@ -364,26 +364,38 @@ const Strategies: React.FC = () => {
             {rateLimitError}
           </div>
         )}
-        <form onSubmit={handleSendMessage} className="flex items-center gap-3 mr-12">
-          <input
-            type="text"
+        <form onSubmit={handleSendMessage} className="flex flex-col gap-2">
+          <textarea
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (newMessage.trim() && !sending) {
+                  (e.target as HTMLTextAreaElement).form?.requestSubmit();
+                }
+              }
+            }}
             placeholder="Share a strategy or play idea..."
-            className="flex-1 bg-white/80 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 rounded-full shadow-inner py-3 px-5 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 dark:focus:ring-orange-500/50 transition-all"
+            rows={2}
+            className="w-full bg-white/80 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 rounded-2xl py-3 px-4 text-base text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 dark:focus:ring-orange-500/50 transition-all resize-none max-h-40"
+            style={{ minHeight: '64px' }}
           />
-          <button 
-            type="submit" 
-            className="p-3 rounded-full bg-purple-600 hover:bg-purple-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed" 
-            disabled={!newMessage.trim() || sending}
-            aria-label="Send message"
-          >
-            {sending ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Send className="w-5 h-5 text-white" />
-            )}
-          </button>
+          <div className="flex items-center justify-end">
+            <button 
+              type="submit" 
+              className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold bg-purple-600 hover:bg-purple-700 text-white transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed" 
+              disabled={!newMessage.trim() || sending}
+              aria-label="Send message"
+            >
+              {sending ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Send className="w-5 h-5 text-white" />
+              )}
+              <span className="text-sm">Send</span>
+            </button>
+          </div>
         </form>
       </div>
         </GlassCard>

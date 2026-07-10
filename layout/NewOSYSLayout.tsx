@@ -628,7 +628,7 @@ const NewOSYSLayout: React.FC = () => {
       )}
 
       {/* Floating Feedback Button - hidden on chat pages so it doesn't cover the composer */}
-      {!location.pathname.includes('/chat') && <FeedbackButton />}
+      {!location.pathname.includes('/chat') && !location.pathname.includes('/strateg') && <FeedbackButton />}
       
       {/* Global Toast Notifications */}
       <ToastContainer />
