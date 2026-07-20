@@ -932,6 +932,17 @@ service cloud.firestore {
         // Security note: This is safe because pricing tiers only contain non-sensitive counter data
         allow update: if isAuthenticated();
       }
+
+      // =============================================================================
+      // CHECK-INS SUBCOLLECTION (event RSVP / attendance)
+      // =============================================================================
+      match /checkins/{athleteId} {
+        // Any authenticated team member can see who's coming
+        allow read: if isAuthenticated();
+        // Any authenticated user can check an athlete in/out (parents for their
+        // own athlete, coaches for the roster). Low-sensitivity attendance data.
+        allow create, update, delete: if isAuthenticated();
+      }
     }
 
     // =============================================================================

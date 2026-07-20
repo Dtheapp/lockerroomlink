@@ -24,6 +24,7 @@ import { DraftPool } from './draftpool';
 import GameDayHub from './GameDayHub';
 import StatLeadersWidget from './stats/StatLeadersWidget';
 import { PracticeItineraryEditor, PracticeItineraryTimeline, type PracticeTimeBlock } from './events/PracticeItinerary';
+import { EventCheckIn } from './events/EventCheckIn';
 import type { LiveStream, BulletinPost, UserProfile, ProgramSeason, TeamGame } from '../types';
 import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image, Copy, ExternalLink, Share2, Link2, Check, Palette, ChevronRight, ChevronDown, Trophy, AlertTriangle, Loader2, UserPlus, Users, Sword, Shield, Zap, Crown, MessageSquare } from 'lucide-react';
 
@@ -4717,6 +4718,17 @@ const NewOSYSDashboard: React.FC = () => {
                 {selectedEvent.itinerary && selectedEvent.itinerary.length > 0 && (
                   <PracticeItineraryTimeline blocks={selectedEvent.itinerary} theme={theme} />
                 )}
+                
+                {/* Event Check-In / RSVP */}
+                <EventCheckIn
+                  eventId={selectedEvent.id}
+                  teamId={teamData?.id}
+                  roster={roster as any}
+                  currentUserId={user?.uid}
+                  currentUserName={userData?.name}
+                  isCoach={userData?.role === 'Coach'}
+                  theme={theme}
+                />
                 
                 {/* Attachments */}
                 {selectedEvent.attachments && selectedEvent.attachments.length > 0 && (
