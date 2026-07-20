@@ -217,7 +217,7 @@ const NewOSYSLayout: React.FC = () => {
       { icon: '🏈', label: 'Draft Day', path: '/draft-day', section: 'Create', coachOnly: true },
       
       // === TEAM-SPECIFIC (Only shown when team is selected) ===
-      { icon: '📋', label: 'Playbook', path: '/playbook', section: 'Main', configKey: 'playbookEnabled', hideForParent: true, teamRequired: true },
+      { icon: '📋', label: 'Playbook', path: '/playbook', section: 'Main', configKey: 'playbookEnabled', teamRequired: true },
       { icon: '👥', label: 'Roster', path: '/roster', section: 'Main', teamRequired: true },
       { icon: '📅', label: 'Schedule', path: '/events', section: 'Main', teamRequired: true },
       { icon: '🗨️', label: 'Team Chat', path: '/chat', section: 'Engage', configKey: 'chatEnabled', unreadKey: 'teamChat', teamRequired: true },
