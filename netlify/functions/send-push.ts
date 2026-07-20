@@ -79,6 +79,7 @@ const handler: Handler = async (event) => {
 
   // Cap recipients to keep the function within limits.
   const targets = userIds.slice(0, 500);
+  console.log(`[send-push] recipients=${targets.length} category=${category || 'none'} title="${title}"`);
 
   try {
     // Collect every device token across the target users, respecting the
@@ -103,7 +104,9 @@ const handler: Handler = async (event) => {
     );
 
     const tokens = Array.from(tokenToUser.keys());
+    console.log(`[send-push] tokens found=${tokens.length}`);
     if (tokens.length === 0) {
+      console.log('[send-push] No device tokens for recipients (not registered or push disabled).');
       return { statusCode: 200, headers, body: JSON.stringify({ success: true, sent: 0 }) };
     }
 
@@ -120,6 +123,10 @@ const handler: Handler = async (event) => {
         fcmOptions: { link: link || '/' },
         notification: { icon: '/icons/icon-192.png', badge: '/icons/icon-192.png' },
       },
+    });
+    console.log(`[send-push] FCM result: success=${response.successCount} failure=${response.failureCount}`);
+    response.responses.forEach((r, i) => {
+      if (!r.success) console.log(`[send-push] token#${i} error: ${r.error?.code} ${r.error?.message}`);
     });
 
     // Prune tokens that are no longer valid.

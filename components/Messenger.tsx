@@ -7,6 +7,7 @@ import { checkRateLimit, RATE_LIMITS } from '../services/rateLimit';
 import { uploadFile } from '../services/storage';
 import { moderateText, getModerationWarning } from '../services/moderation';
 import { useAuth } from '../contexts/AuthContext';
+import { pushToUsers } from '../services/notificationService';
 import { useUnreadMessages } from '../hooks/useUnreadMessages';
 import { Search, Send, MessageSquare, AlertCircle, Edit2, Trash2, X, Check, AlertTriangle, CheckCheck, Reply, CornerUpLeft } from 'lucide-react';
 import type { PrivateChat, PrivateMessage, UserProfile } from '../types';
@@ -511,6 +512,19 @@ const Messenger: React.FC = () => {
         
         // Clear reply state after sending
         setReplyingTo(null);
+
+        // Push-notify the other participant(s) of the direct message
+        try {
+          const recipients = (activeChat.participants || []).filter(
+            (id: string) => id && id !== user.uid && id !== 'admin'
+          );
+          pushToUsers(
+            recipients,
+            userData?.name ? `${userData.name} messaged you` : 'New message',
+            text.slice(0, 120),
+            { link: '/messenger' }
+          );
+        } catch { /* non-fatal */ }
       } catch (error) { console.error(error); alert('Failed to send message or upload attachments.'); }
       finally { setSending(false); }
   };
