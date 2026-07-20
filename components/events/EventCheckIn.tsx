@@ -15,6 +15,7 @@ import {
   onSnapshot,
   setDoc,
   serverTimestamp,
+  getDocs,
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { Users, Check, X } from 'lucide-react';
@@ -41,7 +42,7 @@ interface RosterPlayer {
 interface EventCheckInProps {
   eventId: string;
   teamId?: string;
-  roster: RosterPlayer[];
+  roster?: RosterPlayer[];
   currentUserId?: string;
   currentUserName?: string;
   isCoach?: boolean;
@@ -60,6 +61,39 @@ export const EventCheckIn: React.FC<EventCheckInProps> = ({
   const isDark = theme === 'dark';
   const [checkins, setCheckins] = useState<Record<string, CheckinDoc>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [fetchedRoster, setFetchedRoster] = useState<RosterPlayer[]>([]);
+
+  // If no roster was passed in, load it from the team so this component works
+  // standalone (e.g. on the schedule/event page).
+  useEffect(() => {
+    if ((roster && roster.length > 0) || !teamId) return;
+    let active = true;
+    (async () => {
+      try {
+        const snap = await getDocs(collection(db, 'teams', teamId, 'players'));
+        if (!active) return;
+        setFetchedRoster(
+          snap.docs.map((d) => {
+            const data = d.data() as any;
+            return {
+              id: d.id,
+              name: data.name,
+              parentId: data.parentId,
+              parentUserId: data.parentUserId,
+              photoUrl: data.photoUrl,
+            };
+          })
+        );
+      } catch (err) {
+        console.error('[EventCheckIn] Failed to load roster:', err);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [roster, teamId]);
+
+  const effectiveRoster = roster && roster.length > 0 ? roster : fetchedRoster;
 
   // Live subscription to this event's check-ins.
   useEffect(() => {
@@ -78,11 +112,11 @@ export const EventCheckIn: React.FC<EventCheckInProps> = ({
   // Players this user is allowed to check in: coaches manage everyone,
   // parents manage only their own athletes.
   const manageable = useMemo(() => {
-    if (isCoach) return roster;
-    return roster.filter(
+    if (isCoach) return effectiveRoster;
+    return effectiveRoster.filter(
       (p) => p.parentId === currentUserId || p.parentUserId === currentUserId
     );
-  }, [roster, isCoach, currentUserId]);
+  }, [effectiveRoster, isCoach, currentUserId]);
 
   const comingList = useMemo(
     () => Object.values(checkins).filter((c) => c.status === 'coming'),

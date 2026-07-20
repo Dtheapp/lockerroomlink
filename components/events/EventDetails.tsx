@@ -3,6 +3,9 @@ import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { Event, PricingTier, EventWithDetails } from '../../types/events';
 import { Team } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
+import { EventCheckIn } from './EventCheckIn';
 import { 
   Calendar, 
   MapPin, 
@@ -118,6 +121,8 @@ const EventDetails: React.FC<EventDetailsProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const { userData } = useAuth();
+  const { theme } = useTheme();
 
   useEffect(() => {
     const fetchEventDetails = async () => {
@@ -412,6 +417,20 @@ const EventDetails: React.FC<EventDetailsProps> = ({
                     </div>
                   ))}
               </div>
+            </div>
+          )}
+          
+          {/* Event Check-In / RSVP */}
+          {event.teamId && (
+            <div className="mb-6">
+              <EventCheckIn
+                eventId={event.id}
+                teamId={event.teamId}
+                currentUserId={userData?.uid}
+                currentUserName={userData?.name}
+                isCoach={userData?.role === 'Coach'}
+                theme={theme}
+              />
             </div>
           )}
           

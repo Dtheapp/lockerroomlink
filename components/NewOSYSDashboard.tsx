@@ -4724,7 +4724,7 @@ const NewOSYSDashboard: React.FC = () => {
                   eventId={selectedEvent.id}
                   teamId={teamData?.id}
                   roster={roster as any}
-                  currentUserId={user?.uid}
+                  currentUserId={userData?.uid}
                   currentUserName={userData?.name}
                   isCoach={userData?.role === 'Coach'}
                   theme={theme}

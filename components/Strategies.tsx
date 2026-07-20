@@ -9,6 +9,7 @@ import type { Message } from '../types';
 import { Send, AlertCircle, Shield, Lock, Edit2, Trash2, X, Check } from 'lucide-react';
 import { AnimatedBackground, GlassCard } from './ui/OSYSComponents';
 import { LinkifiedText } from './ui/LinkifiedText';
+import { LandscapeNotice } from './ui/LandscapeNotice';
 
 const Strategies: React.FC = () => {
   const { user, userData, teamData } = useAuth();
@@ -187,6 +188,7 @@ const Strategies: React.FC = () => {
   return (
     <div className="relative h-[calc(100vh-8rem)] lg:h-[calc(100vh-4rem)]">
       <AnimatedBackground />
+      <LandscapeNotice featureName="The Strategy Room" />
       <div className="relative z-10 h-full flex flex-col">
         <GlassCard className="flex-1 flex flex-col overflow-hidden !p-0">
       
