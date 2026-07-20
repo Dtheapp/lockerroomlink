@@ -8,6 +8,7 @@ import { pushToUsers } from '../services/notificationService';
 import type { Message } from '../types';
 import { Send, AlertCircle, Shield, Lock, Edit2, Trash2, X, Check } from 'lucide-react';
 import { AnimatedBackground, GlassCard } from './ui/OSYSComponents';
+import { LinkifiedText } from './ui/LinkifiedText';
 
 const Strategies: React.FC = () => {
   const { user, userData, teamData } = useAuth();
@@ -296,7 +297,7 @@ const Strategies: React.FC = () => {
                     </div>
                   ) : (
                     <>
-                      <p className="leading-relaxed" style={{ color: isMe ? '#ffffff' : '#1e293b' }}>{msg.text}</p>
+                      <LinkifiedText text={msg.text} className="block leading-relaxed" style={{ color: isMe ? '#ffffff' : '#1e293b' }} />
                       {/* Footer with timestamp and actions */}
                       <div style={{ color: isMe ? 'rgba(216,180,254,1)' : '#94a3b8', fontSize: '10px' }} className="mt-1 flex items-center justify-between gap-2">
                         <span>{isEdited && '(edited)'}</span>
@@ -388,14 +389,6 @@ const Strategies: React.FC = () => {
           <textarea
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                if (newMessage.trim() && !sending) {
-                  (e.target as HTMLTextAreaElement).form?.requestSubmit();
-                }
-              }
-            }}
             placeholder="Share a strategy or play idea..."
             rows={2}
             className="w-full bg-white/80 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 rounded-2xl py-3 px-4 text-base text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 dark:focus:ring-orange-500/50 transition-all resize-none max-h-40"

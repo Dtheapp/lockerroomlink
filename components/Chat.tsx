@@ -13,6 +13,7 @@ import NoAthleteBlock from './NoAthleteBlock';
 import ReportContentModal from './ReportContentModal';
 import { uploadFile } from '../services/storage';
 import { AnimatedBackground, GlassCard } from './ui/OSYSComponents';
+import { LinkifiedText } from './ui/LinkifiedText';
 
 // Extended message type with reply and read receipt support
 interface ExtendedMessage extends Message {
@@ -1139,7 +1140,7 @@ const Chat: React.FC = () => {
                         />
                       </div>
                     )}
-                    {msg.text && <p style={{ color: isMe ? '#ffffff' : '#1e293b' }}>{msg.text}</p>}
+                    {msg.text && <LinkifiedText text={msg.text} className="block" style={{ color: isMe ? '#ffffff' : '#1e293b' }} />}
                   </>
                 )}
                 
@@ -1311,14 +1312,6 @@ const Chat: React.FC = () => {
           <textarea
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                if ((newMessage.trim() || selectedImage) && !sending && !isMuted && !uploadingImage) {
-                  (e.target as HTMLTextAreaElement).form?.requestSubmit();
-                }
-              }
-            }}
             placeholder={isMuted ? "You are muted..." : replyingTo ? "Type your reply..." : selectedImage ? "Add a caption..." : "Type your message..."}
             disabled={isMuted}
             rows={2}
