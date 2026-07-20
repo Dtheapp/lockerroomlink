@@ -2672,8 +2672,15 @@ const NewOSYSDashboard: React.FC = () => {
         </div>
         
         {/* Players Card */}
-        <div className={`p-4 rounded-2xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border ${theme === 'dark' ? 'border-white/10' : 'border-blue-200'}`}>
-          <div className="text-2xl mb-1">👥</div>
+        <div
+          onClick={() => navigate('/roster')}
+          role="button"
+          className={`p-4 rounded-2xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border cursor-pointer transition hover:brightness-110 hover:ring-2 hover:ring-blue-400/40 ${theme === 'dark' ? 'border-white/10' : 'border-blue-200'}`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="text-2xl mb-1">👥</div>
+            <span className="text-[10px] font-semibold text-blue-500 dark:text-blue-300 flex items-center gap-0.5">View <ChevronRight className="w-3 h-3" /></span>
+          </div>
           <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{roster.length}</div>
           <div className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Active Players</div>
         </div>
@@ -2687,8 +2694,15 @@ const NewOSYSDashboard: React.FC = () => {
         </div>
         
         {/* Events Card - Includes both events and games */}
-        <div className={`p-4 rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-500/20 border ${theme === 'dark' ? 'border-white/10' : 'border-green-200'}`}>
-          <div className="text-2xl mb-1">📅</div>
+        <div
+          onClick={() => navigate('/events')}
+          role="button"
+          className={`p-4 rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-500/20 border cursor-pointer transition hover:brightness-110 hover:ring-2 hover:ring-emerald-400/40 ${theme === 'dark' ? 'border-white/10' : 'border-green-200'}`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="text-2xl mb-1">📅</div>
+            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-300 flex items-center gap-0.5">View <ChevronRight className="w-3 h-3" /></span>
+          </div>
           <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{allUpcomingEvents.length}</div>
           <div className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Upcoming Events</div>
         </div>
@@ -3705,7 +3719,7 @@ const NewOSYSDashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Upcoming Events */}
         <GlassCard className={`lg:col-span-1 min-w-0 ${theme === 'light' ? 'bg-white border-slate-200 shadow-lg' : ''}`}>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-1">
             <h2 className={`text-lg font-bold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>
               <span>📅</span> Upcoming
             </h2>
@@ -3723,6 +3737,9 @@ const NewOSYSDashboard: React.FC = () => {
               </Link>
             </div>
           </div>
+          <p className={`text-xs mb-3 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>
+            Tap an event to view details &amp; check in →
+          </p>
           
           {/* Event Filter Tabs */}
           {userData?.role === 'Coach' && (
@@ -3767,8 +3784,9 @@ const NewOSYSDashboard: React.FC = () => {
                         {event.eventStartTime && ` • ${formatTime12Hour(event.eventStartTime)}`}
                       </div>
                     </div>
-                    <div className="shrink-0">
+                    <div className="shrink-0 flex items-center gap-1.5">
                       <Badge variant={badge.variant}>{badge.label}</Badge>
+                      <ChevronRight className={`w-4 h-4 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`} />
                     </div>
                   </div>
                 );
