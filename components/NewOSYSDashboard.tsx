@@ -25,6 +25,7 @@ import GameDayHub from './GameDayHub';
 import StatLeadersWidget from './stats/StatLeadersWidget';
 import { PracticeItineraryEditor, PracticeItineraryTimeline, type PracticeTimeBlock } from './events/PracticeItinerary';
 import { EventCheckIn } from './events/EventCheckIn';
+import { TeamPolls } from './TeamPolls';
 import type { LiveStream, BulletinPost, UserProfile, ProgramSeason, TeamGame } from '../types';
 import { Plus, X, Calendar, MapPin, Clock, Edit2, Trash2, Paperclip, Image, Copy, ExternalLink, Share2, Link2, Check, Palette, ChevronRight, ChevronDown, Trophy, AlertTriangle, Loader2, UserPlus, Users, Sword, Shield, Zap, Crown, MessageSquare } from 'lucide-react';
 
@@ -3895,6 +3896,18 @@ const NewOSYSDashboard: React.FC = () => {
           </div>
         </GlassCard>
       </div>
+
+      {/* Team Polls */}
+      {teamData?.id && (
+        <GlassCard className={`${theme === 'light' ? 'bg-white border-slate-200 shadow-lg' : ''}`}>
+          <TeamPolls
+            teamId={teamData.id}
+            isCoach={userData?.role === 'Coach'}
+            currentUserId={userData?.uid}
+            theme={theme}
+          />
+        </GlassCard>
+      )}
 
       {/* Stat Leaders Row - v2.0 Stats */}
       {userData?.role === 'Coach' && teamData?.id && teamData?.programId && teamData?.currentSeasonId && (

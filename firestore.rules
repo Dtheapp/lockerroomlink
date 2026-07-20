@@ -1581,6 +1581,15 @@ service cloud.firestore {
         allow write: if isTeamCoach(teamId) || isTeamOwner(teamId) || isAdmin();
       }
       
+      // Team polls - coaches create/manage; any team member can cast a vote
+      // (a vote only touches the 'votes' map, nothing else).
+      match /polls/{pollId} {
+        allow read: if isAuthenticated();
+        allow create, delete: if isTeamCoach(teamId) || isTeamOwner(teamId) || isAdmin();
+        allow update: if isTeamCoach(teamId) || isTeamOwner(teamId) || isAdmin()
+                       || (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes']));
+      }
+      
       // Team announcements/bulletin
       match /announcements/{announcementId} {
         allow read: if isAuthenticated();
