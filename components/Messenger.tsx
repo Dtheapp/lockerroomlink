@@ -522,7 +522,7 @@ const Messenger: React.FC = () => {
             recipients,
             userData?.name ? `${userData.name} messaged you` : 'New message',
             text.slice(0, 120),
-            { link: '/messenger' }
+            { link: '/messenger', category: 'messages' }
           );
         } catch { /* non-fatal */ }
       } catch (error) { console.error(error); alert('Failed to send message or upload attachments.'); }

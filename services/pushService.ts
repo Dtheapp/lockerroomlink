@@ -15,8 +15,41 @@
 
 import { getToken, deleteToken, onMessage } from 'firebase/messaging';
 import { doc, setDoc, deleteDoc, updateDoc, collection, getDocs, serverTimestamp } from 'firebase/firestore';
-import { db, getMessagingIfSupported } from './firebase';
+import { db, auth, getMessagingIfSupported } from './firebase';
 import { toastInfo } from './toast';
+
+/**
+ * Send a test push to the CURRENT user's own devices (bypasses the usual
+ * "don't notify the sender" rule) so they can verify delivery. Returns a
+ * result describing what happened for easy diagnosis.
+ */
+export const sendTestPush = async (
+  userId: string
+): Promise<{ ok: boolean; sent?: number; error?: string }> => {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return { ok: false, error: 'Not signed in' };
+    const idToken = await currentUser.getIdToken();
+    const res = await fetch('/.netlify/functions/send-push', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        userIds: [userId],
+        title: 'OSYS Test 🔔',
+        message: 'Your push notifications are working!',
+        link: '/notifications',
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data?.error || `HTTP ${res.status}` };
+    return { ok: true, sent: data?.sent ?? 0 };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || 'Request failed' };
+  }
+};
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined;
 

@@ -30,6 +30,7 @@ import {
   initForegroundPush,
   isPushSupported,
   getPushPermission,
+  sendTestPush,
 } from '../../services/pushService';
 import { toastError, toastSuccess } from '../../services/toast';
 import {
@@ -244,6 +245,7 @@ export const NotificationsPage: React.FC = () => {
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushPrefs, setPushPrefs] = useState<Record<string, boolean>>({});
+  const [testingPush, setTestingPush] = useState(false);
 
   // Reflect current push state: enabled only if OS permission granted AND profile flag on.
   useEffect(() => {
@@ -263,6 +265,24 @@ export const NotificationsPage: React.FC = () => {
     } catch {
       setPushPrefs(prev);
       toastError('Could not update preference');
+    }
+  };
+
+  // One-tap self-test: sends a push to this user's own devices.
+  const handleTestPush = async () => {
+    if (!user?.uid || testingPush) return;
+    setTestingPush(true);
+    try {
+      const result = await sendTestPush(user.uid);
+      if (!result.ok) {
+        toastError(`Test failed: ${result.error || 'unknown error'}`);
+      } else if ((result.sent ?? 0) === 0) {
+        toastError('No device is registered yet. Turn push OFF then ON to register this device, then test again.');
+      } else {
+        toastSuccess(`Test sent to ${result.sent} device(s). Check your notification tray.`);
+      }
+    } finally {
+      setTestingPush(false);
     }
   };
 
@@ -524,11 +544,21 @@ export const NotificationsPage: React.FC = () => {
               What to notify me about
             </p>
             <div className="space-y-2">
-              {[
-                { key: 'teamChat', label: 'Team Chat', desc: 'New messages in your team chat' },
-                { key: 'coachChat', label: 'Coach Chat', desc: 'New messages in the Strategy Room' },
-                { key: 'general', label: 'Announcements & Updates', desc: 'Games, events, roster, payments' },
-              ].map(cat => {
+              {(userData?.role === 'Coach'
+                ? [
+                    { key: 'teamChat', label: 'Team Chat', desc: 'New messages in team chat' },
+                    { key: 'coachChat', label: 'Coach Chat', desc: 'New messages in the Strategy Room' },
+                    { key: 'messages', label: 'Private Messages', desc: 'Direct messages sent to you' },
+                    { key: 'events', label: 'Schedule & Events', desc: 'Games, practices, event updates' },
+                    { key: 'general', label: 'Announcements & Updates', desc: 'Roster, payments, and more' },
+                  ]
+                : [
+                    { key: 'teamChat', label: 'Team Chat', desc: 'New messages in team chat' },
+                    { key: 'messages', label: 'Private Messages', desc: 'Direct messages sent to you' },
+                    { key: 'events', label: 'Schedule & Events', desc: 'Games, practices, event updates' },
+                    { key: 'general', label: 'Announcements & Updates', desc: 'Roster, payments, and more' },
+                  ]
+              ).map(cat => {
                 const isOn = pushPrefs[cat.key] !== false; // on unless explicitly off
                 return (
                   <div key={cat.key} className="flex items-center justify-between gap-3">
@@ -555,6 +585,16 @@ export const NotificationsPage: React.FC = () => {
                 );
               })}
             </div>
+
+            {/* Self-test: verify push actually reaches this device */}
+            <button
+              type="button"
+              onClick={handleTestPush}
+              disabled={testingPush}
+              className="mt-3 w-full text-sm font-semibold px-3 py-2 rounded-lg border border-purple-300 dark:border-purple-500/40 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-500/10 disabled:opacity-50"
+            >
+              {testingPush ? 'Sending test…' : 'Send test notification to this device'}
+            </button>
           </div>
         )}
 
