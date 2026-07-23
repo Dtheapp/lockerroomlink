@@ -17,25 +17,40 @@ import admin = require('firebase-admin');
 
 // Initialize the Admin SDK lazily so any config/credential problem returns a
 // readable error instead of crashing the function (HTTP 502).
+// NOTE: we avoid `admin.apps` — it's a non-enumerable getter that esbuild's
+// interop strips (undefined), which was the "reading 'length'" crash. We
+// use a try/catch around initializeApp instead.
 function initAdmin() {
-  if (!admin.apps.length) {
-    const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-    let serviceAccount: any = undefined;
-    if (raw) {
-      try {
-        serviceAccount = JSON.parse(raw);
-      } catch {
-        throw new Error('FIREBASE_SERVICE_ACCOUNT is not valid JSON');
-      }
+  const a: any = admin as any;
+  if (typeof a.initializeApp !== 'function' || !a.credential) {
+    throw new Error('firebase-admin not loaded (keys: ' + Object.keys(a || {}).join(',') + ')');
+  }
+
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+  let serviceAccount: any = undefined;
+  if (raw) {
+    try {
+      serviceAccount = JSON.parse(raw);
+    } catch {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT is not valid JSON');
     }
-    admin.initializeApp({
+  }
+
+  try {
+    a.initializeApp({
       credential: serviceAccount
-        ? admin.credential.cert(serviceAccount)
-        : admin.credential.applicationDefault(),
+        ? a.credential.cert(serviceAccount)
+        : a.credential.applicationDefault(),
       projectId: process.env.FIREBASE_PROJECT_ID || 'gridironhub-3131',
     });
+  } catch (e: any) {
+    // A second init throws "already exists" — that's fine, ignore it.
+    if (!/already exists|already been initialized|duplicate/i.test(String(e?.message))) {
+      throw new Error('initializeApp: ' + (e?.message || e));
+    }
   }
-  return { db: admin.firestore(), messaging: admin.messaging(), auth: admin.auth() };
+
+  return { db: a.firestore(), messaging: a.messaging(), auth: a.auth() };
 }
 
 interface SendPushRequest {
