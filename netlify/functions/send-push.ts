@@ -1,9 +1,12 @@
 import { Handler } from '@netlify/functions';
-// Use a raw CommonJS require so firebase-admin's real exports (including the
-// `apps`/`credential` getters) are preserved. esbuild's ESM interop drops
-// those getters, which caused "Cannot read properties of undefined".
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-import admin = require('firebase-admin');
+// firebase-admin's main require resolves to its MODULAR app API
+// (initializeApp/getApps/cert/applicationDefault) — NOT the legacy namespace.
+// So we use the modular subpath modules, loaded via CJS require (the ESM
+// import form gets mangled by the bundler and drops exports).
+import appMod = require('firebase-admin/app');
+import firestoreMod = require('firebase-admin/firestore');
+import messagingMod = require('firebase-admin/messaging');
+import authMod = require('firebase-admin/auth');
 
 // =============================================================================
 // SEND PUSH - Deliver a Web Push (FCM) notification to a user's devices.
@@ -17,13 +20,10 @@ import admin = require('firebase-admin');
 
 // Initialize the Admin SDK lazily so any config/credential problem returns a
 // readable error instead of crashing the function (HTTP 502).
-// NOTE: we avoid `admin.apps` — it's a non-enumerable getter that esbuild's
-// interop strips (undefined), which was the "reading 'length'" crash. We
-// use a try/catch around initializeApp instead.
 function initAdmin() {
-  const a: any = admin as any;
-  if (typeof a.initializeApp !== 'function' || !a.credential) {
-    throw new Error('firebase-admin not loaded (keys: ' + Object.keys(a || {}).join(',') + ')');
+  const app: any = appMod as any;
+  if (typeof app.initializeApp !== 'function' || typeof app.getApps !== 'function') {
+    throw new Error('firebase-admin/app not loaded (keys: ' + Object.keys(app || {}).join(',') + ')');
   }
 
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -36,21 +36,18 @@ function initAdmin() {
     }
   }
 
-  try {
-    a.initializeApp({
-      credential: serviceAccount
-        ? a.credential.cert(serviceAccount)
-        : a.credential.applicationDefault(),
+  if (!app.getApps().length) {
+    app.initializeApp({
+      credential: serviceAccount ? app.cert(serviceAccount) : app.applicationDefault(),
       projectId: process.env.FIREBASE_PROJECT_ID || 'gridironhub-3131',
     });
-  } catch (e: any) {
-    // A second init throws "already exists" — that's fine, ignore it.
-    if (!/already exists|already been initialized|duplicate/i.test(String(e?.message))) {
-      throw new Error('initializeApp: ' + (e?.message || e));
-    }
   }
 
-  return { db: a.firestore(), messaging: a.messaging(), auth: a.auth() };
+  return {
+    db: (firestoreMod as any).getFirestore(),
+    messaging: (messagingMod as any).getMessaging(),
+    auth: (authMod as any).getAuth(),
+  };
 }
 
 interface SendPushRequest {
