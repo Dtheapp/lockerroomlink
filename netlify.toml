@@ -3,12 +3,15 @@
   publish = "dist"
   functions = "netlify/functions"
 
+[build.environment]
+  NODE_VERSION = "20"
+
 # Function configuration - extend timeout for AI generation
 [functions]
-  node_bundler = "esbuild"
-  # firebase-admin can't be bundled (native/dynamic requires) — keep it
-  # external so it's required from node_modules at runtime.
-  external_node_modules = ["firebase-admin"]
+  # Use zisi (tracing) bundler so firebase-admin is included as real
+  # node_modules with its getters (apps/firestore/...) intact. esbuild
+  # strips those non-enumerable getters, which broke the push function.
+  node_bundler = "zisi"
 
 # Specific function settings
 [functions."generate-ai-design"]

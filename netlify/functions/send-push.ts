@@ -1,12 +1,5 @@
 import { Handler } from '@netlify/functions';
-// firebase-admin's main require resolves to its MODULAR app API
-// (initializeApp/getApps/cert/applicationDefault) — NOT the legacy namespace.
-// So we use the modular subpath modules, loaded via CJS require (the ESM
-// import form gets mangled by the bundler and drops exports).
-import appMod = require('firebase-admin/app');
-import firestoreMod = require('firebase-admin/firestore');
-import messagingMod = require('firebase-admin/messaging');
-import authMod = require('firebase-admin/auth');
+import * as admin from 'firebase-admin';
 
 // =============================================================================
 // SEND PUSH - Deliver a Web Push (FCM) notification to a user's devices.
@@ -16,38 +9,28 @@ import authMod = require('firebase-admin/auth');
 // authenticated app users can trigger pushes.
 //
 // Requires env var FIREBASE_SERVICE_ACCOUNT (JSON, same as other functions).
+// Bundled with zisi (see netlify.toml) so firebase-admin loads intact.
 // =============================================================================
 
-// Initialize the Admin SDK lazily so any config/credential problem returns a
-// readable error instead of crashing the function (HTTP 502).
 function initAdmin() {
-  const app: any = appMod as any;
-  if (typeof app.initializeApp !== 'function' || typeof app.getApps !== 'function') {
-    throw new Error('firebase-admin/app not loaded (keys: ' + Object.keys(app || {}).join(',') + ')');
-  }
-
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-  let serviceAccount: any = undefined;
-  if (raw) {
-    try {
-      serviceAccount = JSON.parse(raw);
-    } catch {
-      throw new Error('FIREBASE_SERVICE_ACCOUNT is not valid JSON');
+  if (!admin.apps.length) {
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+    let serviceAccount: any = undefined;
+    if (raw) {
+      try {
+        serviceAccount = JSON.parse(raw);
+      } catch {
+        throw new Error('FIREBASE_SERVICE_ACCOUNT is not valid JSON');
+      }
     }
-  }
-
-  if (!app.getApps().length) {
-    app.initializeApp({
-      credential: serviceAccount ? app.cert(serviceAccount) : app.applicationDefault(),
+    admin.initializeApp({
+      credential: serviceAccount
+        ? admin.credential.cert(serviceAccount)
+        : admin.credential.applicationDefault(),
       projectId: process.env.FIREBASE_PROJECT_ID || 'gridironhub-3131',
     });
   }
-
-  return {
-    db: (firestoreMod as any).getFirestore(),
-    messaging: (messagingMod as any).getMessaging(),
-    auth: (authMod as any).getAuth(),
-  };
+  return { db: admin.firestore(), messaging: admin.messaging(), auth: admin.auth() };
 }
 
 interface SendPushRequest {
