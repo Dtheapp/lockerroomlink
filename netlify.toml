@@ -5,8 +5,10 @@
 
 # Function configuration - extend timeout for AI generation
 [functions]
-  # Background functions have longer timeout
-  node_bundler = "esbuild"
+  # Use the tracing bundler (zisi) globally. esbuild cannot load
+  # firebase-admin's native/dynamic requires, which crashes those functions
+  # (HTTP 502). zisi includes node_modules as-is and runs reliably.
+  node_bundler = "zisi"
 
 # Specific function settings
 [functions."generate-ai-design"]
@@ -14,11 +16,8 @@
   # On free plan max is 10 seconds
   timeout = 26
 
-# Push sender: use the tracing bundler (zisi) instead of esbuild — esbuild
-# cannot bundle firebase-admin's native/dynamic requires (causes load-time
-# 502s). zisi includes it from node_modules and runs reliably.
+# Push sender can be slow on cold start (firebase-admin init)
 [functions."send-push"]
-  node_bundler = "zisi"
   timeout = 26
 
 # =============================================================================
