@@ -7,10 +7,6 @@
 [functions]
   # Background functions have longer timeout
   node_bundler = "esbuild"
-  # firebase-admin uses dynamic/native requires that esbuild can't bundle
-  # correctly (causes runtime 502s). Keep it external so it's required from
-  # node_modules at runtime instead of being bundled.
-  external_node_modules = ["firebase-admin"]
 
 # Specific function settings
 [functions."generate-ai-design"]
@@ -18,8 +14,11 @@
   # On free plan max is 10 seconds
   timeout = 26
 
-# Push sender can be slow on cold start (firebase-admin init)
+# Push sender: use the tracing bundler (zisi) instead of esbuild — esbuild
+# cannot bundle firebase-admin's native/dynamic requires (causes load-time
+# 502s). zisi includes it from node_modules and runs reliably.
 [functions."send-push"]
+  node_bundler = "zisi"
   timeout = 26
 
 # =============================================================================
