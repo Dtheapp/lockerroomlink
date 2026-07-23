@@ -1,10 +1,9 @@
 import { Handler } from '@netlify/functions';
-import * as adminNs from 'firebase-admin';
-
-// firebase-admin is a CommonJS module. Under esbuild's ESM interop (with the
-// package marked external) `import * as adminNs` can wrap the real exports
-// under `.default` and drop getters like `apps`. Unwrap to the real module.
-const admin: any = (adminNs as any).default ?? adminNs;
+// Use a raw CommonJS require so firebase-admin's real exports (including the
+// `apps`/`credential` getters) are preserved. esbuild's ESM interop drops
+// those getters, which caused "Cannot read properties of undefined".
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+import admin = require('firebase-admin');
 
 // =============================================================================
 // SEND PUSH - Deliver a Web Push (FCM) notification to a user's devices.
