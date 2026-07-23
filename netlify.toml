@@ -18,6 +18,10 @@
   # On free plan max is 10 seconds
   timeout = 26
 
+# Push sender can be slow on cold start (firebase-admin init)
+[functions."send-push"]
+  timeout = 26
+
 # =============================================================================
 # BRANCH DEPLOY CONFIGURATION
 # =============================================================================

@@ -11,21 +11,28 @@ import * as admin from 'firebase-admin';
 // Requires env var FIREBASE_SERVICE_ACCOUNT (JSON, same as other functions).
 // =============================================================================
 
-if (!admin.apps.length) {
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
-    ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-    : undefined;
-
-  admin.initializeApp({
-    credential: serviceAccount
-      ? admin.credential.cert(serviceAccount)
-      : admin.credential.applicationDefault(),
-    projectId: process.env.FIREBASE_PROJECT_ID || 'gridironhub-3131',
-  });
+// Initialize the Admin SDK lazily so any config/credential problem returns a
+// readable error to the caller instead of crashing the function (HTTP 502).
+function initAdmin() {
+  if (!admin.apps.length) {
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+    let serviceAccount: any = undefined;
+    if (raw) {
+      try {
+        serviceAccount = JSON.parse(raw);
+      } catch {
+        throw new Error('FIREBASE_SERVICE_ACCOUNT is not valid JSON');
+      }
+    }
+    admin.initializeApp({
+      credential: serviceAccount
+        ? admin.credential.cert(serviceAccount)
+        : admin.credential.applicationDefault(),
+      projectId: process.env.FIREBASE_PROJECT_ID || 'gridironhub-3131',
+    });
+  }
+  return { db: admin.firestore(), messaging: admin.messaging(), auth: admin.auth() };
 }
-
-const db = admin.firestore();
-const messaging = admin.messaging();
 
 interface SendPushRequest {
   userIds: string[];
@@ -52,6 +59,20 @@ const handler: Handler = async (event) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
+  // Initialize Admin SDK (surfaces the real error instead of a 502).
+  let db: admin.firestore.Firestore;
+  let messaging: admin.messaging.Messaging;
+  let auth: admin.auth.Auth;
+  try {
+    const a = initAdmin();
+    db = a.db;
+    messaging = a.messaging;
+    auth = a.auth;
+  } catch (e: any) {
+    console.error('[send-push] init failed:', e);
+    return { statusCode: 500, headers, body: JSON.stringify({ error: `Init failed: ${e?.message || e}` }) };
+  }
+
   // Require a valid Firebase ID token (any authenticated user).
   const authHeader = event.headers.authorization || event.headers.Authorization;
   const idToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
@@ -60,9 +81,9 @@ const handler: Handler = async (event) => {
   }
 
   try {
-    await admin.auth().verifyIdToken(idToken);
-  } catch {
-    return { statusCode: 401, headers, body: JSON.stringify({ error: 'Invalid auth token' }) };
+    await auth.verifyIdToken(idToken);
+  } catch (e: any) {
+    return { statusCode: 401, headers, body: JSON.stringify({ error: `Auth verify failed: ${e?.message || 'invalid'}` }) };
   }
 
   let body: SendPushRequest;
