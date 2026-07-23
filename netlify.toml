@@ -5,10 +5,10 @@
 
 # Function configuration - extend timeout for AI generation
 [functions]
-  # Use the tracing bundler (zisi) globally. esbuild cannot load
-  # firebase-admin's native/dynamic requires, which crashes those functions
-  # (HTTP 502). zisi includes node_modules as-is and runs reliably.
-  node_bundler = "zisi"
+  node_bundler = "esbuild"
+  # firebase-admin can't be bundled (native/dynamic requires) — keep it
+  # external so it's required from node_modules at runtime.
+  external_node_modules = ["firebase-admin"]
 
 # Specific function settings
 [functions."generate-ai-design"]

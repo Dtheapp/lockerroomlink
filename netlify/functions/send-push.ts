@@ -1,8 +1,10 @@
 import { Handler } from '@netlify/functions';
-import { initializeApp, getApps, cert, applicationDefault } from 'firebase-admin/app';
-import { getAuth, Auth } from 'firebase-admin/auth';
-import { getFirestore, Firestore } from 'firebase-admin/firestore';
-import { getMessaging, Messaging } from 'firebase-admin/messaging';
+import * as adminNs from 'firebase-admin';
+
+// firebase-admin is a CommonJS module. Under esbuild's ESM interop (with the
+// package marked external) `import * as adminNs` can wrap the real exports
+// under `.default` and drop getters like `apps`. Unwrap to the real module.
+const admin: any = (adminNs as any).default ?? adminNs;
 
 // =============================================================================
 // SEND PUSH - Deliver a Web Push (FCM) notification to a user's devices.
@@ -14,10 +16,10 @@ import { getMessaging, Messaging } from 'firebase-admin/messaging';
 // Requires env var FIREBASE_SERVICE_ACCOUNT (JSON, same as other functions).
 // =============================================================================
 
-// Initialize the Admin SDK lazily (modular API) so any config/credential
-// problem returns a readable error instead of crashing the function (502).
+// Initialize the Admin SDK lazily so any config/credential problem returns a
+// readable error instead of crashing the function (HTTP 502).
 function initAdmin() {
-  if (!getApps().length) {
+  if (!admin.apps.length) {
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
     let serviceAccount: any = undefined;
     if (raw) {
@@ -27,12 +29,14 @@ function initAdmin() {
         throw new Error('FIREBASE_SERVICE_ACCOUNT is not valid JSON');
       }
     }
-    initializeApp({
-      credential: serviceAccount ? cert(serviceAccount) : applicationDefault(),
+    admin.initializeApp({
+      credential: serviceAccount
+        ? admin.credential.cert(serviceAccount)
+        : admin.credential.applicationDefault(),
       projectId: process.env.FIREBASE_PROJECT_ID || 'gridironhub-3131',
     });
   }
-  return { db: getFirestore(), messaging: getMessaging(), auth: getAuth() };
+  return { db: admin.firestore(), messaging: admin.messaging(), auth: admin.auth() };
 }
 
 interface SendPushRequest {
@@ -61,9 +65,9 @@ const handler: Handler = async (event) => {
   }
 
   // Initialize Admin SDK (surfaces the real error instead of a 502).
-  let db: Firestore;
-  let messaging: Messaging;
-  let auth: Auth;
+  let db: any;
+  let messaging: any;
+  let auth: any;
   try {
     const a = initAdmin();
     db = a.db;
