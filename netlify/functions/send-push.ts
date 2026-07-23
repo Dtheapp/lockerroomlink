@@ -1,5 +1,8 @@
 import { Handler } from '@netlify/functions';
-import * as admin from 'firebase-admin';
+import { initializeApp, getApps, cert, applicationDefault } from 'firebase-admin/app';
+import { getAuth, Auth } from 'firebase-admin/auth';
+import { getFirestore, Firestore } from 'firebase-admin/firestore';
+import { getMessaging, Messaging } from 'firebase-admin/messaging';
 
 // =============================================================================
 // SEND PUSH - Deliver a Web Push (FCM) notification to a user's devices.
@@ -11,10 +14,10 @@ import * as admin from 'firebase-admin';
 // Requires env var FIREBASE_SERVICE_ACCOUNT (JSON, same as other functions).
 // =============================================================================
 
-// Initialize the Admin SDK lazily so any config/credential problem returns a
-// readable error to the caller instead of crashing the function (HTTP 502).
+// Initialize the Admin SDK lazily (modular API) so any config/credential
+// problem returns a readable error instead of crashing the function (502).
 function initAdmin() {
-  if (!admin.apps.length) {
+  if (!getApps().length) {
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
     let serviceAccount: any = undefined;
     if (raw) {
@@ -24,14 +27,12 @@ function initAdmin() {
         throw new Error('FIREBASE_SERVICE_ACCOUNT is not valid JSON');
       }
     }
-    admin.initializeApp({
-      credential: serviceAccount
-        ? admin.credential.cert(serviceAccount)
-        : admin.credential.applicationDefault(),
+    initializeApp({
+      credential: serviceAccount ? cert(serviceAccount) : applicationDefault(),
       projectId: process.env.FIREBASE_PROJECT_ID || 'gridironhub-3131',
     });
   }
-  return { db: admin.firestore(), messaging: admin.messaging(), auth: admin.auth() };
+  return { db: getFirestore(), messaging: getMessaging(), auth: getAuth() };
 }
 
 interface SendPushRequest {
@@ -60,9 +61,9 @@ const handler: Handler = async (event) => {
   }
 
   // Initialize Admin SDK (surfaces the real error instead of a 502).
-  let db: admin.firestore.Firestore;
-  let messaging: admin.messaging.Messaging;
-  let auth: admin.auth.Auth;
+  let db: Firestore;
+  let messaging: Messaging;
+  let auth: Auth;
   try {
     const a = initAdmin();
     db = a.db;
