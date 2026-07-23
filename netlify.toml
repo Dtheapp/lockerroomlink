@@ -7,6 +7,10 @@
 [functions]
   # Background functions have longer timeout
   node_bundler = "esbuild"
+  # firebase-admin uses dynamic/native requires that esbuild can't bundle
+  # correctly (causes runtime 502s). Keep it external so it's required from
+  # node_modules at runtime instead of being bundled.
+  external_node_modules = ["firebase-admin"]
 
 # Specific function settings
 [functions."generate-ai-design"]
