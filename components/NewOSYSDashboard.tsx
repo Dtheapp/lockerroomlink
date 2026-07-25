@@ -1723,11 +1723,18 @@ const NewOSYSDashboard: React.FC = () => {
   const isParent = userData?.role === 'Parent';
   const isCoachOrAdmin = userData?.role === 'Coach' || userData?.role === 'SuperAdmin';
   
+  // The grievance form lives on the coach's public profile (/coach/:username).
+  // There is no /grievance route, so the old link fell through to the catch-all
+  // redirect and bounced straight back here - which looked like a page refresh.
+  const grievanceCoach = coaches.find(c => c.isHeadCoach && c.username) || coaches.find(c => c.username);
+
   const quickActions = isParent ? [
     // Parent-specific quick actions
     { icon: '📢', label: 'Announce', link: '/chat' },
     { icon: '💫', label: 'Send Kudos', action: () => setShowKudosModal(true) },
-    { icon: '⚠️', label: 'File Grievance', link: '/grievance' },
+    grievanceCoach?.username
+      ? { icon: '⚠️', label: 'File Grievance', link: `/coach/${grievanceCoach.username}?grievance=1` }
+      : { icon: '⚠️', label: 'File Grievance', action: () => toastError('Your team has no coach profile set up yet, so there is nobody to file against.') },
   ] : [
     // Coach/Admin quick actions
     { icon: '📋', label: 'New Play', link: '/playbook' },

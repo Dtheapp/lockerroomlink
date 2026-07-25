@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { doc, getDoc, collection, getDocs, query, where, addDoc, serverTimestamp, updateDoc, setDoc, runTransaction, deleteDoc, increment, arrayUnion, arrayRemove, Timestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -39,6 +39,15 @@ const PublicCoachProfile: React.FC = () => {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
+
+  // Arriving from the dashboard shortcut (/coach/:username?grievance=1) opens
+  // the grievance form directly instead of making the parent hunt for it.
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('grievance') === '1' && data && user && userData?.role === 'Parent') {
+      setShowFeedbackModal(true);
+    }
+  }, [searchParams, data, user, userData?.role]);
 
   // Get unique teams the parent's kids are on (that this coach also coaches)
   const parentTeams = React.useMemo(() => {
