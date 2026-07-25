@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useSearchParams } from 'react-router-dom';
+import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, getDocs, query, where, addDoc, serverTimestamp, updateDoc, setDoc, runTransaction, deleteDoc, increment, arrayUnion, arrayRemove, Timestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
-import { toastError } from '../../services/toast';
+import { toastError, toastSuccess } from '../../services/toast';
 import type { UserProfile, Team, CoachKudos, CoachFeedback, CoachFollower } from '../../types';
 import { User, Crown, Users, Mail, Trophy, Calendar, MapPin, Home, X, Award, Shield, ThumbsUp, Heart, MessageSquare, Send, CheckCircle, AlertTriangle, Sword, Zap, UserPlus, UserMinus, Loader2 } from 'lucide-react';
 import CoachPublicChat from './CoachPublicChat';
@@ -22,6 +22,7 @@ interface CoachData {
 
 const PublicCoachProfile: React.FC = () => {
   const { username } = useParams<{ username: string }>();
+  const navigate = useNavigate();
   const { user, userData, players } = useAuth();
   const [data, setData] = useState<CoachData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -367,6 +368,18 @@ const PublicCoachProfile: React.FC = () => {
         nextGrievanceNumber = Math.floor(Date.now() / 1000) % 1000000;
       }
       
+      // The commissioner's inbox routes on programId, so resolve it properly -
+      // fall back to reading the team doc if the cached object lacks the field.
+      let programId: string | null = (teamMatch as any)?.programId || null;
+      if (!programId && selectedTeamId) {
+        try {
+          const teamSnap = await getDoc(doc(db, 'teams', selectedTeamId));
+          programId = teamSnap.exists() ? ((teamSnap.data() as any).programId || null) : null;
+        } catch {
+          // Non-fatal: grievance still files, admins can still see it.
+        }
+      }
+
       // Create a dedicated grievance chat in grievance_chats collection
       const grievanceChatRef = await addDoc(collection(db, 'grievance_chats'), {
         parentId: user.uid,
@@ -378,7 +391,7 @@ const PublicCoachProfile: React.FC = () => {
         coachIncluded: false,
         teamId: selectedTeamId,
         teamName: teamMatch?.name || 'Unknown Team',
-        programId: (teamMatch as any)?.programId || null,
+        programId,
         category: feedbackCategory,
         lastMessage: '📋 Grievance Filed',
         lastSenderId: 'grievance-system',
@@ -422,7 +435,7 @@ You will receive updates in this chat as your grievance is reviewed.
         teamId: selectedTeamId,
         teamName: teamMatch?.name || 'Unknown Team',
         // Routes the grievance to the program commissioner's inbox.
-        programId: (teamMatch as any)?.programId || null,
+        programId,
         category: feedbackCategory,
         message: feedbackMessage.trim(),
         status: 'new',
@@ -435,7 +448,10 @@ You will receive updates in this chat as your grievance is reviewed.
       setFeedbackCategory('other');
       setSelectedTeamId('');
       
-      setTimeout(() => setSubmitSuccess(null), 3000);
+      // Take the parent straight to the thread instead of leaving them on the
+      // coach's profile wondering whether it went through.
+      toastSuccess(`Grievance #${nextGrievanceNumber} filed — opening your conversation`);
+      navigate('/messenger');
     } catch (err: any) {
       console.error('Error submitting feedback:', err);
       toastError(

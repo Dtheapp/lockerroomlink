@@ -97,10 +97,12 @@ export const CommissionerGrievances: React.FC = () => {
     // Grievances live in coachFeedback (filed from the coach's public profile),
     // NOT the legacy top-level `grievances` collection - that one is never written
     // to, which is why this page always showed "No Grievances".
+    // NOTE: no orderBy here on purpose. programId (equality) + createdAt (order)
+    // needs a composite index; without it onSnapshot fails and the page silently
+    // renders "No Grievances". Sorted client-side instead.
     const q = query(
       collection(db, 'coachFeedback'),
-      where('programId', '==', programData.id),
-      orderBy('createdAt', 'desc')
+      where('programId', '==', programData.id)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -125,10 +127,11 @@ export const CommissionerGrievances: React.FC = () => {
           grievanceNumber: data.grievanceNumber,
         } as any as Grievance;
       });
-      setGrievances(rows);
+      setGrievances(rows.sort((a, b) => toDate(b.createdAt).getTime() - toDate(a.createdAt).getTime()));
       setLoading(false);
     }, (error) => {
       console.error('Error loading grievances:', error);
+      toastError(`Could not load grievances: ${error.message}`);
       setLoading(false);
     });
 
