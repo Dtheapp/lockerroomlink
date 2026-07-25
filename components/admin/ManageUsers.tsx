@@ -6,7 +6,7 @@ import { getAuth } from 'firebase/auth';
 import { db, auth } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UserProfile, Team } from '../../types';
-import { Trash2, Link, User, Shield, AtSign, Key, AlertTriangle, Search, Edit2, X, Check, UserX, ChevronLeft, ChevronRight, Download, CheckSquare, Square, History, Crown, Plus, Copy, Eye, EyeOff, Zap, Sparkles } from 'lucide-react';
+import { Trash2, Link, User, Shield, AtSign, Key, AlertTriangle, Search, Edit2, X, Check, UserX, ChevronLeft, ChevronRight, Download, CheckSquare, Square, History, Crown, Plus, Copy, Eye, EyeOff, Zap, Sparkles, Bell, BellOff } from 'lucide-react';
 
 const ManageUsers: React.FC = () => {
   const { user, userData } = useAuth();
@@ -15,6 +15,12 @@ const ManageUsers: React.FC = () => {
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamLookup, setTeamLookup] = useState<{[key: string]: string}>({});
   const [loading, setLoading] = useState(true);
+
+  // PUSH NOTIFICATION STATUS
+  // pushEnabled on the user doc is the opt-in flag; the pushTokens subcollection
+  // is the real proof a device can be reached. They can disagree (e.g. the user
+  // revoked permission at the OS level), so we show both.
+  const [pushDevices, setPushDevices] = useState<Record<string, number>>({});
   
   // Root Admin check - only Root Admin can manage SuperAdmins
   const isRootAdmin = (userData as any)?.isRootAdmin === true;
@@ -118,6 +124,35 @@ const ManageUsers: React.FC = () => {
           console.error('Failed to log activity:', err);
       }
   };
+
+  // PUSH: count registered devices for everyone who has opted in.
+  const pushEnabledUids = users.filter(u => (u as any).pushEnabled === true).map(u => u.uid).sort();
+  const pushEnabledKey = pushEnabledUids.join(',');
+
+  useEffect(() => {
+    if (!pushEnabledKey) { setPushDevices({}); return; }
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const entries = await Promise.all(
+          pushEnabledKey.split(',').map(async (uid) => {
+            const snap = await getDocs(collection(db, 'users', uid, 'pushTokens'));
+            return [uid, snap.size] as const;
+          })
+        );
+        if (!cancelled) setPushDevices(Object.fromEntries(entries));
+      } catch (err) {
+        console.error('Failed to load push device counts:', err);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [pushEnabledKey]);
+
+  const totalDevices = Object.values(pushDevices).reduce((a, b) => a + b, 0);
+  const pushReachable = pushEnabledUids.filter(uid => (pushDevices[uid] ?? 0) > 0).length;
+  const pushStale = pushEnabledUids.filter(uid => pushDevices[uid] === 0).length;
 
   // COMPUTED FILTER + SEARCH
   const filteredUsers = users.filter(u => {
@@ -230,7 +265,7 @@ const ManageUsers: React.FC = () => {
   
   // --- CSV EXPORT ---
   const exportToCSV = () => {
-      const headers = ['Name', 'Email', 'Username', 'Role', 'Team', 'Team ID', 'User ID'];
+      const headers = ['Name', 'Email', 'Username', 'Role', 'Team', 'Team ID', 'User ID', 'Push Enabled', 'Push Devices'];
       const rows = filteredUsers.map(u => [
           u.name || '',
           u.email || '',
@@ -238,7 +273,9 @@ const ManageUsers: React.FC = () => {
           u.role || '',
           u.teamId ? (teamLookup[u.teamId] || '') : '',
           u.teamId || '',
-          u.uid || ''
+          u.uid || '',
+          (u as any).pushEnabled === true ? 'Yes' : 'No',
+          pushDevices[u.uid] ?? 0
       ]);
       
       const csvContent = [
@@ -585,6 +622,32 @@ const ManageUsers: React.FC = () => {
     }
   };
 
+  // --- HELPER: PUSH STATUS BADGE ---
+  const renderPushBadge = (targetUser: UserProfile) => {
+      const optedIn = (targetUser as any).pushEnabled === true;
+      const devices = pushDevices[targetUser.uid];
+
+      if (!optedIn) {
+          return (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-slate-300" title="Push notifications are off">
+                  <BellOff className="w-3 h-3" /> Off
+              </span>
+          );
+      }
+      if (devices === 0) {
+          return (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300" title="Opted in, but no device is currently registered - they will NOT receive pushes">
+                  <AlertTriangle className="w-3 h-3" /> No device
+              </span>
+          );
+      }
+      return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300" title={`${devices ?? '?'} registered device(s)`}>
+              <Bell className="w-3 h-3" /> {devices === undefined ? '…' : `${devices} ${devices === 1 ? 'device' : 'devices'}`}
+          </span>
+      );
+  };
+
   // --- HELPER: RENDER ACTIONS ---
   const renderActions = (targetUser: UserProfile, isMobile = false) => (
       <div className={`flex items-center gap-2 ${isMobile ? 'mt-4 pt-4 border-t border-slate-300 dark:border-zinc-800 w-full flex-wrap' : 'justify-end'}`}>
@@ -645,6 +708,37 @@ const ManageUsers: React.FC = () => {
                       </span>
                   </button>
               ))}
+          </div>
+      </div>
+
+      {/* PUSH NOTIFICATION REACH */}
+      <div className="flex flex-wrap items-center gap-4 bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800/40 rounded-xl p-4">
+          <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center flex-shrink-0">
+                  <Bell className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                  <p className="font-bold text-slate-900 dark:text-white">Push Notification Reach</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-300">Who actually receives alerts when the app is closed</p>
+              </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-5 sm:ml-auto">
+              <div className="text-center">
+                  <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{pushReachable}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">Reachable</p>
+              </div>
+              <div className="text-center">
+                  <p className="text-2xl font-black text-purple-600 dark:text-purple-400">{totalDevices}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">Devices</p>
+              </div>
+              <div className="text-center">
+                  <p className="text-2xl font-black text-amber-600 dark:text-amber-400">{pushStale}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">No device</p>
+              </div>
+              <div className="text-center">
+                  <p className="text-2xl font-black text-slate-500 dark:text-slate-400">{Math.max(0, users.length - pushEnabledUids.length)}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">Off</p>
+              </div>
           </div>
       </div>
 
@@ -819,6 +913,10 @@ const ManageUsers: React.FC = () => {
                               Team: {u.teamId ? <span className="font-medium">{teamLookup[u.teamId] || u.teamId}</span> : 'Unassigned'}
                           </span>
                       </div>
+                      <div className="flex items-center gap-2">
+                          <Bell className="w-4 h-4 text-slate-500 dark:text-slate-600" />
+                          {renderPushBadge(u)}
+                      </div>
                   </div>
 
                   {renderActions(u, true)}
@@ -846,14 +944,15 @@ const ManageUsers: React.FC = () => {
                 <th scope="col" className="px-6 py-3 text-orange-600 dark:text-orange-400">Username</th>
                 <th scope="col" className="px-6 py-3">Role</th>
                 <th scope="col" className="px-6 py-3">Team</th>
+                <th scope="col" className="px-6 py-3">Push</th>
                 <th scope="col" className="px-6 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-zinc-800">
               {loading ? (
-                <tr><td colSpan={6} className="text-center p-4">Loading users...</td></tr>
+                <tr><td colSpan={7} className="text-center p-4">Loading users...</td></tr>
               ) : filteredUsers.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center p-8 text-slate-500 dark:text-slate-500">{searchQuery ? 'No users match your search.' : `No ${filterRole === 'All' ? 'users' : filterRole.toLowerCase() + 's'} found.`}</td></tr>
+                  <tr><td colSpan={7} className="text-center p-8 text-slate-500 dark:text-slate-500">{searchQuery ? 'No users match your search.' : `No ${filterRole === 'All' ? 'users' : filterRole.toLowerCase() + 's'} found.`}</td></tr>
               ) : (
                 paginatedUsers.map(u => (
                   <tr key={u.uid} className={`hover:bg-slate-100 dark:hover:bg-black transition-colors ${selectedUserIds.has(u.uid) ? 'bg-orange-50 dark:bg-orange-900/10' : 'bg-slate-50 dark:bg-zinc-950'}`}>
@@ -888,6 +987,7 @@ const ManageUsers: React.FC = () => {
                         <span className="text-slate-400 italic">Unassigned</span>
                       )}
                     </td>
+                    <td className="px-6 py-4">{renderPushBadge(u)}</td>
                     <td className="px-6 py-4 text-right">
                       {renderActions(u, false)}
                     </td>
