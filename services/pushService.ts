@@ -122,12 +122,15 @@ export const enablePush = async (userId: string): Promise<string | null> => {
     return null;
   }
 
-  const messaging = await getMessagingIfSupported();
-  if (!messaging) return null;
-
-  // Ask the user (no-op if already granted).
+  // Ask the user FIRST, before any other await. Safari only honours
+  // requestPermission() while the tap that triggered it still counts as
+  // transient user activation, and awaiting anything else can burn that window.
+  // (No-op if permission was already granted.)
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return null;
+
+  const messaging = await getMessagingIfSupported();
+  if (!messaging) return null;
 
   const swRegistration = await getMessagingServiceWorker();
 
