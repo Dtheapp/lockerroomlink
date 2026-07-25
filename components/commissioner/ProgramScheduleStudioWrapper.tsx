@@ -4,16 +4,23 @@
  * Works with program seasons instead of league seasons
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { collection, query, where, getDocs, doc, getDoc, addDoc, updateDoc, serverTimestamp, Timestamp, writeBatch, deleteDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import { Loader2, AlertCircle, ChevronLeft, Users, Calendar } from 'lucide-react';
+import { Loader2, AlertCircle, ChevronLeft, Users, Calendar, Plus, X } from 'lucide-react';
 import { toastSuccess, toastError, toastWarning } from '../../services/toast';
 import ScheduleStudio, { ExistingBooking } from '../league/ScheduleStudio';
 import { ProgramSeason, Program, Team } from '../../types';
+
+// Placeholder opponents let a commissioner build a schedule before every team has
+// registered in OSYS. They live on the program document and are merged into the
+// studio's team list, so they drag onto the board like any other team. They have
+// no teams/{id} document, so game sync to team calendars skips them.
+const PLACEHOLDER_PREFIX = 'placeholder-';
+const isPlaceholderId = (id?: string): boolean => !!id && id.startsWith(PLACEHOLDER_PREFIX);
 
 interface TeamWithProgram {
   id: string;
@@ -25,6 +32,7 @@ interface TeamWithProgram {
   homeFieldAddress?: string;
   color?: string;
   logoUrl?: string;
+  isPlaceholder?: boolean;
 }
 
 interface ProgramGame {
@@ -65,6 +73,71 @@ export default function ProgramScheduleStudioWrapper() {
   const [existingWeeksCount, setExistingWeeksCount] = useState<number | undefined>(undefined);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [hasLoadedForUrlParam, setHasLoadedForUrlParam] = useState(false);
+
+  // --- PLACEHOLDER OPPONENTS ---
+  const [placeholderName, setPlaceholderName] = useState('');
+  const [placeholderAgeGroup, setPlaceholderAgeGroup] = useState('');
+  const [savingPlaceholder, setSavingPlaceholder] = useState(false);
+
+  const placeholderTeams: TeamWithProgram[] = useMemo(() => (
+    (((programData as any)?.placeholderTeams as any[]) || []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      ageGroup: p.ageGroup || 'No Age Group',
+      programId: programData?.id || '',
+      programName: programData?.name || '',
+      isPlaceholder: true,
+    }))
+  ), [programData]);
+
+  // Real teams plus any placeholder opponents for the same age group.
+  const teamsForAgeGroup = (ageGroup: string): TeamWithProgram[] => [
+    ...teams.filter(t => t.ageGroup === ageGroup),
+    ...placeholderTeams.filter(t => t.ageGroup === ageGroup),
+  ];
+
+  const handleAddPlaceholder = async () => {
+    const name = placeholderName.trim();
+    if (!name || !placeholderAgeGroup || !programData?.id) return;
+
+    const existing = ((programData as any).placeholderTeams as any[]) || [];
+    if (existing.some((p) => p.name?.toLowerCase() === name.toLowerCase() && p.ageGroup === placeholderAgeGroup)) {
+      toastWarning(`"${name}" already exists in ${placeholderAgeGroup}`);
+      return;
+    }
+
+    setSavingPlaceholder(true);
+    try {
+      await updateDoc(doc(db, 'programs', programData.id), {
+        placeholderTeams: [
+          ...existing,
+          { id: `${PLACEHOLDER_PREFIX}${Date.now()}`, name, ageGroup: placeholderAgeGroup },
+        ],
+        updatedAt: serverTimestamp(),
+      });
+      setPlaceholderName('');
+      toastSuccess(`Added "${name}" to ${placeholderAgeGroup}`);
+    } catch (err) {
+      console.error('Error adding placeholder team:', err);
+      toastError('Could not add placeholder team');
+    } finally {
+      setSavingPlaceholder(false);
+    }
+  };
+
+  const handleRemovePlaceholder = async (id: string) => {
+    if (!programData?.id) return;
+    try {
+      const existing = ((programData as any).placeholderTeams as any[]) || [];
+      await updateDoc(doc(db, 'programs', programData.id), {
+        placeholderTeams: existing.filter((p) => p.id !== id),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error('Error removing placeholder team:', err);
+      toastError('Could not remove placeholder team');
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -108,7 +181,7 @@ export default function ProgramScheduleStudioWrapper() {
         if (ageGroup === currentAgeGroup) {
           currentAgeGroupWeeksCount = data.totalWeeks || (data.weeks?.length) || undefined;
           
-          const teamsInAg = teams.filter(t => t.ageGroup === currentAgeGroup);
+          const teamsInAg = teamsForAgeGroup(currentAgeGroup);
           currentAgeGroupGames = games.map((game, idx) => {
             const gameDate = game.dateTime instanceof Timestamp 
               ? game.dateTime.toDate() 
@@ -419,14 +492,15 @@ export default function ProgramScheduleStudioWrapper() {
         const dateStr = gameDate.toISOString().split('T')[0];
         const timeStr = game.time?.time || '12:00';
         
-        // Create game for HOME team
+        // Create game for HOME team (skipped for placeholders - no teams/{id} doc)
+        if (!isPlaceholderId(game.homeTeam.id)) {
         const homeTeamGameRef = doc(collection(db, 'teams', game.homeTeam.id, 'games'));
         batch.set(homeTeamGameRef, {
           seasonId: seasonId,
           teamId: game.homeTeam.id,
           gameNumber: gameNumber,
           opponent: game.awayTeam.name,
-          opponentTeamId: game.awayTeam.id,
+          opponentTeamId: isPlaceholderId(game.awayTeam.id) ? null : game.awayTeam.id,
           opponentLogoUrl: game.awayTeam.logoUrl || null,
           date: dateStr,
           time: timeStr,
@@ -449,15 +523,17 @@ export default function ProgramScheduleStudioWrapper() {
           ageGroup: selectedAgeGroup,
           week: game.weekNumber || 1,
         });
+        }
         
-        // Create game for AWAY team
+        // Create game for AWAY team (skipped for placeholders - no teams/{id} doc)
+        if (!isPlaceholderId(game.awayTeam.id)) {
         const awayTeamGameRef = doc(collection(db, 'teams', game.awayTeam.id, 'games'));
         batch.set(awayTeamGameRef, {
           seasonId: seasonId,
           teamId: game.awayTeam.id,
           gameNumber: gameNumber,
           opponent: game.homeTeam.name,
-          opponentTeamId: game.homeTeam.id,
+          opponentTeamId: isPlaceholderId(game.homeTeam.id) ? null : game.homeTeam.id,
           opponentLogoUrl: game.homeTeam.logoUrl || null,
           date: dateStr,
           time: timeStr,
@@ -480,6 +556,7 @@ export default function ProgramScheduleStudioWrapper() {
           ageGroup: selectedAgeGroup,
           week: game.weekNumber || 1,
         });
+        }
         
         gameNumber++;
       }
@@ -524,7 +601,7 @@ export default function ProgramScheduleStudioWrapper() {
         
         if (ageGroup === currentAgeGroup) {
           currentAgeGroupWeeksCount = data.totalWeeks || (data.weeks?.length) || undefined;
-          const teamsInAgeGroup = teams.filter(t => t.ageGroup === currentAgeGroup);
+          const teamsInAgeGroup = teamsForAgeGroup(currentAgeGroup);
           currentAgeGroupGames = games.map((game, idx) => {
             const gameDate = game.dateTime instanceof Timestamp 
               ? game.dateTime.toDate() 
@@ -647,9 +724,9 @@ export default function ProgramScheduleStudioWrapper() {
       );
     }
 
-    const teamsInAgeGroup = teams.filter(t => t.ageGroup === selectedAgeGroup);
+    const teamsInAgeGroup = teamsForAgeGroup(selectedAgeGroup);
     
-    if (teamsInAgeGroup.length < 2) {
+    if (teamsInAgeGroup.length < 1) {
       return (
         <div className={`min-h-screen flex items-center justify-center ${
           theme === 'dark' ? 'bg-zinc-900' : 'bg-slate-50'
@@ -657,11 +734,11 @@ export default function ProgramScheduleStudioWrapper() {
           <div className="text-center max-w-md">
             <AlertCircle className="w-12 h-12 mx-auto mb-4 text-amber-500" />
             <p className={`text-lg font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-              Not Enough Teams
+              No Teams Yet
             </p>
             <p className={`mb-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-              You need at least 2 teams in the "{selectedAgeGroup}" age group to create a schedule.
-              Currently: {teamsInAgeGroup.length} team(s).
+              "{selectedAgeGroup}" has no registered teams. Add a placeholder opponent on the
+              previous screen and you can start building the schedule right away.
             </p>
             <button
               onClick={() => setShowStudio(false)}
@@ -753,9 +830,11 @@ export default function ProgramScheduleStudioWrapper() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             {ageGroups.map(ageGroup => {
-              const teamsInGroup = teams.filter(t => t.ageGroup === ageGroup);
+              const realTeams = teams.filter(t => t.ageGroup === ageGroup);
+              const placeholders = placeholderTeams.filter(t => t.ageGroup === ageGroup);
+              const teamsInGroup = [...realTeams, ...placeholders];
               const hasSchedule = scheduledAgeGroups.includes(ageGroup);
-              const canSchedule = teamsInGroup.length >= 2;
+              const canSchedule = teamsInGroup.length >= 1;
               
               return (
                 <button
@@ -792,12 +871,94 @@ export default function ProgramScheduleStudioWrapper() {
                     {ageGroup}
                   </h3>
                   <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-                    {teamsInGroup.length} team{teamsInGroup.length !== 1 ? 's' : ''}
-                    {!canSchedule && ' (need at least 2)'}
+                    {realTeams.length} team{realTeams.length !== 1 ? 's' : ''}
+                    {placeholders.length > 0 && ` + ${placeholders.length} placeholder${placeholders.length !== 1 ? 's' : ''}`}
+                    {!canSchedule && ' (add a team or placeholder)'}
                   </p>
                 </button>
               );
             })}
+          </div>
+        )}
+
+        {/* PLACEHOLDER OPPONENTS */}
+        {ageGroups.length > 0 && (
+          <div className={`mt-8 rounded-xl border p-5 ${
+            theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'
+          }`}>
+            <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+              Placeholder Opponents
+            </h2>
+            <p className={`text-sm mb-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+              Building the schedule before everyone has registered? Add opponents by name here and
+              they'll appear in the studio like any other team. When the real team signs up, swap
+              them in and delete the placeholder.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-2 mb-4">
+              <input
+                type="text"
+                value={placeholderName}
+                onChange={(e) => setPlaceholderName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAddPlaceholder(); }}
+                placeholder="Team name (e.g. Commerce Tigers)"
+                maxLength={60}
+                className={`flex-1 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-purple-500/50 ${
+                  theme === 'dark'
+                    ? 'bg-white/5 border border-white/10 text-white placeholder-slate-500'
+                    : 'bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400'
+                }`}
+              />
+              <select
+                value={placeholderAgeGroup}
+                onChange={(e) => setPlaceholderAgeGroup(e.target.value)}
+                className={`rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-purple-500/50 ${
+                  theme === 'dark'
+                    ? 'bg-white/5 border border-white/10 text-white'
+                    : 'bg-slate-50 border border-slate-200 text-slate-900'
+                }`}
+              >
+                <option value="">Age group…</option>
+                {ageGroups.map(ag => <option key={ag} value={ag}>{ag}</option>)}
+              </select>
+              <button
+                onClick={handleAddPlaceholder}
+                disabled={!placeholderName.trim() || !placeholderAgeGroup || savingPlaceholder}
+                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
+              >
+                {savingPlaceholder ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Add
+              </button>
+            </div>
+
+            {placeholderTeams.length === 0 ? (
+              <p className={`text-sm italic ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>
+                No placeholder opponents yet.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {placeholderTeams.map(p => (
+                  <span
+                    key={p.id}
+                    className={`inline-flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg text-sm border ${
+                      theme === 'dark'
+                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-200'
+                        : 'bg-amber-50 border-amber-300 text-amber-800'
+                    }`}
+                  >
+                    <span className="font-medium">{p.name}</span>
+                    <span className="opacity-70 text-xs">{p.ageGroup}</span>
+                    <button
+                      onClick={() => handleRemovePlaceholder(p.id)}
+                      className="p-0.5 rounded hover:bg-black/20 transition-colors"
+                      title={`Remove ${p.name}`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
