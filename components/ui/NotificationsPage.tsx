@@ -30,6 +30,7 @@ import {
   initForegroundPush,
   isPushSupported,
   getPushPermission,
+  getPushBlocker,
   sendTestPush,
 } from '../../services/pushService';
 import { toastError, toastSuccess } from '../../services/toast';
@@ -298,17 +299,19 @@ export const NotificationsPage: React.FC = () => {
     setPushBusy(true);
     try {
       if (!pushOn) {
+        const blocker = getPushBlocker();
+        if (blocker) {
+          toastError(blocker);
+          return;
+        }
         const token = await enablePush(user.uid);
         if (token) {
           setPushOn(true);
           await initForegroundPush();
           toastSuccess('Push notifications enabled on this device');
         } else {
-          const denied = getPushPermission() === 'denied';
           toastError(
-            denied
-              ? 'Notifications are blocked. Enable them in your browser/app settings.'
-              : 'Could not enable push notifications on this device.'
+            getPushBlocker() || 'Could not register this device for push. Try again in a moment.'
           );
         }
       } else {

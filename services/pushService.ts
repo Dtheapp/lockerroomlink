@@ -66,6 +66,35 @@ export const getPushPermission = (): NotificationPermission | 'unsupported' => {
   return Notification.permission;
 };
 
+// iOS/iPadOS (including iPadOS reporting itself as MacIntel).
+const isIOS = (): boolean =>
+  typeof navigator !== 'undefined' &&
+  (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+
+// True when running as an installed PWA rather than a browser tab.
+export const isStandalone = (): boolean =>
+  typeof window !== 'undefined' &&
+  (window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as any).standalone === true);
+
+/**
+ * Why push can't be enabled on this device, or null if it can. Used so the UI
+ * can explain the real reason instead of failing silently.
+ */
+export const getPushBlocker = (): string | null => {
+  // Safari only delivers web push to a Home Screen PWA (iOS 16.4+), never to a tab.
+  if (isIOS() && !isStandalone()) {
+    return 'On iPhone/iPad, tap Share → "Add to Home Screen" first, then open OSYS from that icon and turn push on there.';
+  }
+  if (!isPushSupported()) return 'This browser does not support push notifications.';
+  if (getPushPermission() === 'denied') {
+    return 'Notifications are blocked. Turn them on for OSYS in your browser/device settings.';
+  }
+  if (!VAPID_KEY) return 'Push is not configured on the server (missing VAPID key).';
+  return null;
+};
+
 // Register (or reuse) the dedicated FCM service worker.
 const getMessagingServiceWorker = async (): Promise<ServiceWorkerRegistration | undefined> => {
   if (!('serviceWorker' in navigator)) return undefined;
