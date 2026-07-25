@@ -208,15 +208,26 @@ const Messenger: React.FC = () => {
     autoStartChat();
   }, [searchParams, user, userData, chats, chatsLoaded, setSearchParams]);
 
-  // 1b. LOAD GRIEVANCE CHATS (For parents only)
+  // 1b. LOAD GRIEVANCE CHATS
+  // Parents see their own. Coaches only see threads a commissioner has explicitly
+  // added them to (coachIncluded), which firestore.rules enforces independently.
   useEffect(() => {
-    if (!user || userData?.role !== 'Parent') return;
+    if (!user) return;
+    const isParent = userData?.role === 'Parent';
+    const isCoach = userData?.role === 'Coach';
+    if (!isParent && !isCoach) return;
     
     // Simple query without orderBy to avoid composite index requirement
-    const grievanceChatsQuery = query(
-      collection(db, 'grievance_chats'), 
-      where('parentId', '==', user.uid)
-    );
+    const grievanceChatsQuery = isParent
+      ? query(
+          collection(db, 'grievance_chats'),
+          where('parentId', '==', user.uid)
+        )
+      : query(
+          collection(db, 'grievance_chats'),
+          where('coachId', '==', user.uid),
+          where('coachIncluded', '==', true)
+        );
     
     const unsubscribe = onSnapshot(grievanceChatsQuery, (snapshot) => {
       const gChats = snapshot.docs.map(docSnap => {
@@ -225,7 +236,7 @@ const Messenger: React.FC = () => {
           id: docSnap.id,
           participants: [user.uid, 'admin'],
           participantData: {
-            [user.uid]: { username: userData?.username || 'Me', role: 'Parent' },
+            [user.uid]: { username: userData?.username || 'Me', role: userData?.role || 'Parent' },
             admin: { username: `Grievance #${data.grievanceNumber || '?'}`, role: 'Admin' }
           },
           lastMessage: data.lastMessage || 'Grievance filed',

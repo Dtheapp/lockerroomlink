@@ -8,12 +8,11 @@ import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { 
-  getGrievancesByProgram, 
-  updateGrievance, 
-  resolveGrievance 
-} from '../../services/leagueService';
-import { doc, getDoc } from 'firebase/firestore';
+  collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, addDoc, serverTimestamp 
+} from 'firebase/firestore';
 import { db } from '../../services/firebase';
+import { createNotification } from '../../services/notificationService';
+import { toastSuccess, toastError } from '../../services/toast';
 import type { Grievance, UserProfile, Team } from '../../types';
 import { Timestamp } from 'firebase/firestore';
 import { 
@@ -47,14 +46,26 @@ const STATUS_CONFIG = {
 
 const GRIEVANCE_TYPES = [
   { value: 'all', label: 'All Types' },
-  { value: 'player_eligibility', label: 'Player Eligibility' },
-  { value: 'coach_conduct', label: 'Coach Conduct' },
-  { value: 'parent_conduct', label: 'Parent Conduct' },
-  { value: 'rule_violation', label: 'Rule Violation' },
-  { value: 'safety_concern', label: 'Safety Concern' },
-  { value: 'schedule_dispute', label: 'Schedule Dispute' },
+  { value: 'communication', label: 'Communication' },
+  { value: 'conduct', label: 'Conduct/Behavior' },
+  { value: 'fairness', label: 'Fairness/Playing Time' },
+  { value: 'safety', label: 'Safety Concern' },
   { value: 'other', label: 'Other' },
 ];
+
+const GRIEVANCE_SYSTEM_ID = 'grievance-system';
+
+// coachFeedback uses new/reviewed/resolved; this screen uses the richer set.
+const toDisplayStatus = (s?: string): Grievance['status'] =>
+  s === 'reviewed' ? 'under_review' : s === 'resolved' ? 'resolved' : 'submitted';
+
+interface ChatMessage {
+  id: string;
+  text: string;
+  senderId: string;
+  timestamp: any;
+  isSystemMessage?: boolean;
+}
 
 export const CommissionerGrievances: React.FC = () => {
   const { userData, programData } = useAuth();
@@ -71,25 +82,155 @@ export const CommissionerGrievances: React.FC = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [resolution, setResolution] = useState('');
 
+  // Thread state - the parent files into grievance_chats, so that's the conversation.
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [addingCoach, setAddingCoach] = useState(false);
+
   useEffect(() => {
     if (!programData?.id) {
       setLoading(false);
       return;
     }
 
-    const loadGrievances = async () => {
-      try {
-        const data = await getGrievancesByProgram(programData.id);
-        setGrievances(data);
-      } catch (error) {
-        console.error('Error loading grievances:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    // Grievances live in coachFeedback (filed from the coach's public profile),
+    // NOT the legacy top-level `grievances` collection - that one is never written
+    // to, which is why this page always showed "No Grievances".
+    const q = query(
+      collection(db, 'coachFeedback'),
+      where('programId', '==', programData.id),
+      orderBy('createdAt', 'desc')
+    );
 
-    loadGrievances();
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const rows = snapshot.docs.map((d) => {
+        const data = d.data() as any;
+        return {
+          id: d.id,
+          // Map onto the shape this screen already renders.
+          title: `Grievance #${data.grievanceNumber || '?'} \u2022 Coach ${data.coachName || 'Unknown'}`,
+          description: data.message || '',
+          type: data.category || 'other',
+          status: toDisplayStatus(data.status),
+          submittedBy: data.parentId,
+          teamId: data.teamId,
+          createdAt: data.createdAt,
+          resolution: data.resolution,
+          // Extra fields used by the thread panel
+          chatId: data.chatId,
+          coachId: data.coachId,
+          coachName: data.coachName,
+          coachIncluded: data.coachIncluded === true,
+          grievanceNumber: data.grievanceNumber,
+        } as any as Grievance;
+      });
+      setGrievances(rows);
+      setLoading(false);
+    }, (error) => {
+      console.error('Error loading grievances:', error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [programData?.id]);
+
+  // Keep the selected grievance in sync with the live list
+  useEffect(() => {
+    if (!selectedGrievance) return;
+    const fresh = grievances.find(g => g.id === selectedGrievance.id);
+    if (fresh && fresh !== selectedGrievance) setSelectedGrievance(fresh);
+  }, [grievances]);
+
+  // Load the conversation for the selected grievance
+  useEffect(() => {
+    const chatId = (selectedGrievance as any)?.chatId;
+    if (!chatId) {
+      setChatMessages([]);
+      return;
+    }
+
+    const messagesQuery = query(
+      collection(db, 'grievance_chats', chatId, 'messages'),
+      orderBy('timestamp', 'asc')
+    );
+    const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+      setChatMessages(snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as ChatMessage[]);
+    });
+
+    return () => unsubscribe();
+  }, [(selectedGrievance as any)?.chatId]);
+
+  const handleSendMessage = async () => {
+    const chatId = (selectedGrievance as any)?.chatId;
+    if (!newMessage.trim() || !chatId) return;
+
+    setSendingMessage(true);
+    try {
+      await addDoc(collection(db, 'grievance_chats', chatId, 'messages'), {
+        text: newMessage.trim(),
+        senderId: GRIEVANCE_SYSTEM_ID,
+        timestamp: serverTimestamp(),
+        isSystemMessage: false,
+        adminName: userData?.name || 'Commissioner',
+      });
+      await updateDoc(doc(db, 'grievance_chats', chatId), {
+        lastMessage: newMessage.trim(),
+        updatedAt: serverTimestamp(),
+        lastSenderId: GRIEVANCE_SYSTEM_ID,
+      });
+      setNewMessage('');
+    } catch (err) {
+      console.error('Error sending message:', err);
+      toastError('Could not send message');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  // Bring the coach into the thread. Until this happens the coach cannot see the
+  // grievance at all - enforced by firestore.rules, not just the UI.
+  const handleAddCoach = async () => {
+    const g = selectedGrievance as any;
+    if (!g?.chatId || !g?.coachId || addingCoach) return;
+
+    setAddingCoach(true);
+    try {
+      await updateDoc(doc(db, 'grievance_chats', g.chatId), {
+        coachIncluded: true,
+        coachAddedAt: serverTimestamp(),
+        coachAddedBy: userData?.uid || null,
+      });
+      await updateDoc(doc(db, 'coachFeedback', g.id), { coachIncluded: true });
+
+      await addDoc(collection(db, 'grievance_chats', g.chatId, 'messages'), {
+        text: `\ud83d\udc65 ${userData?.name || 'The commissioner'} added Coach ${g.coachName || ''} to this conversation. All three of you can now see and reply to this thread.`,
+        senderId: GRIEVANCE_SYSTEM_ID,
+        timestamp: serverTimestamp(),
+        isSystemMessage: true,
+      });
+      await updateDoc(doc(db, 'grievance_chats', g.chatId), {
+        lastMessage: '\ud83d\udc65 Coach added to the conversation',
+        updatedAt: serverTimestamp(),
+        lastSenderId: GRIEVANCE_SYSTEM_ID,
+      });
+
+      await createNotification(
+        g.coachId,
+        'infraction_message',
+        `Grievance #${g.grievanceNumber || ''}`,
+        'A commissioner has added you to a grievance conversation. Open Messenger to respond.',
+        { link: '/messenger', category: 'infraction', priority: 'high' }
+      ).catch(() => {});
+
+      toastSuccess('Coach added to the conversation');
+    } catch (err) {
+      console.error('Error adding coach to grievance:', err);
+      toastError('Could not add the coach');
+    } finally {
+      setAddingCoach(false);
+    }
+  };
 
   // Load submitter/team info when grievance is selected
   useEffect(() => {
@@ -126,17 +267,14 @@ export const CommissionerGrievances: React.FC = () => {
     setActionLoading(true);
     
     try {
-      await updateGrievance(grievanceId, { status: newStatus as Grievance['status'] });
-      
-      setGrievances(prev => prev.map(g => 
-        g.id === grievanceId ? { ...g, status: newStatus as Grievance['status'] } : g
-      ));
-      
-      if (selectedGrievance?.id === grievanceId) {
-        setSelectedGrievance(prev => prev ? { ...prev, status: newStatus as Grievance['status'] } : null);
-      }
+      await updateDoc(doc(db, 'coachFeedback', grievanceId), {
+        status: newStatus === 'under_review' ? 'reviewed' : newStatus,
+        reviewedAt: serverTimestamp(),
+        reviewedBy: userData?.name || 'Commissioner',
+      });
     } catch (error) {
       console.error('Error updating grievance:', error);
+      toastError('Could not update status');
     } finally {
       setActionLoading(false);
     }
@@ -147,16 +285,33 @@ export const CommissionerGrievances: React.FC = () => {
     setActionLoading(true);
     
     try {
-      await resolveGrievance(selectedGrievance.id!, userData.uid, resolution);
-      
-      setGrievances(prev => prev.map(g => 
-        g.id === selectedGrievance.id ? { ...g, status: 'resolved', resolution } : g
-      ));
-      
-      setSelectedGrievance(prev => prev ? { ...prev, status: 'resolved', resolution } : null);
+      await updateDoc(doc(db, 'coachFeedback', selectedGrievance.id!), {
+        status: 'resolved',
+        resolution: resolution.trim(),
+        resolvedAt: serverTimestamp(),
+        resolvedBy: userData?.name || 'Commissioner',
+      });
+
+      const chatId = (selectedGrievance as any)?.chatId;
+      if (chatId) {
+        await addDoc(collection(db, 'grievance_chats', chatId, 'messages'), {
+          text: `\u2705 This grievance has been resolved by ${userData?.name || 'the commissioner'}.\n\n${resolution.trim()}`,
+          senderId: GRIEVANCE_SYSTEM_ID,
+          timestamp: serverTimestamp(),
+          isSystemMessage: true,
+        });
+        await updateDoc(doc(db, 'grievance_chats', chatId), {
+          lastMessage: '\u2705 Grievance resolved',
+          updatedAt: serverTimestamp(),
+          lastSenderId: GRIEVANCE_SYSTEM_ID,
+        });
+      }
+
       setResolution('');
+      toastSuccess('Grievance resolved');
     } catch (error) {
       console.error('Error resolving grievance:', error);
+      toastError('Could not resolve grievance');
     } finally {
       setActionLoading(false);
     }
@@ -367,6 +522,77 @@ export const CommissionerGrievances: React.FC = () => {
                     </div>
                   </div>
                 )}
+
+                {/* Coach inclusion + conversation */}
+                <div className={`rounded-lg p-3 ${theme === 'dark' ? 'bg-gray-700/50' : 'bg-slate-100'}`}>
+                  <p className={`text-xs mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-slate-500'}`}>
+                    About Coach {(selectedGrievance as any).coachName || ''}
+                  </p>
+                  {(selectedGrievance as any).coachIncluded ? (
+                    <p className="text-sm text-green-400 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4" /> Coach is in this conversation
+                    </p>
+                  ) : (
+                    <>
+                      <p className={`text-xs mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-slate-500'}`}>
+                        The coach cannot see this grievance yet. Adding them makes it a three-way
+                        conversation with the parent — this cannot be undone.
+                      </p>
+                      <button
+                        onClick={handleAddCoach}
+                        disabled={addingCoach}
+                        className="w-full py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
+                      >
+                        {addingCoach ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
+                        Add coach to conversation
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {/* Conversation */}
+                <div>
+                  <p className={`text-xs mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-slate-500'}`}>Conversation</p>
+                  <div className={`rounded-lg p-3 space-y-3 max-h-64 overflow-y-auto ${
+                    theme === 'dark' ? 'bg-gray-900/50' : 'bg-slate-50'
+                  }`}>
+                    {chatMessages.length === 0 ? (
+                      <p className={`text-sm italic ${theme === 'dark' ? 'text-gray-500' : 'text-slate-400'}`}>
+                        No messages yet.
+                      </p>
+                    ) : chatMessages.map(msg => (
+                      <div key={msg.id} className={`text-sm ${
+                        msg.senderId === GRIEVANCE_SYSTEM_ID ? 'text-purple-300' : theme === 'dark' ? 'text-gray-200' : 'text-slate-700'
+                      }`}>
+                        <span className="block text-xs opacity-60 mb-0.5">
+                          {msg.senderId === GRIEVANCE_SYSTEM_ID ? ((msg as any).adminName || 'Administration') : 'Parent'}
+                        </span>
+                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <input
+                      type="text"
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
+                      placeholder="Reply…"
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm border focus:ring-2 focus:ring-purple-500 outline-none ${
+                        theme === 'dark'
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                          : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                      }`}
+                    />
+                    <button
+                      onClick={handleSendMessage}
+                      disabled={sendingMessage || !newMessage.trim()}
+                      className="px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg"
+                    >
+                      {sendingMessage ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
 
                 {/* Resolution (if resolved) */}
                 {selectedGrievance.status === 'resolved' && selectedGrievance.resolution && (

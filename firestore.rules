@@ -1872,10 +1872,18 @@ service cloud.firestore {
     
     // Coach Feedback - Private, only admin can view
     match /coachFeedback/{feedbackId} {
-      allow read: if isAdmin() || 
-                    (isAuthenticated() && resource.data.coachId == request.auth.uid);
+      // Admin, the coach it's about, the parent who filed it, or the commissioner
+      // who runs the program the team belongs to.
+      allow read: if isAdmin() ||
+                    (isAuthenticated() && resource.data.coachId == request.auth.uid) ||
+                    (isAuthenticated() && resource.data.parentId == request.auth.uid) ||
+                    (isAuthenticated() && resource.data.programId != null &&
+                     getUserData().programId == resource.data.programId);
       allow create: if isAuthenticated();
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin() ||
+                      (isAuthenticated() && resource.data.programId != null &&
+                       getUserData().programId == resource.data.programId);
+      allow delete: if isAdmin();
     }
     
     // =============================================================================
@@ -2012,9 +2020,11 @@ service cloud.firestore {
     }
     
     match /grievance_chats/{chatId} {
-      // Parent can read their own chats, commissioners and admin can read all
+      // Parent can read their own chats, commissioners and admin can read all.
+      // The coach can only read once a commissioner has explicitly added them.
       allow read: if isAuthenticated() && (
         resource.data.parentId == request.auth.uid ||
+        (resource.data.coachIncluded == true && resource.data.coachId == request.auth.uid) ||
         isCommissioner() ||
         isAdmin()
       );
@@ -2025,6 +2035,7 @@ service cloud.firestore {
       // Participants can update (add messages, update status)
       allow update: if isAuthenticated() && (
         resource.data.parentId == request.auth.uid ||
+        (resource.data.coachIncluded == true && resource.data.coachId == request.auth.uid) ||
         isCommissioner() ||
         isAdmin()
       );

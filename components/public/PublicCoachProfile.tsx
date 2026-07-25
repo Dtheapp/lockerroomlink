@@ -374,8 +374,11 @@ const PublicCoachProfile: React.FC = () => {
         grievanceNumber: nextGrievanceNumber,
         coachId: data.coach.uid,
         coachName: data.coach.name,
+        // The coach cannot see this thread until a commissioner adds them.
+        coachIncluded: false,
         teamId: selectedTeamId,
         teamName: teamMatch?.name || 'Unknown Team',
+        programId: (teamMatch as any)?.programId || null,
         category: feedbackCategory,
         lastMessage: '📋 Grievance Filed',
         lastSenderId: 'grievance-system',
@@ -413,10 +416,13 @@ You will receive updates in this chat as your grievance is reviewed.
         chatId: grievanceChatRef.id, // Link to the dedicated grievance chat
         coachId: data.coach.uid,
         coachName: data.coach.name,
+        coachIncluded: false,
         parentId: user.uid,
         parentName: userData.name,
         teamId: selectedTeamId,
         teamName: teamMatch?.name || 'Unknown Team',
+        // Routes the grievance to the program commissioner's inbox.
+        programId: (teamMatch as any)?.programId || null,
         category: feedbackCategory,
         message: feedbackMessage.trim(),
         status: 'new',
@@ -891,7 +897,7 @@ You will receive updates in this chat as your grievance is reviewed.
             <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-3 mb-4">
               <p className="text-sky-300 text-sm flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                This grievance is private and will only be seen by organization administrators. It will not be shown to the coach.
+                This grievance goes to your program's commissioner and OSYS administrators. The coach will not see it unless the commissioner decides to bring them into the conversation.
               </p>
             </div>
 
