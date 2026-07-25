@@ -1,4 +1,4 @@
-const CACHE_NAME = 'osys-v5';
+const CACHE_NAME = 'osys-v6';
 const OFFLINE_URL = '/offline.html';
 
 // Only list assets that actually exist. cache.addAll() rejects as a unit, so a
@@ -6,7 +6,9 @@ const OFFLINE_URL = '/offline.html';
 const OFFLINE_ASSETS = [
   '/offline.html',
   '/manifest.json',
-  '/icons/icon.svg'
+  '/icons/icon.svg',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png'
 ];
 
 // ---------------------------------------------------------------------------
@@ -43,8 +45,8 @@ try {
 
     self.registration.showNotification(title, {
       body: notification.body || data.message || '',
-      icon: '/icons/icon.svg',
-      badge: '/icons/icon.svg',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
       tag: data.tag || undefined,
       data: { link: data.link || '/' }
     });
