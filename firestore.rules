@@ -2000,6 +2000,17 @@ service cloud.firestore {
     // =============================================================================
     // GRIEVANCE CHATS - Parent-Admin communication for grievances
     // =============================================================================
+    // Grievance numbering counter - a single {lastNumber} doc that any signed-in
+    // user must atomically increment when filing a grievance. Without this rule the
+    // runTransaction read is denied (403 on batchGet) and submission fails silently.
+    match /grievance_meta/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated()
+                            && request.resource.data.keys().hasOnly(['lastNumber'])
+                            && request.resource.data.lastNumber is int;
+      allow delete: if isAdmin();
+    }
+    
     match /grievance_chats/{chatId} {
       // Parent can read their own chats, commissioners and admin can read all
       allow read: if isAuthenticated() && (

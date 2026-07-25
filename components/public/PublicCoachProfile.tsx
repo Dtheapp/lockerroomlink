@@ -3,6 +3,7 @@ import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { doc, getDoc, collection, getDocs, query, where, addDoc, serverTimestamp, updateDoc, setDoc, runTransaction, deleteDoc, increment, arrayUnion, arrayRemove, Timestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
+import { toastError } from '../../services/toast';
 import type { UserProfile, Team, CoachKudos, CoachFeedback, CoachFollower } from '../../types';
 import { User, Crown, Users, Mail, Trophy, Calendar, MapPin, Home, X, Award, Shield, ThumbsUp, Heart, MessageSquare, Send, CheckCircle, AlertTriangle, Sword, Zap, UserPlus, UserMinus, Loader2 } from 'lucide-react';
 import CoachPublicChat from './CoachPublicChat';
@@ -360,10 +361,10 @@ const PublicCoachProfile: React.FC = () => {
           }
         });
       } catch (err) {
-        console.error('Transaction failed, using fallback:', err);
-        // Fallback: just count existing grievances
-        const grievancesSnapshot = await getDocs(collection(db, 'coachFeedback'));
-        nextGrievanceNumber = grievancesSnapshot.size + 1;
+        console.error('Grievance counter unavailable, using timestamp fallback:', err);
+        // Do NOT query coachFeedback here - parents are not allowed to list that
+        // collection, so it throws and aborts the whole submission.
+        nextGrievanceNumber = Math.floor(Date.now() / 1000) % 1000000;
       }
       
       // Create a dedicated grievance chat in grievance_chats collection
@@ -429,8 +430,13 @@ You will receive updates in this chat as your grievance is reviewed.
       setSelectedTeamId('');
       
       setTimeout(() => setSubmitSuccess(null), 3000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error submitting feedback:', err);
+      toastError(
+        err?.code === 'permission-denied'
+          ? 'You do not have permission to file a grievance for this team.'
+          : 'Could not submit your grievance. Please try again.'
+      );
     } finally {
       setSubmitting(false);
     }
