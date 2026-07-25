@@ -95,13 +95,17 @@ export const getPushBlocker = (): string | null => {
   return null;
 };
 
-// Register (or reuse) the dedicated FCM service worker.
+// Register (or reuse) the app service worker. /sw.js now handles push itself —
+// registering a second worker here would fight it for scope "/" (a scope holds
+// only one registration), and push events would land in whichever one won.
 const getMessagingServiceWorker = async (): Promise<ServiceWorkerRegistration | undefined> => {
   if (!('serviceWorker' in navigator)) return undefined;
   try {
-    return await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    const registration = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+    return registration;
   } catch (error) {
-    console.warn('[FCM] Failed to register messaging SW:', error);
+    console.warn('[FCM] Failed to register service worker:', error);
     return undefined;
   }
 };

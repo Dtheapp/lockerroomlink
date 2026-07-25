@@ -241,7 +241,7 @@ async function sendToToken(
   projectId: string,
   accessToken: string,
   token: string,
-  payload: { title: string; message: string; link: string; tag?: string; icon: string }
+  payload: { title: string; message: string; link: string; tag?: string }
 ): Promise<SendResult> {
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
     method: 'POST',
@@ -252,7 +252,10 @@ async function sendToToken(
     body: JSON.stringify({
       message: {
         token,
-        notification: { title: payload.title, body: payload.message },
+        // Data-only on purpose. If a `notification` block is present the browser
+        // may display it itself AND skip onBackgroundMessage, which makes the
+        // result differ per browser/SDK version. Data-only guarantees our
+        // service worker gets the message and renders exactly one notification.
         // FCM v1 requires every data value to be a string.
         data: {
           title: payload.title,
@@ -261,10 +264,7 @@ async function sendToToken(
           ...(payload.tag ? { tag: payload.tag } : {}),
         },
         webpush: {
-          // fcm_options.link MUST be an absolute https URL or FCM rejects the
-          // entire message with INVALID_ARGUMENT.
-          fcm_options: { link: payload.link },
-          notification: { icon: payload.icon, badge: payload.icon },
+          headers: { Urgency: 'high', TTL: '86400' },
         },
       },
     }),
@@ -378,7 +378,6 @@ const handler: Handler = async (event) => {
           message: message || '',
           link: absoluteLink,
           tag,
-          icon: `${siteUrl}/icons/icon-192.png`,
         })
       )
     );
